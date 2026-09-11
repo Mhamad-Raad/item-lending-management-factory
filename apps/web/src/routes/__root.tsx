@@ -1,6 +1,7 @@
 import type { QueryClient } from '@tanstack/react-query';
-import { Link, Outlet, createRootRouteWithContext } from '@tanstack/react-router';
+import { Outlet, createRootRouteWithContext } from '@tanstack/react-router';
 import { useTranslation } from 'react-i18next';
+import { Centered } from '@/components/app/centered';
 
 export interface RouterContext {
   queryClient: QueryClient;
@@ -8,17 +9,16 @@ export interface RouterContext {
 
 export const Route = createRootRouteWithContext<RouterContext>()({
   component: Outlet,
-  notFoundComponent: NotFound,
+  notFoundComponent: NotFoundPage,
 });
 
-function NotFound() {
+function NotFoundPage() {
   const { t } = useTranslation();
   return (
-    <main className="mx-auto flex min-h-dvh max-w-md flex-col items-center justify-center gap-4 p-6 text-center">
-      <h1 className="text-2xl font-semibold">{t('common.notFound.title')}</h1>
-      <Link to="/" className="text-primary underline-offset-4 hover:underline">
-        {t('common.notFound.backHome')}
-      </Link>
-    </main>
+    <Centered
+      title={t('common.notFound.title')}
+      body={t('common.notFound.body')}
+      action={t('common.notFound.backHome')}
+    />
   );
 }

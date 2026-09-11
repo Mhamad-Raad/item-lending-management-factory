@@ -2,12 +2,87 @@
   "common": {
     "appName": "Pallet System",
     "currency": "IQD",
+    "search": "Search",
     "notFound": {
       "title": "Page not found",
-      "backHome": "Back to home"
+      "body": "The page you asked for does not exist.",
+      "backHome": "Go to dashboard"
+    },
+    "forbidden": {
+      "title": "You do not have permission to open this page",
+      "body": "Ask an administrator for access."
+    },
+    "actions": {
+      "save": "Save",
+      "cancel": "Cancel",
+      "close": "Close",
+      "retry": "Retry"
+    },
+    "password": {
+      "show": "Show password",
+      "hide": "Hide password"
+    },
+    "pagination": {
+      "page": "Page {{page}} of {{lastPage}}",
+      "previous": "Previous",
+      "next": "Next",
+      "total": "{{total}} records"
+    },
+    "versionConflict": {
+      "title": "This record changed",
+      "body": "Someone else saved changes while you were editing. Reload to see the latest version, or keep editing and save again.",
+      "reload": "Reload",
+      "keepEditing": "Keep editing"
     }
   },
+  "nav": {
+    "primary": "Main navigation",
+    "dashboard": "Dashboard",
+    "history": "History",
+    "users": "Users",
+    "account": "My account",
+    "logout": "Log out"
+  },
+  "auth": {
+    "login": {
+      "title": "Sign in",
+      "username": "Username",
+      "password": "Password",
+      "submit": "Sign in",
+      "forgotHint": "Forgot your password? Ask an administrator to reset it."
+    },
+    "changePassword": {
+      "title": "Change password",
+      "description": "Choose a new password for your account.",
+      "current": "Current password",
+      "new": "New password",
+      "confirm": "Confirm new password",
+      "submit": "Change password",
+      "ruleLength": "At least {{count}} characters",
+      "ruleCommon": "Not a common password"
+    },
+    "loginFailure": {
+      "INVALID": "Wrong password",
+      "LOCKED": "Account temporarily locked",
+      "INACTIVE": "Account deactivated"
+    }
+  },
+  "dashboard": {
+    "title": "Dashboard",
+    "welcome": "Welcome, {{name}}",
+    "pending": "Summary cards and recent activity appear here once orders and returns are available."
+  },
   "account": {
+    "title": "My account",
+    "password": {
+      "changed": "Password changed"
+    },
+    "profile": {
+      "title": "Profile",
+      "username": "Username",
+      "displayName": "Display name",
+      "role": "Role"
+    },
     "preferences": {
       "title": "Preferences",
       "language": "Language",
@@ -23,15 +98,301 @@
         "lg": "Large",
         "xl": "Extra large"
       }
+    },
+    "security": {
+      "title": "Security",
+      "logoutAll": "Log out everywhere",
+      "logoutAllHint": "Ends every session, including this one.",
+      "logoutAllConfirm": "You will have to sign in again on every device."
     }
   },
-  "home": {
-    "title": "Welcome",
-    "baselineNotice": "This is the project baseline. Features are added in the next milestones."
+  "users": {
+    "list": {
+      "title": "Users",
+      "new": "New user",
+      "empty": "No users match this search"
+    },
+    "new": {
+      "title": "New user",
+      "profile": "Profile",
+      "usernameHint": "Lower-case letters, digits, dot, dash or underscore; 3 to 32 characters.",
+      "initialPassword": "Initial password",
+      "generate": "Generate",
+      "submit": "Create user",
+      "created": "User created"
+    },
+    "detail": {
+      "title": "User",
+      "profile": "Profile",
+      "saved": "Changes saved",
+      "deactivate": "Deactivate",
+      "deactivateTitle": "Deactivate this user?",
+      "deactivateConfirm": "{{name}} will be signed out everywhere and will not be able to sign in again.",
+      "deactivateHint": "An inactive user cannot sign in.",
+      "selfDeactivateHint": "You cannot deactivate your own account.",
+      "activeSessions": "{{count}} active sessions"
+    },
+    "fields": {
+      "username": "Username",
+      "displayName": "Display name",
+      "role": "Role",
+      "status": "Status",
+      "lastLogin": "Last sign-in"
+    },
+    "status": {
+      "active": "Active",
+      "inactive": "Inactive"
+    },
+    "permissions": {
+      "title": "Permissions",
+      "save": "Save permissions",
+      "saved": "Permissions saved",
+      "adminImplicit": "An administrator holds every permission.",
+      "adminOnlyRow": "Administrator only"
+    },
+    "security": {
+      "title": "Security",
+      "newPassword": "New password",
+      "resetPassword": "Reset password",
+      "passwordReset": "Password reset; the user must choose a new one at their next sign-in.",
+      "logoutAll": "Log out everywhere",
+      "logoutAllConfirm": "Every session of {{name}} will end.",
+      "loggedOut": "Sessions ended"
+    }
   },
-  "status": {
-    "checking": "Checking…",
-    "serverOnline": "Server is running",
-    "serverOffline": "Server is unavailable"
+  "history": {
+    "title": "History",
+    "description": "Every action recorded by the system, newest first.",
+    "empty": "Nothing recorded yet",
+    "filters": {
+      "action": "Action",
+      "entityType": "Record type",
+      "allActions": "All actions",
+      "allEntities": "All record types"
+    },
+    "columns": {
+      "time": "Time",
+      "user": "User",
+      "summary": "What happened",
+      "ip": "Address"
+    },
+    "diff": {
+      "field": "Field",
+      "before": "Before",
+      "after": "After"
+    }
+  },
+  "enums": {
+    "role": {
+      "ADMIN": "Administrator",
+      "EMPLOYEE": "Employee"
+    },
+    "auditAction": {
+      "CREATE": "Created",
+      "UPDATE": "Updated",
+      "DELETE": "Deleted",
+      "CANCEL": "Cancelled",
+      "STOCK_ADJUST": "Stock adjusted",
+      "PAYMENT_CREATE": "Payment recorded",
+      "PAYMENT_REVERSE": "Payment reversed",
+      "RETURN_CREATE": "Return recorded",
+      "RETURN_EDIT": "Return replaced",
+      "RETURN_DELETE": "Return deleted",
+      "REFUND_CREATE": "Refund paid",
+      "REFUND_REVERSE": "Refund reversed",
+      "CREDIT_OVERRIDE": "Credit limit overridden",
+      "LOGIN_SUCCESS": "Signed in",
+      "LOGIN_FAILURE": "Sign-in failed",
+      "LOCKOUT": "Account locked",
+      "LOGOUT": "Signed out",
+      "LOGOUT_ALL": "Signed out everywhere",
+      "SESSION_REUSE_DETECTED": "Session reuse detected",
+      "PASSWORD_CHANGE": "Password changed",
+      "PASSWORD_RESET": "Password reset",
+      "PERMISSION_CHANGE": "Permissions changed",
+      "SETTINGS_CHANGE": "Settings changed",
+      "USER_DEACTIVATE": "User deactivated",
+      "USER_ACTIVATE": "User activated",
+      "UPLOAD_CREATE": "Image uploaded"
+    },
+    "auditEntityType": {
+      "USER": "User",
+      "SESSION": "Session",
+      "ITEM": "Item",
+      "PURCHASE_BATCH": "Purchase batch",
+      "CUSTOMER": "Customer",
+      "DRIVER": "Driver",
+      "ORDER": "Order",
+      "RETURN": "Return",
+      "LEDGER_ENTRY": "Money entry",
+      "SETTINGS": "Settings",
+      "UPLOAD": "Image"
+    }
+  },
+  "audit": {
+    "summary": {
+      "USER": {
+        "CREATE": "Created user {{username}} as {{role}}",
+        "UPDATE": "Updated {{username}}",
+        "USER_DEACTIVATE": "Deactivated {{username}}",
+        "USER_ACTIVATE": "Activated {{username}}",
+        "PERMISSION_CHANGE": "Changed permissions of {{username}}: {{added}} added, {{removed}} removed",
+        "PASSWORD_RESET": "Reset the password of {{username}}",
+        "PASSWORD_CHANGE": "{{username}} changed their password",
+        "LOGOUT_ALL": "Ended {{families}} sessions of {{username}}",
+        "LOGIN_SUCCESS": "{{username}} signed in",
+        "LOGIN_FAILURE": "Failed sign-in for {{usernameAttempt}} ({{reason}})",
+        "LOCKOUT": "Locked {{usernameAttempt}} for {{lockedMinutes}} minutes"
+      },
+      "SESSION": {
+        "LOGIN_SUCCESS": "{{username}} signed in",
+        "LOGOUT": "{{username}} signed out",
+        "SESSION_REUSE_DETECTED": "A used sign-in token of {{username}} was presented again"
+      }
+    }
+  },
+  "permissions": {
+    "modules": {
+      "items": "Items",
+      "purchases": "Purchases",
+      "customers": "Customers",
+      "drivers": "Drivers",
+      "orders": "Orders",
+      "returns": "Returns",
+      "payments": "Payments",
+      "reports": "Reports",
+      "audit": "History"
+    },
+    "items_view": "View items",
+    "items_create": "Add items",
+    "items_edit": "Edit items",
+    "items_delete": "Archive items",
+    "items_viewCost": "See cost prices",
+    "items_adjustStock": "Adjust stock",
+    "purchases_view": "View purchase batches",
+    "purchases_create": "Add purchase batches",
+    "purchases_edit": "Edit purchase batches",
+    "purchases_delete": "Delete purchase batches",
+    "customers_view": "View customers",
+    "customers_create": "Add customers",
+    "customers_edit": "Edit customers",
+    "customers_delete": "Archive customers",
+    "drivers_view": "View drivers",
+    "drivers_create": "Add drivers",
+    "drivers_edit": "Edit drivers",
+    "drivers_delete": "Archive drivers",
+    "orders_view": "View orders",
+    "orders_create": "Create orders",
+    "orders_edit": "Edit orders",
+    "orders_cancel": "Cancel orders",
+    "orders_editUnitDeposit": "Change the deposit per pallet",
+    "returns_create": "Record returns",
+    "returns_edit": "Correct returns",
+    "returns_delete": "Delete returns",
+    "payments_create": "Record payments",
+    "payments_delete": "Reverse payments",
+    "reports_viewPositions": "Pallets and money report",
+    "reports_viewPurchases": "Purchases report",
+    "reports_viewActivity": "Activity report",
+    "reports_viewStock": "Stock report",
+    "audit_view": "View history",
+    "users_manage": "Manage users",
+    "settings_edit": "Edit factory settings",
+    "orders_overrideCreditLimit": "Override the credit limit"
+  },
+  "validation": {
+    "required": "This field is required",
+    "invalid_type": "This value is not valid",
+    "too_small": "Must be at least {{minimum}}",
+    "too_big": "Must be at most {{maximum}}",
+    "too_short": "Must be at least {{minimum}} characters",
+    "too_long": "Must be at most {{maximum}} characters",
+    "invalid_format": "This format is not accepted",
+    "invalid_date": "This date does not exist",
+    "invalid_enum": "Choose one of the available options",
+    "not_integer": "Must be a whole number",
+    "unknown_key": "This field is not expected here",
+    "duplicate": "This value is repeated",
+    "passwordMismatch": "The two passwords do not match"
+  },
+  "errors": {
+    "VALIDATION_FAILED": "Please check the highlighted fields",
+    "CSRF_HEADER_MISSING": "The request was blocked for security reasons. Reload the page.",
+    "NOT_FOUND": "Not found",
+    "ROUTE_NOT_FOUND": "Not found",
+    "VERSION_CONFLICT": "Someone else changed this record. Reload to see the latest version.",
+    "PAYLOAD_TOO_LARGE": "The data sent is too large",
+    "RATE_LIMITED": "Too many attempts. Try again in {{retryAfterSeconds}} seconds.",
+    "INTERNAL_ERROR": "Something went wrong on the server",
+    "SERVICE_UNAVAILABLE": "The service is unavailable",
+    "BUSINESS_DATE_IN_FUTURE": "The date cannot be in the future",
+    "DATE_RANGE_INVALID": "The start date is after the end date",
+    "AUTH_REQUIRED": "Please sign in",
+    "AUTH_TOKEN_EXPIRED": "Your session expired. Please sign in again.",
+    "AUTH_TOKEN_INVALID": "Your session is no longer valid. Please sign in again.",
+    "AUTH_INVALID_CREDENTIALS": "The username or password is incorrect",
+    "AUTH_REFRESH_INVALID": "Your session ended. Please sign in again.",
+    "PASSWORD_CHANGE_REQUIRED": "You must change your password first",
+    "CURRENT_PASSWORD_INCORRECT": "The current password is incorrect",
+    "PASSWORD_TOO_SHORT": "The password is too short",
+    "PASSWORD_TOO_LONG": "The password is too long",
+    "PASSWORD_TOO_COMMON": "This password is too easy to guess",
+    "PASSWORD_SAME_AS_CURRENT": "The new password is the same as the current one",
+    "PERMISSION_DENIED": "You do not have permission for this",
+    "ADMIN_ONLY": "Only an administrator can do this",
+    "USER_NOT_FOUND": "User not found",
+    "USERNAME_TAKEN": "This username is already taken",
+    "SELF_DEACTIVATE_FORBIDDEN": "You cannot deactivate your own account",
+    "SELF_DEMOTE_FORBIDDEN": "You cannot remove your own administrator role",
+    "LAST_ADMIN_GUARD": "There must always be one active administrator",
+    "PERMISSION_KEY_UNKNOWN": "An unknown permission was requested",
+    "PERMISSION_NOT_GRANTABLE": "This permission cannot be granted to an employee",
+    "PERMISSION_DEPENDENCY_MISSING": "Another permission is needed first",
+    "PERMISSIONS_ADMIN_IMPLICIT": "An administrator already holds every permission",
+    "UPLOAD_MISSING_FILE": "No file was chosen",
+    "UPLOAD_TYPE_NOT_ALLOWED": "This file type is not allowed",
+    "UPLOAD_TOO_LARGE": "The image is too large",
+    "UPLOAD_INVALID_IMAGE": "The file is not a valid image",
+    "UPLOAD_NOT_FOUND": "The image was not found",
+    "UPLOAD_KIND_MISMATCH": "The image does not belong here",
+    "ITEM_NOT_FOUND": "Item not found",
+    "ITEM_ARCHIVED": "This item is archived",
+    "ITEM_ALREADY_ARCHIVED": "This item is already archived",
+    "STOCK_INSUFFICIENT": "There is not enough stock",
+    "BATCH_NOT_FOUND": "Purchase batch not found",
+    "CUSTOMER_NOT_FOUND": "Customer not found",
+    "CUSTOMER_ARCHIVED": "This customer is archived",
+    "CUSTOMER_ALREADY_ARCHIVED": "This customer is already archived",
+    "CUSTOMER_PHONE_DUPLICATE": "Another customer already has this phone number",
+    "CUSTOMER_HAS_OPEN_ORDERS": "This customer still has open orders",
+    "DRIVER_NOT_FOUND": "Driver not found",
+    "DRIVER_ARCHIVED": "This driver is archived",
+    "DRIVER_ALREADY_ARCHIVED": "This driver is already archived",
+    "ORDER_NOT_FOUND": "Order not found",
+    "ORDER_CANCELLED": "This order is cancelled",
+    "ORDER_DUPLICATE_ITEM": "The same item appears twice",
+    "ORDER_HAS_ACTIVITY": "This order already has returns or payments",
+    "ORDER_DATE_AFTER_ACTIVITY": "The date is after a return or payment on this order",
+    "CREDIT_LIMIT_EXCEEDED": "This exceeds the credit limit by {{excess}}",
+    "UNIT_DEPOSIT_NOT_PERMITTED": "You may not change the deposit per pallet",
+    "RETURN_NOT_FOUND": "Return not found",
+    "RETURN_EMPTY": "Enter at least one pallet",
+    "RETURN_LINE_NOT_IN_ORDER": "This item is not on the order",
+    "RETURN_DUPLICATE_LINE": "The same item appears twice",
+    "RETURN_EXCEEDS_OUT": "More pallets than are still out",
+    "DAMAGED_REFUND_TOO_HIGH": "The damaged refund is higher than the deposit",
+    "RETURN_ALREADY_REVERSED": "This return was already reversed",
+    "RETURN_DATE_BEFORE_ORDER_DATE": "The return is dated before the order",
+    "PAYMENT_ORDER_NOT_LENT": "This order was paid in cash",
+    "PAYMENT_EXCEEDS_OWED": "More than the amount owed",
+    "PAYMENT_DATE_BEFORE_ORDER_DATE": "The payment is dated before the order",
+    "LEDGER_ENTRY_NOT_FOUND": "Money entry not found",
+    "LEDGER_ENTRY_NOT_REVERSIBLE": "This entry cannot be reversed",
+    "LEDGER_ENTRY_ALREADY_REVERSED": "This entry was already reversed",
+    "IDEMPOTENCY_KEY_REQUIRED": "The request is missing its safety key",
+    "IDEMPOTENCY_KEY_INVALID": "The safety key of the request is not valid",
+    "IDEMPOTENCY_KEY_REUSED": "This key was used for a different request",
+    "NETWORK_ERROR": "No connection to the server",
+    "UNKNOWN_ERROR": "Something went wrong"
   }
 }

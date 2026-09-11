@@ -2,12 +2,87 @@
   "common": {
     "appName": "سیستەمی پالێت",
     "currency": "دینار",
+    "search": "گەڕان",
     "notFound": {
-      "title": "ئەم پەڕەیە نەدۆزرایەوە",
-      "backHome": "گەڕانەوە بۆ سەرەتا"
+      "title": "لاپەڕە نەدۆزرایەوە",
+      "body": "ئەو لاپەڕەیەی داوات کرد بوونی نییە.",
+      "backHome": "بڕۆ بۆ داشبۆرد"
+    },
+    "forbidden": {
+      "title": "مۆڵەتت نییە ئەم لاپەڕەیە بکەیتەوە",
+      "body": "داوای دەستپێگەیشتن لە بەڕێوەبەر بکە."
+    },
+    "actions": {
+      "save": "پاشەکەوت",
+      "cancel": "هەڵوەشاندنەوە",
+      "close": "داخستن",
+      "retry": "دووبارە هەوڵ بدە"
+    },
+    "password": {
+      "show": "پیشاندانی وشەی تێپەڕ",
+      "hide": "شاردنەوەی وشەی تێپەڕ"
+    },
+    "pagination": {
+      "page": "لاپەڕەی {{page}} لە {{lastPage}}",
+      "previous": "پێشوو",
+      "next": "دواتر",
+      "total": "{{total}} تۆمار"
+    },
+    "versionConflict": {
+      "title": "ئەم تۆمارە گۆڕاوە",
+      "body": "کەسێکی تر گۆڕانکاری پاشەکەوت کرد لە کاتی دەستکاریکردنی تۆدا. نوێی بکەرەوە بۆ بینینی دوایین وەشان، یان بەردەوام بە و دووبارە پاشەکەوتی بکە.",
+      "reload": "نوێکردنەوە",
+      "keepEditing": "بەردەوامبوون لە دەستکاری"
     }
   },
+  "nav": {
+    "primary": "ڕێنیشاندەری سەرەکی",
+    "dashboard": "داشبۆرد",
+    "history": "مێژوو",
+    "users": "بەکارهێنەران",
+    "account": "هەژماری من",
+    "logout": "چوونەدەرەوە"
+  },
+  "auth": {
+    "login": {
+      "title": "چوونەژوورەوە",
+      "username": "ناوی بەکارهێنەر",
+      "password": "وشەی تێپەڕ",
+      "submit": "چوونەژوورەوە",
+      "forgotHint": "وشەی تێپەڕت لەبیر چووە؟ داوا لە بەڕێوەبەر بکە بیگۆڕێتەوە."
+    },
+    "changePassword": {
+      "title": "گۆڕینی وشەی تێپەڕ",
+      "description": "وشەیەکی تێپەڕی نوێ بۆ هەژمارەکەت هەڵبژێرە.",
+      "current": "وشەی تێپەڕی ئێستا",
+      "new": "وشەی تێپەڕی نوێ",
+      "confirm": "دووبارەکردنەوەی وشەی تێپەڕی نوێ",
+      "submit": "گۆڕینی وشەی تێپەڕ",
+      "ruleLength": "لانیکەم {{count}} پیت",
+      "ruleCommon": "وشەیەکی تێپەڕی باو نەبێت"
+    },
+    "loginFailure": {
+      "INVALID": "وشەی تێپەڕی هەڵە",
+      "LOCKED": "هەژمار کاتی داخراوە",
+      "INACTIVE": "هەژمار ناچالاک کراوە"
+    }
+  },
+  "dashboard": {
+    "title": "داشبۆرد",
+    "welcome": "بەخێربێیت، {{name}}",
+    "pending": "کارتەکانی کورتە و چالاکی نوێ لێرە دەردەکەون کاتێک داواکاری و گەڕاندنەوە بەردەست بن."
+  },
   "account": {
+    "title": "هەژماری من",
+    "password": {
+      "changed": "وشەی تێپەڕ گۆڕا"
+    },
+    "profile": {
+      "title": "پرۆفایل",
+      "username": "ناوی بەکارهێنەر",
+      "displayName": "ناوی پیشاندان",
+      "role": "ڕۆڵ"
+    },
     "preferences": {
       "title": "ڕێکخستنەکان",
       "language": "زمان",
@@ -23,15 +98,301 @@
         "lg": "گەورە",
         "xl": "زۆر گەورە"
       }
+    },
+    "security": {
+      "title": "پاراستن",
+      "logoutAll": "چوونەدەرەوە لە هەموو ئامێرەکان",
+      "logoutAllHint": "هەموو دانیشتنەکان کۆتایی پێدەهێنێت، ئەمەش لەوانەیە.",
+      "logoutAllConfirm": "دەبێت لە هەموو ئامێرێک دووبارە بچیتەوە ژوورەوە."
     }
   },
-  "home": {
-    "title": "بەخێربێیت",
-    "baselineNotice": "ئەمە بنچینەی پڕۆژەکەیە. تایبەتمەندییەکان لە قۆناغەکانی داهاتوودا زیاد دەکرێن."
+  "users": {
+    "list": {
+      "title": "بەکارهێنەران",
+      "new": "بەکارهێنەری نوێ",
+      "empty": "هیچ بەکارهێنەرێک لەگەڵ ئەم گەڕانە نەگونجا"
+    },
+    "new": {
+      "title": "بەکارهێنەری نوێ",
+      "profile": "پرۆفایل",
+      "usernameHint": "پیتی بچووک، ژمارە، خاڵ، هێڵ یان ژێرهێڵ؛ لە ٣ بۆ ٣٢ پیت.",
+      "initialPassword": "وشەی تێپەڕی سەرەتایی",
+      "generate": "دروستکردن",
+      "submit": "دروستکردنی بەکارهێنەر",
+      "created": "بەکارهێنەر دروستکرا"
+    },
+    "detail": {
+      "title": "بەکارهێنەر",
+      "profile": "پرۆفایل",
+      "saved": "گۆڕانکارییەکان پاشەکەوت کران",
+      "deactivate": "ناچالاککردن",
+      "deactivateTitle": "ئەم بەکارهێنەرە ناچالاک بکرێت؟",
+      "deactivateConfirm": "{{name}} لە هەموو شوێنێک دەچێتە دەرەوە و ناتوانێت دووبارە بچێتە ژوورەوە.",
+      "deactivateHint": "بەکارهێنەری ناچالاک ناتوانێت بچێتە ژوورەوە.",
+      "selfDeactivateHint": "ناتوانیت هەژماری خۆت ناچالاک بکەیت.",
+      "activeSessions": "{{count}} دانیشتنی چالاک"
+    },
+    "fields": {
+      "username": "ناوی بەکارهێنەر",
+      "displayName": "ناوی پیشاندان",
+      "role": "ڕۆڵ",
+      "status": "دۆخ",
+      "lastLogin": "دواین چوونەژوورەوە"
+    },
+    "status": {
+      "active": "چالاک",
+      "inactive": "ناچالاک"
+    },
+    "permissions": {
+      "title": "مۆڵەتەکان",
+      "save": "پاشەکەوتی مۆڵەتەکان",
+      "saved": "مۆڵەتەکان پاشەکەوت کران",
+      "adminImplicit": "بەڕێوەبەر هەموو مۆڵەتەکانی هەیە.",
+      "adminOnlyRow": "تەنها بۆ بەڕێوەبەر"
+    },
+    "security": {
+      "title": "پاراستن",
+      "newPassword": "وشەی تێپەڕی نوێ",
+      "resetPassword": "ڕێکخستنەوەی وشەی تێپەڕ",
+      "passwordReset": "وشەی تێپەڕ ڕێکخرایەوە؛ بەکارهێنەر لە چوونەژوورەوەی داهاتوودا دەبێت نوێیەک هەڵبژێرێت.",
+      "logoutAll": "چوونەدەرەوە لە هەموو ئامێرەکان",
+      "logoutAllConfirm": "هەموو دانیشتنەکانی {{name}} کۆتایی دێت.",
+      "loggedOut": "دانیشتنەکان کۆتاییان هات"
+    }
   },
-  "status": {
-    "checking": "پشکنین…",
-    "serverOnline": "ڕاژەکار کار دەکات",
-    "serverOffline": "ڕاژەکار بەردەست نییە"
+  "history": {
+    "title": "مێژوو",
+    "description": "هەموو کردارێکی تۆمارکراوی سیستەم، نوێترین لە سەرەوە.",
+    "empty": "هێشتا هیچ تۆمار نەکراوە",
+    "filters": {
+      "action": "کردار",
+      "entityType": "جۆری تۆمار",
+      "allActions": "هەموو کردارەکان",
+      "allEntities": "هەموو جۆرەکانی تۆمار"
+    },
+    "columns": {
+      "time": "کات",
+      "user": "بەکارهێنەر",
+      "summary": "چی ڕوویدا",
+      "ip": "ناونیشان"
+    },
+    "diff": {
+      "field": "خانە",
+      "before": "پێش",
+      "after": "دوای"
+    }
+  },
+  "enums": {
+    "role": {
+      "ADMIN": "بەڕێوەبەر",
+      "EMPLOYEE": "کارمەند"
+    },
+    "auditAction": {
+      "CREATE": "دروستکرا",
+      "UPDATE": "نوێکرایەوە",
+      "DELETE": "سڕایەوە",
+      "CANCEL": "هەڵوەشێنرایەوە",
+      "STOCK_ADJUST": "کۆگا ڕێکخرا",
+      "PAYMENT_CREATE": "پارەدان تۆمارکرا",
+      "PAYMENT_REVERSE": "پارەدان گەڕێنرایەوە",
+      "RETURN_CREATE": "گەڕاندنەوە تۆمارکرا",
+      "RETURN_EDIT": "گەڕاندنەوە گۆڕدرا",
+      "RETURN_DELETE": "گەڕاندنەوە سڕایەوە",
+      "REFUND_CREATE": "پارە گەڕێنرایەوە",
+      "REFUND_REVERSE": "گەڕاندنەوەی پارە هەڵوەشێنرایەوە",
+      "CREDIT_OVERRIDE": "سنووری قەرز تێپەڕێنرا",
+      "LOGIN_SUCCESS": "چووە ژوورەوە",
+      "LOGIN_FAILURE": "چوونەژوورەوە سەرکەوتوو نەبوو",
+      "LOCKOUT": "هەژمار داخرا",
+      "LOGOUT": "چووە دەرەوە",
+      "LOGOUT_ALL": "لە هەموو ئامێرەکان چووە دەرەوە",
+      "SESSION_REUSE_DETECTED": "دووبارە بەکارهێنانی دانیشتن دۆزرایەوە",
+      "PASSWORD_CHANGE": "وشەی تێپەڕ گۆڕا",
+      "PASSWORD_RESET": "وشەی تێپەڕ ڕێکخرایەوە",
+      "PERMISSION_CHANGE": "مۆڵەتەکان گۆڕان",
+      "SETTINGS_CHANGE": "ڕێکخستنەکان گۆڕان",
+      "USER_DEACTIVATE": "بەکارهێنەر ناچالاک کرا",
+      "USER_ACTIVATE": "بەکارهێنەر چالاک کرا",
+      "UPLOAD_CREATE": "وێنە بارکرا"
+    },
+    "auditEntityType": {
+      "USER": "بەکارهێنەر",
+      "SESSION": "دانیشتن",
+      "ITEM": "کاڵا",
+      "PURCHASE_BATCH": "کڕینی کۆمەڵ",
+      "CUSTOMER": "کڕیار",
+      "DRIVER": "شۆفێر",
+      "ORDER": "داواکاری",
+      "RETURN": "گەڕاندنەوە",
+      "LEDGER_ENTRY": "تۆماری پارە",
+      "SETTINGS": "ڕێکخستنەکان",
+      "UPLOAD": "وێنە"
+    }
+  },
+  "audit": {
+    "summary": {
+      "USER": {
+        "CREATE": "بەکارهێنەری {{username}} وەک {{role}} دروستکرا",
+        "UPDATE": "{{username}} نوێکرایەوە",
+        "USER_DEACTIVATE": "{{username}} ناچالاک کرا",
+        "USER_ACTIVATE": "{{username}} چالاک کرا",
+        "PERMISSION_CHANGE": "مۆڵەتەکانی {{username}} گۆڕان: {{added}} زیادکرا، {{removed}} لابرا",
+        "PASSWORD_RESET": "وشەی تێپەڕی {{username}} ڕێکخرایەوە",
+        "PASSWORD_CHANGE": "{{username}} وشەی تێپەڕی خۆی گۆڕی",
+        "LOGOUT_ALL": "{{families}} دانیشتنی {{username}} کۆتایی پێهات",
+        "LOGIN_SUCCESS": "{{username}} چووە ژوورەوە",
+        "LOGIN_FAILURE": "چوونەژوورەوەی سەرنەکەوتوو بۆ {{usernameAttempt}} ({{reason}})",
+        "LOCKOUT": "{{usernameAttempt}} بۆ {{lockedMinutes}} خولەک داخرا"
+      },
+      "SESSION": {
+        "LOGIN_SUCCESS": "{{username}} چووە ژوورەوە",
+        "LOGOUT": "{{username}} چووە دەرەوە",
+        "SESSION_REUSE_DETECTED": "تۆکنێکی بەکارهاتووی {{username}} دووبارە پێشکەش کرا"
+      }
+    }
+  },
+  "permissions": {
+    "modules": {
+      "items": "کاڵاکان",
+      "purchases": "کڕینەکان",
+      "customers": "کڕیارەکان",
+      "drivers": "شۆفێرەکان",
+      "orders": "داواکارییەکان",
+      "returns": "گەڕاندنەوەکان",
+      "payments": "پارەدانەکان",
+      "reports": "ڕاپۆرتەکان",
+      "audit": "مێژوو"
+    },
+    "items_view": "بینینی کاڵاکان",
+    "items_create": "زیادکردنی کاڵا",
+    "items_edit": "دەستکاری کاڵا",
+    "items_delete": "ئەرشیفکردنی کاڵا",
+    "items_viewCost": "بینینی نرخی تێچوو",
+    "items_adjustStock": "ڕێکخستنی کۆگا",
+    "purchases_view": "بینینی کڕینەکان",
+    "purchases_create": "زیادکردنی کڕین",
+    "purchases_edit": "دەستکاری کڕین",
+    "purchases_delete": "سڕینەوەی کڕین",
+    "customers_view": "بینینی کڕیارەکان",
+    "customers_create": "زیادکردنی کڕیار",
+    "customers_edit": "دەستکاری کڕیار",
+    "customers_delete": "ئەرشیفکردنی کڕیار",
+    "drivers_view": "بینینی شۆفێرەکان",
+    "drivers_create": "زیادکردنی شۆفێر",
+    "drivers_edit": "دەستکاری شۆفێر",
+    "drivers_delete": "ئەرشیفکردنی شۆفێر",
+    "orders_view": "بینینی داواکارییەکان",
+    "orders_create": "دروستکردنی داواکاری",
+    "orders_edit": "دەستکاری داواکاری",
+    "orders_cancel": "هەڵوەشاندنەوەی داواکاری",
+    "orders_editUnitDeposit": "گۆڕینی بارمتەی هەر پالێتێک",
+    "returns_create": "تۆمارکردنی گەڕاندنەوە",
+    "returns_edit": "ڕاستکردنەوەی گەڕاندنەوە",
+    "returns_delete": "سڕینەوەی گەڕاندنەوە",
+    "payments_create": "تۆمارکردنی پارەدان",
+    "payments_delete": "گەڕاندنەوەی پارەدان",
+    "reports_viewPositions": "ڕاپۆرتی پالێت و پارە",
+    "reports_viewPurchases": "ڕاپۆرتی کڕینەکان",
+    "reports_viewActivity": "ڕاپۆرتی چالاکی",
+    "reports_viewStock": "ڕاپۆرتی کۆگا",
+    "audit_view": "بینینی مێژوو",
+    "users_manage": "بەڕێوەبردنی بەکارهێنەران",
+    "settings_edit": "دەستکاری ڕێکخستنی کارگە",
+    "orders_overrideCreditLimit": "تێپەڕاندنی سنووری قەرز"
+  },
+  "validation": {
+    "required": "ئەم خانەیە پێویستە",
+    "invalid_type": "ئەم نرخە دروست نییە",
+    "too_small": "دەبێت لانیکەم {{minimum}} بێت",
+    "too_big": "دەبێت زۆرترین {{maximum}} بێت",
+    "too_short": "دەبێت لانیکەم {{minimum}} پیت بێت",
+    "too_long": "دەبێت زۆرترین {{maximum}} پیت بێت",
+    "invalid_format": "ئەم شێوەیە قبوڵ ناکرێت",
+    "invalid_date": "ئەم بەروارە بوونی نییە",
+    "invalid_enum": "یەکێک لە هەڵبژاردە بەردەستەکان هەڵبژێرە",
+    "not_integer": "دەبێت ژمارەیەکی تەواو بێت",
+    "unknown_key": "ئەم خانەیە لێرە چاوەڕوان ناکرێت",
+    "duplicate": "ئەم نرخە دووبارە بووەتەوە",
+    "passwordMismatch": "هەردوو وشەی تێپەڕ وەک یەک نین"
+  },
+  "errors": {
+    "VALIDATION_FAILED": "تکایە خانە نیشانکراوەکان بپشکنە",
+    "CSRF_HEADER_MISSING": "داواکارییەکە لەبەر هۆکاری پاراستن ڕێگری لێکرا. لاپەڕەکە نوێ بکەرەوە.",
+    "NOT_FOUND": "نەدۆزرایەوە",
+    "ROUTE_NOT_FOUND": "نەدۆزرایەوە",
+    "VERSION_CONFLICT": "کەسێکی تر ئەم تۆمارەی گۆڕیوە. نوێی بکەرەوە بۆ بینینی دوایین وەشان.",
+    "PAYLOAD_TOO_LARGE": "داتای نێردراو زۆر گەورەیە",
+    "RATE_LIMITED": "هەوڵی زۆر. دوای {{retryAfterSeconds}} چرکە دووبارە هەوڵ بدە.",
+    "INTERNAL_ERROR": "شتێک لە ڕاژەکار هەڵەی تێدا بوو",
+    "SERVICE_UNAVAILABLE": "خزمەتگوزارییەکە بەردەست نییە",
+    "BUSINESS_DATE_IN_FUTURE": "بەروار ناتوانێت لە داهاتوودا بێت",
+    "DATE_RANGE_INVALID": "بەرواری دەستپێک دوای بەرواری کۆتاییە",
+    "AUTH_REQUIRED": "تکایە بچۆرە ژوورەوە",
+    "AUTH_TOKEN_EXPIRED": "دانیشتنەکەت بەسەرچوو. تکایە دووبارە بچۆرە ژوورەوە.",
+    "AUTH_TOKEN_INVALID": "دانیشتنەکەت چیتر دروست نییە. تکایە دووبارە بچۆرە ژوورەوە.",
+    "AUTH_INVALID_CREDENTIALS": "ناوی بەکارهێنەر یان وشەی تێپەڕ هەڵەیە",
+    "AUTH_REFRESH_INVALID": "دانیشتنەکەت کۆتایی هات. تکایە دووبارە بچۆرە ژوورەوە.",
+    "PASSWORD_CHANGE_REQUIRED": "سەرەتا دەبێت وشەی تێپەڕەکەت بگۆڕیت",
+    "CURRENT_PASSWORD_INCORRECT": "وشەی تێپەڕی ئێستا هەڵەیە",
+    "PASSWORD_TOO_SHORT": "وشەی تێپەڕ زۆر کورتە",
+    "PASSWORD_TOO_LONG": "وشەی تێپەڕ زۆر درێژە",
+    "PASSWORD_TOO_COMMON": "ئەم وشەی تێپەڕە زۆر ئاسانە بۆ مەزەندەکردن",
+    "PASSWORD_SAME_AS_CURRENT": "وشەی تێپەڕی نوێ وەک ئێستایەکەیە",
+    "PERMISSION_DENIED": "مۆڵەتت نییە بۆ ئەمە",
+    "ADMIN_ONLY": "تەنها بەڕێوەبەر دەتوانێت ئەمە بکات",
+    "USER_NOT_FOUND": "بەکارهێنەر نەدۆزرایەوە",
+    "USERNAME_TAKEN": "ئەم ناوی بەکارهێنەرە پێشتر وەرگیراوە",
+    "SELF_DEACTIVATE_FORBIDDEN": "ناتوانیت هەژماری خۆت ناچالاک بکەیت",
+    "SELF_DEMOTE_FORBIDDEN": "ناتوانیت ڕۆڵی بەڕێوەبەری خۆت لاببەیت",
+    "LAST_ADMIN_GUARD": "دەبێت هەمیشە یەک بەڕێوەبەری چالاک هەبێت",
+    "PERMISSION_KEY_UNKNOWN": "مۆڵەتێکی نەناسراو داواکرا",
+    "PERMISSION_NOT_GRANTABLE": "ئەم مۆڵەتە ناتوانرێت بدرێت بە کارمەند",
+    "PERMISSION_DEPENDENCY_MISSING": "سەرەتا مۆڵەتێکی تر پێویستە",
+    "PERMISSIONS_ADMIN_IMPLICIT": "بەڕێوەبەر پێشتر هەموو مۆڵەتەکانی هەیە",
+    "UPLOAD_MISSING_FILE": "هیچ فایلێک هەڵنەبژێردرا",
+    "UPLOAD_TYPE_NOT_ALLOWED": "ئەم جۆرە فایلە ڕێگەپێدراو نییە",
+    "UPLOAD_TOO_LARGE": "وێنەکە زۆر گەورەیە",
+    "UPLOAD_INVALID_IMAGE": "فایلەکە وێنەیەکی دروست نییە",
+    "UPLOAD_NOT_FOUND": "وێنەکە نەدۆزرایەوە",
+    "UPLOAD_KIND_MISMATCH": "وێنەکە لێرە جێی نییە",
+    "ITEM_NOT_FOUND": "کاڵا نەدۆزرایەوە",
+    "ITEM_ARCHIVED": "ئەم کاڵایە ئەرشیف کراوە",
+    "ITEM_ALREADY_ARCHIVED": "ئەم کاڵایە پێشتر ئەرشیف کراوە",
+    "STOCK_INSUFFICIENT": "کۆگا بەشی ناکات",
+    "BATCH_NOT_FOUND": "کڕینەکە نەدۆزرایەوە",
+    "CUSTOMER_NOT_FOUND": "کڕیار نەدۆزرایەوە",
+    "CUSTOMER_ARCHIVED": "ئەم کڕیارە ئەرشیف کراوە",
+    "CUSTOMER_ALREADY_ARCHIVED": "ئەم کڕیارە پێشتر ئەرشیف کراوە",
+    "CUSTOMER_PHONE_DUPLICATE": "کڕیارێکی تر هەمان ژمارەی تەلەفۆنی هەیە",
+    "CUSTOMER_HAS_OPEN_ORDERS": "ئەم کڕیارە هێشتا داواکاری کراوەی هەیە",
+    "DRIVER_NOT_FOUND": "شۆفێر نەدۆزرایەوە",
+    "DRIVER_ARCHIVED": "ئەم شۆفێرە ئەرشیف کراوە",
+    "DRIVER_ALREADY_ARCHIVED": "ئەم شۆفێرە پێشتر ئەرشیف کراوە",
+    "ORDER_NOT_FOUND": "داواکاری نەدۆزرایەوە",
+    "ORDER_CANCELLED": "ئەم داواکارییە هەڵوەشێنراوەتەوە",
+    "ORDER_DUPLICATE_ITEM": "هەمان کاڵا دوو جار هاتووە",
+    "ORDER_HAS_ACTIVITY": "ئەم داواکارییە گەڕاندنەوە یان پارەدانی هەیە",
+    "ORDER_DATE_AFTER_ACTIVITY": "بەروارەکە دوای گەڕاندنەوە یان پارەدانێکی ئەم داواکارییەیە",
+    "CREDIT_LIMIT_EXCEEDED": "ئەمە بە {{excess}} سنووری قەرز تێدەپەڕێنێت",
+    "UNIT_DEPOSIT_NOT_PERMITTED": "مۆڵەتت نییە بارمتەی هەر پالێتێک بگۆڕیت",
+    "RETURN_NOT_FOUND": "گەڕاندنەوە نەدۆزرایەوە",
+    "RETURN_EMPTY": "لانیکەم یەک پالێت بنووسە",
+    "RETURN_LINE_NOT_IN_ORDER": "ئەم کاڵایە لە داواکارییەکەدا نییە",
+    "RETURN_DUPLICATE_LINE": "هەمان کاڵا دوو جار هاتووە",
+    "RETURN_EXCEEDS_OUT": "پالێتی زیاتر لەوەی هێشتا دەرەوەیە",
+    "DAMAGED_REFUND_TOO_HIGH": "گەڕاندنەوەی زیانلێکەوتوو لە بارمتە زیاترە",
+    "RETURN_ALREADY_REVERSED": "ئەم گەڕاندنەوەیە پێشتر هەڵوەشێنراوەتەوە",
+    "RETURN_DATE_BEFORE_ORDER_DATE": "بەرواری گەڕاندنەوە پێش داواکارییەکەیە",
+    "PAYMENT_ORDER_NOT_LENT": "ئەم داواکارییە بە پارەی نەقد دراوە",
+    "PAYMENT_EXCEEDS_OWED": "زیاتر لەو بڕەی قەرزە",
+    "PAYMENT_DATE_BEFORE_ORDER_DATE": "بەرواری پارەدان پێش داواکارییەکەیە",
+    "LEDGER_ENTRY_NOT_FOUND": "تۆماری پارە نەدۆزرایەوە",
+    "LEDGER_ENTRY_NOT_REVERSIBLE": "ئەم تۆمارە ناتوانرێت بگەڕێنرێتەوە",
+    "LEDGER_ENTRY_ALREADY_REVERSED": "ئەم تۆمارە پێشتر گەڕێنراوەتەوە",
+    "IDEMPOTENCY_KEY_REQUIRED": "داواکارییەکە کلیلی پاراستنی نییە",
+    "IDEMPOTENCY_KEY_INVALID": "کلیلی پاراستنی داواکارییەکە دروست نییە",
+    "IDEMPOTENCY_KEY_REUSED": "ئەم کلیلە بۆ داواکارییەکی تر بەکارهاتووە",
+    "NETWORK_ERROR": "پەیوەندی بە ڕاژەکارەوە نییە",
+    "UNKNOWN_ERROR": "شتێک هەڵەی تێدا بوو"
   }
 }

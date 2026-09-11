@@ -1,13 +1,88 @@
 {
   "common": {
-    "appName": "نظام الباليت",
+    "appName": "نظام المنصات",
     "currency": "دينار",
+    "search": "بحث",
     "notFound": {
       "title": "الصفحة غير موجودة",
-      "backHome": "العودة إلى الرئيسية"
+      "body": "الصفحة التي طلبتها غير موجودة.",
+      "backHome": "الذهاب إلى لوحة المعلومات"
+    },
+    "forbidden": {
+      "title": "ليس لديك إذن لفتح هذه الصفحة",
+      "body": "اطلب الصلاحية من المسؤول."
+    },
+    "actions": {
+      "save": "حفظ",
+      "cancel": "إلغاء",
+      "close": "إغلاق",
+      "retry": "إعادة المحاولة"
+    },
+    "password": {
+      "show": "إظهار كلمة المرور",
+      "hide": "إخفاء كلمة المرور"
+    },
+    "pagination": {
+      "page": "صفحة {{page}} من {{lastPage}}",
+      "previous": "السابق",
+      "next": "التالي",
+      "total": "{{total}} سجل"
+    },
+    "versionConflict": {
+      "title": "تغيّر هذا السجل",
+      "body": "حفظ شخص آخر تغييرات أثناء تحريرك. أعد التحميل لرؤية أحدث نسخة، أو تابع التحرير واحفظ مجدداً.",
+      "reload": "إعادة التحميل",
+      "keepEditing": "متابعة التحرير"
     }
   },
+  "nav": {
+    "primary": "التنقل الرئيسي",
+    "dashboard": "لوحة المعلومات",
+    "history": "السجل",
+    "users": "المستخدمون",
+    "account": "حسابي",
+    "logout": "تسجيل الخروج"
+  },
+  "auth": {
+    "login": {
+      "title": "تسجيل الدخول",
+      "username": "اسم المستخدم",
+      "password": "كلمة المرور",
+      "submit": "تسجيل الدخول",
+      "forgotHint": "نسيت كلمة المرور؟ اطلب من المسؤول إعادة تعيينها."
+    },
+    "changePassword": {
+      "title": "تغيير كلمة المرور",
+      "description": "اختر كلمة مرور جديدة لحسابك.",
+      "current": "كلمة المرور الحالية",
+      "new": "كلمة المرور الجديدة",
+      "confirm": "تأكيد كلمة المرور الجديدة",
+      "submit": "تغيير كلمة المرور",
+      "ruleLength": "على الأقل {{count}} حرفاً",
+      "ruleCommon": "ألا تكون كلمة مرور شائعة"
+    },
+    "loginFailure": {
+      "INVALID": "كلمة مرور خاطئة",
+      "LOCKED": "الحساب مقفل مؤقتاً",
+      "INACTIVE": "الحساب معطل"
+    }
+  },
+  "dashboard": {
+    "title": "لوحة المعلومات",
+    "welcome": "أهلاً، {{name}}",
+    "pending": "تظهر هنا بطاقات الملخص والنشاط الأخير عند توفر الطلبات والإرجاعات."
+  },
   "account": {
+    "title": "حسابي",
+    "password": {
+      "changed": "تم تغيير كلمة المرور"
+    },
+    "profile": {
+      "title": "الملف الشخصي",
+      "username": "اسم المستخدم",
+      "displayName": "الاسم المعروض",
+      "role": "الدور"
+    },
     "preferences": {
       "title": "التفضيلات",
       "language": "اللغة",
@@ -23,15 +98,301 @@
         "lg": "كبير",
         "xl": "كبير جداً"
       }
+    },
+    "security": {
+      "title": "الأمان",
+      "logoutAll": "تسجيل الخروج من كل الأجهزة",
+      "logoutAllHint": "ينهي كل الجلسات، بما فيها هذه.",
+      "logoutAllConfirm": "سيتعين عليك تسجيل الدخول مجدداً على كل جهاز."
     }
   },
-  "home": {
-    "title": "مرحباً",
-    "baselineNotice": "هذا هو الأساس للمشروع. ستُضاف الميزات في المراحل القادمة."
+  "users": {
+    "list": {
+      "title": "المستخدمون",
+      "new": "مستخدم جديد",
+      "empty": "لا يوجد مستخدم يطابق هذا البحث"
+    },
+    "new": {
+      "title": "مستخدم جديد",
+      "profile": "الملف الشخصي",
+      "usernameHint": "أحرف صغيرة وأرقام ونقطة وشرطة أو شرطة سفلية؛ من ٣ إلى ٣٢ حرفاً.",
+      "initialPassword": "كلمة المرور الأولية",
+      "generate": "توليد",
+      "submit": "إنشاء المستخدم",
+      "created": "تم إنشاء المستخدم"
+    },
+    "detail": {
+      "title": "المستخدم",
+      "profile": "الملف الشخصي",
+      "saved": "تم حفظ التغييرات",
+      "deactivate": "تعطيل",
+      "deactivateTitle": "تعطيل هذا المستخدم؟",
+      "deactivateConfirm": "سيتم تسجيل خروج {{name}} من كل مكان ولن يتمكن من الدخول مجدداً.",
+      "deactivateHint": "المستخدم المعطل لا يمكنه تسجيل الدخول.",
+      "selfDeactivateHint": "لا يمكنك تعطيل حسابك.",
+      "activeSessions": "{{count}} جلسة نشطة"
+    },
+    "fields": {
+      "username": "اسم المستخدم",
+      "displayName": "الاسم المعروض",
+      "role": "الدور",
+      "status": "الحالة",
+      "lastLogin": "آخر دخول"
+    },
+    "status": {
+      "active": "نشط",
+      "inactive": "معطل"
+    },
+    "permissions": {
+      "title": "الصلاحيات",
+      "save": "حفظ الصلاحيات",
+      "saved": "تم حفظ الصلاحيات",
+      "adminImplicit": "المسؤول يملك كل الصلاحيات.",
+      "adminOnlyRow": "للمسؤول فقط"
+    },
+    "security": {
+      "title": "الأمان",
+      "newPassword": "كلمة المرور الجديدة",
+      "resetPassword": "إعادة تعيين كلمة المرور",
+      "passwordReset": "تمت إعادة تعيين كلمة المرور؛ على المستخدم اختيار كلمة جديدة عند دخوله القادم.",
+      "logoutAll": "تسجيل الخروج من كل الأجهزة",
+      "logoutAllConfirm": "ستنتهي كل جلسات {{name}}.",
+      "loggedOut": "تم إنهاء الجلسات"
+    }
   },
-  "status": {
-    "checking": "جارٍ الفحص…",
-    "serverOnline": "الخادم يعمل",
-    "serverOffline": "الخادم غير متاح"
+  "history": {
+    "title": "السجل",
+    "description": "كل إجراء سجله النظام، الأحدث أولاً.",
+    "empty": "لا يوجد شيء مسجل بعد",
+    "filters": {
+      "action": "الإجراء",
+      "entityType": "نوع السجل",
+      "allActions": "كل الإجراءات",
+      "allEntities": "كل أنواع السجلات"
+    },
+    "columns": {
+      "time": "الوقت",
+      "user": "المستخدم",
+      "summary": "ما الذي حدث",
+      "ip": "العنوان"
+    },
+    "diff": {
+      "field": "الحقل",
+      "before": "قبل",
+      "after": "بعد"
+    }
+  },
+  "enums": {
+    "role": {
+      "ADMIN": "مسؤول",
+      "EMPLOYEE": "موظف"
+    },
+    "auditAction": {
+      "CREATE": "أُنشئ",
+      "UPDATE": "عُدِّل",
+      "DELETE": "حُذف",
+      "CANCEL": "أُلغي",
+      "STOCK_ADJUST": "عُدّل المخزون",
+      "PAYMENT_CREATE": "سُجّلت دفعة",
+      "PAYMENT_REVERSE": "عُكست الدفعة",
+      "RETURN_CREATE": "سُجّل إرجاع",
+      "RETURN_EDIT": "استُبدل الإرجاع",
+      "RETURN_DELETE": "حُذف الإرجاع",
+      "REFUND_CREATE": "دُفع الاسترداد",
+      "REFUND_REVERSE": "عُكس الاسترداد",
+      "CREDIT_OVERRIDE": "تم تجاوز حد الائتمان",
+      "LOGIN_SUCCESS": "سجّل الدخول",
+      "LOGIN_FAILURE": "فشل تسجيل الدخول",
+      "LOCKOUT": "أُقفل الحساب",
+      "LOGOUT": "سجّل الخروج",
+      "LOGOUT_ALL": "سجّل الخروج من كل الأجهزة",
+      "SESSION_REUSE_DETECTED": "اكتُشف إعادة استخدام جلسة",
+      "PASSWORD_CHANGE": "غُيّرت كلمة المرور",
+      "PASSWORD_RESET": "أُعيد تعيين كلمة المرور",
+      "PERMISSION_CHANGE": "تغيّرت الصلاحيات",
+      "SETTINGS_CHANGE": "تغيّرت الإعدادات",
+      "USER_DEACTIVATE": "عُطّل المستخدم",
+      "USER_ACTIVATE": "فُعّل المستخدم",
+      "UPLOAD_CREATE": "رُفعت صورة"
+    },
+    "auditEntityType": {
+      "USER": "مستخدم",
+      "SESSION": "جلسة",
+      "ITEM": "صنف",
+      "PURCHASE_BATCH": "دفعة شراء",
+      "CUSTOMER": "زبون",
+      "DRIVER": "سائق",
+      "ORDER": "طلب",
+      "RETURN": "إرجاع",
+      "LEDGER_ENTRY": "قيد مالي",
+      "SETTINGS": "الإعدادات",
+      "UPLOAD": "صورة"
+    }
+  },
+  "audit": {
+    "summary": {
+      "USER": {
+        "CREATE": "أنشأ المستخدم {{username}} بدور {{role}}",
+        "UPDATE": "عدّل {{username}}",
+        "USER_DEACTIVATE": "عطّل {{username}}",
+        "USER_ACTIVATE": "فعّل {{username}}",
+        "PERMISSION_CHANGE": "غيّر صلاحيات {{username}}: أضيف {{added}}، أُزيل {{removed}}",
+        "PASSWORD_RESET": "أعاد تعيين كلمة مرور {{username}}",
+        "PASSWORD_CHANGE": "غيّر {{username}} كلمة مروره",
+        "LOGOUT_ALL": "أنهى {{families}} جلسة لـ {{username}}",
+        "LOGIN_SUCCESS": "سجّل {{username}} الدخول",
+        "LOGIN_FAILURE": "محاولة دخول فاشلة لـ {{usernameAttempt}} ({{reason}})",
+        "LOCKOUT": "أُقفل {{usernameAttempt}} لمدة {{lockedMinutes}} دقيقة"
+      },
+      "SESSION": {
+        "LOGIN_SUCCESS": "سجّل {{username}} الدخول",
+        "LOGOUT": "سجّل {{username}} الخروج",
+        "SESSION_REUSE_DETECTED": "أُعيد تقديم رمز دخول مستخدم لـ {{username}}"
+      }
+    }
+  },
+  "permissions": {
+    "modules": {
+      "items": "الأصناف",
+      "purchases": "المشتريات",
+      "customers": "الزبائن",
+      "drivers": "السائقون",
+      "orders": "الطلبات",
+      "returns": "الإرجاعات",
+      "payments": "الدفعات",
+      "reports": "التقارير",
+      "audit": "السجل"
+    },
+    "items_view": "عرض الأصناف",
+    "items_create": "إضافة أصناف",
+    "items_edit": "تعديل الأصناف",
+    "items_delete": "أرشفة الأصناف",
+    "items_viewCost": "رؤية أسعار التكلفة",
+    "items_adjustStock": "تعديل المخزون",
+    "purchases_view": "عرض دفعات الشراء",
+    "purchases_create": "إضافة دفعات شراء",
+    "purchases_edit": "تعديل دفعات الشراء",
+    "purchases_delete": "حذف دفعات الشراء",
+    "customers_view": "عرض الزبائن",
+    "customers_create": "إضافة زبائن",
+    "customers_edit": "تعديل الزبائن",
+    "customers_delete": "أرشفة الزبائن",
+    "drivers_view": "عرض السائقين",
+    "drivers_create": "إضافة سائقين",
+    "drivers_edit": "تعديل السائقين",
+    "drivers_delete": "أرشفة السائقين",
+    "orders_view": "عرض الطلبات",
+    "orders_create": "إنشاء طلبات",
+    "orders_edit": "تعديل الطلبات",
+    "orders_cancel": "إلغاء الطلبات",
+    "orders_editUnitDeposit": "تغيير التأمين لكل منصة",
+    "returns_create": "تسجيل الإرجاعات",
+    "returns_edit": "تصحيح الإرجاعات",
+    "returns_delete": "حذف الإرجاعات",
+    "payments_create": "تسجيل الدفعات",
+    "payments_delete": "عكس الدفعات",
+    "reports_viewPositions": "تقرير المنصات والأموال",
+    "reports_viewPurchases": "تقرير المشتريات",
+    "reports_viewActivity": "تقرير النشاط",
+    "reports_viewStock": "تقرير المخزون",
+    "audit_view": "عرض السجل",
+    "users_manage": "إدارة المستخدمين",
+    "settings_edit": "تعديل إعدادات المصنع",
+    "orders_overrideCreditLimit": "تجاوز حد الائتمان"
+  },
+  "validation": {
+    "required": "هذا الحقل مطلوب",
+    "invalid_type": "هذه القيمة غير صالحة",
+    "too_small": "يجب ألا يقل عن {{minimum}}",
+    "too_big": "يجب ألا يزيد عن {{maximum}}",
+    "too_short": "يجب ألا يقل عن {{minimum}} حرفاً",
+    "too_long": "يجب ألا يزيد عن {{maximum}} حرفاً",
+    "invalid_format": "هذه الصيغة غير مقبولة",
+    "invalid_date": "هذا التاريخ غير موجود",
+    "invalid_enum": "اختر أحد الخيارات المتاحة",
+    "not_integer": "يجب أن يكون رقماً صحيحاً",
+    "unknown_key": "هذا الحقل غير متوقع هنا",
+    "duplicate": "هذه القيمة مكررة",
+    "passwordMismatch": "كلمتا المرور غير متطابقتين"
+  },
+  "errors": {
+    "VALIDATION_FAILED": "يرجى مراجعة الحقول المحددة",
+    "CSRF_HEADER_MISSING": "تم حظر الطلب لأسباب أمنية. أعد تحميل الصفحة.",
+    "NOT_FOUND": "غير موجود",
+    "ROUTE_NOT_FOUND": "غير موجود",
+    "VERSION_CONFLICT": "غيّر شخص آخر هذا السجل. أعد التحميل لرؤية أحدث نسخة.",
+    "PAYLOAD_TOO_LARGE": "البيانات المرسلة كبيرة جداً",
+    "RATE_LIMITED": "محاولات كثيرة. حاول بعد {{retryAfterSeconds}} ثانية.",
+    "INTERNAL_ERROR": "حدث خطأ في الخادم",
+    "SERVICE_UNAVAILABLE": "الخدمة غير متاحة",
+    "BUSINESS_DATE_IN_FUTURE": "لا يمكن أن يكون التاريخ في المستقبل",
+    "DATE_RANGE_INVALID": "تاريخ البداية بعد تاريخ النهاية",
+    "AUTH_REQUIRED": "يرجى تسجيل الدخول",
+    "AUTH_TOKEN_EXPIRED": "انتهت جلستك. يرجى تسجيل الدخول مجدداً.",
+    "AUTH_TOKEN_INVALID": "لم تعد جلستك صالحة. يرجى تسجيل الدخول مجدداً.",
+    "AUTH_INVALID_CREDENTIALS": "اسم المستخدم أو كلمة المرور غير صحيحة",
+    "AUTH_REFRESH_INVALID": "انتهت جلستك. يرجى تسجيل الدخول مجدداً.",
+    "PASSWORD_CHANGE_REQUIRED": "عليك تغيير كلمة المرور أولاً",
+    "CURRENT_PASSWORD_INCORRECT": "كلمة المرور الحالية غير صحيحة",
+    "PASSWORD_TOO_SHORT": "كلمة المرور قصيرة جداً",
+    "PASSWORD_TOO_LONG": "كلمة المرور طويلة جداً",
+    "PASSWORD_TOO_COMMON": "كلمة المرور هذه سهلة التخمين",
+    "PASSWORD_SAME_AS_CURRENT": "كلمة المرور الجديدة مطابقة للحالية",
+    "PERMISSION_DENIED": "ليس لديك صلاحية لهذا",
+    "ADMIN_ONLY": "المسؤول وحده يمكنه فعل هذا",
+    "USER_NOT_FOUND": "المستخدم غير موجود",
+    "USERNAME_TAKEN": "اسم المستخدم هذا مستخدم بالفعل",
+    "SELF_DEACTIVATE_FORBIDDEN": "لا يمكنك تعطيل حسابك",
+    "SELF_DEMOTE_FORBIDDEN": "لا يمكنك إزالة دور المسؤول عن نفسك",
+    "LAST_ADMIN_GUARD": "يجب أن يبقى مسؤول نشط واحد دائماً",
+    "PERMISSION_KEY_UNKNOWN": "طُلبت صلاحية غير معروفة",
+    "PERMISSION_NOT_GRANTABLE": "لا يمكن منح هذه الصلاحية لموظف",
+    "PERMISSION_DEPENDENCY_MISSING": "مطلوب صلاحية أخرى أولاً",
+    "PERMISSIONS_ADMIN_IMPLICIT": "المسؤول يملك كل الصلاحيات أصلاً",
+    "UPLOAD_MISSING_FILE": "لم يُختر أي ملف",
+    "UPLOAD_TYPE_NOT_ALLOWED": "نوع الملف غير مسموح",
+    "UPLOAD_TOO_LARGE": "الصورة كبيرة جداً",
+    "UPLOAD_INVALID_IMAGE": "الملف ليس صورة صالحة",
+    "UPLOAD_NOT_FOUND": "الصورة غير موجودة",
+    "UPLOAD_KIND_MISMATCH": "الصورة لا تنتمي هنا",
+    "ITEM_NOT_FOUND": "الصنف غير موجود",
+    "ITEM_ARCHIVED": "هذا الصنف مؤرشف",
+    "ITEM_ALREADY_ARCHIVED": "هذا الصنف مؤرشف بالفعل",
+    "STOCK_INSUFFICIENT": "المخزون غير كافٍ",
+    "BATCH_NOT_FOUND": "دفعة الشراء غير موجودة",
+    "CUSTOMER_NOT_FOUND": "الزبون غير موجود",
+    "CUSTOMER_ARCHIVED": "هذا الزبون مؤرشف",
+    "CUSTOMER_ALREADY_ARCHIVED": "هذا الزبون مؤرشف بالفعل",
+    "CUSTOMER_PHONE_DUPLICATE": "زبون آخر يملك رقم الهاتف نفسه",
+    "CUSTOMER_HAS_OPEN_ORDERS": "لدى هذا الزبون طلبات مفتوحة",
+    "DRIVER_NOT_FOUND": "السائق غير موجود",
+    "DRIVER_ARCHIVED": "هذا السائق مؤرشف",
+    "DRIVER_ALREADY_ARCHIVED": "هذا السائق مؤرشف بالفعل",
+    "ORDER_NOT_FOUND": "الطلب غير موجود",
+    "ORDER_CANCELLED": "هذا الطلب ملغى",
+    "ORDER_DUPLICATE_ITEM": "الصنف نفسه مكرر",
+    "ORDER_HAS_ACTIVITY": "لهذا الطلب إرجاعات أو دفعات",
+    "ORDER_DATE_AFTER_ACTIVITY": "التاريخ بعد إرجاع أو دفعة على هذا الطلب",
+    "CREDIT_LIMIT_EXCEEDED": "هذا يتجاوز حد الائتمان بمقدار {{excess}}",
+    "UNIT_DEPOSIT_NOT_PERMITTED": "لا يُسمح لك بتغيير التأمين لكل منصة",
+    "RETURN_NOT_FOUND": "الإرجاع غير موجود",
+    "RETURN_EMPTY": "أدخل منصة واحدة على الأقل",
+    "RETURN_LINE_NOT_IN_ORDER": "هذا الصنف ليس في الطلب",
+    "RETURN_DUPLICATE_LINE": "الصنف نفسه مكرر",
+    "RETURN_EXCEEDS_OUT": "منصات أكثر مما هو خارج",
+    "DAMAGED_REFUND_TOO_HIGH": "استرداد التالف أعلى من التأمين",
+    "RETURN_ALREADY_REVERSED": "هذا الإرجاع عُكس بالفعل",
+    "RETURN_DATE_BEFORE_ORDER_DATE": "تاريخ الإرجاع قبل الطلب",
+    "PAYMENT_ORDER_NOT_LENT": "هذا الطلب مدفوع نقداً",
+    "PAYMENT_EXCEEDS_OWED": "أكثر من المبلغ المستحق",
+    "PAYMENT_DATE_BEFORE_ORDER_DATE": "تاريخ الدفعة قبل الطلب",
+    "LEDGER_ENTRY_NOT_FOUND": "القيد المالي غير موجود",
+    "LEDGER_ENTRY_NOT_REVERSIBLE": "لا يمكن عكس هذا القيد",
+    "LEDGER_ENTRY_ALREADY_REVERSED": "هذا القيد عُكس بالفعل",
+    "IDEMPOTENCY_KEY_REQUIRED": "الطلب ينقصه مفتاح الأمان",
+    "IDEMPOTENCY_KEY_INVALID": "مفتاح أمان الطلب غير صالح",
+    "IDEMPOTENCY_KEY_REUSED": "استُخدم هذا المفتاح لطلب مختلف",
+    "NETWORK_ERROR": "لا يوجد اتصال بالخادم",
+    "UNKNOWN_ERROR": "حدث خطأ ما"
   }
 }
