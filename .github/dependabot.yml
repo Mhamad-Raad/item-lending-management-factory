@@ -1,0 +1,56 @@
+version: 2
+updates:
+  - package-ecosystem: npm
+    directory: /
+    schedule:
+      interval: weekly
+      day: sunday
+      timezone: Asia/Baghdad
+    open-pull-requests-limit: 10
+    versioning-strategy: increase
+    groups:
+      nestjs:
+        patterns: ['@nestjs/*']
+      tanstack:
+        patterns: ['@tanstack/*']
+      prisma:
+        patterns: ['prisma', '@prisma/*']
+      lint-format:
+        patterns: ['eslint', 'eslint-*', '@eslint/*', 'typescript-eslint', 'prettier', 'globals']
+      types:
+        patterns: ['@types/*']
+      minor-and-patch:
+        update-types: [minor, patch]
+    # Majors pinned on purpose (ARCHITECTURE.md §13.9 upgrade path) — upgrade deliberately, not via bot.
+    ignore:
+      - dependency-name: '@nestjs/*'
+        update-types: ['version-update:semver-major']
+      - dependency-name: typescript
+        update-types: ['version-update:semver-major']
+      - dependency-name: prisma
+        update-types: ['version-update:semver-major']
+      - dependency-name: '@prisma/*'
+        update-types: ['version-update:semver-major']
+      - dependency-name: '@types/node'
+        update-types: ['version-update:semver-major']
+
+  - package-ecosystem: docker
+    directories: [/apps/api, /deploy/caddy]
+    schedule:
+      interval: weekly
+    ignore:
+      - dependency-name: node
+        update-types: ['version-update:semver-major']
+
+  - package-ecosystem: docker-compose
+    directory: /
+    schedule:
+      interval: weekly
+    ignore:
+      - dependency-name: postgres
+        update-types: ['version-update:semver-major']
+
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly

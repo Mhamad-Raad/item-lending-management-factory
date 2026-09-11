@@ -1,0 +1,28 @@
+# Dependencies
+node_modules/
+
+# Build output
+dist/
+*.tsbuildinfo
+apps/api/src/generated/
+
+# Environment (secrets never go in the repo)
+.env
+.env.*
+!.env.example
+
+# Local data (dev uploads)
+apps/api/data/
+.data/
+
+# Test output
+coverage/
+playwright-report/
+test-results/
+
+# OS / editor
+.DS_Store
+*.log
+.idea/
+.vscode/*
+!.vscode/extensions.json

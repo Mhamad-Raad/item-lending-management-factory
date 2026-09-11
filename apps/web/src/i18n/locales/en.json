@@ -1,0 +1,37 @@
+{
+  "app": {
+    "name": "Pallet System"
+  },
+  "common": {
+    "currency": "IQD"
+  },
+  "home": {
+    "title": "Welcome",
+    "baselineNotice": "This is the project baseline. Features are added in the next milestones."
+  },
+  "status": {
+    "checking": "Checking…",
+    "serverOnline": "Server is running",
+    "serverOffline": "Server is unavailable"
+  },
+  "preferences": {
+    "title": "Preferences",
+    "language": "Language",
+    "theme": "Theme",
+    "fontSize": "Font size",
+    "themes": {
+      "light": "Light",
+      "dark": "Dark"
+    },
+    "fontSizes": {
+      "sm": "Small",
+      "md": "Normal",
+      "lg": "Large",
+      "xl": "Extra large"
+    }
+  },
+  "notFound": {
+    "title": "Page not found",
+    "backHome": "Back to home"
+  }
+}

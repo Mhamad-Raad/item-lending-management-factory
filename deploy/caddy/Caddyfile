@@ -1,0 +1,43 @@
+# Pallet System edge proxy (ARCHITECTURE.md §10, §13).
+# - Automatic HTTPS (Let's Encrypt); HTTP → HTTPS redirect is automatic.
+# - Serves the built web app from /srv, reverse-proxies /api/* to the API.
+# - Caddy is the edge: it does NOT trust incoming X-Forwarded-For; it sets it to the real client IP.
+{
+	email {$ACME_EMAIL}
+	admin off
+}
+
+{$APP_DOMAIN} {
+	encode zstd gzip
+
+	header {
+		Strict-Transport-Security "max-age=31536000; includeSubDomains"
+		Content-Security-Policy "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self'; connect-src 'self'; frame-ancestors 'self'; base-uri 'self'; form-action 'self'"
+		X-Content-Type-Options "nosniff"
+		Referrer-Policy "strict-origin-when-cross-origin"
+		Permissions-Policy "camera=(), microphone=(), geolocation=()"
+		-Server
+	}
+
+	handle /api/* {
+		reverse_proxy api:3000 {
+			header_up X-Forwarded-Proto {scheme}
+		}
+	}
+
+	handle {
+		root * /srv
+
+		# Vite emits content-hashed files under /assets → cache forever.
+		@hashed path /assets/*
+		header @hashed Cache-Control "public, max-age=31536000, immutable"
+
+		# Everything else (index.html, boot-prefs.js, favicon) must revalidate so deploys show up.
+		@unhashed not path /assets/*
+		header @unhashed Cache-Control "no-cache"
+
+		# SPA fallback: unknown paths render index.html (TanStack Router handles the route).
+		try_files {path} /index.html
+		file_server
+	}
+}

@@ -1,0 +1,12 @@
+packages:
+  - apps/*
+  - packages/*
+
+# Packages allowed to run install scripts (native binaries / generators). Everything else is blocked.
+onlyBuiltDependencies:
+  - '@prisma/engines'
+  - '@swc/core'
+  - argon2
+  - esbuild
+  - prisma
+  - sharp

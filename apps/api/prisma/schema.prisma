@@ -1,0 +1,653 @@
+// Pallet System — Prisma schema (source of truth for the database).
+// Naming rule: Prisma model = PascalCase singular; table = snake_case plural (@@map);
+// Prisma field = camelCase; column = snake_case of the field name (@map).
+// Money = BigInt (PostgreSQL bigint, whole IQD). Quantities = Int.
+// Business dates = @db.Date (Asia/Baghdad calendar day). System timestamps = @db.Timestamptz(3) in UTC.
+// CHECK constraints, partial indexes, triggers and grants live in raw SQL inside the migrations
+// (see ARCHITECTURE.md sections 5.6–5.9) because Prisma cannot express them.
+// Every optional relation is onDelete: Restrict (nothing referenced is ever deleted).
+
+generator client {
+  provider     = "prisma-client"
+  output       = "../src/generated/prisma"
+  moduleFormat = "cjs"
+  runtime      = "nodejs"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+// ───────────────────────────── Enums ─────────────────────────────
+
+enum Role {
+  ADMIN
+  EMPLOYEE
+
+  @@map("role")
+}
+
+enum PaymentType {
+  CASH
+  LENT
+
+  @@map("payment_type")
+}
+
+enum OrderStatus {
+  OPEN
+  SETTLED
+  CANCELLED
+
+  @@map("order_status")
+}
+
+enum StockMovementReason {
+  BATCH_ADD
+  BATCH_EDIT
+  BATCH_DELETE
+  ORDER_CREATE
+  ORDER_LINE_EDIT
+  ORDER_CANCEL
+  RETURN_ACCEPTED
+  RETURN_EDIT
+  RETURN_DELETE
+  MANUAL_ADJUSTMENT
+
+  @@map("stock_movement_reason")
+}
+
+enum LedgerEntryType {
+  PAYMENT
+  REFUND
+  PAYMENT_REVERSAL
+  REFUND_REVERSAL
+
+  @@map("ledger_entry_type")
+}
+
+enum LedgerEntrySource {
+  ORDER_CREATE
+  ORDER_LINE_EDIT
+  ORDER_CANCEL
+  MANUAL
+  PAYMENT_DELETE
+  RETURN_CREATE
+  RETURN_EDIT
+  RETURN_DELETE
+
+  @@map("ledger_entry_source")
+}
+
+enum ReturnReversalKind {
+  EDIT
+  DELETE
+
+  @@map("return_reversal_kind")
+}
+
+enum UploadKind {
+  ITEM_IMAGE
+  FACTORY_LOGO
+
+  @@map("upload_kind")
+}
+
+enum RefreshTokenStatus {
+  ACTIVE
+  ROTATED
+  RETIRED
+  REVOKED
+
+  @@map("refresh_token_status")
+}
+
+enum SessionRevokeReason {
+  LOGOUT
+  LOGOUT_ALL
+  REUSE_DETECTED
+  PASSWORD_CHANGED
+  PASSWORD_RESET
+  USER_DEACTIVATED
+
+  @@map("session_revoke_reason")
+}
+
+enum IdempotencyScope {
+  ORDER_CREATE
+  RETURN_CREATE
+  PAYMENT_CREATE
+
+  @@map("idempotency_scope")
+}
+
+enum AuditAction {
+  CREATE
+  UPDATE
+  DELETE
+  CANCEL
+  STOCK_ADJUST
+  PAYMENT_CREATE
+  PAYMENT_REVERSE
+  RETURN_CREATE
+  RETURN_EDIT
+  RETURN_DELETE
+  REFUND_CREATE
+  REFUND_REVERSE
+  CREDIT_OVERRIDE
+  LOGIN_SUCCESS
+  LOGIN_FAILURE
+  LOCKOUT
+  LOGOUT
+  LOGOUT_ALL
+  SESSION_REUSE_DETECTED
+  PASSWORD_CHANGE
+  PASSWORD_RESET
+  PERMISSION_CHANGE
+  SETTINGS_CHANGE
+  USER_DEACTIVATE
+  USER_ACTIVATE
+  UPLOAD_CREATE
+
+  @@map("audit_action")
+}
+
+enum AuditEntityType {
+  USER
+  SESSION
+  ITEM
+  PURCHASE_BATCH
+  CUSTOMER
+  DRIVER
+  ORDER
+  RETURN
+  LEDGER_ENTRY
+  SETTINGS
+  UPLOAD
+
+  @@map("audit_entity_type")
+}
+
+// ───────────────────────────── Users & auth ─────────────────────────────
+
+model User {
+  id                 Int       @id @default(autoincrement())
+  username           String    @unique @db.VarChar(32)
+  displayName        String    @map("display_name") @db.VarChar(100)
+  passwordHash       String    @map("password_hash") @db.Text
+  role               Role
+  isActive           Boolean   @default(true) @map("is_active")
+  mustChangePassword Boolean   @default(true) @map("must_change_password")
+  tokenVersion       Int       @default(0) @map("token_version")
+  lastLoginAt        DateTime? @map("last_login_at") @db.Timestamptz(3)
+  version            Int       @default(1)
+  createdAt          DateTime  @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt          DateTime  @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  permissions     UserPermission[]
+  sessionFamilies SessionFamily[]
+  idempotencyKeys IdempotencyKey[]
+  auditLogs       AuditLog[]
+
+  uploadsCreated         Upload[]          @relation("UploadCreatedBy")
+  settingsUpdated        FactorySettings[] @relation("SettingsUpdatedBy")
+  itemsCreated           Item[]            @relation("ItemCreatedBy")
+  itemsArchived          Item[]            @relation("ItemArchivedBy")
+  batchesCreated         PurchaseBatch[]   @relation("BatchCreatedBy")
+  batchesDeleted         PurchaseBatch[]   @relation("BatchDeletedBy")
+  stockMovementsCreated  StockMovement[]   @relation("StockMovementCreatedBy")
+  customersCreated       Customer[]        @relation("CustomerCreatedBy")
+  customersArchived      Customer[]        @relation("CustomerArchivedBy")
+  driversCreated         Driver[]          @relation("DriverCreatedBy")
+  driversArchived        Driver[]          @relation("DriverArchivedBy")
+  ordersCreated          Order[]           @relation("OrderCreatedBy")
+  ordersCancelled        Order[]           @relation("OrderCancelledBy")
+  ordersCreditOverridden Order[]           @relation("OrderCreditOverrideBy")
+  returnsCreated         PalletReturn[]    @relation("ReturnCreatedBy")
+  returnsReversed        PalletReturn[]    @relation("ReturnReversedBy")
+  ledgerEntriesCreated   LedgerEntry[]     @relation("LedgerEntryCreatedBy")
+
+  @@index([role, isActive])
+  @@map("users")
+}
+
+model UserPermission {
+  userId        Int      @map("user_id")
+  permissionKey String   @map("permission_key") @db.VarChar(64)
+  createdAt     DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@id([userId, permissionKey])
+  @@map("user_permissions")
+}
+
+// One login session (one browser) = one family of rotating refresh tokens.
+model SessionFamily {
+  id                String               @id @default(uuid()) @db.Uuid
+  userId            Int                  @map("user_id")
+  absoluteExpiresAt DateTime             @map("absolute_expires_at") @db.Timestamptz(3)
+  revokedAt         DateTime?            @map("revoked_at") @db.Timestamptz(3)
+  revokedReason     SessionRevokeReason? @map("revoked_reason")
+  createdIp         String               @map("created_ip") @db.VarChar(45)
+  userAgent         String?              @map("user_agent") @db.VarChar(255)
+  lastUsedAt        DateTime             @default(now()) @map("last_used_at") @db.Timestamptz(3)
+  createdAt         DateTime             @default(now()) @map("created_at") @db.Timestamptz(3)
+
+  user   User           @relation(fields: [userId], references: [id])
+  tokens RefreshToken[]
+
+  @@index([userId, revokedAt])
+  @@map("session_families")
+}
+
+model RefreshToken {
+  id        String             @id @default(uuid()) @db.Uuid
+  familyId  String             @map("family_id") @db.Uuid
+  tokenHash String             @unique @map("token_hash") @db.Char(64)
+  status    RefreshTokenStatus @default(ACTIVE)
+  expiresAt DateTime           @map("expires_at") @db.Timestamptz(3)
+  rotatedAt DateTime?          @map("rotated_at") @db.Timestamptz(3)
+  createdAt DateTime           @default(now()) @map("created_at") @db.Timestamptz(3)
+
+  family SessionFamily @relation(fields: [familyId], references: [id], onDelete: Cascade)
+
+  @@index([familyId, status])
+  @@map("refresh_tokens")
+}
+
+model LoginThrottle {
+  ip              String    @db.VarChar(45)
+  username        String    @db.VarChar(64)
+  failureCount    Int       @default(0) @map("failure_count")
+  windowStartedAt DateTime  @map("window_started_at") @db.Timestamptz(3)
+  lockedUntil     DateTime? @map("locked_until") @db.Timestamptz(3)
+  lockoutCount    Int       @default(0) @map("lockout_count")
+  updatedAt       DateTime  @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  @@id([ip, username])
+  @@index([username])
+  @@map("login_throttles")
+}
+
+// ───────────────────────────── Settings & uploads ─────────────────────────────
+
+model FactorySettings {
+  id              Int      @id @default(1)
+  factoryName     String   @map("factory_name") @db.VarChar(200)
+  phone           String   @db.VarChar(100)
+  address         String   @db.VarChar(300)
+  logoUploadId    Int?     @map("logo_upload_id")
+  version         Int      @default(1)
+  updatedAt       DateTime @updatedAt @map("updated_at") @db.Timestamptz(3)
+  updatedByUserId Int?     @map("updated_by_user_id")
+
+  logo      Upload? @relation("SettingsLogo", fields: [logoUploadId], references: [id], onDelete: Restrict)
+  updatedBy User?   @relation("SettingsUpdatedBy", fields: [updatedByUserId], references: [id], onDelete: Restrict)
+
+  @@index([logoUploadId])
+  @@index([updatedByUserId])
+  @@map("factory_settings")
+}
+
+model Upload {
+  id              Int        @id @default(autoincrement())
+  fileName        String     @unique @map("file_name") @db.VarChar(64)
+  kind            UploadKind
+  width           Int
+  height          Int
+  sizeBytes       Int        @map("size_bytes")
+  createdByUserId Int        @map("created_by_user_id")
+  createdAt       DateTime   @default(now()) @map("created_at") @db.Timestamptz(3)
+
+  createdBy     User              @relation("UploadCreatedBy", fields: [createdByUserId], references: [id])
+  items         Item[]
+  settingsLogos FactorySettings[] @relation("SettingsLogo")
+
+  @@index([createdByUserId])
+  @@map("uploads")
+}
+
+// ───────────────────────────── Items & stock ─────────────────────────────
+
+model Item {
+  id               Int       @id @default(autoincrement())
+  name             String    @db.VarChar(200)
+  imageUploadId    Int?      @map("image_upload_id")
+  depositPrice     BigInt    @map("deposit_price")
+  quantityOnHand   Int       @default(0) @map("quantity_on_hand")
+  minStock         Int?      @map("min_stock")
+  archivedAt       DateTime? @map("archived_at") @db.Timestamptz(3)
+  archivedByUserId Int?      @map("archived_by_user_id")
+  version          Int       @default(1)
+  createdAt        DateTime  @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt        DateTime  @updatedAt @map("updated_at") @db.Timestamptz(3)
+  createdByUserId  Int       @map("created_by_user_id")
+
+  image          Upload?         @relation(fields: [imageUploadId], references: [id], onDelete: Restrict)
+  archivedBy     User?           @relation("ItemArchivedBy", fields: [archivedByUserId], references: [id], onDelete: Restrict)
+  createdBy      User            @relation("ItemCreatedBy", fields: [createdByUserId], references: [id])
+  batches        PurchaseBatch[]
+  stockMovements StockMovement[]
+  orderLines     OrderLine[]
+
+  @@index([imageUploadId])
+  @@index([archivedAt])
+  @@index([archivedByUserId])
+  @@index([createdByUserId])
+  @@map("items")
+}
+
+model PurchaseBatch {
+  id              Int       @id @default(autoincrement())
+  itemId          Int       @map("item_id")
+  date            DateTime  @db.Date
+  quantity        Int
+  unitCost        BigInt    @map("unit_cost")
+  totalCost       BigInt    @map("total_cost")
+  note            String?   @db.VarChar(500)
+  deletedAt       DateTime? @map("deleted_at") @db.Timestamptz(3)
+  deletedByUserId Int?      @map("deleted_by_user_id")
+  version         Int       @default(1)
+  createdAt       DateTime  @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt       DateTime  @updatedAt @map("updated_at") @db.Timestamptz(3)
+  createdByUserId Int       @map("created_by_user_id")
+
+  item           Item            @relation(fields: [itemId], references: [id])
+  deletedBy      User?           @relation("BatchDeletedBy", fields: [deletedByUserId], references: [id], onDelete: Restrict)
+  createdBy      User            @relation("BatchCreatedBy", fields: [createdByUserId], references: [id])
+  stockMovements StockMovement[]
+
+  @@index([itemId, date])
+  @@index([date])
+  @@index([deletedByUserId])
+  @@index([createdByUserId])
+  @@map("purchase_batches")
+}
+
+// Append-only stock ledger. items.quantity_on_hand is the maintained running total.
+model StockMovement {
+  id              Int                 @id @default(autoincrement())
+  itemId          Int                 @map("item_id")
+  quantity        Int
+  reason          StockMovementReason
+  batchId         Int?                @map("batch_id")
+  orderId         Int?                @map("order_id")
+  returnId        Int?                @map("return_id")
+  note            String?             @db.VarChar(500)
+  createdByUserId Int                 @map("created_by_user_id")
+  createdAt       DateTime            @default(now()) @map("created_at") @db.Timestamptz(3)
+
+  item      Item           @relation(fields: [itemId], references: [id])
+  batch     PurchaseBatch? @relation(fields: [batchId], references: [id], onDelete: Restrict)
+  order     Order?         @relation(fields: [orderId], references: [id], onDelete: Restrict)
+  return    PalletReturn?  @relation(fields: [returnId], references: [id], onDelete: Restrict)
+  createdBy User           @relation("StockMovementCreatedBy", fields: [createdByUserId], references: [id])
+
+  @@index([itemId, createdAt])
+  @@index([batchId])
+  @@index([orderId])
+  @@index([returnId])
+  @@index([createdByUserId])
+  @@map("stock_movements")
+}
+
+// ───────────────────────────── Customers & drivers ─────────────────────────────
+
+model Customer {
+  id               Int       @id @default(autoincrement())
+  name             String    @db.VarChar(200)
+  phone            String    @db.VarChar(20)
+  altPhone         String?   @map("alt_phone") @db.VarChar(20)
+  address          String    @db.VarChar(300)
+  creditLimit      BigInt?   @map("credit_limit")
+  archivedAt       DateTime? @map("archived_at") @db.Timestamptz(3)
+  archivedByUserId Int?      @map("archived_by_user_id")
+  version          Int       @default(1)
+  createdAt        DateTime  @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt        DateTime  @updatedAt @map("updated_at") @db.Timestamptz(3)
+  createdByUserId  Int       @map("created_by_user_id")
+
+  archivedBy User?   @relation("CustomerArchivedBy", fields: [archivedByUserId], references: [id], onDelete: Restrict)
+  createdBy  User    @relation("CustomerCreatedBy", fields: [createdByUserId], references: [id])
+  orders     Order[]
+
+  @@index([phone])
+  @@index([altPhone])
+  @@index([archivedAt])
+  @@index([archivedByUserId])
+  @@index([createdByUserId])
+  @@map("customers")
+}
+
+model Driver {
+  id               Int       @id @default(autoincrement())
+  name             String    @db.VarChar(200)
+  phone            String    @db.VarChar(20)
+  carNumber        String    @map("car_number") @db.VarChar(50)
+  archivedAt       DateTime? @map("archived_at") @db.Timestamptz(3)
+  archivedByUserId Int?      @map("archived_by_user_id")
+  version          Int       @default(1)
+  createdAt        DateTime  @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt        DateTime  @updatedAt @map("updated_at") @db.Timestamptz(3)
+  createdByUserId  Int       @map("created_by_user_id")
+
+  archivedBy User?   @relation("DriverArchivedBy", fields: [archivedByUserId], references: [id], onDelete: Restrict)
+  createdBy  User    @relation("DriverCreatedBy", fields: [createdByUserId], references: [id])
+  orders     Order[]
+
+  @@index([archivedAt])
+  @@index([archivedByUserId])
+  @@index([createdByUserId])
+  @@map("drivers")
+}
+
+// ───────────────────────────── Orders ─────────────────────────────
+
+// Single-row counter (id = 1) for gap-free order numbers, locked FOR UPDATE on allocation.
+model OrderCounter {
+  id         Int @id @default(1)
+  lastNumber Int @default(0) @map("last_number")
+
+  @@map("order_counter")
+}
+
+model Order {
+  id                     Int         @id @default(autoincrement())
+  orderNumber            Int         @unique @map("order_number")
+  customerId             Int         @map("customer_id")
+  driverId               Int         @map("driver_id")
+  date                   DateTime    @db.Date
+  paymentType            PaymentType @map("payment_type")
+  notes                  String?     @db.VarChar(1000)
+  // Maintained derived values (cache of section 4 formulas; written only by recomputeOrder()).
+  status                 OrderStatus @default(OPEN)
+  depositTotal           BigInt      @default(0) @map("deposit_total")
+  paymentsNet            BigInt      @default(0) @map("payments_net")
+  creditsTotal           BigInt      @default(0) @map("credits_total")
+  refundsNet             BigInt      @default(0) @map("refunds_net")
+  owed                   BigInt      @default(0)
+  outQuantityTotal       Int         @default(0) @map("out_quantity_total")
+  outValue               BigInt      @default(0) @map("out_value")
+  held                   BigInt      @default(0)
+  compensation           BigInt      @default(0)
+  // Lifecycle
+  cancelledAt            DateTime?   @map("cancelled_at") @db.Timestamptz(3)
+  cancelledByUserId      Int?        @map("cancelled_by_user_id")
+  creditOverrideByUserId Int?        @map("credit_override_by_user_id")
+  creditOverrideAt       DateTime?   @map("credit_override_at") @db.Timestamptz(3)
+  version                Int         @default(1)
+  createdAt              DateTime    @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt              DateTime    @updatedAt @map("updated_at") @db.Timestamptz(3)
+  createdByUserId        Int         @map("created_by_user_id")
+
+  customer         Customer        @relation(fields: [customerId], references: [id])
+  driver           Driver          @relation(fields: [driverId], references: [id])
+  cancelledBy      User?           @relation("OrderCancelledBy", fields: [cancelledByUserId], references: [id], onDelete: Restrict)
+  creditOverrideBy User?           @relation("OrderCreditOverrideBy", fields: [creditOverrideByUserId], references: [id], onDelete: Restrict)
+  createdBy        User            @relation("OrderCreatedBy", fields: [createdByUserId], references: [id])
+  lines            OrderLine[]
+  returns          PalletReturn[]
+  ledgerEntries    LedgerEntry[]
+  stockMovements   StockMovement[]
+
+  @@index([customerId, status])
+  @@index([driverId])
+  @@index([date])
+  @@index([status, date])
+  @@index([cancelledByUserId])
+  @@index([creditOverrideByUserId])
+  @@index([createdByUserId])
+  @@map("orders")
+}
+
+model OrderLine {
+  id               Int      @id @default(autoincrement())
+  orderId          Int      @map("order_id")
+  itemId           Int      @map("item_id")
+  quantity         Int
+  unitDeposit      BigInt   @map("unit_deposit")
+  lineTotal        BigInt   @map("line_total")
+  // Maintained derived values (written only by recomputeOrder()).
+  returnedAccepted Int      @default(0) @map("returned_accepted")
+  returnedDamaged  Int      @default(0) @map("returned_damaged")
+  outQuantity      Int      @map("out_quantity")
+  createdAt        DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt        DateTime @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  order       Order        @relation(fields: [orderId], references: [id])
+  item        Item         @relation(fields: [itemId], references: [id])
+  returnLines ReturnLine[]
+
+  @@unique([orderId, itemId])
+  @@index([itemId])
+  @@map("order_lines")
+}
+
+// ───────────────────────────── Returns ─────────────────────────────
+
+// Never updated except the one-time reversal columns; never deleted (trigger + column grants).
+model PalletReturn {
+  id                 Int                 @id @default(autoincrement())
+  orderId            Int                 @map("order_id")
+  date               DateTime            @db.Date
+  notes              String?             @db.VarChar(1000)
+  refundDue          BigInt              @map("refund_due")
+  owedBefore         BigInt              @map("owed_before")
+  cashRefund         BigInt              @map("cash_refund")
+  reversedAt         DateTime?           @map("reversed_at") @db.Timestamptz(3)
+  reversedByUserId   Int?                @map("reversed_by_user_id")
+  reversalKind       ReturnReversalKind? @map("reversal_kind")
+  replacedByReturnId Int?                @unique @map("replaced_by_return_id")
+  createdAt          DateTime            @default(now()) @map("created_at") @db.Timestamptz(3)
+  createdByUserId    Int                 @map("created_by_user_id")
+
+  order          Order           @relation(fields: [orderId], references: [id])
+  reversedBy     User?           @relation("ReturnReversedBy", fields: [reversedByUserId], references: [id], onDelete: Restrict)
+  createdBy      User            @relation("ReturnCreatedBy", fields: [createdByUserId], references: [id])
+  replacedBy     PalletReturn?   @relation("ReturnReplacement", fields: [replacedByReturnId], references: [id], onDelete: Restrict)
+  replaces       PalletReturn?   @relation("ReturnReplacement")
+  lines          ReturnLine[]
+  ledgerEntries  LedgerEntry[]
+  stockMovements StockMovement[]
+
+  @@index([orderId])
+  @@index([date])
+  @@index([reversedByUserId])
+  @@index([createdByUserId])
+  @@map("returns")
+}
+
+model ReturnLine {
+  id               Int      @id @default(autoincrement())
+  returnId         Int      @map("return_id")
+  orderLineId      Int      @map("order_line_id")
+  acceptedQuantity Int      @map("accepted_quantity")
+  damagedQuantity  Int      @map("damaged_quantity")
+  unitDeposit      BigInt   @map("unit_deposit")
+  damagedRefund    BigInt   @map("damaged_refund")
+  createdAt        DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+
+  return    PalletReturn @relation(fields: [returnId], references: [id])
+  orderLine OrderLine    @relation(fields: [orderLineId], references: [id])
+
+  @@unique([returnId, orderLineId])
+  @@index([orderLineId])
+  @@map("return_lines")
+}
+
+// ───────────────────────────── Money ledger ─────────────────────────────
+
+// Append-only. Corrections are reversing rows (reverses_entry_id).
+model LedgerEntry {
+  id              Int               @id @default(autoincrement())
+  orderId         Int               @map("order_id")
+  type            LedgerEntryType
+  source          LedgerEntrySource
+  amount          BigInt
+  date            DateTime?         @db.Date
+  isAutomatic     Boolean           @default(false) @map("is_automatic")
+  returnId        Int?              @map("return_id")
+  reversesEntryId Int?              @unique @map("reverses_entry_id")
+  note            String?           @db.VarChar(500)
+  createdAt       DateTime          @default(now()) @map("created_at") @db.Timestamptz(3)
+  createdByUserId Int               @map("created_by_user_id")
+
+  order      Order         @relation(fields: [orderId], references: [id])
+  return     PalletReturn? @relation(fields: [returnId], references: [id], onDelete: Restrict)
+  reverses   LedgerEntry?  @relation("LedgerReversal", fields: [reversesEntryId], references: [id], onDelete: Restrict)
+  reversedBy LedgerEntry?  @relation("LedgerReversal")
+  createdBy  User          @relation("LedgerEntryCreatedBy", fields: [createdByUserId], references: [id])
+
+  @@index([orderId])
+  @@index([type, date])
+  @@index([date])
+  @@index([returnId])
+  @@index([createdByUserId])
+  @@map("ledger_entries")
+}
+
+// ───────────────────────────── Idempotency & audit ─────────────────────────────
+
+model IdempotencyKey {
+  id             Int              @id @default(autoincrement())
+  userId         Int              @map("user_id")
+  key            String           @db.VarChar(100)
+  scope          IdempotencyScope
+  requestHash    String           @map("request_hash") @db.Char(64)
+  responseStatus Int              @map("response_status")
+  responseBody   Json             @map("response_body")
+  createdAt      DateTime         @default(now()) @map("created_at") @db.Timestamptz(3)
+  expiresAt      DateTime         @map("expires_at") @db.Timestamptz(3)
+
+  user User @relation(fields: [userId], references: [id])
+
+  @@unique([userId, key])
+  @@index([expiresAt])
+  @@map("idempotency_keys")
+}
+
+// Append-only (the application role has only SELECT, INSERT).
+model AuditLog {
+  id              Int             @id @default(autoincrement())
+  createdAt       DateTime        @default(now()) @map("created_at") @db.Timestamptz(3)
+  userId          Int?            @map("user_id")
+  usernameAttempt String?         @map("username_attempt") @db.VarChar(64)
+  action          AuditAction
+  entityType      AuditEntityType @map("entity_type")
+  entityId        String?         @map("entity_id") @db.VarChar(64)
+  summaryKey      String          @map("summary_key") @db.VarChar(100)
+  summaryParams   Json            @default("{}") @map("summary_params")
+  ip              String?         @db.VarChar(45)
+  requestId       String?         @map("request_id") @db.VarChar(64)
+  before          Json?
+  after           Json?
+
+  user User? @relation(fields: [userId], references: [id], onDelete: Restrict)
+
+  @@index([createdAt])
+  @@index([userId, createdAt])
+  @@index([entityType, entityId])
+  @@index([action, createdAt])
+  @@map("audit_logs")
+}

@@ -1,0 +1,49 @@
+{
+  "name": "pallet-system",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Pallet System — pallet lending, stock, deposits and returns for a single factory.",
+  "packageManager": "pnpm@10.34.5",
+  "engines": {
+    "node": ">=24.11.0 <25"
+  },
+  "scripts": {
+    "dev": "pnpm --filter @pallet/shared build && pnpm --parallel --filter @pallet/shared --filter @pallet/api --filter @pallet/web dev",
+    "build": "pnpm -r build",
+    "typecheck": "pnpm --filter @pallet/shared build && pnpm -r typecheck",
+    "lint": "eslint .",
+    "format": "prettier --write .",
+    "format:check": "prettier --check .",
+    "test": "pnpm --filter @pallet/shared build && pnpm -r test",
+    "test:integration": "pnpm --filter @pallet/api test:integration",
+    "test:e2e": "pnpm --filter @pallet/web test:e2e",
+    "db:up": "docker compose -f docker-compose.dev.yml up -d",
+    "db:down": "docker compose -f docker-compose.dev.yml down",
+    "db:migrate": "pnpm --filter @pallet/api db:migrate",
+    "db:deploy": "pnpm --filter @pallet/api db:deploy",
+    "db:seed": "pnpm --filter @pallet/api db:seed",
+    "prepare": "husky"
+  },
+  "devDependencies": {
+    "@eslint/js": "10.0.1",
+    "eslint": "10.10.0",
+    "eslint-config-prettier": "10.1.8",
+    "eslint-plugin-react-hooks": "7.1.1",
+    "eslint-plugin-react-refresh": "0.5.6",
+    "globals": "17.12.0",
+    "husky": "9.1.7",
+    "lint-staged": "17.5.1",
+    "prettier": "3.9.6",
+    "typescript": "6.0.3",
+    "typescript-eslint": "8.70.0"
+  },
+  "lint-staged": {
+    "*.{ts,tsx,js,mjs,cjs}": [
+      "eslint --max-warnings=0 --no-warn-ignored",
+      "prettier --check"
+    ],
+    "*.{json,md,yml,yaml,css,html}": [
+      "prettier --check"
+    ]
+  }
+}

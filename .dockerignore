@@ -1,0 +1,17 @@
+**/node_modules
+**/dist
+# TypeScript incremental caches: a stale host copy makes `tsc -b` skip emitting inside the image.
+**/*.tsbuildinfo
+**/coverage
+**/playwright-report
+**/test-results
+**/src/generated
+**/.env
+**/.env.*
+!**/.env.example
+.git
+.github
+.husky
+docs
+*.md
+!ARCHITECTURE.md

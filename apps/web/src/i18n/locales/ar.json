@@ -1,0 +1,37 @@
+{
+  "app": {
+    "name": "نظام الباليت"
+  },
+  "common": {
+    "currency": "دينار"
+  },
+  "home": {
+    "title": "مرحباً",
+    "baselineNotice": "هذا هو الأساس للمشروع. ستُضاف الميزات في المراحل القادمة."
+  },
+  "status": {
+    "checking": "جارٍ الفحص…",
+    "serverOnline": "الخادم يعمل",
+    "serverOffline": "الخادم غير متاح"
+  },
+  "preferences": {
+    "title": "التفضيلات",
+    "language": "اللغة",
+    "theme": "المظهر",
+    "fontSize": "حجم الخط",
+    "themes": {
+      "light": "فاتح",
+      "dark": "داكن"
+    },
+    "fontSizes": {
+      "sm": "صغير",
+      "md": "عادي",
+      "lg": "كبير",
+      "xl": "كبير جداً"
+    }
+  },
+  "notFound": {
+    "title": "الصفحة غير موجودة",
+    "backHome": "العودة إلى الرئيسية"
+  }
+}
