@@ -41,6 +41,7 @@
     "prisma": "7.10.0",
     "reflect-metadata": "0.2.2",
     "rxjs": "7.8.2",
+    "sharp": "0.35.4",
     "zod": "4.6.2"
   },
   "devDependencies": {
@@ -48,6 +49,7 @@
     "@swc/core": "1.16.2",
     "@types/cookie-parser": "1.4.10",
     "@types/express": "5.0.6",
+    "@types/multer": "2.2.0",
     "@types/node": "24.13.4",
     "@types/supertest": "7.2.1",
     "supertest": "7.2.2",
