@@ -19,7 +19,8 @@
     "db:migrate": "prisma migrate dev",
     "db:deploy": "prisma migrate deploy && prisma db execute --file prisma/sql/grants.sql",
     "db:seed": "node --enable-source-maps --env-file-if-exists=../../.env dist/scripts/migrate.js --seed-only",
-    "db:studio": "prisma studio"
+    "db:studio": "prisma studio",
+    "reconcile": "node --enable-source-maps --env-file-if-exists=../../.env dist/scripts/reconcile.js"
   },
   "dependencies": {
     "@nestjs/common": "11.2.3",
