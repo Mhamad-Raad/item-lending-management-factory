@@ -10,8 +10,9 @@
   ],
   "scripts": {
     "postinstall": "prisma generate",
-    "build": "prisma generate && tsc -p tsconfig.build.json",
-    "dev": "tsc-watch -p tsconfig.build.json --noClear --onSuccess \"node --enable-source-maps --env-file-if-exists=../../.env dist/main.js\"",
+    "build": "prisma generate && tsc -p tsconfig.build.json && pnpm run copy-assets",
+    "copy-assets": "mkdir -p dist/modules/auth && cp src/modules/auth/common-passwords.txt dist/modules/auth/",
+    "dev": "pnpm run copy-assets && tsc-watch -p tsconfig.build.json --noClear --onSuccess \"node --enable-source-maps --env-file-if-exists=../../.env dist/main.js\"",
     "start": "node --enable-source-maps dist/main.js",
     "typecheck": "tsc -p tsconfig.json",
     "test": "vitest run",

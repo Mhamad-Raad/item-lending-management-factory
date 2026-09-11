@@ -2373,7 +2373,7 @@ Every controller handler carries **exactly one** of these decorators (`apps/api/
 | `@RequirePermission(...keys: GrantablePermissionKey[])` | All listed keys. |
 | `@RequireAnyPermission(...keys: GrantablePermissionKey[])` | At least one listed key. |
 
-`PermissionDeclarationCheck` (`apps/api/src/common/checks/permission-declaration.check.ts`) implements `OnApplicationBootstrap`: it enumerates every controller and handler via `DiscoveryService` + `MetadataScanner`, reads `pallet:access` with `Reflector`, and throws `Error('Routes without access declaration: GET /api/x, …')` if any handler has zero or more than one declaration, or declares a key that is not in `GRANTABLE_PERMISSION_KEYS`. The process exits with code 1. The unit test `apps/api/src/common/checks/permission-declaration.check.test.ts` compiles `AppModule` with `Test.createTestingModule` and calls `app.init()` so CI fails on a missing declaration. The same check builds the route→permission table printed at `debug` level on startup; the test also asserts that every key of `GRANTABLE_PERMISSION_KEYS` appears in at least one declaration.
+`PermissionDeclarationCheck` (`apps/api/src/common/checks/permission-declaration.check.ts`) implements `OnApplicationBootstrap`: it enumerates every controller and handler via `DiscoveryService` + `MetadataScanner`, reads `pallet:access` with `Reflector`, and throws `Error('Routes without access declaration: GET /api/x, …')` if any handler has zero or more than one declaration, declares a permission rule with an empty key list, or declares a key that is not in `GRANTABLE_PERMISSION_KEYS`. (`RequirePermission` / `RequireAnyPermission` also take a non-empty tuple, so the empty case is normally a compile error.) The process exits with code 1. The unit test `apps/api/src/common/checks/permission-declaration.check.test.ts` compiles `AppModule` with `Test.createTestingModule` and calls `app.init()` so CI fails on a missing declaration. The same check builds the route→permission table printed at `debug` level on startup; the test also asserts that every key of `GRANTABLE_PERMISSION_KEYS` appears in at least one declaration.
 
 ### 6.5 Optimistic locking
 
@@ -4409,7 +4409,7 @@ packages/shared/
 apps/api/
 ├── Dockerfile                    # multi-stage: deps → build (tsc, prisma generate) → runtime node:24.21.0-bookworm-slim, USER node
 ├── .dockerignore
-├── package.json                  # @pallet/api, CommonJS; scripts dev (tsc-watch), build, start, test, test:integration, db:*, reconcile
+├── package.json                  # @pallet/api, CommonJS; scripts dev (tsc-watch), build, copy-assets, start, test, test:integration, db:*, reconcile
 ├── prisma.config.ts              # Prisma 7 config: schema path, migrations path, datasource url = DATABASE_MIGRATE_URL
 ├── tsconfig.json                 # module nodenext (CommonJS output), experimentalDecorators, emitDecoratorMetadata
 ├── tsconfig.build.json           # excludes test/ and *.test.ts; outDir dist
@@ -4422,7 +4422,8 @@ apps/api/
 │   │   ├── constraints.sql       # CHECK constraints, partial indexes and triggers (source appended into migrations)
 │   │   └── grants.sql            # idempotent privilege script for pallet_app, run after every migrate deploy
 ├── src/
-│   ├── main.ts                   # bootstrap: pino logger, trust proxy, cookie-parser, global prefix /api, filters, shutdown hooks
+│   ├── main.ts                   # bootstrap: pino logger, configureApp, shutdown hooks; exits 1 with the message on a startup failure
+│   ├── bootstrap.ts              # configureApp(app, env): trust proxy, cookie-parser, global prefix /api — shared with the test harness
 │   ├── app.module.ts             # imports every module, registers global guards in the fixed order (section 6)
 │   ├── generated/prisma/         # Prisma client output (git-ignored, produced by `prisma generate`)
 │   ├── config/
@@ -4432,17 +4433,19 @@ apps/api/
 │   │   ├── prisma.service.ts     # PrismaClient with PrismaPg adapter; runInTransaction(fn) helper with isolation/timeouts
 │   │   └── locks.ts              # lockCustomer, lockOrder, lockItems (sorted), lockOrderCounter, lockSessionFamily ($queryRaw FOR UPDATE)
 │   ├── common/
+│   │   ├── clock.ts              # Clock (abstract), SystemClock, FixedClock (tests)
+│   │   ├── clock.module.ts       # global module binding Clock → SystemClock
 │   │   ├── decorators/           # @Public, @Authenticated, @RequirePermission, @RequireAnyPermission, @AdminOnly, @CurrentUser, @RateLimit
 │   │   ├── guards/               # app-throttler.guard, csrf.guard, auth.guard, password-change.guard, permission.guard
 │   │   ├── checks/               # permission-declaration.check (fails startup if a route lacks a declaration)
 │   │   ├── filters/              # api-exception.filter: maps ApiError/ZodError/Prisma/Throttler/Multer errors to ApiErrorBody
 │   │   ├── pipes/                # zod-validation.pipe (body/query/params with shared schemas)
 │   │   ├── errors/               # ApiError class + helpers (apiError('CODE', details))
-│   │   ├── context/              # request context (userId, permissions, canViewCost, ip, requestId) via AsyncLocalStorage
+│   │   ├── context/              # request-context.ts (AsyncLocalStorage: requestId, ip, userId) + the middleware that opens the scope
 │   │   └── utils/                # money (toSafeMoney, bigint↔number), dates (Baghdad today), canonical hash, pagination helpers
 │   ├── modules/
 │   │   ├── health/               # GET /api/health
-│   │   ├── auth/                 # login, refresh (rotation + grace), logout, logout-all, me, change-password; password.service (argon2, common list), login-throttle.service, sessions.service, jwt.strategy, common-passwords.txt
+│   │   ├── auth/                 # login, refresh (rotation + grace), logout, logout-all, me, change-password; password.service (argon2, common list), password.constants.ts (ARGON2_OPTIONS), login-throttle.service, sessions.service, jwt.strategy, common-passwords.txt
 │   │   ├── users/                # admin user management, permissions, reset password, guards (self/last admin)
 │   │   ├── settings/             # factory settings (single row)
 │   │   ├── uploads/              # multer + sharp pipeline, static serving of /api/uploads/:fileName
@@ -4457,7 +4460,7 @@ apps/api/
 │   │   ├── idempotency/          # IdempotencyService (lookup, replay, store inside the transaction), hourly purge
 │   │   ├── dashboard/            # GET /api/dashboard (permission-gated sections)
 │   │   ├── reports/              # positions, purchases, activity, stock report queries (raw SQL aggregates)
-│   │   ├── audit/                # AuditService.record(tx, entry), redaction rules, GET /api/audit-logs
+│   │   ├── audit/                # audit.service.ts (record(tx, entry)), audit-snapshot.ts (per-entity allow-lists), audit-redaction.ts, GET /api/audit-logs
 │   │   └── maintenance/          # hourly/daily cleanup jobs (idempotency keys, login throttles, expired session families)
 │   └── scripts/
 │       ├── migrate.ts            # prisma migrate deploy → grants.sql → first-run seed (idempotent); `--seed-only` for `pnpm db:seed`
@@ -4465,9 +4468,10 @@ apps/api/
 │       ├── healthcheck.ts        # Docker HEALTHCHECK: GET http://127.0.0.1:3000/api/health, exit 0/1
 │       └── reconcile.ts          # recompute every order and every item stock from the ledgers; print differences; exit 1 on mismatch
 └── test/
+    ├── global-setup.ts           # once per run: migrate deploy + grants.sql against pallet_test
     ├── helpers/
     │   ├── app.ts                # boots the Nest app against the test database (app role) for supertest
-    │   ├── db.ts                 # truncate/reset helpers run as the owner role
+    │   ├── db.ts                 # truncate/reset helpers run as the owner role; guards that every table is truncated
     │   ├── factories.ts          # createUser/createItem/createCustomer/createOrder helpers via the API
     │   └── auth.ts               # login helpers returning access tokens and cookies
     └── integration/              # *.test.ts: auth, sessions, lockout, users, permissions, uploads, items, purchases, customers, drivers, orders, credit-limit, returns, payments, idempotency, reports, dashboard, audit, cost-stripping, db-privileges, reconciliation
@@ -4581,7 +4585,7 @@ Every requirement of the client query §6A appears below as one row: requirement
 |---|---|---|---|---|
 | S1 | Password hashing | `argon2` 0.45.1 | `argon2.hash(pw, { type: argon2.argon2id, memoryCost: 19456, timeCost: 2, parallelism: 1 })`; `argon2.verify(hash, pw)`; after a successful login, if `argon2.needsRehash(hash, PARAMS)` is true the hash is recomputed and stored in the same transaction | `apps/api/src/modules/auth/password.service.ts` |
 | S2 | Password policy | `zod` 4.6.2 | `passwordSchema = z.string().min(10).max(128)` → codes `PASSWORD_TOO_SHORT` / `PASSWORD_TOO_LONG` (mapped from `too_small`/`too_big` on the password field by the auth service, not `VALIDATION_FAILED`); lowercase candidate ∈ common set → `PASSWORD_TOO_COMMON`; candidate (lowercased) = username → `PASSWORD_TOO_COMMON`; new = current → `PASSWORD_SAME_AS_CURRENT` | `packages/shared/src/schemas/auth.ts`, `apps/api/src/modules/auth/password-policy.ts` |
-| S3 | Bundled common-password list | none (text file) | `apps/api/src/modules/auth/common-passwords.txt` = SecLists `Passwords/Common-Credentials/100k-most-used-passwords-NCSC.txt`, entries with length ≥ 10, lowercased, de-duplicated, one per line, UTF-8; loaded once into a `Set<string>` at module init; copied to `dist/` by the build (`tsconfig.build.json` does not copy assets → the API `build` script appends `cp src/modules/auth/common-passwords.txt dist/modules/auth/`) | same folder |
+| S3 | Bundled common-password list | none (text file) | `apps/api/src/modules/auth/common-passwords.txt` = SecLists `Passwords/Common-Credentials/100k-most-used-passwords-NCSC.txt`, entries with length ≥ 10, lowercased, de-duplicated, one per line, UTF-8; loaded once into a `Set<string>` at module init; copied to `dist/` by the API `copy-assets` script (`mkdir -p dist/modules/auth && cp src/modules/auth/common-passwords.txt dist/modules/auth/`), which both `build` and `dev` run because `tsconfig.build.json` does not copy assets | same folder |
 | S4 | No username enumeration | `argon2` | `DUMMY_HASH` = `argon2.hash(randomBytes(32).toString('hex'), PARAMS)` computed in `onModuleInit`. Every login attempt performs **exactly one** `argon2.verify`: unknown username, inactive user and locked (ip, username) pair verify the submitted password against `DUMMY_HASH` and then fail. Every failure returns HTTP 401 `AUTH_INVALID_CREDENTIALS`, identical body | `apps/api/src/modules/auth/auth.service.ts` |
 | S5 | Login auditing | — | `LOGIN_SUCCESS`, `LOGIN_FAILURE` (params `reason`: `INVALID` \| `LOCKED` \| `INACTIVE` — stored only in the audit row, never in the response), `LOCKOUT`; each with `ip`, `requestId`, `usernameAttempt` | §11 |
 | S6 | Access token | `@nestjs/jwt` 11.0.2, `@nestjs/passport` 11.0.5, `passport-jwt` 4.0.1 | `JwtModule.register({ secret: env.JWT_ACCESS_SECRET, signOptions: { algorithm: 'HS256', expiresIn: '15m' }, verifyOptions: { algorithms: ['HS256'] } })`; payload exactly `{ sub: String(userId), tv: tokenVersion }` (+ `iat`, `exp`); strategy `ExtractJwt.fromAuthHeaderAsBearerToken()`, `ignoreExpiration: false`; `env.JWT_ACCESS_SECRET` min length 64 | `apps/api/src/modules/auth/auth.module.ts`, `jwt.strategy.ts` |
@@ -4693,7 +4697,7 @@ printf '{ "log-driver": "json-file", "log-opts": { "max-size": "50m", "max-file"
 - Table `audit_logs` (§5): `id`, `created_at` (UTC), `user_id` (nullable: login failures for unknown usernames), `username_attempt` (login events only, lowercased, truncated to 64), `action` (`AuditAction`), `entity_type` (`AuditEntityType`), `entity_id` (text: integer ids as decimal strings, session family uuid), `summary_key`, `summary_params` (jsonb), `ip`, `request_id`, `before` (jsonb), `after` (jsonb).
 - **Append-only:** no endpoint updates or deletes audit rows; `pallet_app` has only `SELECT, INSERT`; trigger `forbid_update_delete` raises on `UPDATE`/`DELETE` for every role (a restore uses `pg_restore` into an empty database, which only inserts).
 - **Same transaction:** every mutation writes its audit row(s) through `AuditService.record(tx, entry)` using the transaction client of the mutation; if the mutation rolls back, the audit row does too. Login success/failure/lockout rows are written in their own short transaction together with the `login_throttles` / `session_families` change they describe.
-- **Context capture:** `RequestContext` (`apps/api/src/common/request-context.ts`, Node `AsyncLocalStorage`) is populated by a middleware with `requestId` (the pino request id, also returned as `X-Request-Id`) and `ip` (`req.ip`, already resolved through `trust proxy`), and by `AuthGuard` with `userId`. `AuditService.record` reads them; callers never pass them.
+- **Context capture:** `RequestContext` (`apps/api/src/common/context/request-context.ts`, Node `AsyncLocalStorage`) is populated by a middleware with `requestId` (the pino request id, also returned as `X-Request-Id`) and `ip` (`req.ip`, already resolved through `trust proxy`), and by `AuthGuard` with `userId`. `AuditService.record` reads them; callers never pass them.
 - **Retention:** kept forever (estimated < 150 MB per year at this scale). No purge job.
 - **Indexes:** `(created_at)`, `(user_id, created_at)`, `(entity_type, entity_id)`, `(action, created_at)` — match the History page filters. Listing query: `WHERE` = conjunction of the supplied filters; `ORDER BY created_at DESC, id DESC`; offset pagination (`pageSize` ≤ 100).
 - **Summary rendering:** the API never stores or returns prose. `summary_key` = `audit.summary.<ENTITY_TYPE>.<ACTION>`; the web app renders `t(summaryKey, summaryParams)` in the viewer's language. Every key in §11.3 must exist in all three locale files (checked by the i18n completeness test).
@@ -4770,7 +4774,7 @@ One operation may write several rows, all in its transaction, in this order: pri
 | SESSION | refresh token values and `tokenHash`; the audit row carries only the family uuid |
 | any | request headers, cookies, access tokens; login attempts store `usernameAttempt` only |
 
-Defence in depth: `AuditService.record` deletes, recursively, every key of `before`/`after`/`summaryParams` whose name matches `/password|token|secret/i` before insert, and a unit test asserts it.
+Defence in depth: `AuditService.record` deletes, recursively, every key of `before`/`after`/`summaryParams` whose name matches `/password|token|secret/i` before insert, except the explicit non-credential exceptions in `SENSITIVE_KEY_EXCEPTIONS` (today only `mustChangePassword`, a flag the USER snapshot must keep). A unit test asserts both the stripping and the exception.
 
 ### 11.5 Read-time redaction (per viewer)
 

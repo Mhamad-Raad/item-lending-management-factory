@@ -1,9 +1,29 @@
 {
-  "app": {
-    "name": "سیستەمی پالێت"
-  },
   "common": {
-    "currency": "دینار"
+    "appName": "سیستەمی پالێت",
+    "currency": "دینار",
+    "notFound": {
+      "title": "ئەم پەڕەیە نەدۆزرایەوە",
+      "backHome": "گەڕانەوە بۆ سەرەتا"
+    }
+  },
+  "account": {
+    "preferences": {
+      "title": "ڕێکخستنەکان",
+      "language": "زمان",
+      "theme": "ڕووکار",
+      "fontSize": "قەبارەی فۆنت",
+      "themes": {
+        "light": "ڕووناک",
+        "dark": "تاریک"
+      },
+      "fontSizes": {
+        "sm": "بچووک",
+        "md": "ئاسایی",
+        "lg": "گەورە",
+        "xl": "زۆر گەورە"
+      }
+    }
   },
   "home": {
     "title": "بەخێربێیت",
@@ -13,25 +33,5 @@
     "checking": "پشکنین…",
     "serverOnline": "ڕاژەکار کار دەکات",
     "serverOffline": "ڕاژەکار بەردەست نییە"
-  },
-  "preferences": {
-    "title": "ڕێکخستنەکان",
-    "language": "زمان",
-    "theme": "ڕووکار",
-    "fontSize": "قەبارەی فۆنت",
-    "themes": {
-      "light": "ڕووناک",
-      "dark": "تاریک"
-    },
-    "fontSizes": {
-      "sm": "بچووک",
-      "md": "ئاسایی",
-      "lg": "گەورە",
-      "xl": "زۆر گەورە"
-    }
-  },
-  "notFound": {
-    "title": "ئەم پەڕەیە نەدۆزرایەوە",
-    "backHome": "گەڕانەوە بۆ سەرەتا"
   }
 }

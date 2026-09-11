@@ -8,12 +8,13 @@
 import { execFileSync } from 'node:child_process';
 import path from 'node:path';
 import argon2 from 'argon2';
+import { toAuditSnapshot } from '../modules/audit/audit-snapshot';
+import { AuditService } from '../modules/audit/audit.service';
+import { ARGON2_OPTIONS } from '../modules/auth/password.constants';
 import { createPrismaClient } from '../prisma/create-client';
 
 const API_ROOT = path.resolve(__dirname, '..', '..');
 const PRISMA_BIN = path.join(API_ROOT, 'node_modules', '.bin', 'prisma');
-
-export const ARGON2_OPTIONS = { type: argon2.argon2id, memoryCost: 19_456, timeCost: 2, parallelism: 1 } as const;
 
 function requireEnv(name: string): string {
   const value = process.env[name];
@@ -66,22 +67,14 @@ async function seed(): Promise<void> {
             mustChangePassword: true,
           },
         });
-        await tx.auditLog.create({
-          data: {
-            action: 'CREATE',
-            entityType: 'USER',
-            entityId: String(created.id),
-            summaryKey: 'audit.summary.USER.CREATE',
-            summaryParams: { username: admin.username, seeded: true },
-            after: {
-              id: created.id,
-              username: admin.username,
-              displayName: admin.displayName,
-              role: 'ADMIN',
-              isActive: true,
-              mustChangePassword: true,
-            },
-          },
+        await new AuditService().record(tx, {
+          action: 'CREATE',
+          entityType: 'USER',
+          entityId: String(created.id),
+          summaryParams: { username: admin.username, seeded: true },
+          after: toAuditSnapshot('USER', created),
+          // No request context in a script: the row is attributed to nobody, as §13.3 requires.
+          userId: null,
         });
       }
       if (!settings) {
@@ -106,7 +99,10 @@ async function main(): Promise<void> {
   await seed();
 }
 
-main().catch((err: unknown) => {
-  console.error('[migrate] failed:', err instanceof Error ? err.message : err);
-  process.exit(1);
-});
+// Guarded so the module can be imported (the test helpers reuse its constants) without running.
+if (require.main === module) {
+  main().catch((err: unknown) => {
+    console.error('[migrate] failed:', err instanceof Error ? err.message : err);
+    process.exit(1);
+  });
+}

@@ -18,8 +18,9 @@ Pallet System: a web app for a single pallet factory in Iraq (Kurdistan Region) 
 ## Status
 
 - **Baseline (M0) is done** (2026-09-11): workspace, tooling, Prisma schema + initial migration, grants, role init, shared package (enums, permissions, error codes, dates, ledger math with all worked-example tests, `schemas/common.ts`), API shell (env validation, Prisma service, pino logs, error filter, access decorators, `/api/health`, migrate/seed, healthcheck, reconcile scripts), web shell (Vite, TanStack Router, preferences boot, i18n ckb/ar/en, Tailwind tokens, Button), Docker/Caddy/CI/backups/runbooks.
-- **Next: Milestone M1** — auth + users/permissions + audit log. Follow `ARCHITECTURE.md` §15 milestone by milestone (M1 → M7); each milestone must end runnable with its acceptance checklist green.
-- Known M1 contracts: bundle `apps/api/src/modules/auth/common-passwords.txt` into the build output; add the permission-declaration startup check (§6); inject a `Clock` for time-dependent tests; rename the scaffold i18n keys to the §7.10 conventions.
+- **In progress: Milestone M1** — auth + users/permissions + audit log. Work in the iterations of `docs/iterations.md` (1a → 1d); each milestone must end runnable with its §15 acceptance checklist green.
+- **1a done** (2026-09-12): `Clock`, `RequestContext` + middleware, `AuditService.record` with `toAuditSnapshot` / `redactAuditSnapshot`, the permission-declaration startup check, the bundled common-password list, the §7.10 i18n key rename, and the integration harness (`test/global-setup.ts`, `test/helpers/`) with the first integration test.
+- Next: **1b** — password, login-throttle and session services, the five global guards, `/api/auth/*`. `home.*` and `status.*` i18n keys still exist and are deleted in 1d when the baseline home page is replaced.
 
 ## Layout
 

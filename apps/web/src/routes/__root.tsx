@@ -15,9 +15,9 @@ function NotFound() {
   const { t } = useTranslation();
   return (
     <main className="mx-auto flex min-h-dvh max-w-md flex-col items-center justify-center gap-4 p-6 text-center">
-      <h1 className="text-2xl font-semibold">{t('notFound.title')}</h1>
+      <h1 className="text-2xl font-semibold">{t('common.notFound.title')}</h1>
       <Link to="/" className="text-primary underline-offset-4 hover:underline">
-        {t('notFound.backHome')}
+        {t('common.notFound.backHome')}
       </Link>
     </main>
   );

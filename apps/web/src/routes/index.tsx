@@ -36,7 +36,7 @@ function HomePage() {
       transition={{ duration: 0.2, ease: [0.16, 1, 0.3, 1] }}
     >
       <header className="flex flex-col gap-2">
-        <p className="text-sm font-medium text-primary">{t('app.name')}</p>
+        <p className="text-sm font-medium text-primary">{t('common.appName')}</p>
         <h1 className="text-3xl font-semibold">{t('home.title')}</h1>
         <p className="text-muted-foreground">{t('home.baselineNotice')}</p>
       </header>
@@ -61,10 +61,10 @@ function HomePage() {
       </section>
 
       <section className="flex flex-col gap-5 rounded-lg border bg-card p-4">
-        <h2 className="text-lg font-semibold">{t('preferences.title')}</h2>
+        <h2 className="text-lg font-semibold">{t('account.preferences.title')}</h2>
 
         <fieldset className="flex flex-col gap-2">
-          <legend className="mb-2 text-sm font-medium">{t('preferences.language')}</legend>
+          <legend className="mb-2 text-sm font-medium">{t('account.preferences.language')}</legend>
           <div className="flex flex-wrap gap-2">
             {LANGUAGES.map((language) => (
               <Button
@@ -81,27 +81,27 @@ function HomePage() {
         </fieldset>
 
         <fieldset className="flex flex-col gap-2">
-          <legend className="mb-2 text-sm font-medium">{t('preferences.theme')}</legend>
+          <legend className="mb-2 text-sm font-medium">{t('account.preferences.theme')}</legend>
           <div className="flex flex-wrap gap-2">
             <Button
               variant={prefs.theme === 'light' ? 'default' : 'outline'}
               aria-pressed={prefs.theme === 'light'}
               onClick={() => setPreferences({ theme: 'light' })}
             >
-              <Sun aria-hidden /> {t('preferences.themes.light')}
+              <Sun aria-hidden /> {t('account.preferences.themes.light')}
             </Button>
             <Button
               variant={prefs.theme === 'dark' ? 'default' : 'outline'}
               aria-pressed={prefs.theme === 'dark'}
               onClick={() => setPreferences({ theme: 'dark' })}
             >
-              <Moon aria-hidden /> {t('preferences.themes.dark')}
+              <Moon aria-hidden /> {t('account.preferences.themes.dark')}
             </Button>
           </div>
         </fieldset>
 
         <fieldset className="flex flex-col gap-2">
-          <legend className="mb-2 text-sm font-medium">{t('preferences.fontSize')}</legend>
+          <legend className="mb-2 text-sm font-medium">{t('account.preferences.fontSize')}</legend>
           <div className="flex flex-wrap gap-2">
             {FONT_SIZES.map((size) => (
               <Button
@@ -110,7 +110,7 @@ function HomePage() {
                 aria-pressed={prefs.fontSize === size}
                 onClick={() => setPreferences({ fontSize: size })}
               >
-                {t(`preferences.fontSizes.${size}`)}
+                {t(`account.preferences.fontSizes.${size}`)}
               </Button>
             ))}
           </div>

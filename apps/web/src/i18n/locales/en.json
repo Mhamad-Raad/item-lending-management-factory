@@ -1,9 +1,29 @@
 {
-  "app": {
-    "name": "Pallet System"
-  },
   "common": {
-    "currency": "IQD"
+    "appName": "Pallet System",
+    "currency": "IQD",
+    "notFound": {
+      "title": "Page not found",
+      "backHome": "Back to home"
+    }
+  },
+  "account": {
+    "preferences": {
+      "title": "Preferences",
+      "language": "Language",
+      "theme": "Theme",
+      "fontSize": "Font size",
+      "themes": {
+        "light": "Light",
+        "dark": "Dark"
+      },
+      "fontSizes": {
+        "sm": "Small",
+        "md": "Normal",
+        "lg": "Large",
+        "xl": "Extra large"
+      }
+    }
   },
   "home": {
     "title": "Welcome",
@@ -13,25 +33,5 @@
     "checking": "Checking…",
     "serverOnline": "Server is running",
     "serverOffline": "Server is unavailable"
-  },
-  "preferences": {
-    "title": "Preferences",
-    "language": "Language",
-    "theme": "Theme",
-    "fontSize": "Font size",
-    "themes": {
-      "light": "Light",
-      "dark": "Dark"
-    },
-    "fontSizes": {
-      "sm": "Small",
-      "md": "Normal",
-      "lg": "Large",
-      "xl": "Extra large"
-    }
-  },
-  "notFound": {
-    "title": "Page not found",
-    "backHome": "Back to home"
   }
 }
