@@ -20,7 +20,9 @@ Pallet System: a web app for a single pallet factory in Iraq (Kurdistan Region) 
 - **Baseline (M0) is done** (2026-09-11): workspace, tooling, Prisma schema + initial migration, grants, role init, shared package (enums, permissions, error codes, dates, ledger math with all worked-example tests, `schemas/common.ts`), API shell (env validation, Prisma service, pino logs, error filter, access decorators, `/api/health`, migrate/seed, healthcheck, reconcile scripts), web shell (Vite, TanStack Router, preferences boot, i18n ckb/ar/en, Tailwind tokens, Button), Docker/Caddy/CI/backups/runbooks.
 - **In progress: Milestone M1** — auth + users/permissions + audit log. Work in the iterations of `docs/iterations.md` (1a → 1d); each milestone must end runnable with its §15 acceptance checklist green.
 - **1a done** (2026-09-12): `Clock`, `RequestContext` + middleware, `AuditService.record` with `toAuditSnapshot` / `redactAuditSnapshot`, the permission-declaration startup check, the bundled common-password list, the §7.10 i18n key rename, and the integration harness (`test/global-setup.ts`, `test/helpers/`) with the first integration test.
-- Next: **1b** — password, login-throttle and session services, the five global guards, `/api/auth/*`. `home.*` and `status.*` i18n keys still exist and are deleted in 1d when the baseline home page is replaced.
+- **1b done** (2026-09-12): password service + policy (bundled list), login throttle with (ip, username) backoff, session families with rotation / 30 s grace / reuse detection, the five global guards in their fixed order, `/api/auth/login|refresh|logout|logout-all|me|change-password`, and the S-1 … S-9, S-16 … S-18, S-20, S-21 integration tests.
+- Next: **1c** — `/api/users` (list, create, get, patch, permissions, reset-password, logout-all) with the self and last-admin guards, and `GET /api/audit-logs` with read-time redaction.
+- Carried into 1d: `errors.<CODE>` / `validation.<code>` i18n keys (added with the web error rendering), and deleting the `home.*` / `status.*` scaffold keys with the baseline home page.
 
 ## Layout
 
