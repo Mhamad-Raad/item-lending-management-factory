@@ -16,7 +16,8 @@ services:
       # Also create the `pallet_test` database used by the integration suite.
       PALLET_CREATE_TEST_DB: 'true'
     ports:
-      - '127.0.0.1:5432:5432'
+      # 5434 on the host: 5432 and 5433 are commonly taken by other local PostgreSQL servers (Q33).
+      - '127.0.0.1:5434:5432'
     volumes:
       - pgdata_dev:/var/lib/postgresql
       - ./deploy/postgres/init:/docker-entrypoint-initdb.d:ro

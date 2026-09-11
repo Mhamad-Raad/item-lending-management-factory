@@ -189,13 +189,14 @@ Every item below is an ambiguity, contradiction or gap in the brief. The builder
 | Q23 | Are item names unique? | No. |
 | Q24 | Which payments block line edits and cancellation? | Only non-reversed **manual** payments (`source = MANUAL`); the automatic hand-over payment never blocks. Non-reversed returns block. |
 | Q25 | Stored or computed derived values? | Order and line derived values are maintained columns written only by `recomputeOrder(tx, orderId)` (full recompute from source rows with `computeOrderTotals`, never incremental). `items.quantity_on_hand` is maintained by stock movements. Customer and item aggregates are computed on read with SQL. A reconciliation command verifies all maintained values (section 4.8). |
-| Q26 | Development environment shape. | `docker-compose.dev.yml` runs only PostgreSQL on `127.0.0.1:5432`; API and web run on the host with hot reload; the Vite dev server (port 5173) proxies `/api` to `http://localhost:3000`, so development is also same-origin. CORS is enabled only when `NODE_ENV=development` and `CORS_DEV_ORIGIN` is set. |
+| Q26 | Development environment shape. | `docker-compose.dev.yml` runs only PostgreSQL on `127.0.0.1:5434` (Q33); API and web run on the host with hot reload; the Vite dev server (port 5175, Q33) proxies `/api` to `http://localhost:3000`, so development is also same-origin. CORS is enabled only when `NODE_ENV=development` and `CORS_DEV_ORIGIN` is set. |
 | Q27 | Behaviour while `mustChangePassword` is set. | Every endpoint except `GET /api/auth/me`, `POST /api/auth/change-password`, `POST /api/auth/logout`, `POST /api/auth/logout-all` and `POST /api/auth/refresh` returns 403 `PASSWORD_CHANGE_REQUIRED`; the web app redirects to `/change-password`. |
 | Q28 | Are replaced uploads deleted? | No. Replacing an image creates a new upload; old files stay (history; negligible size). |
 | Q29 | What does archiving a customer affect? | It hides the customer from pickers and default lists only; existing orders keep referencing it and remain fully operable. |
 | Q30 | Does editing stock or derived values bump `version`? | `items.version` changes only on edits of item fields (name, price, minStock, image), never on stock movements. `orders.version` increments on every operation that touches the order after creation (edit, cancel, return create/edit/delete, payment create/reverse), so a stale order page always gets `VERSION_CONFLICT` on its next edit. |
 | Q31 | Database session safety nets. | The runtime role has `statement_timeout = 30s` and `idle_in_transaction_session_timeout = 60s`; all roles use `timezone = UTC`. |
 | Q32 | Extra integrity beyond the brief's CHECK list. | The database additionally enforces: stock movement sign per reason, reference-per-reason, ledger source-per-type, reversal rows mirroring their original (trigger `ledger_reversal_matches_original`), `cash_refund = GREATEST(0, refund_due − owed_before)` on returns, and append-only triggers on audit, stock and money tables (section 5.6–5.8). |
+| Q33 | Which host ports does local development use? | PostgreSQL `127.0.0.1:5434` and the Vite dev server `5175` — the defaults 5432, 5433 and 5173 are commonly held by other projects on a maintainer's machine, and a busy port fails the whole `pnpm dev` run. Local database URLs use `127.0.0.1`, never `localhost`, because the container publishes on IPv4 only while `localhost` resolves to `::1` first on macOS. The ports appear in `docker-compose.dev.yml`, `apps/web/vite.config.ts`, the LOCAL DEVELOPMENT block of `.env.example`, `README.md` and the §9.1 repository tree — changing them means changing all five; CI and production reach PostgreSQL over the container network on 5432 and serve the web build through Caddy, both unchanged. |
 
 ## 3. Actors, roles and permissions
 
@@ -1090,8 +1091,9 @@ Additional database-level settings from the init script: `REVOKE ALL ON DATABASE
 1. Schema changes are made in `apps/api/prisma/schema.prisma` and turned into SQL with `pnpm --filter @pallet/api exec prisma migrate dev --create-only --name <snake_case_name>` (development database, as `pallet_owner`).
 2. The initial migration `apps/api/prisma/migrations/<timestamp>_init/migration.sql` = the Prisma-generated DDL followed verbatim by `apps/api/prisma/sql/constraints.sql`. Later migrations that add CHECKs or triggers append hand-written SQL to their own `migration.sql` the same way and update `constraints.sql` so it stays the complete reference.
 3. Production: the `migrate` compose service runs `prisma migrate deploy` as `pallet_owner`, then `prisma db execute --file prisma/sql/grants.sql`, then the first-run seed (idempotent). The API never runs migrations.
-4. Migrations are forward-only. A change that cannot be rolled back by redeploying the previous image (column drops, type narrowing) is split into expand (release N) and contract (release N+1) so that release N−1 can still run against the schema of release N.
-5. A new table requires: model in `schema.prisma`, grants entry in `grants.sql`, redaction entry in section 11, and (for append-only tables) a `forbid_update_delete` trigger.
+4. Grants are re-applied after every migration in every environment, because a new table starts with no privileges for `pallet_app`: `pnpm db:migrate` (development) and `pnpm db:deploy` (CI) both end with `prisma db execute --file prisma/sql/grants.sql`.
+5. Migrations are forward-only. A change that cannot be rolled back by redeploying the previous image (column drops, type narrowing) is split into expand (release N) and contract (release N+1) so that release N−1 can still run against the schema of release N.
+6. A new table requires: model in `schema.prisma`, grants entry in `grants.sql`, redaction entry in section 11, and (for append-only tables) a `forbid_update_delete` trigger.
 
 ### 5.10 Prisma schema (`apps/api/prisma/schema.prisma`, verbatim)
 
@@ -2371,7 +2373,7 @@ Every controller handler carries **exactly one** of these decorators (`apps/api/
 | `@RequirePermission(...keys: GrantablePermissionKey[])` | All listed keys. |
 | `@RequireAnyPermission(...keys: GrantablePermissionKey[])` | At least one listed key. |
 
-`PermissionDeclarationCheck` (`apps/api/src/common/access/permission-declaration.check.ts`) implements `OnApplicationBootstrap`: it enumerates every controller and handler via `DiscoveryService` + `MetadataScanner`, reads `pallet:access` with `Reflector`, and throws `Error('Routes without access declaration: GET /api/x, …')` if any handler has zero or more than one declaration, or declares a key that is not in `GRANTABLE_PERMISSION_KEYS`. The process exits with code 1. The unit test `apps/api/test/unit/permission-declarations.spec.ts` compiles `AppModule` with `Test.createTestingModule` and calls `app.init()` so CI fails on a missing declaration. The same check builds the route→permission table printed at `debug` level on startup; the test also asserts that every key of `GRANTABLE_PERMISSION_KEYS` appears in at least one declaration.
+`PermissionDeclarationCheck` (`apps/api/src/common/checks/permission-declaration.check.ts`) implements `OnApplicationBootstrap`: it enumerates every controller and handler via `DiscoveryService` + `MetadataScanner`, reads `pallet:access` with `Reflector`, and throws `Error('Routes without access declaration: GET /api/x, …')` if any handler has zero or more than one declaration, or declares a key that is not in `GRANTABLE_PERMISSION_KEYS`. The process exits with code 1. The unit test `apps/api/src/common/checks/permission-declaration.check.test.ts` compiles `AppModule` with `Test.createTestingModule` and calls `app.init()` so CI fails on a missing declaration. The same check builds the route→permission table printed at `debug` level on startup; the test also asserts that every key of `GRANTABLE_PERMISSION_KEYS` appears in at least one declaration.
 
 ### 6.5 Optimistic locking
 
@@ -4348,7 +4350,7 @@ Paths are relative to the repository root. Every folder and file listed here exi
 ├── ARCHITECTURE.md               # this document
 ├── README.md                     # quick start, commands, links to docs/
 ├── docker-compose.yml            # production stack: caddy, api, migrate, postgres (section 13)
-├── docker-compose.dev.yml        # local Postgres only, bound to 127.0.0.1:5432
+├── docker-compose.dev.yml        # local Postgres only, bound to 127.0.0.1:5434 (Q33)
 ├── eslint.config.mjs             # flat config: @eslint/js, typescript-eslint strict-type-checked, react-hooks, react-refresh, prettier
 ├── package.json                  # root scripts (dev, build, lint, typecheck, test, db:*) and shared dev tooling
 ├── pnpm-lock.yaml                # committed lockfile (CI uses --frozen-lockfile)
@@ -4370,7 +4372,6 @@ Paths are relative to the repository root. Every folder and file listed here exi
 packages/shared/
 ├── package.json                  # @pallet/shared, ESM, exports ./dist, deps: zod, date-fns, @date-fns/tz
 ├── tsconfig.json                 # composite, NodeNext, outDir dist, declaration
-├── vitest.config.ts              # node environment
 └── src/
     ├── index.ts                  # re-exports every public symbol
     ├── enums.ts                  # enum arrays, value objects and types (8.1)
@@ -4412,16 +4413,14 @@ apps/api/
 ├── prisma.config.ts              # Prisma 7 config: schema path, migrations path, datasource url = DATABASE_MIGRATE_URL
 ├── tsconfig.json                 # module nodenext (CommonJS output), experimentalDecorators, emitDecoratorMetadata
 ├── tsconfig.build.json           # excludes test/ and *.test.ts; outDir dist
-├── vitest.config.ts              # unit tests (src/**/*.test.ts), unplugin-swc for decorator metadata
-├── vitest.integration.config.ts  # integration tests (test/integration/**), single fork, real Postgres
+├── vitest.config.mts             # unit tests (src/**/*.test.ts), unplugin-swc for decorator metadata
+├── vitest.integration.config.mts # integration tests (test/integration/**), single fork, real Postgres
 ├── prisma/
 │   ├── schema.prisma             # database schema (section 5)
 │   ├── migrations/               # Prisma migrations; each contains migration.sql (+ appended raw SQL for checks/triggers)
 │   ├── sql/
 │   │   ├── constraints.sql       # CHECK constraints, partial indexes and triggers (source appended into migrations)
 │   │   └── grants.sql            # idempotent privilege script for pallet_app, run after every migrate deploy
-│   ├── seed.ts                   # first-run seed: first admin from env (mustChangePassword) + default settings + order counter
-│   └── seed-demo.ts              # dev-only realistic demo data created through the domain services
 ├── src/
 │   ├── main.ts                   # bootstrap: pino logger, trust proxy, cookie-parser, global prefix /api, filters, shutdown hooks
 │   ├── app.module.ts             # imports every module, registers global guards in the fixed order (section 6)
@@ -4461,7 +4460,8 @@ apps/api/
 │   │   ├── audit/                # AuditService.record(tx, entry), redaction rules, GET /api/audit-logs
 │   │   └── maintenance/          # hourly/daily cleanup jobs (idempotency keys, login throttles, expired session families)
 │   └── scripts/
-│       ├── migrate.ts            # production: prisma migrate deploy → grants.sql → first-run seed (idempotent)
+│       ├── migrate.ts            # prisma migrate deploy → grants.sql → first-run seed (idempotent); `--seed-only` for `pnpm db:seed`
+│       ├── seed-demo.ts          # dev-only realistic demo data through the domain services (added in M2)
 │       ├── healthcheck.ts        # Docker HEALTHCHECK: GET http://127.0.0.1:3000/api/health, exit 0/1
 │       └── reconcile.ts          # recompute every order and every item stock from the ledgers; print differences; exit 1 on mismatch
 └── test/
@@ -4470,7 +4470,7 @@ apps/api/
     │   ├── db.ts                 # truncate/reset helpers run as the owner role
     │   ├── factories.ts          # createUser/createItem/createCustomer/createOrder helpers via the API
     │   └── auth.ts               # login helpers returning access tokens and cookies
-    └── integration/              # *.spec.ts: auth, sessions, lockout, users, permissions, uploads, items, purchases, customers, drivers, orders, credit-limit, returns, payments, idempotency, reports, dashboard, audit, cost-stripping, db-privileges, reconciliation
+    └── integration/              # *.test.ts: auth, sessions, lockout, users, permissions, uploads, items, purchases, customers, drivers, orders, credit-limit, returns, payments, idempotency, reports, dashboard, audit, cost-stripping, db-privileges, reconciliation
 ```
 Each folder under `src/modules/<module>/` contains `<module>.module.ts`, `<module>.controller.ts`, `<module>.service.ts`, `<module>.mappers.ts` (row → DTO), and, where queries are non-trivial, `<module>.queries.ts` (raw SQL tagged templates). Unit tests sit next to the code as `*.test.ts`.
 
@@ -4556,6 +4556,7 @@ Host cron entries (§13.6) and the VPS hardening commands (§10) are documented 
 ```
 docs/
 ├── README.md                     # index of documents and runbooks
+├── iterations.md                 # §15 cut into iterations + the per-iteration ritual and review rules
 ├── rtl-audit.md                  # created in M6: shadcn RTL audit checklist and contrast ratios (7.11.1, 7.12)
 └── runbooks/
     ├── deploy.md                 # deploy a new version
@@ -4613,7 +4614,7 @@ Every requirement of the client query §6A appears below as one row: requirement
 
 | # | Requirement | Setting | File |
 |---|---|---|---|
-| Z1 | Every endpoint declares its permission | decorators `@Public()`, `@Authenticated()`, `@AdminOnly()`, `@RequirePermission(...keys)` (all listed keys required), `@RequireAnyPermission(...keys)` (at least one); exactly one per handler. `PermissionDeclarationCheck.onApplicationBootstrap()` uses `DiscoveryService` + `MetadataScanner` over every controller method with a route; throws `Error('Route <METHOD> <path> has no permission declaration')` → process exits 1. Vitest `permission-declarations.spec.ts` boots `AppModule` so CI fails | `apps/api/src/common/decorators/*.ts`, `apps/api/src/common/permission-declaration.check.ts` |
+| Z1 | Every endpoint declares its permission | decorators `@Public()`, `@Authenticated()`, `@AdminOnly()`, `@RequirePermission(...keys)` (all listed keys required), `@RequireAnyPermission(...keys)` (at least one); exactly one per handler. `PermissionDeclarationCheck.onApplicationBootstrap()` uses `DiscoveryService` + `MetadataScanner` over every controller method with a route; throws `Error('Route <METHOD> <path> has no permission declaration')` → process exits 1. Vitest `permission-declaration.check.test.ts` boots `AppModule` so CI fails | `apps/api/src/common/decorators/*.ts`, `apps/api/src/common/checks/permission-declaration.check.ts` |
 | Z2 | Server-side enforcement | `PermissionGuard` (global, last): admin → allow all; employee → check stored keys; missing → 403 `PERMISSION_DENIED` with `details.required` | `apps/api/src/common/guards/permission.guard.ts` |
 | Z3 | Admin-only by role | `@AdminOnly()` → `user.role === 'ADMIN'` else 403 `ADMIN_ONLY`; `confirmCreditOverride: true` from a non-admin → 403 `ADMIN_ONLY` (checked in the order service before any write) | same |
 | Z4 | Cost field stripping | response mappers take `ctx.canViewCost = role === 'ADMIN' \|\| permissions.has('items.viewCost')`; when false the keys `unitCost`, `totalCost` are **omitted** from batch DTOs, from item detail `batches[]`, and from audit `before`/`after` (§11.5); `GET /api/reports/purchases` re-asserts `items.viewCost` in the service (403 `PERMISSION_DENIED`) | `apps/api/src/modules/purchases/purchase-batch.mapper.ts`, `apps/api/src/modules/audit/audit-redaction.ts` |
@@ -4926,13 +4927,13 @@ Response: `{ generatedAt, filters, rows: [{ itemId, name, archived, quantityOnHa
 
 | Environment | Where | Database | How the apps run |
 |---|---|---|---|
-| Local development | maintainer's machine | `docker-compose.dev.yml` → `postgres:18.6-alpine3.24` on `127.0.0.1:5432`, databases `pallet` and `pallet_test` | `pnpm dev`: shared `tsc -b -w`, API `tsc-watch` → `node dist/main.js` on :3000, Vite on :5173 proxying `/api` → `http://localhost:3000` (same origin) |
+| Local development | maintainer's machine | `docker-compose.dev.yml` → `postgres:18.6-alpine3.24` on `127.0.0.1:5434`, databases `pallet` and `pallet_test` | `pnpm dev`: shared `tsc -b -w`, API `tsc-watch` → `node dist/main.js` on :3000, Vite on :5175 proxying `/api` → `http://localhost:3000` (same origin) |
 | CI | GitHub Actions `ubuntu-24.04` | service container `postgres:18.6-alpine3.24`, roles created by `deploy/postgres/init/01-roles.sh` | built API + `vite preview` for Playwright |
 | Production | one Ubuntu 24.04 VPS (2 vCPU, 4 GB RAM, 40 GB disk minimum) | compose service `postgres`, volume `pallet_pgdata` | `docker-compose.yml` (`caddy`, `api`, `postgres`, one-shot `migrate`) |
 
 There is no staging server; the quarterly restore test (§13.7) doubles as a rehearsal on a throw-away VPS.
 
-Local quick start: `corepack enable` → `pnpm install` → create `.env` at the repository root from the LOCAL DEVELOPMENT block of `.env.example` → `pnpm db:up` → `pnpm db:migrate` → `pnpm --filter @pallet/api build` → `pnpm db:seed` (first admin + settings; the `db:seed:demo` script that adds demo data is added in M2) → `pnpm dev` → open `http://localhost:5173`.
+Local quick start: `corepack enable` → `pnpm install` → create `.env` at the repository root from the LOCAL DEVELOPMENT block of `.env.example` → `pnpm db:up` → `pnpm db:migrate` (applies the migrations and re-applies `grants.sql`, so the runtime role can read its tables) → `pnpm --filter @pallet/api build` → `pnpm db:seed` (first admin + settings; the `db:seed:demo` script that adds demo data is added in M2) → `pnpm dev` → open `http://localhost:5175`.
 
 ### 13.2 Environment variables
 
@@ -4976,7 +4977,7 @@ Production values live in `/opt/pallet/.env` (mode 600, owner `deploy`); `docker
 
 Network `pallet_net`: bridge, subnet `172.28.0.0/24` pinned (Express `trust proxy`), gateway `172.28.0.1`. Named volumes are given fixed names (`pallet_pgdata`, `pallet_uploads`, `pallet_caddy_data`, `pallet_caddy_config`) so scripts can address them. Logging: `json-file`, `max-size 50m`, `max-file 30` on every service. All containers log to stdout/stderr only.
 
-`dist/scripts/migrate.js` (idempotent, exits 0 on success): (1) run `prisma migrate deploy` (child process, `DATABASE_MIGRATE_URL`); (2) run `prisma db execute --file prisma/sql/grants.sql`; (3) seed in one transaction as owner: insert `order_counter (id 1, last_number 0)` if missing; insert `factory_settings (id 1, factory_name 'Pallet Factory', phone '-', address '-')` if missing; if `users` is empty create the admin from `ADMIN_*` (Argon2id hash, `role ADMIN`, `mustChangePassword true`) and write an audit `USER.CREATE` row with `user_id` null. `dist/scripts/healthcheck.js`: `GET http://127.0.0.1:${API_PORT}/api/health`, exit 0 on HTTP 200 within 4 s, else 1. `dist/scripts/reconcile.js`: runs the reconciliation (§14.4 I14), prints `N differences`, exits 1 when N > 0.
+`dist/scripts/migrate.js` (idempotent, exits 0 on success): (1) run `prisma migrate deploy` (child process, `DATABASE_MIGRATE_URL`); (2) run `prisma db execute --file prisma/sql/grants.sql`; (3) seed in one transaction as owner: insert `factory_settings (id 1, factory_name 'Pallet Factory', phone '-', address '-')` if missing (the singleton `order_counter (id 1, last_number 0)` row is inserted by `constraints.sql` inside the migration); if `users` is empty create the admin from `ADMIN_*` (Argon2id hash, `role ADMIN`, `mustChangePassword true`) and write an audit `USER.CREATE` row with `user_id` null. `dist/scripts/healthcheck.js`: `GET http://127.0.0.1:${API_PORT}/api/health`, exit 0 on HTTP 200 within 4 s, else 1. `dist/scripts/reconcile.js`: runs the reconciliation (§14.4 I14), prints `N differences`, exits 1 when N > 0.
 
 ### 13.4 First run on a fresh VPS
 
@@ -4996,7 +4997,7 @@ Network `pallet_net`: bridge, subnet `172.28.0.0/24` pinned (Express `trust prox
 
 ### 13.5 Deploy and rollback
 
-- CI (`.github/workflows/ci.yml`) on every push to `main` and every PR: jobs `quality` (install `--frozen-lockfile`, lint, format:check, typecheck, unit tests, build), `audit` (`pnpm audit --audit-level=high`), `integration-e2e` (Postgres service, roles script, build, `pnpm db:migrate`, `pnpm test:integration`, Playwright chromium `pnpm test:e2e`, report uploaded on failure), `docker` (both images built, not pushed).
+- CI (`.github/workflows/ci.yml`) on every push to `main` and every PR: jobs `quality` (install `--frozen-lockfile`, lint, format:check, typecheck, unit tests, build), `audit` (`pnpm audit --audit-level=high`), `integration-e2e` (Postgres service, roles script, build, `pnpm db:deploy`, `pnpm test:integration`, Playwright chromium `pnpm test:e2e`, report uploaded on failure), `docker` (both images built, not pushed).
 - Deploy (`.github/workflows/deploy.yml`) on tag `v*` or manual dispatch: reuses CI (without the docker job), builds and pushes `pallet-api:<sha>` and `pallet-caddy:<sha>` to GHCR, then (environment `production`) SSHes to the VPS and runs `/opt/pallet/deploy/deploy.sh <sha>`.
 - `deploy.sh`: `git checkout --detach <sha>`, set `APP_VERSION`, pull, run `migrate`, `up -d`, wait ≤ 60 s for the API healthcheck; on any failure restore the previous SHA and `up -d` again; on success write `.previous_version` and prune images older than 30 days.
 - Migration rule (makes image rollback safe): each release's migrations are **expand-only** (new tables, nullable or defaulted columns, new indexes); dropping or renaming happens in a later release after no deployed code uses the old shape.
@@ -5076,12 +5077,12 @@ No browser-side error reporting (§10.6 D10).
 | Layer | Tool | Location | Runs against | Command |
 |---|---|---|---|---|
 | Unit (shared) | vitest 5.0.0 | `packages/shared/src/**/*.test.ts` | pure functions | `pnpm test` |
-| Unit (API) | vitest + `unplugin-swc` (decorator metadata) | `apps/api/src/**/*.spec.ts` | services with Prisma mocked by in-memory fakes, pure helpers | `pnpm test` |
+| Unit (API) | vitest + `unplugin-swc` (decorator metadata) | `apps/api/src/**/*.test.ts` | services with Prisma mocked by in-memory fakes, pure helpers | `pnpm test` |
 | Unit (web) | vitest + jsdom 30 + @testing-library/react 16 | `apps/web/src/**/*.test.ts(x)` | components, hooks, i18n files | `pnpm test` |
-| Integration (API) | vitest + supertest 7 + real PostgreSQL | `apps/api/test/integration/**/*.int-spec.ts`, config `apps/api/vitest.integration.config.ts` (`fileParallelism: false`) | Nest app booted in-process (`Test.createTestingModule(AppModule)`), connected as **`pallet_app`** to `pallet_test` | `pnpm test:integration` |
+| Integration (API) | vitest + supertest 7 + real PostgreSQL | `apps/api/test/integration/**/*.test.ts`, config `apps/api/vitest.integration.config.mts` (`fileParallelism: false`) | Nest app booted in-process (`Test.createTestingModule(AppModule)`), connected as **`pallet_app`** to `pallet_test` | `pnpm test:integration` |
 | End-to-end | @playwright/test 1.63 (chromium) | `apps/web/e2e/*.spec.ts`, config `apps/web/playwright.config.ts` | built API (`node dist/main.js`, `pallet_test` DB seeded with `db:seed:demo`) + `vite preview` with `/api` proxy | `pnpm test:e2e` |
 
-Integration harness (`apps/api/test/support/`): `resetDatabase()` runs, as `pallet_owner` via `DATABASE_TEST_MIGRATE_URL`, `TRUNCATE` of every table `RESTART IDENTITY CASCADE` (the owner role is allowed; the triggers `forbid_update_delete` fire on `UPDATE`/`DELETE`, not `TRUNCATE`), then inserts `order_counter`, `factory_settings` and one admin. `migrate` runs once per test run (`globalSetup`: `prisma migrate deploy` + `grants.sql` against `pallet_test`). Factories: `createEmployee(permissions[])`, `loginAs(user)` → `{ accessToken, cookie }`, `createItem({ depositPrice, stock })`, `createCustomer({ creditLimit })`, `createDriver()`, `createOrder(...)`. Time is controlled through the injectable `Clock` (`apps/api/src/common/clock.ts`, `now(): Date`); tests override it with `FixedClock`. Every request helper sends `X-Requested-With: pallet-web` unless the test is about CSRF.
+Integration harness (`apps/api/test/helpers/`): `resetDatabase()` runs, as `pallet_owner` via `DATABASE_TEST_MIGRATE_URL`, `TRUNCATE` of every table `RESTART IDENTITY CASCADE` (the owner role is allowed; the triggers `forbid_update_delete` fire on `UPDATE`/`DELETE`, not `TRUNCATE`), then inserts `order_counter`, `factory_settings` and one admin. `migrate` runs once per test run (`globalSetup`: `prisma migrate deploy` + `grants.sql` against `pallet_test`). Factories: `createEmployee(permissions[])`, `loginAs(user)` → `{ accessToken, cookie }`, `createItem({ depositPrice, stock })`, `createCustomer({ creditLimit })`, `createDriver()`, `createOrder(...)`. Time is controlled through the injectable `Clock` (`apps/api/src/common/clock.ts`, `now(): Date`); tests override it with `FixedClock`. Every request helper sends `X-Requested-With: pallet-web` unless the test is about CSRF.
 
 Coverage gates (vitest `coverage.thresholds`): `packages/shared/src/domain/**` 100 % lines and branches; `apps/api/src/modules/{orders,returns,ledger,purchases,items,auth}/**` 85 % lines (unit + integration combined in CI).
 

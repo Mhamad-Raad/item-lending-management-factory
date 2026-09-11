@@ -1,6 +1,7 @@
 # Documentation
 
 - [`../ARCHITECTURE.md`](../ARCHITECTURE.md) — the complete build specification (single source of truth).
+- [`iterations.md`](iterations.md) — how §15 is cut into iterations, and the ritual each one follows.
 - `rtl-audit.md` — shadcn/ui RTL audit checklist and colour-contrast ratios (created in milestone M6, ARCHITECTURE.md §7.11–7.12).
 
 ## Runbooks

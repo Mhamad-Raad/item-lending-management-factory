@@ -18,7 +18,8 @@ export default defineConfig({
   resolve: {
     alias: { '@': fileURLToPath(new URL('./src', import.meta.url)) },
   },
-  server: { port: 5173, strictPort: true, proxy: apiProxy },
+  // 5175, not Vite's default 5173: that port is commonly held by another local dev server (Q33).
+  server: { port: 5175, strictPort: true, proxy: apiProxy },
   preview: { port: 4173, strictPort: true, proxy: apiProxy },
   build: { target: 'es2023', sourcemap: true },
 });

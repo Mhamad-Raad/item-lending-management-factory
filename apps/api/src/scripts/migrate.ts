@@ -25,23 +25,43 @@ function prisma(args: string[]): void {
   execFileSync(PRISMA_BIN, args, { cwd: API_ROOT, stdio: 'inherit', env: process.env });
 }
 
+interface AdminSeed {
+  username: string;
+  displayName: string;
+  passwordHash: string;
+}
+
+/** Validates the ADMIN_* variables and hashes the password outside the seeding transaction (Argon2id is slow). */
+async function prepareAdmin(): Promise<AdminSeed> {
+  const username = requireEnv('ADMIN_USERNAME').trim().toLowerCase();
+  const password = requireEnv('ADMIN_PASSWORD');
+  if (!/^[a-z0-9._-]{3,32}$/.test(username)) throw new Error('ADMIN_USERNAME must match ^[a-z0-9._-]{3,32}$');
+  if (password.length < 10) throw new Error('ADMIN_PASSWORD must be at least 10 characters');
+  return {
+    username,
+    displayName: process.env.ADMIN_DISPLAY_NAME?.trim() || 'Administrator',
+    passwordHash: await argon2.hash(password, ARGON2_OPTIONS),
+  };
+}
+
+/** First-run seed (section 13.3): first admin and default factory settings, both in one transaction. */
 async function seed(): Promise<void> {
   const db = createPrismaClient(requireEnv('DATABASE_MIGRATE_URL'));
   try {
-    const userCount = await db.user.count();
-    if (userCount === 0) {
-      const username = requireEnv('ADMIN_USERNAME').trim().toLowerCase();
-      const password = requireEnv('ADMIN_PASSWORD');
-      if (!/^[a-z0-9._-]{3,32}$/.test(username)) throw new Error('ADMIN_USERNAME must match ^[a-z0-9._-]{3,32}$');
-      if (password.length < 10) throw new Error('ADMIN_PASSWORD must be at least 10 characters');
-      const displayName = process.env.ADMIN_DISPLAY_NAME?.trim() || 'Administrator';
+    const [userCount, settings] = await Promise.all([
+      db.user.count(),
+      db.factorySettings.findUnique({ where: { id: 1 } }),
+    ]);
+    const admin = userCount === 0 ? await prepareAdmin() : null;
+    if (!admin && settings) return;
 
-      await db.$transaction(async (tx) => {
-        const admin = await tx.user.create({
+    await db.$transaction(async (tx) => {
+      if (admin) {
+        const created = await tx.user.create({
           data: {
-            username,
-            displayName,
-            passwordHash: await argon2.hash(password, ARGON2_OPTIONS),
+            username: admin.username,
+            displayName: admin.displayName,
+            passwordHash: admin.passwordHash,
             role: 'ADMIN',
             mustChangePassword: true,
           },
@@ -50,21 +70,27 @@ async function seed(): Promise<void> {
           data: {
             action: 'CREATE',
             entityType: 'USER',
-            entityId: String(admin.id),
+            entityId: String(created.id),
             summaryKey: 'audit.summary.USER.CREATE',
-            summaryParams: { username, seeded: true },
-            after: { id: admin.id, username, displayName, role: 'ADMIN', isActive: true, mustChangePassword: true },
+            summaryParams: { username: admin.username, seeded: true },
+            after: {
+              id: created.id,
+              username: admin.username,
+              displayName: admin.displayName,
+              role: 'ADMIN',
+              isActive: true,
+              mustChangePassword: true,
+            },
           },
         });
-      });
-      console.log(`[migrate] seeded first admin "${username}" (must change password on first login)`);
-    }
+      }
+      if (!settings) {
+        await tx.factorySettings.create({ data: { id: 1, factoryName: 'Pallet Factory', phone: '-', address: '-' } });
+      }
+    });
 
-    const settings = await db.factorySettings.findUnique({ where: { id: 1 } });
-    if (!settings) {
-      await db.factorySettings.create({ data: { id: 1, factoryName: 'Pallet Factory', phone: '', address: '' } });
-      console.log('[migrate] seeded default factory settings');
-    }
+    if (admin) console.log(`[migrate] seeded first admin "${admin.username}" (must change password on first login)`);
+    if (!settings) console.log('[migrate] seeded default factory settings');
   } finally {
     await db.$disconnect();
   }

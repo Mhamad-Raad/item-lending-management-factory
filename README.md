@@ -20,19 +20,20 @@ Exact versions and the reasons behind them are in `ARCHITECTURE.md` §1 and §2.
 
 ## Prerequisites
 
-- Node.js 24 LTS (`.nvmrc`) with Corepack (`corepack enable` once — provides the pinned pnpm)
+- Node.js 24 LTS (`.nvmrc`) with Corepack, enabled once: `corepack enable --install-directory ~/.local/bin` (or plain `corepack enable`, which writes to `/usr/local/bin` and needs sudo). This provides the pinned pnpm.
 - Docker (for PostgreSQL in development)
 
 ## Getting started
 
 ```bash
-corepack enable
 pnpm install
-cp .env.example .env          # then fill in the development values
-pnpm db:up                    # PostgreSQL on 127.0.0.1:5432 (roles are created on first start)
-pnpm db:migrate               # apply migrations as the owner role
+# Create .env at the repository root from the LOCAL DEVELOPMENT block of .env.example
+# (copy that block and uncomment it — the file's other block holds production values):
+sed -n '/^# NODE_ENV=development/,$p' .env.example | sed 's/^# //' > .env
+pnpm db:up                    # PostgreSQL on 127.0.0.1:5434 (roles are created on first start)
+pnpm db:migrate               # apply migrations as the owner role, then re-apply grants.sql
 pnpm --filter @pallet/api build && pnpm db:seed   # first admin + default settings
-pnpm dev                      # API on :3000, web on http://localhost:5173 (proxies /api)
+pnpm dev                      # API on :3000, web on http://localhost:5175 (proxies /api)
 ```
 
 ## Everyday commands

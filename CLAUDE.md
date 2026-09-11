@@ -33,16 +33,16 @@ docs/runbooks/    Operational runbooks
 
 ## Commands
 
-pnpm is **not** on the global PATH on this Mac: use `corepack pnpm …` (or `corepack enable` once). Docker runs through colima.
+pnpm comes from corepack (`corepack enable --install-directory ~/.local/bin` was run once; `~/.local/bin` is on PATH — the default `/usr/local/bin` needs sudo). Docker runs through colima. Local ports: Postgres 5434, API 3000, Vite 5175 (ARCHITECTURE.md Q33).
 
 | Command                                                                     | Purpose                                                     |
 | --------------------------------------------------------------------------- | ----------------------------------------------------------- |
 | `pnpm install`                                                              | Install (runs `prisma generate` for the API)                |
-| `pnpm db:up` / `pnpm db:down`                                               | Dev Postgres on 127.0.0.1:5432 (also creates `pallet_test`) |
-| `pnpm db:migrate`                                                           | `prisma migrate dev` (development only)                     |
+| `pnpm db:up` / `pnpm db:down`                                               | Dev Postgres on 127.0.0.1:5434 (also creates `pallet_test`) |
+| `pnpm db:migrate`                                                           | `migrate dev` + grants (development only)                   |
 | `pnpm db:deploy`                                                            | `migrate deploy` + grants (CI / non-interactive)            |
 | `pnpm --filter @pallet/api build && pnpm db:seed`                           | First admin + default settings                              |
-| `pnpm dev`                                                                  | Shared watch + API (:3000) + web (:5173, proxies `/api`)    |
+| `pnpm dev`                                                                  | Shared watch + API (:3000) + web (:5175, proxies `/api`)    |
 | `pnpm lint` · `pnpm typecheck` · `pnpm test` · `pnpm build` · `pnpm format` | Quality gates (all must pass)                               |
 | `pnpm test:integration`                                                     | API integration tests against real Postgres                 |
 | `pnpm test:e2e`                                                             | Playwright (Chromium)                                       |
@@ -65,6 +65,11 @@ Local `.env` lives at the **repository root** (copy the LOCAL DEVELOPMENT block 
 
 ## Git
 
-- Branch `main`, remote `origin` = `github.com/Mhamad-Raad/item-lending-management-factory`.
+- Branch `main`, remote `origin` = `github.com/Mhamad-Raad/item-lending-management-factory`. Work happens on `feat/<id>-<slug>` branches, one per iteration (`docs/iterations.md`).
 - Husky pre-commit runs lint-staged (ESLint + Prettier check on staged files) and `pnpm typecheck` — keep it green rather than bypassing it.
+- **Review before commit, always**: `/code-review high` on the branch _and_ a read of the diff. An iteration is not finished without it (`docs/iterations.md`, step 6).
+- Clean commits: green tree at every commit, one concern per commit, nothing generated or local (`.env`, `dist/`) staged, no unrelated formatting churn.
+- Commit messages: imperative subject ≤ 72 chars without a trailing period, blank line, then a body explaining **why** (wrapped ~78 cols). No emoji.
+- **Never credit a tool or an assistant** in a commit message or pull request — no `Co-Authored-By` for an agent, no "generated with" footer. The maintainer is the author.
+- Never rewrite pushed history; amend only local commits.
 - `ARCHITECTURE.md` and migrations are excluded from Prettier.
