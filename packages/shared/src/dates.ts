@@ -42,3 +42,30 @@ export function formatTimestamp(value: string | Date): string {
   const ms = typeof value === 'string' ? Date.parse(value) : value.getTime();
   return format(new TZDate(ms, BUSINESS_TIME_ZONE), 'dd/MM/yyyy HH:mm');
 }
+
+const MS_PER_DAY = 24 * 60 * 60 * 1000;
+
+/**
+ * The UTC instant at which a Baghdad calendar day begins. The offset comes from the timezone
+ * database rather than a constant: Baghdad is UTC+3 today, but observed DST until 2008 and
+ * `MIN_BUSINESS_DATE` reaches back to 2000.
+ */
+export function businessDayStartUtc(value: string): Date {
+  const [year, month, day] = value.split('-').map(Number) as [number, number, number];
+  return new Date(new TZDate(year, month - 1, day, 0, 0, 0, 0, BUSINESS_TIME_ZONE).getTime());
+}
+
+/**
+ * Turns a `dateFrom`/`dateTo` filter over Baghdad calendar days into the half-open UTC interval
+ * `[from 00:00, to+1 00:00)` that a timestamp column is filtered with (§11.6). Returns undefined
+ * when neither bound is given, so the caller can leave the filter out entirely.
+ */
+export function businessDayRangeToUtc(dateFrom?: string, dateTo?: string): { gte?: Date; lt?: Date } | undefined {
+  if (!dateFrom && !dateTo) return undefined;
+
+  return {
+    ...(dateFrom ? { gte: businessDayStartUtc(dateFrom) } : {}),
+    // Inclusive of the whole `dateTo` day: the interval ends when the next day begins.
+    ...(dateTo ? { lt: new Date(businessDayStartUtc(dateTo).getTime() + MS_PER_DAY) } : {}),
+  };
+}

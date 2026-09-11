@@ -21,7 +21,8 @@ Pallet System: a web app for a single pallet factory in Iraq (Kurdistan Region) 
 - **In progress: Milestone M1** — auth + users/permissions + audit log. Work in the iterations of `docs/iterations.md` (1a → 1d); each milestone must end runnable with its §15 acceptance checklist green.
 - **1a done** (2026-09-12): `Clock`, `RequestContext` + middleware, `AuditService.record` with `toAuditSnapshot` / `redactAuditSnapshot`, the permission-declaration startup check, the bundled common-password list, the §7.10 i18n key rename, and the integration harness (`test/global-setup.ts`, `test/helpers/`) with the first integration test.
 - **1b done** (2026-09-12): password service + policy (bundled list), login throttle with (ip, username) backoff, session families with rotation / 30 s grace / reuse detection, the five global guards in their fixed order, `/api/auth/login|refresh|logout|logout-all|me|change-password`, and the S-1 … S-9, S-16 … S-18, S-20, S-21 integration tests.
-- Next: **1c** — `/api/users` (list, create, get, patch, permissions, reset-password, logout-all) with the self and last-admin guards, and `GET /api/audit-logs` with read-time redaction.
+- **1c done** (2026-09-12): `/api/users` (list, create, get, patch, permissions, reset-password, logout-all) with the self, last-admin and version guards, `GET /api/audit-logs` with per-viewer cost redaction, `lockUser` / `lockActiveAdmins`, and the S-10, S-11, S-13 … S-16 integration tests.
+- Next: **1d** — the web auth shell: API client with refresh-once-and-retry, `/login`, `/change-password`, the permission-filtered `_app` shell, `/users*`, `/account`, `/history`.
 - Carried into 1d: `errors.<CODE>` / `validation.<code>` i18n keys (added with the web error rendering), and deleting the `home.*` / `status.*` scaffold keys with the baseline home page.
 
 ## Layout

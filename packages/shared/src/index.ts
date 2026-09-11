@@ -5,5 +5,6 @@ export * from './dates.js';
 export * from './domain/ledger-math.js';
 export * from './schemas/common.js';
 export * from './schemas/auth.js';
+export * from './schemas/users.js';
 export * from './schemas/dto.js';
 export * from './schemas/zod-issues.js';

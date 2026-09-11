@@ -34,12 +34,35 @@ export const BusinessDate = z
   .refine((v) => v >= MIN_BUSINESS_DATE, { message: 'too_small' });
 export type BusinessDate = z.infer<typeof BusinessDate>;
 
-/** `?page=&pageSize=` on every paginated list. */
-export const PageQuery = z.strictObject({
+/** Path parameter ids arrive as strings, so they are coerced (§6.1.4). */
+export const IdParam = z.coerce.number().int().min(1).max(2_147_483_647);
+export type IdParam = z.infer<typeof IdParam>;
+
+/** `?page=&pageSize=` on every paginated list; spread into each list query. */
+export const PageQuery = {
   page: z.coerce.number().int().min(1).default(1),
   pageSize: z.coerce.number().int().min(1).max(100).default(25),
-});
-export type PageQuery = z.infer<typeof PageQuery>;
+} as const;
+
+/** Free-text search box: trimmed, and an empty box means "no filter" rather than "matches empty". */
+export const SearchQuery = z
+  .string()
+  .trim()
+  .max(100)
+  .optional()
+  .transform((value) => (value ? value : undefined));
+
+/** `?sort=field` or `?sort=-field` for descending, restricted to the fields a list supports. */
+export function sortParam<F extends string>(fields: readonly F[], fallback: `${'' | '-'}${F}`) {
+  const values = [...fields, ...fields.map((field) => `-${field}`)] as [string, ...string[]];
+  return z.enum(values).default(fallback);
+}
+
+/** `?dateFrom=&dateTo=`; the ordering of the two is checked by the endpoint (`DATE_RANGE_INVALID`). */
+export const dateRange = {
+  dateFrom: BusinessDate.optional(),
+  dateTo: BusinessDate.optional(),
+} as const;
 
 export interface PageDto<T> {
   items: T[];

@@ -4319,7 +4319,7 @@ Exports value arrays, value objects and types (identical to the Prisma enums; th
 | `dto.ts` | Types only; imported with `import type`. |
 
 ### 8.6 `src/dates.ts`
-`BUSINESS_TIME_ZONE = 'Asia/Baghdad'`, `MIN_BUSINESS_DATE = '2000-01-01'`, `businessToday(now?: Date): string` (the Asia/Baghdad calendar day via `@date-fns/tz` `TZDate` and `format(…, 'yyyy-MM-dd')`), `isBusinessDate(s): boolean` (a real calendar day in `YYYY-MM-DD` form), `businessDateToDb(s): Date` (`new Date(s + 'T00:00:00.000Z')`), `dbDateToBusiness(d: Date): string` (`d.toISOString().slice(0, 10)`), `formatBusinessDate(s): string` (`YYYY-MM-DD` → `dd/MM/yyyy`), `formatTimestamp(value: string | Date): string` (`dd/MM/yyyy HH:mm` in Asia/Baghdad) — these exist in the baseline. Added by the builder: `compareBusinessDates(a, b): -1 | 0 | 1` and `firstDayOfMonth(s): string`. `@date-fns/tz@1.5.0` and `date-fns@4.4.0` are runtime dependencies of the shared package.
+`BUSINESS_TIME_ZONE = 'Asia/Baghdad'`, `MIN_BUSINESS_DATE = '2000-01-01'`, `businessToday(now?: Date): string` (the Asia/Baghdad calendar day via `@date-fns/tz` `TZDate` and `format(…, 'yyyy-MM-dd')`), `isBusinessDate(s): boolean` (a real calendar day in `YYYY-MM-DD` form), `businessDateToDb(s): Date` (`new Date(s + 'T00:00:00.000Z')`), `dbDateToBusiness(d: Date): string` (`d.toISOString().slice(0, 10)`), `formatBusinessDate(s): string` (`YYYY-MM-DD` → `dd/MM/yyyy`), `formatTimestamp(value: string | Date): string` (`dd/MM/yyyy HH:mm` in Asia/Baghdad) — these exist in the baseline. Added by the builder: `businessDayStartUtc(s): Date` and `businessDayRangeToUtc(from?, to?)` (a Baghdad day filter as the half-open UTC interval `[from 00:00, to+1 00:00)`, §11.6), `compareBusinessDates(a, b): -1 | 0 | 1` and `firstDayOfMonth(s): string`. `@date-fns/tz@1.5.0` and `date-fns@4.4.0` are runtime dependencies of the shared package.
 
 ### 8.7 `src/format.ts`
 `formatNumber(n): string` (`Intl.NumberFormat('en-US', { maximumFractionDigits: 0 })` — Western digits, comma thousands), `formatMoney(n): string` (same, without currency), `formatOrderNumber(n): string` (`String(n).padStart(6, '0')`), `toWesternDigits(s): string` (maps `٠-٩` and `۰-۹` to `0-9`), `normalizePhone(s): string` (Western digits, then strips spaces, `-`, `(`, `)`), `canonicalJson(value): string` (keys sorted recursively; used for idempotency request hashes on the API and key reuse on the web).
@@ -4432,7 +4432,7 @@ apps/api/
 │   ├── prisma/
 │   │   ├── prisma.module.ts      # global module exporting PrismaService
 │   │   ├── prisma.service.ts     # PrismaClient with PrismaPg adapter; runInTransaction(fn) helper with isolation/timeouts
-│   │   └── locks.ts              # lockCustomer, lockOrder, lockItems (sorted), lockOrderCounter, lockSessionFamily ($queryRaw FOR UPDATE)
+│   │   └── locks.ts              # lockUser, lockActiveAdmins, lockCustomer, lockOrder, lockItems (sorted), lockOrderCounter, lockSessionFamily ($queryRaw FOR UPDATE)
 │   ├── common/
 │   │   ├── clock.ts              # Clock (abstract), SystemClock, FixedClock (tests)
 │   │   ├── clock.module.ts       # global module binding Clock → SystemClock
@@ -4442,7 +4442,8 @@ apps/api/
 │   │   ├── checks/               # permission-declaration.check (fails startup if a route lacks a declaration)
 │   │   ├── filters/              # api-exception.filter: maps ApiError/ZodError/Prisma/Throttler/Multer errors to ApiErrorBody
 │   │   ├── pipes/                # zod-validation.pipe (body/query/params with shared schemas)
-│   │   ├── errors/               # ApiError class + helpers (apiError('CODE', details))
+│   │   ├── errors/               # ApiError class + helpers; prisma-errors.ts (unique-violation detection across driver shapes)
+│   │   ├── http/                 # request-path.ts: the route path of a request, trailing slash normalised
 │   │   ├── context/              # request-context.ts (AsyncLocalStorage: requestId, ip, userId) + the middleware that opens the scope
 │   │   └── utils/                # money (toSafeMoney, bigint↔number), dates (Baghdad today), canonical hash, pagination helpers
 │   ├── modules/
@@ -4462,7 +4463,7 @@ apps/api/
 │   │   ├── idempotency/          # IdempotencyService (lookup, replay, store inside the transaction), hourly purge
 │   │   ├── dashboard/            # GET /api/dashboard (permission-gated sections)
 │   │   ├── reports/              # positions, purchases, activity, stock report queries (raw SQL aggregates)
-│   │   ├── audit/                # audit.service.ts (record(tx, entry)), audit-snapshot.ts (per-entity allow-lists), audit-redaction.ts, GET /api/audit-logs
+│   │   ├── audit/                # audit.service.ts (record(tx, entry)), audit-snapshot.ts (per-entity allow-lists), audit-redaction.ts, audit-query.service.ts + audit.controller.ts + audit.mapper.ts (GET /api/audit-logs)
 │   │   └── maintenance/          # hourly/daily cleanup jobs (idempotency keys, login throttles, expired session families)
 │   └── scripts/
 │       ├── migrate.ts            # prisma migrate deploy → grants.sql → first-run seed (idempotent); `--seed-only` for `pnpm db:seed`
@@ -4474,7 +4475,7 @@ apps/api/
     ├── helpers/
     │   ├── app.ts                # boots the Nest app against the test database (app role) for supertest
     │   ├── db.ts                 # truncate/reset helpers run as the owner role; guards that every table is truncated
-    │   ├── factories.ts          # createUser/createItem/createCustomer/createOrder helpers via the API
+    │   ├── factories.ts          # createUser / createEmployee(permissions[]) straight to the database; createItem / createCustomer / createOrder via the API
     │   └── auth.ts               # login helpers returning access tokens and cookies
     └── integration/              # *.test.ts: auth, sessions, lockout, users, permissions, uploads, items, purchases, customers, drivers, orders, credit-limit, returns, payments, idempotency, reports, dashboard, audit, cost-stripping, db-privileges, reconciliation
 ```

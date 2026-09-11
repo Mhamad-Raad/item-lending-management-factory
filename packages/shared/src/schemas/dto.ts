@@ -1,5 +1,5 @@
-import type { PermissionKey } from '../permissions.js';
-import type { Role } from '../enums.js';
+import type { GrantablePermissionKey, PermissionKey } from '../permissions.js';
+import type { AuditAction, AuditEntityType, Role } from '../enums.js';
 
 export interface UserRefDto {
   id: number;
@@ -23,4 +23,40 @@ export interface AuthTokenDto {
   /** ISO-8601 UTC. */
   accessTokenExpiresAt: string;
   user: MeDto;
+}
+
+export interface UserListItemDto {
+  id: number;
+  username: string;
+  displayName: string;
+  role: Role;
+  isActive: boolean;
+  mustChangePassword: boolean;
+  lastLoginAt: string | null;
+  version: number;
+}
+
+export interface UserDto extends UserListItemDto {
+  /** Employee: the stored keys, sorted. Admin: empty — every key is implicit. */
+  permissions: GrantablePermissionKey[];
+  /** Families that are neither revoked nor past their absolute expiry. */
+  activeSessionCount: number;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface AuditLogDto {
+  id: number;
+  createdAt: string;
+  user: UserRefDto | null;
+  usernameAttempt: string | null;
+  action: AuditAction;
+  entityType: AuditEntityType;
+  entityId: string | null;
+  summaryKey: string;
+  summaryParams: Record<string, unknown>;
+  ip: string | null;
+  requestId: string | null;
+  before: unknown;
+  after: unknown;
 }
