@@ -322,6 +322,20 @@ describe('orders: creation, credit and idempotency (§4.8.1, §6.7, §6.19)', ()
     expect(await onHand(item.id)).toBe(400);
   });
 
+  it('§6.7: a double submit that takes the last of the stock is answered twice, not refused the second time', async () => {
+    const scarce = await createItem(app, admin, { name: 'Scarce pallet', depositPrice: 1_000, stock: 60 });
+    const body = orderBody({ lines: [{ itemId: scarce.id, quantity: 60 }] });
+    const key = randomUUID();
+
+    // The second waits for the customer lock, then must find the first one's answer, not an empty yard.
+    const [a, b] = await Promise.all([post(admin, body, key), post(admin, body, key)]);
+
+    expect([a.status, b.status]).toEqual([201, 201]);
+    expect(a.body).toEqual(b.body);
+    expect(await prisma.order.count()).toBe(1);
+    expect(await onHand(scarce.id)).toBe(0);
+  });
+
   it('lists open orders newest first, filters them, and shows one in full', async () => {
     const baban = await createCustomer(app, admin, { name: 'Baban Cement', phone: '07502223344' });
     const half = await createItem(app, admin, { name: 'Half pallet', stock: 50 });

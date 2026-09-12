@@ -104,11 +104,13 @@ export class OrdersService {
   ): Promise<IdempotentResult<OrderDetailDto>> {
     // The stored answer comes before every check (§6.19 step 1): a retry of an order that exists
     // must get that order back, even if the permission or the date would refuse it today.
-    return this.idempotency.run(request, (store) => {
+    return this.idempotency.run(request, ({ store, replayIfStored }) => {
       assertMayPriceAndOverride(body.lines, body.confirmCreditOverride, actor);
       assertNotInFuture(this.clock, body.date, 'date');
       return runInTransaction(this.prisma, async (tx) => {
         const { customer, driver } = await this.loadParties(tx, body);
+        // Under the customer lock: a same-key submission that committed while this one waited is the answer.
+        await replayIfStored(tx);
         const { lines, depositTotal } = await this.priceLines(tx, body.lines);
         const override = await assertCreditAllows(tx, customer, depositTotal, body.confirmCreditOverride, actor);
 

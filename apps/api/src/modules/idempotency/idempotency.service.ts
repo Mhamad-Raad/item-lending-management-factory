@@ -24,8 +24,22 @@ export interface IdempotentResult<T> {
   replayed: boolean;
 }
 
-/** Writes the key row; must be the last statement of the creating transaction (§6.7 step 4). */
-export type StoreResponse<T> = (tx: Prisma.TransactionClient, body: T) => Promise<void>;
+/** What `run` hands the creating transaction. */
+export interface IdempotentSession<T> {
+  /** Writes the key row; must be the last statement of the creating transaction (§6.7 step 4). */
+  store: (tx: Prisma.TransactionClient, body: T) => Promise<void>;
+  /**
+   * Looks the key up again, to be called right after the transaction's first lock. A submission on the
+   * same key that was waiting for that lock finds the first one's answer here, instead of running its
+   * checks against the stock or credit the first one just used; `run` then replays that answer.
+   */
+  replayIfStored: (tx: Prisma.TransactionClient) => Promise<void>;
+}
+
+/** Carries a stored answer out of a transaction that found it; `run` turns it into the replay. */
+class StoredReplay<T> {
+  constructor(readonly body: T) {}
+}
 
 /**
  * Order, return and payment creation happen once per key (§6.7). A retried submission — a lost
@@ -60,29 +74,37 @@ export class IdempotencyService {
    */
   async run<T>(
     request: IdempotentRequest,
-    create: (store: StoreResponse<T>) => Promise<T>,
+    create: (session: IdempotentSession<T>) => Promise<T>,
   ): Promise<IdempotentResult<T>> {
-    const stored = await this.find<T>(request);
+    const stored = await this.find<T>(this.prisma, request);
     if (stored !== null) return { body: stored, replayed: true };
 
+    const session: IdempotentSession<T> = {
+      store: (tx, body) => this.store(tx, request, body),
+      replayIfStored: async (tx) => {
+        const found = await this.find<T>(tx, request);
+        if (found !== null) throw new StoredReplay(found);
+      },
+    };
     try {
-      return { body: await create((tx, body) => this.store(tx, request, body)), replayed: false };
+      return { body: await create(session), replayed: false };
     } catch (error) {
+      if (error instanceof StoredReplay) return { body: (error as StoredReplay<T>).body, replayed: true };
       if (!isUniqueViolation(error, KEY_CONSTRAINT)) throw error;
       // A concurrent submission with the same key committed first; answer as it did (§6.7 step 5).
-      const winner = await this.find<T>(request);
+      const winner = await this.find<T>(this.prisma, request);
       if (winner === null) throw error;
       return { body: winner, replayed: true };
     }
   }
 
-  private async find<T>(request: IdempotentRequest): Promise<T | null> {
-    const row = await this.prisma.idempotencyKey.findUnique({
+  private async find<T>(client: Prisma.TransactionClient, request: IdempotentRequest): Promise<T | null> {
+    const row = await client.idempotencyKey.findUnique({
       where: { userId_key: { userId: request.userId, key: request.key } },
     });
     if (!row) return null;
     if (row.expiresAt <= this.clock.now()) {
-      await this.prisma.idempotencyKey.deleteMany({ where: { id: row.id } });
+      await client.idempotencyKey.deleteMany({ where: { id: row.id } });
       return null;
     }
     if (row.requestHash !== request.requestHash) throw new ApiError('IDEMPOTENCY_KEY_REUSED');
