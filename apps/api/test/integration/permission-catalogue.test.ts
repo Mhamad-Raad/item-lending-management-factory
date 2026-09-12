@@ -66,6 +66,10 @@ const ROUTE_ACCESS: Record<string, Rule> = {
   'GET /api/orders': all('orders.view'),
   'GET /api/orders/:id': all('orders.view'),
   'POST /api/orders': all('orders.create'),
+  'PATCH /api/orders/:id': all('orders.edit'),
+  'POST /api/orders/:id/cancel': all('orders.cancel'),
+  'GET /api/orders/:id/receipt': all('orders.view'),
+  'GET /api/ledger-entries': all('orders.view'),
   'GET /api/audit-logs': all('audit.view'),
   'GET /api/health': PUBLIC,
 };

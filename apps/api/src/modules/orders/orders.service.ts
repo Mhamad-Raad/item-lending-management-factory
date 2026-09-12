@@ -1,11 +1,16 @@
 import { Injectable } from '@nestjs/common';
 import {
+  RECEIPT_LINES_PER_HALF,
   businessDateToDb,
+  chunkReceiptLines,
+  dbDateToBusiness,
+  formatOrderNumber,
   type OrderCreateBody,
   type OrderDetailDto,
   type OrderListItemDto,
   type OrderListQuery,
   type PageDto,
+  type ReceiptDto,
 } from '@pallet/shared';
 import type { AuthContext } from '../../common/auth-context';
 import { Clock } from '../../common/clock';
@@ -21,11 +26,15 @@ import { runInTransaction } from '../../prisma/transaction';
 import { toAuditSnapshot } from '../audit/audit-snapshot';
 import { AuditService } from '../audit/audit.service';
 import { IdempotencyService, type IdempotentRequest, type IdempotentResult } from '../idempotency/idempotency.service';
+import { ledgerAuditEntry } from '../ledger/ledger.mapper';
 import { MoneyLedger } from '../ledger/money-ledger';
+import { uploadUrl } from '../uploads/uploads.mapper';
 import { StockLedger } from '../stock/stock-ledger';
 import { assertCreditAllows, type CreditOverride } from './credit-limit';
+import { assertMayPriceAndOverride } from './order-rules';
 import { recomputeOrder } from './order-state';
-import { ORDER_DETAIL_INCLUDE, ORDER_LIST_INCLUDE, toOrderDetailDto, toOrderListItemDto } from './orders.mapper';
+import { ORDER_LIST_INCLUDE, toOrderListItemDto } from './orders.mapper';
+import { loadOrderDetail } from './orders.queries';
 
 const SORT_FIELDS = { orderNumber: 'orderNumber', date: 'date', owed: 'owed', outValue: 'outValue' } as const;
 
@@ -84,7 +93,7 @@ export class OrdersService {
   }
 
   get(orderId: number): Promise<OrderDetailDto> {
-    return this.loadDetail(this.prisma, orderId);
+    return loadOrderDetail(this.prisma, orderId);
   }
 
   /** The hand-over (§4.8.1, §6.19): once per idempotency key, in one transaction. */
@@ -96,7 +105,8 @@ export class OrdersService {
     // The stored answer comes before every check (§6.19 step 1): a retry of an order that exists
     // must get that order back, even if the permission or the date would refuse it today.
     return this.idempotency.run(request, (store) => {
-      this.assertMayCreate(body, actor);
+      assertMayPriceAndOverride(body.lines, body.confirmCreditOverride, actor);
+      assertNotInFuture(this.clock, body.date, 'date');
       return runInTransaction(this.prisma, async (tx) => {
         const { customer, driver } = await this.loadParties(tx, body);
         const { lines, depositTotal } = await this.priceLines(tx, body.lines);
@@ -155,21 +165,11 @@ export class OrdersService {
         await recomputeOrder(tx, order.id, { bumpVersion: false });
 
         await this.auditCreate(tx, { orderId: order.id, customerName: customer.name, payment, override });
-        const detail = await this.loadDetail(tx, order.id);
+        const detail = await loadOrderDetail(tx, order.id);
         await store(tx, detail);
         return detail;
       });
     });
-  }
-
-  /** The checks that need no row (§6.19 steps 3–5): the user's rights over this request, and its date. */
-  private assertMayCreate(body: OrderCreateBody, actor: AuthContext): void {
-    const pricedLines = body.lines.flatMap((line, index) => (line.unitDeposit === undefined ? [] : [index]));
-    if (pricedLines.length > 0 && !actor.permissions.has('orders.editUnitDeposit')) {
-      throw new ApiError('UNIT_DEPOSIT_NOT_PERMITTED', { lineIndexes: pricedLines });
-    }
-    if (body.confirmCreditOverride && !actor.isAdmin) throw new ApiError('ADMIN_ONLY');
-    assertNotInFuture(this.clock, body.date, 'date');
   }
 
   /** The customer, locked first in the chain (§6.6), and the driver; both must exist and be active. */
@@ -249,15 +249,7 @@ export class OrdersService {
         })),
       },
     });
-    if (created.payment) {
-      await this.audit.record(tx, {
-        action: 'PAYMENT_CREATE',
-        entityType: 'LEDGER_ENTRY',
-        entityId: String(created.payment.id),
-        summaryParams: { orderNumber, amount: toSafeMoney(created.payment.amount), automatic: true },
-        after: toAuditSnapshot('LEDGER_ENTRY', created.payment),
-      });
-    }
+    if (created.payment) await this.audit.record(tx, ledgerAuditEntry(created.payment, orderNumber));
     if (created.override) {
       await this.audit.record(tx, {
         action: 'CREDIT_OVERRIDE',
@@ -269,9 +261,54 @@ export class OrdersService {
     }
   }
 
-  private async loadDetail(client: Prisma.TransactionClient, orderId: number): Promise<OrderDetailDto> {
-    const order = await client.order.findUnique({ where: { id: orderId }, include: ORDER_DETAIL_INCLUDE });
+  /** The printed hand-over (§6.19, §7.16): lines in chunks of six, each chunk on its own A4 sheet. */
+  async receipt(orderId: number): Promise<ReceiptDto> {
+    const order = await this.prisma.order.findUnique({
+      where: { id: orderId },
+      include: { customer: true, driver: true, lines: { orderBy: { id: 'asc' }, include: { item: true } } },
+    });
     if (!order) throw new ApiError('ORDER_NOT_FOUND', { orderId });
-    return toOrderDetailDto(order);
+    if (order.cancelledAt) throw new ApiError('ORDER_CANCELLED', { orderId });
+    const settings = await this.prisma.factorySettings.findUniqueOrThrow({
+      where: { id: 1 },
+      include: { logo: { select: { fileName: true } } },
+    });
+
+    const chunks = chunkReceiptLines(
+      order.lines.map((line) => ({
+        itemName: line.item.name,
+        quantity: line.quantity,
+        unitDeposit: toSafeMoney(line.unitDeposit),
+        lineTotal: toSafeMoney(line.lineTotal),
+      })),
+    );
+    return {
+      orderId: order.id,
+      orderNumber: order.orderNumber,
+      orderNumberDisplay: formatOrderNumber(order.orderNumber),
+      date: dbDateToBusiness(order.date),
+      paymentType: order.paymentType,
+      depositTotal: toSafeMoney(order.depositTotal),
+      factory: {
+        name: settings.factoryName,
+        phone: settings.phone,
+        address: settings.address,
+        logoUrl: settings.logo ? uploadUrl(settings.logo.fileName) : null,
+      },
+      customer: {
+        name: order.customer.name,
+        phone: order.customer.phone,
+        altPhone: order.customer.altPhone,
+        address: order.customer.address,
+      },
+      driver: { name: order.driver.name, phone: order.driver.phone, carNumber: order.driver.carNumber },
+      linesPerHalf: RECEIPT_LINES_PER_HALF,
+      sheets: chunks.map((lines, index) => ({
+        sheetNumber: index + 1,
+        sheetCount: chunks.length,
+        lines,
+        showTotal: index === chunks.length - 1,
+      })),
+    };
   }
 }

@@ -1,4 +1,4 @@
-import type { GrantablePermissionKey, UserDto, UserListItemDto } from '@pallet/shared';
+import type { GrantablePermissionKey, UserDto, UserListItemDto, UserRefDto } from '@pallet/shared';
 import type { User, UserPermission } from '../../generated/prisma/client';
 
 type UserRow = User & { permissions?: Pick<UserPermission, 'permissionKey'>[] };
@@ -28,4 +28,11 @@ export function toUserDto(user: UserRow, activeSessionCount: number): UserDto {
     createdAt: user.createdAt.toISOString(),
     updatedAt: user.updatedAt.toISOString(),
   };
+}
+
+/** The columns another record needs to name its user. */
+export const USER_REF_SELECT = { select: { id: true, username: true, displayName: true } } as const;
+
+export function toUserRef(user: Pick<User, 'id' | 'username' | 'displayName'>): UserRefDto {
+  return { id: user.id, username: user.username, displayName: user.displayName };
 }

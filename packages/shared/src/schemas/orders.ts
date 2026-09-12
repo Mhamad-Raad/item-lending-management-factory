@@ -1,13 +1,15 @@
 import { z } from 'zod';
-import { PAYMENT_TYPES } from '../enums.js';
+import { LEDGER_ENTRY_TYPES, PAYMENT_TYPES, type LedgerEntryType } from '../enums.js';
 import {
   BusinessDate,
   Id,
+  BoolQuery,
   IdParam,
   Money,
   PageQuery,
   Quantity,
   SearchQuery,
+  Version,
   dateRange,
   optionalText,
   sortParam,
@@ -60,3 +62,45 @@ export const OrderCreateBody = z.strictObject({
   confirmCreditOverride: z.boolean().default(false),
 });
 export type OrderCreateBody = z.infer<typeof OrderCreateBody>;
+
+/**
+ * `lines`, when present, is the complete line set the order should have. `customerId` and
+ * `paymentType` are not here: they never change, and a strict object refuses them (§6.19).
+ */
+export const OrderUpdateBody = z
+  .strictObject({
+    version: Version,
+    driverId: Id.optional(),
+    date: BusinessDate.optional(),
+    notes: optionalText(1000),
+    lines: OrderLines.optional(),
+    confirmCreditOverride: z.boolean().default(false),
+  })
+  // The override is an answer, not a change: at least one real field must come with it.
+  .refine((body) => [body.driverId, body.date, body.notes, body.lines].some((value) => value !== undefined), {
+    path: [],
+    params: { code: 'required' },
+  });
+export type OrderUpdateBody = z.infer<typeof OrderUpdateBody>;
+
+export const OrderCancelBody = z.strictObject({ version: Version });
+export type OrderCancelBody = z.infer<typeof OrderCancelBody>;
+
+/** A comma list of ledger entry types (`PAYMENT,PAYMENT_REVERSAL`); absent means every type. */
+const LedgerTypeList = z
+  .string()
+  .transform((value) => value.split(',').map((part) => part.trim()))
+  .pipe(z.array(z.enum(LEDGER_ENTRY_TYPES)).min(1))
+  .transform((types) => [...new Set(types)] as LedgerEntryType[]);
+
+export const LedgerEntryListQuery = z.strictObject({
+  ...PageQuery,
+  customerId: IdParam.optional(),
+  orderId: IdParam.optional(),
+  type: LedgerTypeList.optional(),
+  /** On the effective date: the row's own, or its order's for the automatic payment. */
+  ...dateRange,
+  includeCancelledOrders: BoolQuery.default(false),
+  sort: sortParam(['effectiveDate', 'createdAt', 'amount'], '-effectiveDate'),
+});
+export type LedgerEntryListQuery = z.infer<typeof LedgerEntryListQuery>;

@@ -373,10 +373,13 @@
       },
       "ORDER": {
         "CREATE": "Order #{{orderNumber}} for {{customerName}} ({{paymentType}}, {{depositTotal}})",
-        "CREDIT_OVERRIDE": "Credit limit overridden by {{excess}} on order #{{orderNumber}} for {{customerName}}"
+        "CREDIT_OVERRIDE": "Credit limit overridden by {{excess}} on order #{{orderNumber}} for {{customerName}}",
+        "UPDATE": "Order #{{orderNumber}} updated",
+        "CANCEL": "Order #{{orderNumber}} for {{customerName}} cancelled"
       },
       "LEDGER_ENTRY": {
-        "PAYMENT_CREATE": "Payment of {{amount}} on order #{{orderNumber}}"
+        "PAYMENT_CREATE": "Payment of {{amount}} on order #{{orderNumber}}",
+        "PAYMENT_REVERSE": "Payment of {{amount}} reversed on order #{{orderNumber}}"
       }
     }
   },
@@ -521,7 +524,8 @@
     "IDEMPOTENCY_KEY_INVALID": "The safety key of the request is not valid",
     "IDEMPOTENCY_KEY_REUSED": "This key was used for a different request",
     "NETWORK_ERROR": "No connection to the server",
-    "UNKNOWN_ERROR": "Something went wrong"
+    "UNKNOWN_ERROR": "Something went wrong",
+    "ORDER_LINE_HAS_RETURNS": "This line has returns in its history and cannot be removed; lower its quantity instead"
   },
   "settings": {
     "title": "Factory settings",

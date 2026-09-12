@@ -200,8 +200,10 @@ Every item below is an ambiguity, contradiction or gap in the brief. The builder
 | Q34 | Passport or a plain guard for the access token? | A plain `AuthGuard` using `JwtService`. The application has exactly one credential type and must load the user from the database on every request anyway (§10.1 S8), so `@nestjs/passport` + `passport-jwt` would add two dependencies and a strategy indirection around a three-line verification. The behaviour of §6.4.1 is unchanged; only the mechanism is simpler. |
 | Q35 | The upload pipeline is described twice (§6.14 and §10.4 I5–I9) with three disagreements. | Settled as follows, and both sections now say the same thing. **Multer limits** `{ fileSize: 5 MiB, files: 1, fields: 0, parts: 2 }`: `kind` travels in the query string, so a request carrying form fields is malformed and is rejected rather than ignored. **Type detection** is both checks in order — the magic bytes first (cheap, and it rejects a renamed text file before any decoder touches it), then `sharp().metadata()`, whose `format` must also be one of `png`, `jpeg`, `webp`. **Output size** 1600 px for `ITEM_IMAGE` and 800 px for `FACTORY_LOGO` (the §10.4 values): an item photo is opened on a detail page, where 1024 px is visibly soft on a laptop screen. Multer's own refusals map to: `LIMIT_FILE_SIZE` → 413 `UPLOAD_TOO_LARGE`; a file under another field name → 400 `UPLOAD_MISSING_FILE`; any form field → 400 `VALIDATION_FAILED` (`unknown_key`); a second file or part → 400 `VALIDATION_FAILED` (`too_big` on `file`); a malformed multipart body → 400 `VALIDATION_FAILED` (`invalid_format` on `file`). |
 | Q36 | What does saving an unchanged settings form do? | Nothing: the stored settings come back as they are, with no version bump and no `SETTINGS_CHANGE` row. A history entry saying nothing changed is noise, and an unchanged version keeps the form open in another tab valid. The version is still checked first, so a stale form is refused even when it would change nothing. |
-| Q37 | What does a PATCH that changes nothing do on an item, a purchase batch, a customer, a driver or a user? | The same as Q36: after the version check, the stored row comes back as it is — no version bump, no `UPDATE` row, no stock movement. A version bump with no history row would be an edit the history cannot explain, and it would needlessly make a form open in another tab stale. |
+| Q37 | What does a PATCH that changes nothing do on an item, a purchase batch, a customer, a driver, a user or an order? | The same as Q36: after the version check, the stored row comes back as it is — no version bump, no `UPDATE` row, no stock movement. A version bump with no history row would be an edit the history cannot explain, and it would needlessly make a form open in another tab stale. |
 | Q38 | How is an item repeated in an order's lines reported? | By the shared schema, as `VALIDATION_FAILED` with the field error `duplicate` on the repeated line's `itemId` (§8.5): the API validates with the same schema before its own checks, so a separate `ORDER_DUPLICATE_ITEM` could never be reached, and the field error points the form at the line to fix. The code is retired from the catalogue. The database's unique `(order_id, item_id)` stays as the backstop. |
+| Q39 | A cancelled order's lines show `outQuantity` 0 (§4.2), but the `order_lines` check required `out_quantity = quantity − returned_accepted − returned_damaged`. Which wins? | §4.2: nothing is out on a cancelled order, and the order page and every aggregate must say so. The check (migration `20260912000000_cancelled_order_lines`) now also accepts the zeroed state — `out_quantity`, `returned_accepted` and `returned_damaged` all 0 — which only a cancelled order's recompute produces. Reconciliation R2 still compares every line with `computeOrderTotals`, so a live line zeroed by mistake is still reported. |
+| Q40 | May a line edit remove a line that a reversed return was recorded on? | No. The activity gate counts only returns that are not reversed, but `return_lines` are append-only and reference their order line, so the line cannot be deleted without losing that history. The edit is refused with `ORDER_LINE_HAS_RETURNS { itemId }`; the line may still be lowered (its quantity stays > 0). |
 
 ## 3. Actors, roles and permissions
 
@@ -874,7 +876,7 @@ CHECK `orders_totals_nonnegative_check`: every cache money/quantity column ≥ 0
 | line_total | bigint | NO | — | CHECK = quantity × unit_deposit |
 | returned_accepted | integer | NO | DB `0` | cache |
 | returned_damaged | integer | NO | DB `0` | cache |
-| out_quantity | integer | NO | — | cache; CHECK = quantity − returned_accepted − returned_damaged and ≥ 0 |
+| out_quantity | integer | NO | — | cache; CHECK = quantity − returned_accepted − returned_damaged, or 0 with nothing returned on a cancelled order (Q39); ≥ 0 |
 | created_at | timestamptz(3) | NO | DB `now()` | |
 | updated_at | timestamptz(3) | NO | Prisma | |
 
@@ -1882,8 +1884,11 @@ ALTER TABLE order_lines
   ADD CONSTRAINT order_lines_unit_deposit_nonnegative_check CHECK (unit_deposit >= 0),
   ADD CONSTRAINT order_lines_line_total_matches_check CHECK (line_total = quantity::bigint * unit_deposit),
   ADD CONSTRAINT order_lines_returned_nonnegative_check CHECK (returned_accepted >= 0 AND returned_damaged >= 0),
-  ADD CONSTRAINT order_lines_out_quantity_matches_check
-    CHECK (out_quantity = quantity - returned_accepted - returned_damaged),
+  -- Q39: the second branch is a cancelled order's zeroed line (§4.2).
+  ADD CONSTRAINT order_lines_out_quantity_matches_check CHECK (
+    out_quantity = quantity - returned_accepted - returned_damaged
+    OR (out_quantity = 0 AND returned_accepted = 0 AND returned_damaged = 0)
+  ),
   ADD CONSTRAINT order_lines_out_quantity_nonnegative_check CHECK (out_quantity >= 0);
 
 -- ─── returns ────────────────────────────────────────────────────────────────────────────
@@ -2313,6 +2318,7 @@ Path and query parameters use the same mapping; their `path` is the parameter na
 | `ORDER_NOT_FOUND` | 404 | Order id does not exist. | `{ orderId }` |
 | `ORDER_CANCELLED` | 409 | Any edit, cancel, return, payment or receipt on a cancelled order. | `{ orderId }` |
 | `ORDER_HAS_ACTIVITY` | 409 | Line edit or cancel while the order has a non-reversed return or a non-reversed manual payment. | `{ nonReversedReturnCount, nonReversedManualPaymentCount }` |
+| `ORDER_LINE_HAS_RETURNS` | 409 | Line edit removes a line that has return lines, reversed ones included (Q40). | `{ itemId }` |
 | `ORDER_DATE_AFTER_ACTIVITY` | 409 | Order `date` edited to later than the earliest non-reversed return date or non-reversed manual payment date. | `{ earliestActivityDate }` |
 | `CREDIT_LIMIT_EXCEEDED` | 409 | Credit rule (4.4) fails and the request is not a valid admin override. | `{ creditLimit, customerOutValue, depositDelta, excess, canOverride: boolean }` |
 | `UNIT_DEPOSIT_NOT_PERMITTED` | 403 | A line carries `unitDeposit` and the user lacks `orders.editUnitDeposit`. | `{ lineIndexes: number[] }` |
@@ -3171,14 +3177,14 @@ OrderUpdateBody = z.strictObject({
   5. `date` present → must be ≤ the earliest `date` among non-reversed returns and non-reversed MANUAL payments of the order → else `ORDER_DATE_AFTER_ACTIVITY { earliestActivityDate }`. The automatic payment's date follows automatically (derived at read time).
   6. `lines` present:
      - Activity gate: any non-reversed return or non-reversed MANUAL payment → `ORDER_HAS_ACTIVITY`.
-     - Diff by `itemId`. Kept item: new `quantity`; `unitDeposit` = supplied value or the stored one. Added item: must exist (`ITEM_NOT_FOUND`) and be active (`ITEM_ARCHIVED`); `unitDeposit` = supplied value or the item's current `depositPrice`. Removed item: its line row is deleted (it has no return lines because of the gate). A kept line whose item is archived may keep or lower its quantity; raising it → `ITEM_ARCHIVED`.
+     - Diff by `itemId`. Kept item: new `quantity`; `unitDeposit` = supplied value or the stored one. Added item: must exist (`ITEM_NOT_FOUND`) and be active (`ITEM_ARCHIVED`); `unitDeposit` = supplied value or the item's current `depositPrice`. Removed item: its line row is deleted — unless a return, even a reversed one, has lines on it, which → `ORDER_LINE_HAS_RETURNS { itemId }` (Q40). A kept line whose item is archived may keep or lower its quantity; raising it → `ITEM_ARCHIVED`.
      - Stock: per item `movement = oldQuantity − newQuantity` (removed: `+old`; added: `−new`); an item whose resulting `quantity_on_hand` < 0 → `STOCK_INSUFFICIENT`. One `ORDER_LINE_EDIT` movement per item with a non-zero movement.
      - `depositDelta = newDepositTotal − oldDepositTotal`; if `> 0`, run the credit rule with the current `customerOutValue` (which already contains this order's current `out_value`) and `depositDelta`; override handling as in create.
      - CASH order and the line set changed (any added, removed or changed line — §4.8): if a non-reversed automatic PAYMENT exists → `PAYMENT_REVERSAL` of its full amount (source `ORDER_LINE_EDIT`, `date` = today, `reverses_entry_id`); if `newDepositTotal > 0` → new automatic `PAYMENT` (source `ORDER_LINE_EDIT`, `is_automatic = true`, `date = NULL`, `amount = newDepositTotal`). Each step is skipped only when its amount would be 0. This applies even when `newDepositTotal = oldDepositTotal` (the pair nets to zero; owed stays 0). A request whose `lines` equal the stored lines exactly is not a line change and writes no ledger rows or movements.
-  7. Apply header fields; `version += 1`; `recomputeOrder`.
+  7. Apply header fields; `recomputeOrder` (`version += 1`). A request whose header fields and lines all equal the stored ones changes nothing: no version bump, no audit row (Q37).
 - **Writes:** movements `ORDER_LINE_EDIT`; ledger `PAYMENT_REVERSAL` / `PAYMENT` (CASH only); audit `UPDATE` (entity `ORDER`, before/after of header fields and lines, params `{ orderNumber }`), `PAYMENT_REVERSE` and `PAYMENT_CREATE` per ledger row, `CREDIT_OVERRIDE` when overridden.
 - **Response:** 200 `OrderDetailDto`.
-- **Errors:** `ORDER_NOT_FOUND`, `ORDER_CANCELLED`, `VERSION_CONFLICT`, `UNIT_DEPOSIT_NOT_PERMITTED`, `ADMIN_ONLY`, `BUSINESS_DATE_IN_FUTURE`, `DRIVER_NOT_FOUND`, `DRIVER_ARCHIVED`, `ORDER_DATE_AFTER_ACTIVITY`, `ORDER_HAS_ACTIVITY`, `ITEM_NOT_FOUND`, `ITEM_ARCHIVED`, `STOCK_INSUFFICIENT`, `CREDIT_LIMIT_EXCEEDED`.
+- **Errors:** `ORDER_NOT_FOUND`, `ORDER_CANCELLED`, `VERSION_CONFLICT`, `UNIT_DEPOSIT_NOT_PERMITTED`, `ADMIN_ONLY`, `BUSINESS_DATE_IN_FUTURE`, `DRIVER_NOT_FOUND`, `DRIVER_ARCHIVED`, `ORDER_DATE_AFTER_ACTIVITY`, `ORDER_HAS_ACTIVITY`, `ORDER_LINE_HAS_RETURNS`, `ITEM_NOT_FOUND`, `ITEM_ARCHIVED`, `STOCK_INSUFFICIENT`, `CREDIT_LIMIT_EXCEEDED`.
 
 #### `POST /api/orders/:id/cancel`
 - **Access:** `@RequirePermission('orders.cancel')`.
@@ -5147,7 +5153,7 @@ U1 expected values (`O` = OPEN, `S` = SETTLED):
 | I4 | Cancel | ORDER_CANCEL movements restore stock; PAYMENT_REVERSAL (source ORDER_CANCEL) on CASH; order keeps its number, status CANCELLED; customer aggregates exclude it; cancel with a non-reversed return or manual payment → 409 `ORDER_HAS_ACTIVITY`; after that payment is reversed, cancel succeeds |
 | I5 | Line edit | CASH re-issue (example 7) with ORDER_LINE_EDIT movement +40; LENT edit leaves the ledger untouched; adding/removing lines; `unitDeposit` supplied by an employee without `orders.editUnitDeposit` → 403 `UNIT_DEPOSIT_NOT_PERMITTED`; with the permission → stored |
 | I6 | Stock checks | order quantity > on-hand → 409 `STOCK_INSUFFICIENT` with `details.items`; batch delete making stock negative → 409; manual adjustment below zero → 409; DB CHECK backstop verified by a raw update attempt as owner |
-| I7 | Credit limit | employee blocked → 409 `CREDIT_LIMIT_EXCEEDED` `details { creditLimit, customerOutValue, depositTotal, excess, canOverride: false }`; admin without confirmation → same with `canOverride: true`; admin with `confirmCreditOverride: true` → 201, `credit_override_by_user_id` set, audit CREDIT_OVERRIDE; employee sending `confirmCreditOverride: true` → 403 `ADMIN_ONLY`; line edit with positive delta re-checks, negative delta never blocked |
+| I7 | Credit limit | employee blocked → 409 `CREDIT_LIMIT_EXCEEDED` `details { creditLimit, customerOutValue, depositDelta, excess, canOverride: false }`; admin without confirmation → same with `canOverride: true`; admin with `confirmCreditOverride: true` → 201, `credit_override_by_user_id` set, audit CREDIT_OVERRIDE; employee sending `confirmCreditOverride: true` → 403 `ADMIN_ONLY`; line edit with positive delta re-checks, negative delta never blocked |
 | I8 | Concurrency (locks) | limit 100,000, two parallel `POST /api/orders` of 60,000 each (different idempotency keys) → exactly one 201 and one 409; stock 10, two parallel orders of 7 → one 201, one 409; parallel return + payment on one order keep `owed ≥ 0`; no deadlock across 20 parallel mixed creates (all complete within the 15 s transaction timeout) |
 | I9 | Order numbers | a failed create (credit limit) consumes no number; 20 parallel creates yield exactly 1..20 |
 | I10 | Idempotency | replay with same body → identical status/body + header `Idempotency-Replayed: true`, no new rows; same key different body → 409 `IDEMPOTENCY_KEY_REUSED`; missing header → 400 `IDEMPOTENCY_KEY_REQUIRED`; malformed → 400 `IDEMPOTENCY_KEY_INVALID`; blocked credit attempt stores nothing, then admin re-submit with the same key and `confirmCreditOverride` → 201; key older than 24 h (clock advanced) is treated as new; same key used by two different users → independent |

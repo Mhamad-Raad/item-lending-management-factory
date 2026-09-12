@@ -341,3 +341,36 @@ export interface OrderDetailDto extends OrderListItemDto {
   updatedAt: string;
   createdBy: UserRefDto;
 }
+
+export interface ReceiptLineDto {
+  itemName: string;
+  quantity: number;
+  unitDeposit: number;
+  lineTotal: number;
+}
+
+export interface ReceiptSheetDto {
+  /** 1-based. */
+  sheetNumber: number;
+  sheetCount: number;
+  /** At most `RECEIPT_LINES_PER_HALF`. */
+  lines: ReceiptLineDto[];
+  /** True only on the last sheet. */
+  showTotal: boolean;
+}
+
+export interface ReceiptDto {
+  orderId: number;
+  orderNumber: number;
+  /** Zero-padded to six digits. */
+  orderNumberDisplay: string;
+  date: string;
+  paymentType: PaymentType;
+  depositTotal: number;
+  factory: { name: string; phone: string; address: string; logoUrl: string | null };
+  customer: { name: string; phone: string; altPhone: string | null; address: string };
+  driver: { name: string; phone: string; carNumber: string };
+  linesPerHalf: number;
+  /** One per `chunkReceiptLines` chunk; each A4 sheet prints its chunk twice. */
+  sheets: ReceiptSheetDto[];
+}

@@ -1,4 +1,4 @@
-import type { CustomerDto } from '@pallet/shared';
+import type { CustomerDto, CustomerRefDto } from '@pallet/shared';
 import { toSafeMoney } from '../../common/utils/money';
 import type { Customer } from '../../generated/prisma/client';
 
@@ -38,4 +38,9 @@ export function toCustomerDto(row: Customer, totals: OrderTotals): CustomerDto {
     // Headroom may go negative after an admin override; it is shown as it is (§4.5).
     summary: { ...totals, creditLimit, headroom: creditLimit === null ? null : creditLimit - totals.outValue },
   };
+}
+
+/** How another record names a customer, archived or not. */
+export function toCustomerRef(customer: Customer): CustomerRefDto {
+  return { id: customer.id, name: customer.name, phone: customer.phone, archived: customer.archivedAt !== null };
 }

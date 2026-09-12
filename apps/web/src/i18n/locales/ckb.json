@@ -373,10 +373,13 @@
       },
       "ORDER": {
         "CREATE": "داواکاری #{{orderNumber}} بۆ {{customerName}} ({{paymentType}}، {{depositTotal}})",
-        "CREDIT_OVERRIDE": "سنووری قەرز بە {{excess}} تێپەڕێندرا لە داواکاری #{{orderNumber}} بۆ {{customerName}}"
+        "CREDIT_OVERRIDE": "سنووری قەرز بە {{excess}} تێپەڕێندرا لە داواکاری #{{orderNumber}} بۆ {{customerName}}",
+        "UPDATE": "داواکاری #{{orderNumber}} نوێکرایەوە",
+        "CANCEL": "داواکاری #{{orderNumber}} بۆ {{customerName}} هەڵوەشێندرایەوە"
       },
       "LEDGER_ENTRY": {
-        "PAYMENT_CREATE": "پارەدانی {{amount}} لەسەر داواکاری #{{orderNumber}}"
+        "PAYMENT_CREATE": "پارەدانی {{amount}} لەسەر داواکاری #{{orderNumber}}",
+        "PAYMENT_REVERSE": "پارەدانی {{amount}} لەسەر داواکاری #{{orderNumber}} گەڕێندرایەوە"
       }
     }
   },
@@ -521,7 +524,8 @@
     "IDEMPOTENCY_KEY_INVALID": "کلیلی پاراستنی داواکارییەکە دروست نییە",
     "IDEMPOTENCY_KEY_REUSED": "ئەم کلیلە بۆ داواکارییەکی تر بەکارهاتووە",
     "NETWORK_ERROR": "پەیوەندی بە ڕاژەکارەوە نییە",
-    "UNKNOWN_ERROR": "شتێک هەڵەی تێدا بوو"
+    "UNKNOWN_ERROR": "شتێک هەڵەی تێدا بوو",
+    "ORDER_LINE_HAS_RETURNS": "ئەم دێڕە گەڕاندنەوەی لە مێژوودا هەیە و ناسڕدرێتەوە؛ لەبری ئەوە ژمارەکەی کەم بکەرەوە"
   },
   "settings": {
     "title": "ڕێکخستنەکانی کارگە",

@@ -119,8 +119,11 @@ ALTER TABLE order_lines
   ADD CONSTRAINT order_lines_unit_deposit_nonnegative_check CHECK (unit_deposit >= 0),
   ADD CONSTRAINT order_lines_line_total_matches_check CHECK (line_total = quantity::bigint * unit_deposit),
   ADD CONSTRAINT order_lines_returned_nonnegative_check CHECK (returned_accepted >= 0 AND returned_damaged >= 0),
-  ADD CONSTRAINT order_lines_out_quantity_matches_check
-    CHECK (out_quantity = quantity - returned_accepted - returned_damaged),
+  -- Q39: the second branch is a cancelled order's zeroed line (§4.2).
+  ADD CONSTRAINT order_lines_out_quantity_matches_check CHECK (
+    out_quantity = quantity - returned_accepted - returned_damaged
+    OR (out_quantity = 0 AND returned_accepted = 0 AND returned_damaged = 0)
+  ),
   ADD CONSTRAINT order_lines_out_quantity_nonnegative_check CHECK (out_quantity >= 0);
 
 -- ─── returns ────────────────────────────────────────────────────────────────────────────

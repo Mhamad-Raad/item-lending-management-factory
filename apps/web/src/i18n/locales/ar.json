@@ -373,10 +373,13 @@
       },
       "ORDER": {
         "CREATE": "الطلب #{{orderNumber}} لـ {{customerName}} ({{paymentType}}، {{depositTotal}})",
-        "CREDIT_OVERRIDE": "تم تجاوز حد الائتمان بمقدار {{excess}} في الطلب #{{orderNumber}} لـ {{customerName}}"
+        "CREDIT_OVERRIDE": "تم تجاوز حد الائتمان بمقدار {{excess}} في الطلب #{{orderNumber}} لـ {{customerName}}",
+        "UPDATE": "عُدّل الطلب #{{orderNumber}}",
+        "CANCEL": "أُلغي الطلب #{{orderNumber}} لـ {{customerName}}"
       },
       "LEDGER_ENTRY": {
-        "PAYMENT_CREATE": "دفعة بمبلغ {{amount}} على الطلب #{{orderNumber}}"
+        "PAYMENT_CREATE": "دفعة بمبلغ {{amount}} على الطلب #{{orderNumber}}",
+        "PAYMENT_REVERSE": "عُكست دفعة بمبلغ {{amount}} على الطلب #{{orderNumber}}"
       }
     }
   },
@@ -521,7 +524,8 @@
     "IDEMPOTENCY_KEY_INVALID": "مفتاح أمان الطلب غير صالح",
     "IDEMPOTENCY_KEY_REUSED": "استُخدم هذا المفتاح لطلب مختلف",
     "NETWORK_ERROR": "لا يوجد اتصال بالخادم",
-    "UNKNOWN_ERROR": "حدث خطأ ما"
+    "UNKNOWN_ERROR": "حدث خطأ ما",
+    "ORDER_LINE_HAS_RETURNS": "لهذا السطر مرتجعات في سجله ولا يمكن حذفه؛ خفّض كميته بدلاً من ذلك"
   },
   "settings": {
     "title": "إعدادات المصنع",
