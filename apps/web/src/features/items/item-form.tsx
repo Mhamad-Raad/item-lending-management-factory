@@ -247,7 +247,7 @@ export function ItemForm({ item }: { item?: ItemDto }) {
             </div>
 
             {addInitialStock ? (
-              <div className="grid gap-4 md:grid-cols-2">
+              <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
                 <Field>
                   <FieldLabel htmlFor="batch-date">{t('purchases.fields.date')}</FieldLabel>
                   <Controller

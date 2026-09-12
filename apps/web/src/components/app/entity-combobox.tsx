@@ -136,7 +136,7 @@ export function EntityCombobox({
           aria-expanded={open}
           aria-invalid={invalid}
           disabled={disabled}
-          className="h-10 w-full justify-between font-normal"
+          className="h-10 w-full justify-between font-normal [contain:inline-size]"
           onKeyDown={(event) => {
             // Typing on the closed select opens it with what was typed (§7.15).
             if (event.key.length === 1 && !event.ctrlKey && !event.metaKey && !event.altKey) {

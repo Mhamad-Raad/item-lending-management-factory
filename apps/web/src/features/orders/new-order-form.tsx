@@ -180,10 +180,10 @@ export function NewOrderForm({ initialCustomerId }: { initialCustomerId?: number
   );
 
   return (
-    <div className="grid gap-6 pb-24 lg:grid-cols-[1fr_22rem] lg:pb-0">
+    <div className="grid grid-cols-1 gap-6 pb-24 lg:grid-cols-[minmax(0,1fr)_22rem] lg:pb-0">
       <form id="new-order" onSubmit={submit(false)} className="flex flex-col gap-6" noValidate>
         <Card>
-          <CardContent className="grid gap-4 md:grid-cols-2">
+          <CardContent className="grid grid-cols-1 gap-4 md:grid-cols-2">
             <Field>
               <FieldLabel htmlFor="customerId">{t('orders.fields.customer')}</FieldLabel>
               <Controller
