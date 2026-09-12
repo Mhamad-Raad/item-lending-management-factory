@@ -24,7 +24,7 @@ export async function createTestApp(options: TestAppOptions = {}): Promise<INest
   if (options.customise) builder = options.customise(builder);
 
   const moduleRef = await builder.compile();
-  const app = moduleRef.createNestApplication<NestExpressApplication>({ logger: false });
+  const app = moduleRef.createNestApplication<NestExpressApplication>({ logger: false, bodyParser: false });
 
   configureApp(app, app.get<Env>(ENV));
   await app.init();

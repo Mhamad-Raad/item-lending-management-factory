@@ -130,7 +130,8 @@
       "deactivateConfirm": "{{name}} لە هەموو شوێنێک دەچێتە دەرەوە و ناتوانێت دووبارە بچێتە ژوورەوە.",
       "deactivateHint": "بەکارهێنەری ناچالاک ناتوانێت بچێتە ژوورەوە.",
       "selfDeactivateHint": "ناتوانیت هەژماری خۆت ناچالاک بکەیت.",
-      "activeSessions": "{{count}} دانیشتنی چالاک"
+      "activeSessions": "{{count}} دانیشتنی چالاک",
+      "selfDemoteHint": "ناتوانیت ڕۆڵی خۆت بگۆڕیت."
     },
     "fields": {
       "username": "ناوی بەکارهێنەر",
@@ -157,7 +158,8 @@
       "passwordReset": "وشەی تێپەڕ ڕێکخرایەوە؛ بەکارهێنەر لە چوونەژوورەوەی داهاتوودا دەبێت نوێیەک هەڵبژێرێت.",
       "logoutAll": "چوونەدەرەوە لە هەموو ئامێرەکان",
       "logoutAllConfirm": "هەموو دانیشتنەکانی {{name}} کۆتایی دێت.",
-      "loggedOut": "دانیشتنەکان کۆتاییان هات"
+      "loggedOut": "دانیشتنەکان کۆتاییان هات",
+      "resetPasswordConfirm": "{{name}} لە هەموو شوێنێک دەچێتە دەرەوە و لە چوونەژوورەوەی داهاتوودا دەبێت وشەی تێپەڕی نوێ هەڵبژێرێت."
     }
   },
   "history": {
@@ -240,7 +242,6 @@
         "PASSWORD_RESET": "وشەی تێپەڕی {{username}} ڕێکخرایەوە",
         "PASSWORD_CHANGE": "{{username}} وشەی تێپەڕی خۆی گۆڕی",
         "LOGOUT_ALL": "{{families}} دانیشتنی {{username}} کۆتایی پێهات",
-        "LOGIN_SUCCESS": "{{username}} چووە ژوورەوە",
         "LOGIN_FAILURE": "چوونەژوورەوەی سەرنەکەوتوو بۆ {{usernameAttempt}} ({{reason}})",
         "LOCKOUT": "{{usernameAttempt}} بۆ {{lockedMinutes}} خولەک داخرا"
       },

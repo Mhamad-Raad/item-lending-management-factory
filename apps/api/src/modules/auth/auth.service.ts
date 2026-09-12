@@ -4,9 +4,10 @@ import type { AuthTokenDto, ChangePasswordBody, LoginBody, MeDto } from '@pallet
 import { Clock } from '../../common/clock';
 import { ApiError } from '../../common/errors/api-error';
 import type { Prisma, User } from '../../generated/prisma/client';
+import { lockUser, lockUserByUsername } from '../../prisma/locks';
 import { PrismaService } from '../../prisma/prisma.service';
 import { AuditService } from '../audit/audit.service';
-import { ACCESS_TOKEN_TTL, ACCESS_TOKEN_TTL_MS } from './auth.constants';
+import { ACCESS_TOKEN_TTL_MS } from './auth.constants';
 import { toMeDto } from './auth.mapper';
 import { LoginThrottleService } from './login-throttle.service';
 import { checkPasswordPolicy } from './password-policy';
@@ -45,6 +46,10 @@ export class AuthService {
     const result = await this.prisma.$transaction(async (tx): Promise<AuthResult | null> => {
       const { username, password } = body;
       const throttle = await this.throttle.lock(tx, origin.ip, username);
+      // Locked before the hash is read: a reset or change committing while this attempt verifies
+      // would otherwise be overtaken — the old password would still open a session issued after the
+      // `token_version` bump, and a rehash would write the old password back over the new one.
+      await lockUserByUsername(tx, username);
 
       const user = await tx.user.findUnique({
         where: { username },
@@ -82,11 +87,16 @@ export class AuthService {
       }
 
       await this.throttle.clear(tx, origin.ip, username);
-      const now = this.clock.now();
-      if (this.passwords.needsRehash(user.passwordHash)) {
-        await tx.user.update({ where: { id: user.id }, data: { passwordHash: await this.passwords.hash(password) } });
-      }
-      await tx.user.update({ where: { id: user.id }, data: { lastLoginAt: now } });
+      await tx.user.update({
+        where: { id: user.id },
+        data: {
+          lastLoginAt: this.clock.now(),
+          // A hash made with older parameters is replaced while the password is at hand (§10.1 S1).
+          ...(this.passwords.needsRehash(user.passwordHash)
+            ? { passwordHash: await this.passwords.hash(password) }
+            : {}),
+        },
+      });
 
       const refresh = await this.sessions.createFamily(tx, user.id, origin.ip, origin.userAgent);
       await this.audit.record(tx, {
@@ -151,7 +161,7 @@ export class AuthService {
 
   async logoutAll(userId: number): Promise<void> {
     await this.prisma.$transaction(async (tx) => {
-      await tx.$queryRaw`SELECT id FROM users WHERE id = ${userId} FOR UPDATE`;
+      await lockUser(tx, userId);
       const user = await tx.user.findUniqueOrThrow({ where: { id: userId } });
       const families = await this.sessions.revokeAllFamilies(tx, userId, 'LOGOUT_ALL');
       await tx.user.update({ where: { id: userId }, data: { tokenVersion: { increment: 1 } } });
@@ -167,7 +177,7 @@ export class AuthService {
   /** §6.8.6. Ends with a fresh family so the tab that changed the password stays signed in. */
   async changePassword(userId: number, body: ChangePasswordBody, origin: RequestOrigin): Promise<AuthResult> {
     return this.prisma.$transaction(async (tx) => {
-      await tx.$queryRaw`SELECT id FROM users WHERE id = ${userId} FOR UPDATE`;
+      await lockUser(tx, userId);
       const user = await tx.user.findUniqueOrThrow({
         where: { id: userId },
         include: { permissions: { select: { permissionKey: true } } },
@@ -211,10 +221,8 @@ export class AuthService {
     // `iat` comes from the injected clock so the token's own `exp` and the expiry advertised to
     // the client are the same instant — otherwise neither is testable with a fixed clock.
     const issuedAt = Math.floor(this.clock.now().getTime() / 1000);
-    const accessToken = this.jwt.sign(
-      { sub: String(user.id), tv: user.tokenVersion, iat: issuedAt },
-      { algorithm: 'HS256', expiresIn: ACCESS_TOKEN_TTL },
-    );
+    // Algorithm and lifetime come from the JwtModule registration; only the payload is given here.
+    const accessToken = this.jwt.sign({ sub: String(user.id), tv: user.tokenVersion, iat: issuedAt });
     return {
       accessToken,
       accessTokenExpiresAt: new Date((issuedAt + ACCESS_TOKEN_TTL_MS / 1000) * 1000).toISOString(),

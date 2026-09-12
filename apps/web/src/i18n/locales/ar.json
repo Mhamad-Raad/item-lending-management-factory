@@ -130,7 +130,8 @@
       "deactivateConfirm": "سيتم تسجيل خروج {{name}} من كل مكان ولن يتمكن من الدخول مجدداً.",
       "deactivateHint": "المستخدم المعطل لا يمكنه تسجيل الدخول.",
       "selfDeactivateHint": "لا يمكنك تعطيل حسابك.",
-      "activeSessions": "{{count}} جلسة نشطة"
+      "activeSessions": "{{count}} جلسة نشطة",
+      "selfDemoteHint": "لا يمكنك تغيير دورك."
     },
     "fields": {
       "username": "اسم المستخدم",
@@ -157,7 +158,8 @@
       "passwordReset": "تمت إعادة تعيين كلمة المرور؛ على المستخدم اختيار كلمة جديدة عند دخوله القادم.",
       "logoutAll": "تسجيل الخروج من كل الأجهزة",
       "logoutAllConfirm": "ستنتهي كل جلسات {{name}}.",
-      "loggedOut": "تم إنهاء الجلسات"
+      "loggedOut": "تم إنهاء الجلسات",
+      "resetPasswordConfirm": "سيتم تسجيل خروج {{name}} من كل مكان وعليه اختيار كلمة مرور جديدة عند دخوله القادم."
     }
   },
   "history": {
@@ -240,7 +242,6 @@
         "PASSWORD_RESET": "أعاد تعيين كلمة مرور {{username}}",
         "PASSWORD_CHANGE": "غيّر {{username}} كلمة مروره",
         "LOGOUT_ALL": "أنهى {{families}} جلسة لـ {{username}}",
-        "LOGIN_SUCCESS": "سجّل {{username}} الدخول",
         "LOGIN_FAILURE": "محاولة دخول فاشلة لـ {{usernameAttempt}} ({{reason}})",
         "LOCKOUT": "أُقفل {{usernameAttempt}} لمدة {{lockedMinutes}} دقيقة"
       },

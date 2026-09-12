@@ -13,8 +13,8 @@ import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { z } from 'zod';
 import { PageHeader } from '@/components/app/page-header';
+import { Pagination } from '@/components/app/pagination';
 import { EmptyState, PageSkeleton, QueryErrorState } from '@/components/app/states';
-import { Button } from '@/components/ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { usePageTitle } from '@/hooks/use-page-title';
@@ -111,11 +111,7 @@ function HistoryPage() {
           </TableHeader>
           <TableBody>
             {logs.data.items.map((row) => (
-              <TableRow
-                key={row.id}
-                className="cursor-pointer"
-                onClick={() => setExpanded(expanded === row.id ? null : row.id)}
-              >
+              <TableRow key={row.id}>
                 <TableCell className="whitespace-nowrap" dir="ltr">
                   {formatTimestamp(row.createdAt)}
                 </TableCell>
@@ -148,29 +144,12 @@ function HistoryPage() {
         </Table>
       )}
 
-      <div className="flex items-center justify-between gap-2">
-        <span className="text-muted-foreground text-sm">
-          {t('common.pagination.total', { total: logs.data.total })}
-        </span>
-        <div className="flex gap-2">
-          <Button
-            variant="outline"
-            size="sm"
-            disabled={logs.data.page <= 1}
-            onClick={() => void navigate({ to: '/history', search: (prev) => ({ ...prev, page: logs.data.page - 1 }) })}
-          >
-            {t('common.pagination.previous')}
-          </Button>
-          <Button
-            variant="outline"
-            size="sm"
-            disabled={logs.data.page * logs.data.pageSize >= logs.data.total}
-            onClick={() => void navigate({ to: '/history', search: (prev) => ({ ...prev, page: logs.data.page + 1 }) })}
-          >
-            {t('common.pagination.next')}
-          </Button>
-        </div>
-      </div>
+      <Pagination
+        page={logs.data.page}
+        pageSize={logs.data.pageSize}
+        total={logs.data.total}
+        onPageChange={(page) => void navigate({ to: '/history', search: (prev) => ({ ...prev, page }) })}
+      />
     </>
   );
 }

@@ -7,7 +7,7 @@ import { configureApp } from './bootstrap';
 import { ENV, type Env } from './config/env';
 
 async function bootstrap(): Promise<void> {
-  const app = await NestFactory.create<NestExpressApplication>(AppModule, { bufferLogs: true });
+  const app = await NestFactory.create<NestExpressApplication>(AppModule, { bufferLogs: true, bodyParser: false });
   const env = app.get<Env>(ENV);
 
   app.useLogger(app.get(Logger));

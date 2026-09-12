@@ -13,6 +13,7 @@ const REFRESH_MARGIN_MS = 60_000;
 const MIN_REFRESH_DELAY_MS = 10_000;
 
 let refreshTimer: ReturnType<typeof setTimeout> | undefined;
+let bootstrapped = false;
 
 function scheduleProactiveRefresh(): void {
   clearTimeout(refreshTimer);
@@ -33,14 +34,18 @@ function scheduleProactiveRefresh(): void {
  * reload, so the app asks for a fresh access token before it renders anything.
  */
 export async function bootstrapAuth(): Promise<void> {
-  listenForPeerRefreshes();
-  authStore.subscribe(scheduleProactiveRefresh);
-
-  document.addEventListener('visibilitychange', () => {
-    const { accessTokenExpiresAt, status } = authStore.getSnapshot();
-    if (document.visibilityState !== 'visible' || status !== 'authenticated' || !accessTokenExpiresAt) return;
-    if (accessTokenExpiresAt - Date.now() < REFRESH_MARGIN_MS) void refreshAccessToken();
-  });
+  // Once per page load. React's development double-effect would otherwise register the listeners
+  // twice and, harmlessly but pointlessly, refresh twice.
+  if (!bootstrapped) {
+    bootstrapped = true;
+    listenForPeerRefreshes();
+    authStore.subscribe(scheduleProactiveRefresh);
+    document.addEventListener('visibilitychange', () => {
+      const { accessTokenExpiresAt, status } = authStore.getSnapshot();
+      if (document.visibilityState !== 'visible' || status !== 'authenticated' || !accessTokenExpiresAt) return;
+      if (accessTokenExpiresAt - Date.now() < REFRESH_MARGIN_MS) void refreshAccessToken();
+    });
+  }
 
   if (!(await refreshAccessToken())) authStore.clear();
 }
@@ -58,6 +63,12 @@ export async function logout(): Promise<void> {
   } finally {
     authStore.clear();
   }
+}
+
+/** Ends every session of the current user, this one included, then forgets it locally (§7.3.21). */
+export async function logoutEverywhere(): Promise<void> {
+  await apiFetch<void>('/auth/logout-all', { method: 'POST' });
+  authStore.clear();
 }
 
 export async function refreshMe(): Promise<MeDto> {

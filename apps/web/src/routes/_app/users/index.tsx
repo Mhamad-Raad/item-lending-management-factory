@@ -1,20 +1,20 @@
-import type { PageDto, UserListItemDto } from '@pallet/shared';
+import { formatTimestamp, type PageDto, type UserListItemDto } from '@pallet/shared';
 import { useQuery } from '@tanstack/react-query';
 import { Link, createFileRoute, useNavigate } from '@tanstack/react-router';
 import { Plus } from 'lucide-react';
-import { useEffect, useState } from 'react';
+import { useCallback } from 'react';
 import { useTranslation } from 'react-i18next';
 import { z } from 'zod';
 import { PageHeader } from '@/components/app/page-header';
+import { Pagination } from '@/components/app/pagination';
 import { EmptyState, PageSkeleton, QueryErrorState } from '@/components/app/states';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { useDebouncedValue } from '@/hooks/use-debounced-value';
+import { useSearchInput } from '@/hooks/use-search-input';
 import { usePageTitle } from '@/hooks/use-page-title';
 import { apiFetch } from '@/lib/api-client';
-import { formatTimestamp } from '@pallet/shared';
 import { qk } from '@/lib/query-keys';
 import { requireAdmin } from '@/lib/route-guards';
 
@@ -33,15 +33,12 @@ function UsersPage() {
   const { t } = useTranslation();
   const navigate = useNavigate();
   const search = Route.useSearch();
-  const [term, setTerm] = useState(search.q ?? '');
-  const debouncedTerm = useDebouncedValue(term);
+  const commitSearch = useCallback(
+    (q: string | undefined) => void navigate({ to: '/users', search: { q, page: 1 }, replace: true }),
+    [navigate],
+  );
+  const [term, setTerm] = useSearchInput(search.q, commitSearch);
   usePageTitle('users.list.title');
-
-  useEffect(() => {
-    const next = debouncedTerm.trim() || undefined;
-    if (next === search.q) return;
-    void navigate({ to: '/users', search: { q: next, page: 1 }, replace: true });
-  }, [debouncedTerm, navigate, search.q]);
 
   const params = { q: search.q, page: search.page };
   const users = useQuery({
@@ -115,38 +112,12 @@ function UsersPage() {
         </Table>
       )}
 
-      <Pagination page={users.data.page} pageSize={users.data.pageSize} total={users.data.total} />
+      <Pagination
+        page={users.data.page}
+        pageSize={users.data.pageSize}
+        total={users.data.total}
+        onPageChange={(page) => void navigate({ to: '/users', search: (prev) => ({ ...prev, page }) })}
+      />
     </>
-  );
-}
-
-function Pagination({ page, pageSize, total }: { page: number; pageSize: number; total: number }) {
-  const { t } = useTranslation();
-  const navigate = useNavigate();
-  const lastPage = Math.max(1, Math.ceil(total / pageSize));
-  if (lastPage === 1) return null;
-
-  return (
-    <div className="flex items-center justify-between gap-2">
-      <span className="text-muted-foreground text-sm">{t('common.pagination.page', { page, lastPage })}</span>
-      <div className="flex gap-2">
-        <Button
-          variant="outline"
-          size="sm"
-          disabled={page <= 1}
-          onClick={() => void navigate({ to: '/users', search: (prev) => ({ ...prev, page: page - 1 }) })}
-        >
-          {t('common.pagination.previous')}
-        </Button>
-        <Button
-          variant="outline"
-          size="sm"
-          disabled={page >= lastPage}
-          onClick={() => void navigate({ to: '/users', search: (prev) => ({ ...prev, page: page + 1 }) })}
-        >
-          {t('common.pagination.next')}
-        </Button>
-      </div>
-    </div>
   );
 }

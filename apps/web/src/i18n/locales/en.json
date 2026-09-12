@@ -130,7 +130,8 @@
       "deactivateConfirm": "{{name}} will be signed out everywhere and will not be able to sign in again.",
       "deactivateHint": "An inactive user cannot sign in.",
       "selfDeactivateHint": "You cannot deactivate your own account.",
-      "activeSessions": "{{count}} active sessions"
+      "activeSessions": "{{count}} active sessions",
+      "selfDemoteHint": "You cannot change your own role."
     },
     "fields": {
       "username": "Username",
@@ -157,7 +158,8 @@
       "passwordReset": "Password reset; the user must choose a new one at their next sign-in.",
       "logoutAll": "Log out everywhere",
       "logoutAllConfirm": "Every session of {{name}} will end.",
-      "loggedOut": "Sessions ended"
+      "loggedOut": "Sessions ended",
+      "resetPasswordConfirm": "{{name}} will be signed out everywhere and must choose a new password at their next sign-in."
     }
   },
   "history": {
@@ -240,7 +242,6 @@
         "PASSWORD_RESET": "Reset the password of {{username}}",
         "PASSWORD_CHANGE": "{{username}} changed their password",
         "LOGOUT_ALL": "Ended {{families}} sessions of {{username}}",
-        "LOGIN_SUCCESS": "{{username}} signed in",
         "LOGIN_FAILURE": "Failed sign-in for {{usernameAttempt}} ({{reason}})",
         "LOCKOUT": "Locked {{usernameAttempt}} for {{lockedMinutes}} minutes"
       },

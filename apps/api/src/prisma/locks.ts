@@ -19,3 +19,11 @@ export async function lockUser(tx: Prisma.TransactionClient, userId: number): Pr
 export async function lockActiveAdmins(tx: Prisma.TransactionClient): Promise<void> {
   await tx.$queryRaw`SELECT id FROM users WHERE role = 'ADMIN' AND is_active = true ORDER BY id FOR UPDATE`;
 }
+
+/**
+ * Locks the account a login names, when there is one. The same statement runs whether or not the
+ * username exists, so the lock adds no timing difference between a real and an unknown account.
+ */
+export async function lockUserByUsername(tx: Prisma.TransactionClient, username: string): Promise<void> {
+  await tx.$queryRaw`SELECT id FROM users WHERE username = ${username} FOR UPDATE`;
+}

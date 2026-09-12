@@ -1,18 +1,17 @@
-import { FONT_SIZES, LANGUAGES, THEMES, type FontSize, type Language, type Theme } from '@pallet/shared';
+import { FONT_SIZES, THEMES, type FontSize, type Theme } from '@pallet/shared';
 import { createFileRoute, useNavigate } from '@tanstack/react-router';
 import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
+import { ChangePasswordForm } from '@/components/app/change-password-form';
 import { ConfirmDialog } from '@/components/app/confirm-dialog';
+import { LanguageSwitcher } from '@/components/app/language-switcher';
 import { PageHeader } from '@/components/app/page-header';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Label } from '@/components/ui/label';
 import { usePageTitle } from '@/hooks/use-page-title';
-import { apiFetch } from '@/lib/api-client';
-import { authStore, useAuth } from '@/lib/auth';
+import { logoutEverywhere, useAuth } from '@/lib/auth';
 import { handleApiError } from '@/lib/errors';
-import { LANGUAGE_NATIVE_NAMES, setPreferences, usePreferences } from '@/lib/preferences';
-import i18n from '@/i18n';
+import { setPreferences, usePreferences } from '@/lib/preferences';
 
 export const Route = createFileRoute('/_app/account')({ component: AccountPage });
 
@@ -32,11 +31,10 @@ function AccountPage() {
   const [pending, setPending] = useState(false);
   usePageTitle('account.title');
 
-  const logoutEverywhere = async (): Promise<void> => {
+  const endEverySession = async (): Promise<void> => {
     setPending(true);
     try {
-      await apiFetch<void>('/auth/logout-all', { method: 'POST', skipAuthRetry: true });
-      authStore.clear();
+      await logoutEverywhere();
       await navigate({ to: '/login' });
     } catch (error) {
       handleApiError(error);
@@ -54,19 +52,21 @@ function AccountPage() {
         <CardHeader>
           <CardTitle>{t('account.profile.title')}</CardTitle>
         </CardHeader>
-        <CardContent className="grid gap-2 text-sm sm:grid-cols-3">
-          <div>
-            <dt className="text-muted-foreground">{t('account.profile.username')}</dt>
-            <dd className="font-medium">{user?.username}</dd>
-          </div>
-          <div>
-            <dt className="text-muted-foreground">{t('account.profile.displayName')}</dt>
-            <dd className="font-medium">{user?.displayName}</dd>
-          </div>
-          <div>
-            <dt className="text-muted-foreground">{t('account.profile.role')}</dt>
-            <dd className="font-medium">{user ? t(`enums.role.${user.role}`) : ''}</dd>
-          </div>
+        <CardContent>
+          <dl className="grid gap-2 text-sm sm:grid-cols-3">
+            <div>
+              <dt className="text-muted-foreground">{t('account.profile.username')}</dt>
+              <dd className="font-medium">{user?.username}</dd>
+            </div>
+            <div>
+              <dt className="text-muted-foreground">{t('account.profile.displayName')}</dt>
+              <dd className="font-medium">{user?.displayName}</dd>
+            </div>
+            <div>
+              <dt className="text-muted-foreground">{t('account.profile.role')}</dt>
+              <dd className="font-medium">{user ? t(`enums.role.${user.role}`) : ''}</dd>
+            </div>
+          </dl>
         </CardContent>
       </Card>
 
@@ -77,22 +77,7 @@ function AccountPage() {
         <CardContent className="flex flex-col gap-6">
           <fieldset className="flex flex-col gap-2">
             <legend className="mb-2 text-sm font-medium">{t('account.preferences.language')}</legend>
-            <div className="flex flex-wrap gap-2">
-              {LANGUAGES.map((language: Language) => (
-                <Button
-                  key={language}
-                  variant={prefs.language === language ? 'default' : 'outline'}
-                  aria-pressed={prefs.language === language}
-                  lang={language}
-                  onClick={() => {
-                    setPreferences({ language });
-                    void i18n.changeLanguage(language);
-                  }}
-                >
-                  {LANGUAGE_NATIVE_NAMES[language]}
-                </Button>
-              ))}
-            </div>
+            <LanguageSwitcher />
           </fieldset>
 
           <fieldset className="flex flex-col gap-2">
@@ -134,18 +119,22 @@ function AccountPage() {
 
       <Card>
         <CardHeader>
+          <CardTitle>{t('auth.changePassword.title')}</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <ChangePasswordForm />
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
           <CardTitle>{t('account.security.title')}</CardTitle>
         </CardHeader>
-        <CardContent className="flex flex-col items-start gap-3">
-          <Button variant="outline" onClick={() => void navigate({ to: '/change-password' })}>
-            {t('auth.changePassword.title')}
+        <CardContent className="flex flex-col items-start gap-2">
+          <p className="text-muted-foreground text-sm">{t('account.security.logoutAllHint')}</p>
+          <Button variant="destructive" onClick={() => setConfirmLogoutAll(true)}>
+            {t('account.security.logoutAll')}
           </Button>
-          <div className="flex flex-col gap-1">
-            <Label className="font-normal">{t('account.security.logoutAllHint')}</Label>
-            <Button variant="destructive" onClick={() => setConfirmLogoutAll(true)}>
-              {t('account.security.logoutAll')}
-            </Button>
-          </div>
         </CardContent>
       </Card>
 
@@ -156,7 +145,7 @@ function AccountPage() {
         description={t('account.security.logoutAllConfirm')}
         confirmLabel={t('account.security.logoutAll')}
         pending={pending}
-        onConfirm={() => void logoutEverywhere()}
+        onConfirm={() => void endEverySession()}
       />
     </>
   );

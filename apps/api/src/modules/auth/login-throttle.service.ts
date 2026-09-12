@@ -1,7 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { Clock } from '../../common/clock';
 import type { LoginThrottle, Prisma } from '../../generated/prisma/client';
-import { LOCKOUT_MAX_MS, LOGIN_FAILURE_WINDOW_MS, LOGIN_MAX_FAILURES, lockoutDurationMs } from './auth.constants';
+import { LOGIN_FAILURE_WINDOW_MS, LOGIN_MAX_FAILURES, lockoutDurationMs } from './auth.constants';
 
 export interface LockoutResult {
   /** Set when this failure crossed the threshold, for the LOCKOUT audit row. */
@@ -64,7 +64,7 @@ export class LoginThrottleService {
         lockoutCount: row.lockoutCount + 1,
       },
     });
-    return { lockedMinutes: Math.min(durationMs, LOCKOUT_MAX_MS) / 60_000, lockoutCount: row.lockoutCount + 1 };
+    return { lockedMinutes: durationMs / 60_000, lockoutCount: row.lockoutCount + 1 };
   }
 
   /** A successful login clears the pair's history, including its backoff. */

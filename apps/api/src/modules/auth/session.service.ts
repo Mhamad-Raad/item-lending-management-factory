@@ -1,7 +1,7 @@
 import { createHash, randomBytes } from 'node:crypto';
 import { Injectable } from '@nestjs/common';
 import { Clock } from '../../common/clock';
-import type { Prisma, RefreshToken, SessionFamily } from '../../generated/prisma/client';
+import type { Prisma, RefreshToken, SessionFamily, SessionRevokeReason } from '../../generated/prisma/client';
 import { AuditService } from '../audit/audit.service';
 import { REFRESH_GRACE_MS, REFRESH_SLIDING_MS, SESSION_ABSOLUTE_MS } from './auth.constants';
 
@@ -24,6 +24,9 @@ function hashToken(value: string): string {
  * would roll those writes back with the refusal (§6.8.3 step 5).
  */
 export type RotationResult = { ok: true; token: IssuedToken } | { ok: false };
+
+/** Why a family ended; stored on the row so the history can say what happened (§6.8.5). */
+export type RevokeReason = SessionRevokeReason;
 
 /**
  * Refresh-token families with rotation, a grace window and reuse detection (§6.8.3). Every method
@@ -125,42 +128,31 @@ export class SessionService {
     return newest?.id === token.id;
   }
 
-  async revokeFamily(
-    tx: Prisma.TransactionClient,
-    familyId: string,
-    reason: 'LOGOUT' | 'LOGOUT_ALL' | 'REUSE_DETECTED' | 'USER_DEACTIVATED' | 'PASSWORD_RESET' | 'PASSWORD_CHANGED',
-  ): Promise<void> {
-    const now = this.clock.now();
-    await tx.sessionFamily.updateMany({
-      where: { id: familyId, revokedAt: null },
-      data: { revokedAt: now, revokedReason: reason },
-    });
-    await tx.refreshToken.updateMany({
-      where: { familyId, status: { not: 'REVOKED' } },
-      data: { status: 'REVOKED' },
-    });
+  async revokeFamily(tx: Prisma.TransactionClient, familyId: string, reason: RevokeReason): Promise<void> {
+    await this.revokeFamilies(tx, [familyId], reason);
   }
 
   /** Revokes every live family of a user. Returns how many were revoked, for the audit row. */
-  async revokeAllFamilies(
-    tx: Prisma.TransactionClient,
-    userId: number,
-    reason: 'LOGOUT_ALL' | 'USER_DEACTIVATED' | 'PASSWORD_RESET' | 'PASSWORD_CHANGED',
-  ): Promise<number> {
-    const now = this.clock.now();
+  async revokeAllFamilies(tx: Prisma.TransactionClient, userId: number, reason: RevokeReason): Promise<number> {
     const families = await tx.sessionFamily.findMany({ where: { userId, revokedAt: null }, select: { id: true } });
-    if (families.length === 0) return 0;
+    await this.revokeFamilies(
+      tx,
+      families.map((family) => family.id),
+      reason,
+    );
+    return families.length;
+  }
 
-    const familyIds = families.map((family) => family.id);
+  private async revokeFamilies(tx: Prisma.TransactionClient, familyIds: string[], reason: RevokeReason): Promise<void> {
+    if (familyIds.length === 0) return;
     await tx.sessionFamily.updateMany({
-      where: { id: { in: familyIds } },
-      data: { revokedAt: now, revokedReason: reason },
+      where: { id: { in: familyIds }, revokedAt: null },
+      data: { revokedAt: this.clock.now(), revokedReason: reason },
     });
     await tx.refreshToken.updateMany({
       where: { familyId: { in: familyIds }, status: { not: 'REVOKED' } },
       data: { status: 'REVOKED' },
     });
-    return families.length;
   }
 
   /**

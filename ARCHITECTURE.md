@@ -2470,7 +2470,7 @@ Token lifetime: `expires_at = min(now + 14 days, family.absolute_expires_at)`; `
 1. Throttlers `global` and `login` apply. CSRF header required.
 2. Validate `LoginBody`. `username` is trimmed and lower-cased.
 3. In a transaction, read `login_throttles` for `(req.ip, username)` `FOR UPDATE` (insert-if-absent with `ON CONFLICT DO NOTHING` first so the row exists to lock). If `locked_until > now()`: run one `argon2.verify(DUMMY_HASH, password)`, write audit `LOGIN_FAILURE` (`userId` of the matching user or `null`, `usernameAttempt`, `summaryParams.reason = 'LOCKED'`), commit, return 401 `AUTH_INVALID_CREDENTIALS`.
-4. Load the user by `username`. If none, or `is_active = false`: run `argon2.verify(DUMMY_HASH, password)` (the real hash is not verified for inactive users). Otherwise `argon2.verify(user.password_hash, password)`. Exactly one verification runs on every path. `DUMMY_HASH` is computed at startup from 32 random bytes with the production parameters.
+4. Lock the account row by `username` (`SELECT id FROM users WHERE username = $1 FOR UPDATE` — the same statement whether or not it exists) and load the user, so a password reset or change committing meanwhile cannot be overtaken: an unlocked read would let the old password open a session issued after the `token_version` bump. If none, or `is_active = false`: run `argon2.verify(DUMMY_HASH, password)` (the real hash is not verified for inactive users). Otherwise `argon2.verify(user.password_hash, password)`. Exactly one verification runs on every path. `DUMMY_HASH` is computed at startup from 32 random bytes with the production parameters.
 5. Failure: if `now() − window_started_at > 15 min` set `failure_count = 1, window_started_at = now()`, else `failure_count += 1`. If `failure_count ≥ 5`: `locked_until = now() + min(15 min, 1 min × 2^lockout_count)`, `lockout_count += 1`, `failure_count = 0`, `window_started_at = now()`, audit `LOCKOUT`. Always audit `LOGIN_FAILURE` (`summaryParams.reason = 'INVALID'`). Commit. Return 401 `AUTH_INVALID_CREDENTIALS`. Lock durations therefore go 1, 2, 4, 8, 15, 15 … minutes.
 6. Success: delete the `login_throttles` row; if `argon2.needsRehash(hash, params)` store a fresh hash; set `last_login_at = now()`; insert a `session_families` row (`absolute_expires_at = now() + 30 d`, `created_ip = req.ip`, `user_agent` truncated to 255) and an `ACTIVE` `refresh_tokens` row; audit `LOGIN_SUCCESS` (entity `SESSION`, entity id = family id); commit.
 7. Respond 200 `AuthTokenDto`, `Set-Cookie: pallet_rt=<value>`.
@@ -3888,7 +3888,8 @@ apiFetch<T>(path: string, options?: {
   body?: unknown;
   idempotencyKey?: string;
   signal?: AbortSignal;
-  skipAuthRetry?: boolean;         // true for /api/auth/* calls
+  skipAuthRetry?: boolean;         // true for login, refresh and logout — the calls that carry no access token;
+                                   // me, logout-all and change-password refresh and retry like any authenticated call
 }): Promise<T>
 ```
 - URL = `'/api' + path` plus the query string (`undefined`/`null` omitted; arrays repeated as `type=A&type=B`; booleans `true`/`false`).
@@ -4425,7 +4426,7 @@ apps/api/
 │   │   └── grants.sql            # idempotent privilege script for pallet_app, run after every migrate deploy
 ├── src/
 │   ├── main.ts                   # bootstrap: pino logger, configureApp, shutdown hooks; exits 1 with the message on a startup failure
-│   ├── bootstrap.ts              # configureApp(app, env): trust proxy, cookie-parser, global prefix /api — shared with the test harness
+│   ├── bootstrap.ts              # configureApp(app, env): trust proxy, JSON body parser (100 KiB, no urlencoded), cookie-parser, global prefix /api — shared with the test harness
 │   ├── app.module.ts             # imports every module, registers global guards in the fixed order (section 6)
 │   ├── generated/prisma/         # Prisma client output (git-ignored, produced by `prisma generate`)
 │   ├── config/
@@ -4465,7 +4466,7 @@ apps/api/
 │   │   ├── dashboard/            # GET /api/dashboard (permission-gated sections)
 │   │   ├── reports/              # positions, purchases, activity, stock report queries (raw SQL aggregates)
 │   │   ├── audit/                # audit.service.ts (record(tx, entry)), audit-snapshot.ts (per-entity allow-lists), audit-redaction.ts, audit-query.service.ts + audit.controller.ts + audit.mapper.ts (GET /api/audit-logs)
-│   │   └── maintenance/          # hourly/daily cleanup jobs (idempotency keys, login throttles, expired session families)
+│   │   └── maintenance/          # hourly/daily cleanup jobs on plain unref'd timers, each also run once at startup so a restart never resets the countdown (login throttles, expired session families; idempotency keys from M3) — one API instance, so no scheduler library
 │   └── scripts/
 │       ├── migrate.ts            # prisma migrate deploy → grants.sql → first-run seed (idempotent); `--seed-only` for `pnpm db:seed`
 │       ├── seed-demo.ts          # dev-only realistic demo data through the domain services (added in M2)
@@ -4638,7 +4639,7 @@ Every requirement of the client query §6A appears below as one row: requirement
 | # | Requirement | Library | Exact setting / value | File |
 |---|---|---|---|---|
 | I1 | Strict validation | `zod` 4.6.2 | every request schema is `z.strictObject({...})` from `@pallet/shared`; unknown key → `VALIDATION_FAILED` with field code `unknown_key`; `ZodValidationPipe` maps zod issue codes: `invalid_type`→`invalid_type` (or `required` when input is `undefined`), `too_small`/`too_big` (numbers) and `too_short`/`too_long` (strings by `origin`), `invalid_format`, `invalid_value`→`invalid_enum`, `unrecognized_keys`→`unknown_key`, custom → the `params.code` given by the schema | `apps/api/src/common/pipes/zod-validation.pipe.ts` |
-| I2 | Body size | Express | `app.useBodyParser('json', { limit: '100kb' })`; urlencoded parser not registered; `PAYLOAD_TOO_LARGE` on overflow | `main.ts` |
+| I2 | Body size | Express | the app is created with `bodyParser: false` and `configureApp` registers only `app.useBodyParser('json', { limit: 100 KiB })`; no urlencoded parser; body-parser's plain errors (`entity.too.large`, `entity.parse.failed`) are mapped by `ApiExceptionFilter` to 413 `PAYLOAD_TOO_LARGE { maxBytes }` and 400 `VALIDATION_FAILED` rather than falling through as 500 | `apps/api/src/bootstrap.ts`, `common/filters/api-exception.filter.ts` |
 | I3 | Parameterised SQL only | Prisma, ESLint | raw SQL only via `tx.$queryRaw\`…\`` / `tx.$executeRaw\`…\``; ESLint `no-restricted-properties` for `$queryRawUnsafe`, `$executeRawUnsafe`; dynamic `ORDER BY` built only from a whitelist map `{ name: Prisma.sql\`c.name\` }` | `eslint.config.mjs` |
 | I4 | No `dangerouslySetInnerHTML` | ESLint | `no-restricted-syntax: ["error", { selector: "JSXAttribute[name.name='dangerouslySetInnerHTML']" }]` | `eslint.config.mjs` |
 | I5 | Upload intake | `multer` 2.x via `FileInterceptor('file', …)` | `storage: memoryStorage()`, `limits: { fileSize: 5 * 1024 * 1024, files: 1, fields: 0, parts: 2 }` (Q35); oversize → 413 `UPLOAD_TOO_LARGE`; no file → 400 `UPLOAD_MISSING_FILE` | `apps/api/src/modules/uploads/uploads.controller.ts` |
@@ -4739,7 +4740,7 @@ A **snapshot** is produced by `toAuditSnapshot(entityType, row)` (`apps/api/src/
 | USER | PASSWORD_RESET | POST /api/users/:id/reset-password | user id | `audit.summary.USER.PASSWORD_RESET` | `username` |
 | USER | PASSWORD_CHANGE | POST /api/auth/change-password | user id | `audit.summary.USER.PASSWORD_CHANGE` | `username` |
 | USER | LOGOUT_ALL | POST /api/auth/logout-all, POST /api/users/:id/logout-all | user id | `audit.summary.USER.LOGOUT_ALL` | `username`, `families` (count revoked) |
-| USER | LOGIN_SUCCESS | POST /api/auth/login | user id | `audit.summary.USER.LOGIN_SUCCESS` | `username` |
+| SESSION | LOGIN_SUCCESS | POST /api/auth/login | family uuid | `audit.summary.SESSION.LOGIN_SUCCESS` | `username` |
 | USER | LOGIN_FAILURE | POST /api/auth/login | user id or null | `audit.summary.USER.LOGIN_FAILURE` | `usernameAttempt`, `reason` (`INVALID` \| `LOCKED` \| `INACTIVE`) |
 | USER | LOCKOUT | POST /api/auth/login (5th failure) | user id or null | `audit.summary.USER.LOCKOUT` | `usernameAttempt`, `lockedMinutes`, `lockoutCount` |
 | SESSION | LOGOUT | POST /api/auth/logout | family uuid | `audit.summary.SESSION.LOGOUT` | `username` |
@@ -5223,7 +5224,7 @@ Acceptance (verify before starting M1): `pnpm install && pnpm build && pnpm test
 
 1. `Clock`, `RequestContext`, `AuditService.record` + `toAuditSnapshot` + redaction (§11).
 2. Guards in order: `AppThrottlerGuard` → `CsrfGuard` → `AuthGuard` (JWT strategy, per-request user load) → `PasswordChangeGuard` → `PermissionGuard`; `PermissionDeclarationCheck` (fails startup on an undeclared route).
-3. Password service (Argon2id, dummy hash, common-password list), login-throttle service, session service (families, rotation, grace window, reuse detection).
+3. Password service (Argon2id, dummy hash, common-password list), login-throttle service, session service (families, rotation, grace window, reuse detection), `MaintenanceService` (§6.8.2: login throttles purged hourly, expired session families daily; the idempotency purge joins it in M3).
 4. Endpoints: `/api/auth/login|refresh|logout|logout-all|me|change-password`; `/api/users` (list, create, get, patch, permissions, reset-password, logout-all) with self/last-admin guards; `GET /api/audit-logs`.
 5. Web: API client (in-memory token, `X-Requested-With`, refresh-once-and-retry, Web Locks + BroadcastChannel), `/login`, `/change-password`, authenticated `_app` shell (sidebar/bottom nav filtered by permissions), `/users`, `/users/new`, `/users/$userId` (permission checklist with dependency auto-tick), `/account`, `/history`.
 

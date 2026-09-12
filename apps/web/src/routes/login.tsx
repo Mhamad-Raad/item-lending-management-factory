@@ -1,22 +1,20 @@
 import { zodResolver } from '@hookform/resolvers/zod';
 import { LoginBody } from '@pallet/shared';
 import { createFileRoute, redirect, useNavigate } from '@tanstack/react-router';
+import { useState } from 'react';
 import { useForm } from 'react-hook-form';
 import { useTranslation } from 'react-i18next';
 import { z } from 'zod';
 import { Field, FieldError, FieldLabel } from '@/components/app/field';
+import { LanguageSwitcher } from '@/components/app/language-switcher';
 import { PasswordInput } from '@/components/app/password-input';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
+import { usePageTitle } from '@/hooks/use-page-title';
 import { ApiError } from '@/lib/api-error';
 import { authStore, login } from '@/lib/auth';
-import { LANGUAGE_NATIVE_NAMES, setPreferences, usePreferences } from '@/lib/preferences';
-import i18n from '@/i18n';
-import { LANGUAGES, type Language } from '@pallet/shared';
-import { useState } from 'react';
-import { usePageTitle } from '@/hooks/use-page-title';
 
 const SearchSchema = z.object({ redirect: z.string().optional() });
 
@@ -39,8 +37,7 @@ function LoginPage() {
   const { t } = useTranslation();
   const navigate = useNavigate();
   const search = Route.useSearch();
-  const prefs = usePreferences();
-  const [formError, setFormError] = useState<string | null>(null);
+  const [formError, setFormError] = useState<ApiError | null>(null);
   usePageTitle('auth.login.title');
 
   const form = useForm({
@@ -56,7 +53,7 @@ function LoginPage() {
       await navigate({ to: user.mustChangePassword ? '/change-password' : safeRedirect(search.redirect) });
     } catch (error) {
       // Never say which of the two fields was wrong: that would confirm a username exists.
-      setFormError(error instanceof ApiError ? `errors.${error.code}` : 'errors.UNKNOWN_ERROR');
+      setFormError(error instanceof ApiError ? error : new ApiError('UNKNOWN_ERROR', 0));
     }
   });
 
@@ -69,24 +66,7 @@ function LoginPage() {
               <CardTitle className="text-xl">{t('auth.login.title')}</CardTitle>
               <CardDescription>{t('common.appName')}</CardDescription>
             </div>
-            <div className="flex gap-1">
-              {LANGUAGES.map((language: Language) => (
-                <Button
-                  key={language}
-                  type="button"
-                  size="sm"
-                  variant={prefs.language === language ? 'secondary' : 'ghost'}
-                  lang={language}
-                  aria-pressed={prefs.language === language}
-                  onClick={() => {
-                    setPreferences({ language });
-                    void i18n.changeLanguage(language);
-                  }}
-                >
-                  {LANGUAGE_NATIVE_NAMES[language]}
-                </Button>
-              ))}
-            </div>
+            <LanguageSwitcher compact />
           </div>
         </CardHeader>
 
@@ -94,7 +74,8 @@ function LoginPage() {
           <form onSubmit={onSubmit} className="flex flex-col gap-4" noValidate>
             {formError ? (
               <Alert variant="destructive">
-                <AlertDescription>{t(formError)}</AlertDescription>
+                {/* RATE_LIMITED says how long to wait; the seconds travel in `details`. */}
+                <AlertDescription>{t(`errors.${formError.code}`, { ...formError.details })}</AlertDescription>
               </Alert>
             ) : null}
 

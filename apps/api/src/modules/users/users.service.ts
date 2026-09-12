@@ -293,7 +293,7 @@ export class UsersService {
       return [];
     }
 
-    const unknown = keys.filter((key) => !PERMISSION_KEYS.includes(key as never));
+    const unknown = keys.filter((key) => !(PERMISSION_KEYS as readonly string[]).includes(key));
     if (unknown.length > 0) throw new ApiError('PERMISSION_KEY_UNKNOWN', { keys: unknown });
 
     const adminOnly = keys.filter((key) => isAdminOnlyPermissionKey(key));
@@ -314,7 +314,7 @@ export class UsersService {
 
   private async auditUpdate(
     tx: Prisma.TransactionClient,
-    before: User & { permissions: Pick<{ permissionKey: string }, 'permissionKey'>[] },
+    before: User & { permissions: { permissionKey: string }[] },
     after: User,
     body: UserUpdateBody,
   ): Promise<void> {

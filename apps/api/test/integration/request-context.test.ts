@@ -31,7 +31,7 @@ describe('request context', () => {
 
   beforeAll(async () => {
     const moduleRef = await Test.createTestingModule({ imports: [ProbeModule] }).compile();
-    app = moduleRef.createNestApplication<NestExpressApplication>({ logger: false });
+    app = moduleRef.createNestApplication<NestExpressApplication>({ logger: false, bodyParser: false });
     configureApp(app, app.get<Env>(ENV));
     await app.init();
   });
