@@ -158,3 +158,33 @@ test('turning the phone does not reopen a filter sheet it closed by widening', a
   await expect(page.getByRole('button', { name: 'Filters' })).toBeVisible();
   await expect(page.getByRole('dialog', { name: 'Filters' })).toBeHidden();
 });
+
+test('on a phone, the customer summary sits two cards to a row', async ({ page }) => {
+  await mockApi(page, ADMIN, 'en');
+  await page.goto('/customers/3');
+
+  const card = (label: string) =>
+    page.locator('[data-slot="card"]').filter({ has: page.getByText(label, { exact: true }) });
+  await expect(card('Owed')).toBeVisible();
+  const [valueOut, owed, held] = await Promise.all(
+    ['Value out', 'Owed', 'Deposit held'].map((label) => card(label).boundingBox()),
+  );
+
+  // Side by side, and the next pair starts a row below them.
+  expect(Math.abs((valueOut?.y ?? 0) - (owed?.y ?? 1))).toBeLessThan(1);
+  expect(held?.y).toBeGreaterThan((owed?.y ?? 0) + (owed?.height ?? 0));
+
+  // Hundreds of millions of dinars still fit inside a half-width card.
+  const spills = await page.evaluate(() =>
+    [...document.querySelectorAll('[data-slot="card-content"]')].flatMap((content) => {
+      const box = content.getBoundingClientRect();
+      const style = getComputedStyle(content);
+      const [start, end] = [box.left + parseFloat(style.paddingLeft), box.right - parseFloat(style.paddingRight)];
+      return [...content.querySelectorAll('span')]
+        .map((span) => span.getBoundingClientRect())
+        .filter((rect) => rect.width > 0 && (rect.left < start - 0.5 || rect.right > end + 0.5))
+        .map(() => content.textContent?.slice(0, 40));
+    }),
+  );
+  expect(spills).toEqual([]);
+});

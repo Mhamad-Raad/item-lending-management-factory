@@ -27,6 +27,7 @@ import { useCan } from '@/lib/auth';
 import { handleApiError } from '@/lib/errors';
 import { qk } from '@/lib/query-keys';
 import { requirePermission } from '@/lib/route-guards';
+import { cn } from '@/lib/utils';
 import { z } from 'zod';
 
 const TABS = ['orders', 'payments', 'refunds'] as const;
@@ -210,18 +211,24 @@ function CustomerProfilePage() {
         <span>{data.address}</span>
       </p>
 
-      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-        {cards.map((card) => (
-          <Card key={card.label}>
-            <CardHeader>
-              <CardTitle className="text-muted-foreground text-sm font-normal">{t(card.label)}</CardTitle>
-            </CardHeader>
-            <CardContent className="flex flex-col gap-2">
-              <span className="text-xl font-semibold">{card.value}</span>
-              {card.extra}
-            </CardContent>
-          </Card>
-        ))}
+      {/* Two to a row on a phone, so the summary fits one screen: a card with a breakdown takes the
+          whole row, and so does a last card that would otherwise sit alone. */}
+      <div className="grid grid-cols-2 gap-3 sm:gap-4 lg:grid-cols-3">
+        {cards.map((card, index) => {
+          const singlesBefore = cards.slice(0, index).filter((other) => !other.extra).length;
+          const wide = Boolean(card.extra) || (index === cards.length - 1 && singlesBefore % 2 === 0);
+          return (
+            <Card key={card.label} className={cn('gap-2 py-4 sm:gap-6 sm:py-6', wide && 'col-span-2 sm:col-span-1')}>
+              <CardHeader className="px-4 sm:px-6">
+                <CardTitle className="text-muted-foreground text-sm font-normal">{t(card.label)}</CardTitle>
+              </CardHeader>
+              <CardContent className="flex flex-col gap-2 px-4 sm:px-6">
+                <span className="text-lg font-semibold break-words sm:text-xl *:whitespace-normal">{card.value}</span>
+                {card.extra}
+              </CardContent>
+            </Card>
+          );
+        })}
       </div>
 
       <section className="flex flex-col gap-3">
