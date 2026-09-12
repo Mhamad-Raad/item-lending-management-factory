@@ -176,7 +176,7 @@ Every item below is an ambiguity, contradiction or gap in the brief. The builder
 | Q10 | Can a cancelled order's receipt be printed? | No. The receipt endpoint returns 409 `ORDER_CANCELLED` and the print button is hidden. |
 | Q11 | Activity report filters on money (money is per order, not per item). | `customerId` and `driverId` filter by the order (returns and money rows of matching orders are included). `itemId` filters hand-over lines and return lines; when `itemId` is set, the payment and refund sections are omitted and the response carries `moneyOmitted: true`; compensation is per return line and stays. |
 | Q12 | Which permissions gate the dashboard? | Positions cards (pallets out, total owed, total held) need `reports.viewPositions`; the low-stock card needs `items.view`; recent activity needs `orders.view`. Sections the user may not see are absent from the response and hidden in the UI; the dashboard endpoint itself needs only authentication. |
-| Q13 | How are phone numbers compared? | Normalise by removing spaces, dashes and parentheses; the result must match `^\+?[0-9]{7,15}$` and is stored normalised. Duplicate detection = exact equality of the normalised value against `phone` and `altPhone` of every other customer, archived ones included. The same normalisation and format apply to `drivers.phone` (no duplicate warning for drivers). |
+| Q13 | How are phone numbers compared? | Normalise by reading Arabic-Indic digits as Western ones and removing spaces, dashes and parentheses (`normalizePhone`, §8.7); the result must match `^\+?[0-9]{7,15}$` and is stored normalised. Duplicate detection = exact equality of the normalised value against `phone` and `altPhone` of every other customer, archived ones included. The same normalisation and format apply to `drivers.phone` (no duplicate warning for drivers). |
 | Q14 | Receipt lines per half page? | `RECEIPT_LINES_PER_HALF = 6` at the fixed receipt font size (section 7 (receipt print route)). |
 | Q15 | `unitDeposit` when lines are edited? | Existing lines keep their stored `unitDeposit` unless the request supplies one; new lines get the item's current `depositPrice` unless supplied. Supplying `unitDeposit` requires `orders.editUnitDeposit` (admins always), otherwise `UNIT_DEPOSIT_NOT_PERMITTED`. |
 | Q16 | What exactly does an idempotent replay return? | The stored response status and body verbatim, with header `Idempotency-Replayed: true`. |
@@ -200,7 +200,7 @@ Every item below is an ambiguity, contradiction or gap in the brief. The builder
 | Q34 | Passport or a plain guard for the access token? | A plain `AuthGuard` using `JwtService`. The application has exactly one credential type and must load the user from the database on every request anyway (§10.1 S8), so `@nestjs/passport` + `passport-jwt` would add two dependencies and a strategy indirection around a three-line verification. The behaviour of §6.4.1 is unchanged; only the mechanism is simpler. |
 | Q35 | The upload pipeline is described twice (§6.14 and §10.4 I5–I9) with three disagreements. | Settled as follows, and both sections now say the same thing. **Multer limits** `{ fileSize: 5 MiB, files: 1, fields: 0, parts: 2 }`: `kind` travels in the query string, so a request carrying form fields is malformed and is rejected rather than ignored. **Type detection** is both checks in order — the magic bytes first (cheap, and it rejects a renamed text file before any decoder touches it), then `sharp().metadata()`, whose `format` must also be one of `png`, `jpeg`, `webp`. **Output size** 1600 px for `ITEM_IMAGE` and 800 px for `FACTORY_LOGO` (the §10.4 values): an item photo is opened on a detail page, where 1024 px is visibly soft on a laptop screen. Multer's own refusals map to: `LIMIT_FILE_SIZE` → 413 `UPLOAD_TOO_LARGE`; a file under another field name → 400 `UPLOAD_MISSING_FILE`; any form field → 400 `VALIDATION_FAILED` (`unknown_key`); a second file or part → 400 `VALIDATION_FAILED` (`too_big` on `file`); a malformed multipart body → 400 `VALIDATION_FAILED` (`invalid_format` on `file`). |
 | Q36 | What does saving an unchanged settings form do? | Nothing: the stored settings come back as they are, with no version bump and no `SETTINGS_CHANGE` row. A history entry saying nothing changed is noise, and an unchanged version keeps the form open in another tab valid. The version is still checked first, so a stale form is refused even when it would change nothing. |
-| Q37 | What does a PATCH that changes nothing do on an item or a purchase batch? | The same as Q36: after the version check, the stored row comes back as it is — no version bump, no `UPDATE` row, no stock movement. A version bump with no history row would be an edit the history cannot explain, and it would needlessly make a form open in another tab stale. |
+| Q37 | What does a PATCH that changes nothing do on an item, a purchase batch, a customer or a driver? | The same as Q36: after the version check, the stored row comes back as it is — no version bump, no `UPDATE` row, no stock movement. A version bump with no history row would be an edit the history cannot explain, and it would needlessly make a form open in another tab stale. |
 
 ## 3. Actors, roles and permissions
 
@@ -2181,7 +2181,7 @@ export const Name200        = z.string().trim().min(1).max(200);
 export const optionalText   = (max: number) => z.string().trim().max(max).nullable().optional()
                                 .transform((v) => (v === undefined ? undefined : v === '' || v === null ? null : v));
 export const Phone          = z.string().max(40)
-                                .transform((v) => v.replace(/[\s\-()]/g, ''))
+                                .transform(normalizePhone)                   // §8.7: Western digits, then no spaces, dashes, parentheses
                                 .pipe(z.string().regex(/^\+?[0-9]{7,15}$/));   // stored normalized
 export const SearchQuery    = z.string().trim().max(100).optional().transform((v) => (v ? v : undefined));
 export const BoolQuery      = z.enum(['true', 'false']).transform((v) => v === 'true');
@@ -3043,22 +3043,22 @@ CustomerCreateBody = z.strictObject({
 })   // refine: altPhone !== phone → else field error { path: 'altPhone', code: 'duplicate' }
 ```
 - **Steps:** duplicate search (phone and altPhone against every other customer's phone and alt_phone, archived included); matches and `confirmDuplicatePhone !== true` → `CUSTOMER_PHONE_DUPLICATE { matches }`; insert.
-- **Writes:** audit `CREATE` (entity `CUSTOMER`, after, params `{ customerName }`).
+- **Writes:** audit `CREATE` (entity `CUSTOMER`, after, params `{ name }` as §11.3).
 - **Response:** 201 `CustomerDto`.
 - **Errors:** `CUSTOMER_PHONE_DUPLICATE`.
 
 #### `PATCH /api/customers/:id`
 - **Access:** `@RequirePermission('customers.edit')`.
 - **Body:** `CustomerUpdateBody = z.strictObject({ version: Version, name: Name200.optional(), phone: Phone.optional(), altPhone: Phone.nullable().optional(), address: z.string().trim().min(1).max(300).optional(), creditLimit: Money.nullable().optional(), confirmDuplicatePhone: z.boolean().default(false) })` + at least one data field.
-- **Steps:** `lockCustomer`; not found; archived → `CUSTOMER_ARCHIVED`; version check; the resulting phone ≠ resulting altPhone (field error `duplicate`); duplicate check only when `phone` or `altPhone` changes; update; `version += 1`. Lowering `creditLimit` below the current out value is allowed (it only blocks future increases).
-- **Writes:** audit `UPDATE` (entity `CUSTOMER`, before/after changed fields, params `{ customerName }`).
+- **Steps:** `lockCustomer`; not found; archived → `CUSTOMER_ARCHIVED`; version check; the resulting phone ≠ resulting altPhone (field error `duplicate`); duplicate check only when `phone` or `altPhone` changes; update; `version += 1`. Lowering `creditLimit` below the current out value is allowed (it only blocks future increases). A body identical to the stored row changes nothing (Q37).
+- **Writes:** audit `UPDATE` (entity `CUSTOMER`, before/after changed fields, params `{ name, fields }` as §11.3).
 - **Response:** 200 `CustomerDto`.
 - **Errors:** `CUSTOMER_NOT_FOUND`, `CUSTOMER_ARCHIVED`, `VERSION_CONFLICT`, `CUSTOMER_PHONE_DUPLICATE`.
 
 #### `DELETE /api/customers/:id?version=N`
 - **Access:** `@RequirePermission('customers.delete')`. Always an archive.
 - **Steps:** `lockCustomer`; not found; already archived → `CUSTOMER_ALREADY_ARCHIVED`; version check; `COUNT(*) FROM orders WHERE customer_id = $1 AND status = 'OPEN'` > 0 → `CUSTOMER_HAS_OPEN_ORDERS { openOrderCount }`; set `archived_at`, `archived_by_user_id`, `version += 1`.
-- **Writes:** audit `DELETE` (entity `CUSTOMER`, params `{ customerName }`).
+- **Writes:** audit `DELETE` (entity `CUSTOMER`, params `{ name }` as §11.3).
 - **Response:** 200 `CustomerDto`.
 - **Errors:** `CUSTOMER_NOT_FOUND`, `CUSTOMER_ALREADY_ARCHIVED`, `CUSTOMER_HAS_OPEN_ORDERS`, `VERSION_CONFLICT`.
 
@@ -3075,19 +3075,19 @@ CustomerCreateBody = z.strictObject({
 #### `POST /api/drivers`
 - **Access:** `@RequirePermission('drivers.create')`.
 - **Body:** `DriverCreateBody = z.strictObject({ name: Name200, phone: Phone, carNumber: z.string().trim().min(1).max(50) })`. No duplicate check.
-- **Writes:** audit `CREATE` (entity `DRIVER`, params `{ driverName }`).
+- **Writes:** audit `CREATE` (entity `DRIVER`, after, params `{ name }` as §11.3).
 - **Response:** 201 `DriverDto`.
 
 #### `PATCH /api/drivers/:id`
 - **Access:** `@RequirePermission('drivers.edit')`.
 - **Body:** `DriverUpdateBody = z.strictObject({ version: Version, name: Name200.optional(), phone: Phone.optional(), carNumber: z.string().trim().min(1).max(50).optional() })` + at least one data field.
-- **Steps:** `lockDriver`; not found; archived → `DRIVER_ARCHIVED`; version check; update; `version += 1`. Existing orders show the driver's current data (drivers are references, not snapshots).
-- **Writes:** audit `UPDATE` (entity `DRIVER`).
+- **Steps:** `lockDriver`; not found; archived → `DRIVER_ARCHIVED`; version check; update; `version += 1`. Existing orders show the driver's current data (drivers are references, not snapshots). A body identical to the stored row changes nothing (Q37).
+- **Writes:** audit `UPDATE` (entity `DRIVER`, before/after changed fields, params `{ name, fields }` as §11.3).
 - **Response:** 200 `DriverDto`. **Errors:** `DRIVER_NOT_FOUND`, `DRIVER_ARCHIVED`, `VERSION_CONFLICT`.
 
 #### `DELETE /api/drivers/:id?version=N`
 - **Access:** `@RequirePermission('drivers.delete')`. Always an archive; allowed at any time.
-- **Writes:** audit `DELETE` (entity `DRIVER`).
+- **Writes:** audit `DELETE` (entity `DRIVER`, params `{ name }` as §11.3).
 - **Response:** 200 `DriverDto`. **Errors:** `DRIVER_NOT_FOUND`, `DRIVER_ALREADY_ARCHIVED`, `VERSION_CONFLICT`.
 
 ### 6.19 Orders (`apps/api/src/modules/orders/orders.controller.ts`)
@@ -4315,7 +4315,7 @@ Exports value arrays, value objects and types (identical to the Prisma enums; th
 
 | File | Additional contract |
 |---|---|
-| `common.ts` | `Money` int 0..`MONEY_INPUT_MAX`; `PositiveMoney` int 1..`MONEY_INPUT_MAX`; `Quantity` int 1..`QUANTITY_INPUT_MAX`; `NonNegQuantity` int 0..`QUANTITY_INPUT_MAX`; `BusinessDate` = valid `YYYY-MM-DD` ≥ `2000-01-01` (the "not after today in Asia/Baghdad" rule is checked by the API and raises `BUSINESS_DATE_IN_FUTURE`); `Phone` = strip spaces, dashes, parentheses, then `^\+?[0-9]{7,15}$` (Q13); `optionalText(max)` trims and maps `''` to `null`; `PageQuery` = `page` (default 1) + `pageSize` (1..100, default 25); `dateRange()` refines `dateFrom ≤ dateTo` → `DATE_RANGE_INVALID`. |
+| `common.ts` | `Money` int 0..`MONEY_INPUT_MAX`; `PositiveMoney` int 1..`MONEY_INPUT_MAX`; `Quantity` int 1..`QUANTITY_INPUT_MAX`; `NonNegQuantity` int 0..`QUANTITY_INPUT_MAX`; `BusinessDate` = valid `YYYY-MM-DD` ≥ `2000-01-01` (the "not after today in Asia/Baghdad" rule is checked by the API and raises `BUSINESS_DATE_IN_FUTURE`); `Phone` = `normalizePhone` (Western digits, then strip spaces, dashes, parentheses), then `^\+?[0-9]{7,15}$` (Q13); `optionalText(max)` trims and maps `''` to `null`; `PageQuery` = `page` (default 1) + `pageSize` (1..100, default 25); `dateRange()` refines `dateFrom ≤ dateTo` → `DATE_RANGE_INVALID`. |
 | `zod-issues.ts` | `mapZodIssue(issue): ApiFieldError`: `invalid_type` with input `undefined` → `required`; `invalid_type` expecting an integer → `not_integer`; other `invalid_type` → `invalid_type`; `too_small` on strings → `too_short` (params `min`); `too_small` on numbers/arrays → `too_small` (params `min`); `too_big` on strings → `too_long` (params `max`); `too_big` on numbers/arrays → `too_big` (params `max`); `invalid_format` → `invalid_format`; `invalid_value` → `invalid_enum`; `unrecognized_keys` → `unknown_key` (one field error per key); `custom` issues carry `params.code` (`invalid_date`, `duplicate`) and map to it. Path segments joined with `.`. |
 | `uploads.ts` | Besides `UploadCreateQuery`: constants `UPLOAD_MAX_BYTES = 5_242_880`, `UPLOAD_ACCEPT = ['image/png','image/jpeg','image/webp']`, `UPLOAD_FILE_NAME_PATTERN = /^[0-9a-f]{32}\.webp$/`. |
 | `orders.ts` | `OrderCreateBody` refines unique `itemId` across `lines` (custom issue `duplicate` on `lines.<i>.itemId`). |

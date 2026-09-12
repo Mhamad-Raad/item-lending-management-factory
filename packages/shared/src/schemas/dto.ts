@@ -136,3 +136,74 @@ export interface PurchaseBatchDto {
   updatedAt: string;
   createdBy: UserRefDto;
 }
+
+export interface ItemRefDto {
+  id: number;
+  name: string;
+  imageUrl: string | null;
+  archived: boolean;
+}
+
+/** A customer's sums over its orders that are not cancelled (§4.5); zeros until it has orders. */
+export interface CustomerSummaryDto {
+  palletsOut: number;
+  outValue: number;
+  owed: number;
+  held: number;
+  compensation: number;
+  creditLimit: number | null;
+  /** `creditLimit − outValue`, negative after an admin override; null when there is no limit. */
+  headroom: number | null;
+  openOrderCount: number;
+}
+
+export interface CustomerDto {
+  id: number;
+  name: string;
+  phone: string;
+  altPhone: string | null;
+  address: string;
+  creditLimit: number | null;
+  archivedAt: string | null;
+  version: number;
+  createdAt: string;
+  updatedAt: string;
+  summary: CustomerSummaryDto;
+}
+
+export interface CustomerHoldingDto {
+  item: ItemRefDto;
+  quantityOut: number;
+  outValue: number;
+  /** The orders the pallets went out on, oldest first. */
+  sources: { orderId: number; orderNumber: number; orderDate: string; quantityOut: number; unitDeposit: number }[];
+}
+
+export interface CustomerDetailDto extends CustomerDto {
+  /** Ordered by item name. */
+  holdings: CustomerHoldingDto[];
+  palletsOutByItem: { itemId: number; itemName: string; quantityOut: number }[];
+}
+
+export interface CustomerPhoneMatchDto {
+  customerId: number;
+  name: string;
+  archived: boolean;
+  matchedField: 'phone' | 'altPhone';
+}
+
+export interface CustomerPhoneCheckDto {
+  normalizedPhone: string;
+  matches: CustomerPhoneMatchDto[];
+}
+
+export interface DriverDto {
+  id: number;
+  name: string;
+  phone: string;
+  carNumber: string;
+  archivedAt: string | null;
+  version: number;
+  createdAt: string;
+  updatedAt: string;
+}

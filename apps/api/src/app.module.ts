@@ -18,6 +18,8 @@ import { AuditModule } from './modules/audit/audit.module';
 import { AuthModule } from './modules/auth/auth.module';
 import { HealthModule } from './modules/health/health.module';
 import { MaintenanceModule } from './modules/maintenance/maintenance.module';
+import { CustomersModule } from './modules/customers/customers.module';
+import { DriversModule } from './modules/drivers/drivers.module';
 import { ItemsModule } from './modules/items/items.module';
 import { PurchasesModule } from './modules/purchases/purchases.module';
 import { SettingsModule } from './modules/settings/settings.module';
@@ -67,6 +69,8 @@ import { PrismaModule } from './prisma/prisma.module';
     SettingsModule,
     ItemsModule,
     PurchasesModule,
+    CustomersModule,
+    DriversModule,
     MaintenanceModule,
     HealthModule,
   ],

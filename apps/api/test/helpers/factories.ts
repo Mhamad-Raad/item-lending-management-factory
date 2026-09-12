@@ -1,5 +1,5 @@
 import type { INestApplication } from '@nestjs/common';
-import type { ItemDto } from '@pallet/shared';
+import { businessDateToDb, type CustomerDto, type DriverDto, type ItemDto } from '@pallet/shared';
 import request from 'supertest';
 import argon2 from 'argon2';
 import type { GrantablePermissionKey } from '@pallet/shared';
@@ -77,4 +77,106 @@ export async function createItem(
     })
     .expect(201);
   return response.body as ItemDto;
+}
+
+/** Creates a customer through `POST /api/customers`; a phone another customer holds needs `confirm`. */
+export async function createCustomer(
+  app: INestApplication,
+  session: Session,
+  options: {
+    name?: string;
+    phone?: string;
+    altPhone?: string | null;
+    creditLimit?: number | null;
+    confirm?: boolean;
+  } = {},
+): Promise<CustomerDto> {
+  const response = await request(app.getHttpServer())
+    .post('/api/customers')
+    .set(asUser(session))
+    .send({
+      name: options.name ?? 'Kurdistan Cement',
+      phone: options.phone ?? '07501234567',
+      altPhone: options.altPhone ?? null,
+      address: 'Erbil, 100 m road',
+      creditLimit: options.creditLimit ?? null,
+      confirmDuplicatePhone: options.confirm ?? false,
+    })
+    .expect(201);
+  return response.body as CustomerDto;
+}
+
+/** Creates a driver through `POST /api/drivers`. */
+export async function createDriver(
+  app: INestApplication,
+  session: Session,
+  options: { name?: string; phone?: string; carNumber?: string } = {},
+): Promise<DriverDto> {
+  const response = await request(app.getHttpServer())
+    .post('/api/drivers')
+    .set(asUser(session))
+    .send({
+      name: options.name ?? 'Karwan Aziz',
+      phone: options.phone ?? '07701112233',
+      carNumber: options.carNumber ?? 'Erbil 12 A 34567',
+    })
+    .expect(201);
+  return response.body as DriverDto;
+}
+
+/**
+ * Writes an order and its lines straight into the database, with the maintained totals a real order
+ * would carry. A read-side fixture until M3 brings the order flow: it writes no stock movements, so
+ * `reconcile` does not hold in a test that uses it.
+ */
+export async function insertOrder(
+  app: INestApplication,
+  options: {
+    customerId: number;
+    driverId: number;
+    date?: string;
+    status?: 'OPEN' | 'SETTLED';
+    cancelled?: boolean;
+    owed?: number;
+    held?: number;
+    lines: { itemId: number; quantity: number; unitDeposit: number; returned?: number }[];
+  },
+): Promise<{ id: number; orderNumber: number }> {
+  const prisma = app.get(PrismaService);
+  const admin = await prisma.user.findFirstOrThrow({ where: { role: 'ADMIN' }, orderBy: { id: 'asc' } });
+  const last = await prisma.order.aggregate({ _max: { orderNumber: true } });
+  const lines = options.lines.map((line) => {
+    const outQuantity = line.quantity - (line.returned ?? 0);
+    return { ...line, outQuantity, returnedAccepted: line.returned ?? 0 };
+  });
+  const sum = (values: number[]): number => values.reduce((total, value) => total + value, 0);
+
+  const order = await prisma.order.create({
+    data: {
+      orderNumber: (last._max.orderNumber ?? 0) + 1,
+      customerId: options.customerId,
+      driverId: options.driverId,
+      date: businessDateToDb(options.date ?? '2026-09-10'),
+      paymentType: 'LENT',
+      status: options.cancelled ? 'CANCELLED' : (options.status ?? 'OPEN'),
+      depositTotal: BigInt(sum(lines.map((line) => line.quantity * line.unitDeposit))),
+      owed: BigInt(options.owed ?? 0),
+      held: BigInt(options.held ?? 0),
+      outQuantityTotal: sum(lines.map((line) => line.outQuantity)),
+      outValue: BigInt(sum(lines.map((line) => line.outQuantity * line.unitDeposit))),
+      ...(options.cancelled ? { cancelledAt: new Date(), cancelledByUserId: admin.id } : {}),
+      createdByUserId: admin.id,
+      lines: {
+        create: lines.map((line) => ({
+          itemId: line.itemId,
+          quantity: line.quantity,
+          unitDeposit: BigInt(line.unitDeposit),
+          lineTotal: BigInt(line.quantity * line.unitDeposit),
+          returnedAccepted: line.returnedAccepted,
+          outQuantity: line.outQuantity,
+        })),
+      },
+    },
+  });
+  return { id: order.id, orderNumber: order.orderNumber };
 }

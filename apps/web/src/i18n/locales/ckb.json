@@ -279,6 +279,16 @@
         "CREATE": "{{quantity}} لە {{itemName}} کڕدرا",
         "UPDATE": "کڕینێکی {{itemName}} ڕاستکرایەوە",
         "DELETE": "کڕینی {{quantity}} {{itemName}} سڕایەوە"
+      },
+      "CUSTOMER": {
+        "CREATE": "کڕیاری {{name}} زیادکرا",
+        "UPDATE": "کڕیاری {{name}} نوێکرایەوە",
+        "DELETE": "کڕیاری {{name}} ئەرشیف کرا"
+      },
+      "DRIVER": {
+        "CREATE": "شۆفێری {{name}} زیادکرا",
+        "UPDATE": "شۆفێری {{name}} نوێکرایەوە",
+        "DELETE": "شۆفێری {{name}} ئەرشیف کرا"
       }
     }
   },

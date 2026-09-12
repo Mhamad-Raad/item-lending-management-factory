@@ -279,6 +279,16 @@
         "CREATE": "Bought {{quantity}} of {{itemName}}",
         "UPDATE": "Corrected a purchase of {{itemName}}",
         "DELETE": "Deleted a purchase of {{quantity}} {{itemName}}"
+      },
+      "CUSTOMER": {
+        "CREATE": "Added customer {{name}}",
+        "UPDATE": "Updated customer {{name}}",
+        "DELETE": "Archived customer {{name}}"
+      },
+      "DRIVER": {
+        "CREATE": "Added driver {{name}}",
+        "UPDATE": "Updated driver {{name}}",
+        "DELETE": "Archived driver {{name}}"
       }
     }
   },

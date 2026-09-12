@@ -44,3 +44,13 @@ export async function lockItems(tx: Prisma.TransactionClient, ids: readonly numb
 export async function lockBatch(tx: Prisma.TransactionClient, batchId: number): Promise<void> {
   await tx.$queryRaw`SELECT id FROM purchase_batches WHERE id = ${batchId} FOR UPDATE`;
 }
+
+/** Locks one customer: the first lock of every operation that involves one (§4.8). */
+export async function lockCustomer(tx: Prisma.TransactionClient, customerId: number): Promise<void> {
+  await tx.$queryRaw`SELECT id FROM customers WHERE id = ${customerId} FOR UPDATE`;
+}
+
+/** Locks one driver, for its edit and archive. */
+export async function lockDriver(tx: Prisma.TransactionClient, driverId: number): Promise<void> {
+  await tx.$queryRaw`SELECT id FROM drivers WHERE id = ${driverId} FOR UPDATE`;
+}

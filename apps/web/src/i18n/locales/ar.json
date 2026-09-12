@@ -279,6 +279,16 @@
         "CREATE": "اشتُري {{quantity}} من {{itemName}}",
         "UPDATE": "صُحّحت دفعة شراء من {{itemName}}",
         "DELETE": "حُذفت دفعة شراء {{quantity}} من {{itemName}}"
+      },
+      "CUSTOMER": {
+        "CREATE": "أُضيف الزبون {{name}}",
+        "UPDATE": "عُدّل الزبون {{name}}",
+        "DELETE": "أُرشف الزبون {{name}}"
+      },
+      "DRIVER": {
+        "CREATE": "أُضيف السائق {{name}}",
+        "UPDATE": "عُدّل السائق {{name}}",
+        "DELETE": "أُرشف السائق {{name}}"
       }
     }
   },

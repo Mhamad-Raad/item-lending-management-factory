@@ -1,6 +1,8 @@
 import { z } from 'zod';
 import { MONEY_INPUT_MAX, QUANTITY_INPUT_MAX } from '../domain/ledger-math.js';
+import { PHONE_PATTERN } from '../constants.js';
 import { MIN_BUSINESS_DATE, isBusinessDate } from '../dates.js';
+import { normalizePhone } from '../format.js';
 
 /**
  * Shared primitive schemas (naming: ARCHITECTURE.md §6.27 / §8.5 — PascalCase schemas,
@@ -33,6 +35,9 @@ export type NonNegQuantity = z.infer<typeof NonNegQuantity>;
 
 /** A required name: trimmed, then 1–200 characters. */
 export const Name200 = z.string().trim().min(1).max(200);
+
+/** A phone number, validated and stored normalised (Q13): Western digits, no spaces, dashes or parentheses. */
+export const Phone = z.string().max(40).transform(normalizePhone).pipe(z.string().regex(PHONE_PATTERN));
 
 /** Business date `YYYY-MM-DD`, not before MIN_BUSINESS_DATE. "Not in the future" is checked by the API. */
 export const BusinessDate = z

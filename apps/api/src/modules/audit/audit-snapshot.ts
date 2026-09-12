@@ -35,6 +35,10 @@ export const SNAPSHOT_SPECS: Partial<Record<AuditEntityType, SnapshotSpec>> = {
     fields: ['id', 'itemId', 'itemName', 'date', 'quantity', 'unitCost', 'totalCost', 'note', 'deletedAt', 'version'],
     businessDates: ['date'],
   },
+  CUSTOMER: {
+    fields: ['id', 'name', 'phone', 'altPhone', 'address', 'creditLimit', 'archivedAt', 'version', 'createdAt'],
+  },
+  DRIVER: { fields: ['id', 'name', 'phone', 'carNumber', 'archivedAt', 'version', 'createdAt'] },
 };
 
 function normalise(value: unknown, isBusinessDate: boolean): unknown {
