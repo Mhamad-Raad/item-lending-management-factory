@@ -8,6 +8,7 @@ import type { TFunction } from 'i18next';
 const ENUM_PARAMS: Record<string, (value: string) => string> = {
   role: (value) => `enums.role.${value}`,
   reason: (value) => `auth.loginFailure.${value}`,
+  kind: (value) => `enums.uploadKind.${value}`,
 };
 
 export function translateSummaryParams(t: TFunction, params: Record<string, unknown>): Record<string, unknown> {

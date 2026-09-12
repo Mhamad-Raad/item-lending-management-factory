@@ -1,6 +1,6 @@
 import type { PermissionKey } from '@pallet/shared';
 import { Link, useRouterState } from '@tanstack/react-router';
-import { History, LayoutDashboard, LogOut, UserCircle, Users } from 'lucide-react';
+import { History, LayoutDashboard, LogOut, Settings, UserCircle, Users } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { Button } from '@/components/ui/button';
@@ -21,6 +21,7 @@ const NAV_ITEMS: NavItem[] = [
   { to: '/', labelKey: 'nav.dashboard', icon: LayoutDashboard },
   { to: '/history', labelKey: 'nav.history', icon: History, permission: 'audit.view' },
   { to: '/users', labelKey: 'nav.users', icon: Users, adminOnly: true },
+  { to: '/settings', labelKey: 'nav.settings', icon: Settings, adminOnly: true },
   { to: '/account', labelKey: 'nav.account', icon: UserCircle },
 ];
 

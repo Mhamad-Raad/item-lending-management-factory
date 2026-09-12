@@ -198,7 +198,8 @@ Every item below is an ambiguity, contradiction or gap in the brief. The builder
 | Q32 | Extra integrity beyond the brief's CHECK list. | The database additionally enforces: stock movement sign per reason, reference-per-reason, ledger source-per-type, reversal rows mirroring their original (trigger `ledger_reversal_matches_original`), `cash_refund = GREATEST(0, refund_due − owed_before)` on returns, and append-only triggers on audit, stock and money tables (section 5.6–5.8). |
 | Q33 | Which host ports does local development use? | PostgreSQL `127.0.0.1:5434` and the Vite dev server `5175` — the defaults 5432, 5433 and 5173 are commonly held by other projects on a maintainer's machine, and a busy port fails the whole `pnpm dev` run. Local database URLs use `127.0.0.1`, never `localhost`, because the container publishes on IPv4 only while `localhost` resolves to `::1` first on macOS. The ports appear in `docker-compose.dev.yml`, `apps/web/vite.config.ts`, the LOCAL DEVELOPMENT block of `.env.example`, `README.md` and the §9.1 repository tree — changing them means changing all five; CI and production reach PostgreSQL over the container network on 5432 and serve the web build through Caddy, both unchanged. |
 | Q34 | Passport or a plain guard for the access token? | A plain `AuthGuard` using `JwtService`. The application has exactly one credential type and must load the user from the database on every request anyway (§10.1 S8), so `@nestjs/passport` + `passport-jwt` would add two dependencies and a strategy indirection around a three-line verification. The behaviour of §6.4.1 is unchanged; only the mechanism is simpler. |
-| Q35 | The upload pipeline is described twice (§6.14 and §10.4 I5–I9) with three disagreements. | Settled as follows, and both sections now say the same thing. **Multer limits** `{ fileSize: 5 MiB, files: 1, fields: 0, parts: 2 }`: `kind` travels in the query string, so a request carrying form fields is malformed and is rejected rather than ignored. **Type detection** is both checks in order — the magic bytes first (cheap, and it rejects a renamed text file before any decoder touches it), then `sharp().metadata()`, whose `format` must also be one of `png`, `jpeg`, `webp`. **Output size** 1600 px for `ITEM_IMAGE` and 800 px for `FACTORY_LOGO` (the §10.4 values): an item photo is opened on a detail page, where 1024 px is visibly soft on a laptop screen. |
+| Q35 | The upload pipeline is described twice (§6.14 and §10.4 I5–I9) with three disagreements. | Settled as follows, and both sections now say the same thing. **Multer limits** `{ fileSize: 5 MiB, files: 1, fields: 0, parts: 2 }`: `kind` travels in the query string, so a request carrying form fields is malformed and is rejected rather than ignored. **Type detection** is both checks in order — the magic bytes first (cheap, and it rejects a renamed text file before any decoder touches it), then `sharp().metadata()`, whose `format` must also be one of `png`, `jpeg`, `webp`. **Output size** 1600 px for `ITEM_IMAGE` and 800 px for `FACTORY_LOGO` (the §10.4 values): an item photo is opened on a detail page, where 1024 px is visibly soft on a laptop screen. Multer's own refusals map to: `LIMIT_FILE_SIZE` → 413 `UPLOAD_TOO_LARGE`; a file under another field name → 400 `UPLOAD_MISSING_FILE`; any form field → 400 `VALIDATION_FAILED` (`unknown_key`); a second file or part → 400 `VALIDATION_FAILED` (`too_big` on `file`); a malformed multipart body → 400 `VALIDATION_FAILED` (`invalid_format` on `file`). |
+| Q36 | What does saving an unchanged settings form do? | Nothing: the stored settings come back as they are, with no version bump and no `SETTINGS_CHANGE` row. A history entry saying nothing changed is noise, and an unchanged version keeps the form open in another tab valid. The version is still checked first, so a stale form is refused even when it would change nothing. |
 
 ## 3. Actors, roles and permissions
 
@@ -2527,9 +2528,9 @@ While `users.must_change_password = true`, `PasswordChangeGuard` returns 403 `PA
 | `global` | 600 | 60 s | `req.ip` | every route except `GET /api/health` and `GET /api/uploads/:fileName` (`@SkipThrottle({ global: true })`) |
 | `login` | 60 | 60 s | `req.ip` | `POST /api/auth/login`, `POST /api/auth/change-password` |
 | `refresh` | 60 | 60 s | `req.ip` | `POST /api/auth/refresh` |
-| `upload` | 10 | 60 s | `req.auth.userId` | `POST /api/uploads` |
+| `upload` | 10 | 60 s | `req.auth.userId` | `POST /api/uploads` — enforced by the route guard `UploadThrottleGuard` in the same storage: the user is known only after `AuthGuard`, which runs after the global throttler |
 
-`req.ip` is the real client address because Express `trust proxy` is set to `172.28.0.0/24` (the pinned compose subnet) and Caddy writes `X-Forwarded-For`. Route matching for `skipIf` uses the handler metadata key `pallet:throttle` set by `@ThrottleScope('login' | 'refresh' | 'upload')`.
+`req.ip` is the real client address because Express `trust proxy` is set to `172.28.0.0/24` (the pinned compose subnet) and Caddy writes `X-Forwarded-For`. Route matching for `skipIf` uses the handler metadata key `pallet:throttle` set by `@ThrottleScope('login' | 'refresh')`; the per-user `upload` limit is `UploadThrottleGuard`.
 
 ### 6.9 DTO definitions (`packages/shared/src/schemas/dto.ts`)
 
@@ -2891,7 +2892,7 @@ UserCreateBody = z.strictObject({
 #### `PUT /api/settings`
 - **Access:** `@AdminOnly()`.
 - **Body:** `SettingsUpdateBody = z.strictObject({ version: Version, factoryName: z.string().trim().min(1).max(200), phone: z.string().trim().min(1).max(100), address: z.string().trim().min(1).max(300), logoUploadId: Id.nullable() })`.
-- **Steps:** `lockSettings`; version check; `logoUploadId` not null → upload must exist (`UPLOAD_NOT_FOUND`) with `kind = 'FACTORY_LOGO'` (`UPLOAD_KIND_MISMATCH`); update; `version += 1`; `updated_by_user_id`.
+- **Steps:** `lockSettings`; version check; `logoUploadId` not null → upload must exist (`UPLOAD_NOT_FOUND`) with `kind = 'FACTORY_LOGO'` (`UPLOAD_KIND_MISMATCH`); update; `version += 1`; `updated_by_user_id`. A body identical to the stored row changes nothing: no version bump, no audit row (Q36).
 - **Writes:** audit `SETTINGS_CHANGE` (entity `SETTINGS`, entityId `'1'`, before/after changed fields).
 - **Response:** 200 `SettingsDto`.
 - **Errors:** `VERSION_CONFLICT`, `UPLOAD_NOT_FOUND`, `UPLOAD_KIND_MISMATCH`.
@@ -2902,7 +2903,7 @@ UserCreateBody = z.strictObject({
 - **Access:** `@RequireAnyPermission('items.create', 'items.edit')`; `kind = 'FACTORY_LOGO'` additionally requires role ADMIN (service → `ADMIN_ONLY`); throttlers `global`, `upload`.
 - **Request:** `multipart/form-data`, exactly one file part named `file`; query `UploadCreateQuery = z.strictObject({ kind: z.enum(UPLOAD_KINDS) })`. Multer `memoryStorage()` with `limits: { fileSize: 5 * 1024 * 1024, files: 1, fields: 0, parts: 2 }` (Q35).
 - **Steps:** (1) Multer `LIMIT_FILE_SIZE` → `UPLOAD_TOO_LARGE`; no file → `UPLOAD_MISSING_FILE`; (2) magic bytes: PNG `89 50 4E 47 0D 0A 1A 0A`, JPEG `FF D8 FF`, WebP `52 49 46 46 ?? ?? ?? ?? 57 45 42 50`; none match → `UPLOAD_TYPE_NOT_ALLOWED` (the client `Content-Type` and file name are ignored); (3) `sharp(buffer, { limitInputPixels: 40_000_000, failOn: 'error' })`, `metadata()` failure → `UPLOAD_INVALID_IMAGE`, and a `format` outside `png`/`jpeg`/`webp` → `UPLOAD_TYPE_NOT_ALLOWED` (Q35); (4) re-encode: `.rotate().resize({ width: W, height: W, fit: 'inside', withoutEnlargement: true }).webp({ quality: 82 })` with `W = 1600` for `ITEM_IMAGE`, `W = 800` for `FACTORY_LOGO` (Q35) (sharp drops all metadata by default; `withMetadata` is never called); (5) `fileName = randomBytes(16).toString('hex') + '.webp'`; write to `${UPLOADS_DIR}/${fileName}` with flag `wx` and mode `0o640`; (6) insert `uploads` row (`width`, `height`, `size_bytes` of the output).
-- **Writes:** audit `UPLOAD_CREATE` (entity `UPLOAD`, params `{ kind }`).
+- **Writes:** audit `UPLOAD_CREATE` (entity `UPLOAD`, params `{ kind, width, height }`, as §11.3).
 - **Response:** 201 `UploadDto`. The upload is referenced afterwards through `imageUploadId` (items) or `logoUploadId` (settings); unreferenced uploads are kept.
 - **Errors:** `UPLOAD_MISSING_FILE`, `UPLOAD_TOO_LARGE`, `UPLOAD_TYPE_NOT_ALLOWED`, `UPLOAD_INVALID_IMAGE`, `ADMIN_ONLY`.
 
@@ -4453,7 +4454,7 @@ apps/api/
 │   │   ├── auth/                 # login, refresh (rotation + grace), logout, logout-all, me, change-password; auth.constants.ts, auth.mapper.ts, password.service (argon2), password-policy.ts, password.constants.ts (ARGON2_OPTIONS), login-throttle.service, session.service, common-passwords.txt
 │   │   ├── users/                # admin user management, permissions, reset password, guards (self/last admin)
 │   │   ├── settings/             # factory settings (single row)
-│   │   ├── uploads/              # multer + sharp pipeline, static serving of /api/uploads/:fileName
+│   │   ├── uploads/              # upload-intake.interceptor.ts (multer, Q35 refusals), image-processor.ts (signature + sharp), upload-throttle.guard.ts (per-user limit), uploads.service.ts (+ assertKind for settings and items), uploads.controller.ts (POST, and GET /api/uploads/:fileName)
 │   │   ├── stock/                # StockService.applyMovements(tx, movements) — the only writer of quantity_on_hand
 │   │   ├── items/                # items CRUD/archive, stock adjustments, stock movement listing
 │   │   ├── purchases/            # purchase batches CRUD (soft delete), cost-field stripping

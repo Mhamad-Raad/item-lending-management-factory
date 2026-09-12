@@ -1,3 +1,5 @@
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 import { config } from 'dotenv';
 import swc from 'unplugin-swc';
 import { defineConfig } from 'vitest/config';
@@ -21,6 +23,8 @@ export default defineConfig({
       DATABASE_URL: process.env.DATABASE_TEST_URL ?? '',
       // Request logs would bury the assertion that actually failed.
       LOG_LEVEL: 'fatal',
+      // Test uploads go to a scratch directory, never into the development one.
+      UPLOADS_DIR: join(tmpdir(), 'pallet-test-uploads'),
     },
     fileParallelism: false,
     testTimeout: 30_000,

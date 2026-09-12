@@ -33,6 +33,14 @@
       "body": "حفظ شخص آخر تغييرات أثناء تحريرك. أعد التحميل لرؤية أحدث نسخة، أو تابع التحرير واحفظ مجدداً.",
       "reload": "إعادة التحميل",
       "keepEditing": "متابعة التحرير"
+    },
+    "upload": {
+      "choose": "اختيار صورة",
+      "replace": "استبدال الصورة",
+      "remove": "إزالة",
+      "uploading": "جارٍ الرفع",
+      "preview": "معاينة الصورة",
+      "hint": "صورة حتى 5 ميغابايت."
     }
   },
   "nav": {
@@ -41,7 +49,8 @@
     "history": "السجل",
     "users": "المستخدمون",
     "account": "حسابي",
-    "logout": "تسجيل الخروج"
+    "logout": "تسجيل الخروج",
+    "settings": "الإعدادات"
   },
   "auth": {
     "login": {
@@ -229,6 +238,10 @@
       "LEDGER_ENTRY": "قيد مالي",
       "SETTINGS": "الإعدادات",
       "UPLOAD": "صورة"
+    },
+    "uploadKind": {
+      "ITEM_IMAGE": "صورة صنف",
+      "FACTORY_LOGO": "شعار المصنع"
     }
   },
   "audit": {
@@ -249,6 +262,12 @@
         "LOGIN_SUCCESS": "سجّل {{username}} الدخول",
         "LOGOUT": "سجّل {{username}} الخروج",
         "SESSION_REUSE_DETECTED": "أُعيد تقديم رمز دخول مستخدم لـ {{username}}"
+      },
+      "UPLOAD": {
+        "UPLOAD_CREATE": "رُفع {{kind}} ({{width}}×{{height}})"
+      },
+      "SETTINGS": {
+        "SETTINGS_CHANGE": "غُيّرت إعدادات المصنع"
       }
     }
   },
@@ -395,5 +414,16 @@
     "IDEMPOTENCY_KEY_REUSED": "استُخدم هذا المفتاح لطلب مختلف",
     "NETWORK_ERROR": "لا يوجد اتصال بالخادم",
     "UNKNOWN_ERROR": "حدث خطأ ما"
+  },
+  "settings": {
+    "title": "إعدادات المصنع",
+    "receiptHint": "يظهر على كل إيصال مطبوع.",
+    "saved": "تم حفظ الإعدادات",
+    "fields": {
+      "factoryName": "اسم المصنع",
+      "phone": "الهاتف",
+      "address": "العنوان",
+      "logo": "الشعار"
+    }
   }
 }

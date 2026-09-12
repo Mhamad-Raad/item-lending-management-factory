@@ -18,6 +18,8 @@ import { AuditModule } from './modules/audit/audit.module';
 import { AuthModule } from './modules/auth/auth.module';
 import { HealthModule } from './modules/health/health.module';
 import { MaintenanceModule } from './modules/maintenance/maintenance.module';
+import { SettingsModule } from './modules/settings/settings.module';
+import { UploadsModule } from './modules/uploads/uploads.module';
 import { UsersModule } from './modules/users/users.module';
 import { PrismaModule } from './prisma/prisma.module';
 
@@ -59,6 +61,8 @@ import { PrismaModule } from './prisma/prisma.module';
     AuditModule,
     AuthModule,
     UsersModule,
+    UploadsModule,
+    SettingsModule,
     MaintenanceModule,
     HealthModule,
   ],

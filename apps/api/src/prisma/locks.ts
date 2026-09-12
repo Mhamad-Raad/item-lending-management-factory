@@ -27,3 +27,8 @@ export async function lockActiveAdmins(tx: Prisma.TransactionClient): Promise<vo
 export async function lockUserByUsername(tx: Prisma.TransactionClient, username: string): Promise<void> {
   await tx.$queryRaw`SELECT id FROM users WHERE username = ${username} FOR UPDATE`;
 }
+
+/** Locks the single settings row, so two admins saving at once are checked against one version. */
+export async function lockSettings(tx: Prisma.TransactionClient): Promise<void> {
+  await tx.$queryRaw`SELECT id FROM factory_settings WHERE id = 1 FOR UPDATE`;
+}

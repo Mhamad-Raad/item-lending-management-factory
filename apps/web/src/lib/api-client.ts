@@ -1,4 +1,4 @@
-import type { ApiErrorBody } from '@pallet/shared';
+import type { ApiErrorBody, UploadDto, UploadKind } from '@pallet/shared';
 import { ApiError } from './api-error';
 import { authStore } from './auth-store';
 import { refreshAccessToken } from './refresh-lock';
@@ -78,20 +78,18 @@ async function send(path: string, options: ApiRequest): Promise<Response> {
 }
 
 /**
- * One request. On a 401 that a refresh could fix, it refreshes once and retries exactly once —
- * with the same idempotency key, so a retried write is the same write, never a second one.
+ * Sends a request and, on a 401 that a refresh could fix, refreshes once and sends it once more —
+ * the same request, idempotency key included, so a retried write is the same write (§7.7.2). A 401
+ * that survives the refresh means the session is gone: the store is cleared and the shell told, or
+ * the app would keep rendering as signed in while every request inside it fails.
  */
-export async function apiFetch<T>(path: string, options: ApiRequest = {}): Promise<T> {
-  let response = await send(path, options);
+async function withAuthRetry(sendOnce: () => Promise<Response>, skipAuthRetry = false): Promise<Response> {
+  let response = await sendOnce();
 
-  if (response.status === 401 && !options.skipAuthRetry) {
+  if (response.status === 401 && !skipAuthRetry) {
     const error = await toApiError(response.clone());
     if (error.isAuthExpired) {
-      response = (await refreshAccessToken()) ? await send(path, options) : response;
-
-      // Refused again after a fresh token: the session is gone (deactivated user, revoked family,
-      // absolute expiry). Without this the app would keep rendering an authenticated shell whose
-      // every request fails.
+      response = (await refreshAccessToken()) ? await sendOnce() : response;
       if (response.status === 401) {
         authStore.clear();
         onSessionEnded?.();
@@ -101,6 +99,52 @@ export async function apiFetch<T>(path: string, options: ApiRequest = {}): Promi
   }
 
   if (!response.ok) throw await toApiError(response);
+  return response;
+}
+
+export async function apiFetch<T>(path: string, options: ApiRequest = {}): Promise<T> {
+  const response = await withAuthRetry(() => send(path, options), options.skipAuthRetry);
   if (response.status === 204) return undefined as T;
   return (await response.json()) as T;
+}
+
+/**
+ * One image upload with progress (§7.7.5). `XMLHttpRequest` rather than `fetch`, because only it
+ * reports upload progress; its answer is wrapped in a `Response` so it takes exactly the path every
+ * other request takes — error codes, refresh-once-and-retry, session end.
+ */
+export async function apiUpload(
+  kind: UploadKind,
+  file: File,
+  onProgress?: (fraction: number) => void,
+): Promise<UploadDto> {
+  const response = await withAuthRetry(() => sendUpload(kind, file, onProgress));
+  return (await response.json()) as UploadDto;
+}
+
+function sendUpload(kind: UploadKind, file: File, onProgress?: (fraction: number) => void): Promise<Response> {
+  return new Promise((resolve, reject) => {
+    const xhr = new XMLHttpRequest();
+    xhr.open('POST', `/api/uploads${buildQueryString({ kind })}`);
+    xhr.setRequestHeader('Accept', 'application/json');
+    xhr.setRequestHeader('X-Requested-With', 'pallet-web');
+    if (authStore.token) xhr.setRequestHeader('Authorization', `Bearer ${authStore.token}`);
+
+    xhr.upload.onprogress = (event) => {
+      if (event.lengthComputable) onProgress?.(event.loaded / event.total);
+    };
+    xhr.onload = () => {
+      resolve(
+        new Response(xhr.status === 204 ? null : xhr.responseText, {
+          status: xhr.status,
+          headers: { 'Content-Type': xhr.getResponseHeader('Content-Type') ?? 'application/json' },
+        }),
+      );
+    };
+    xhr.onerror = () => reject(new ApiError('NETWORK_ERROR', 0));
+
+    const form = new FormData();
+    form.append('file', file);
+    xhr.send(form);
+  });
 }

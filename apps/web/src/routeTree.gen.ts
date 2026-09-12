@@ -15,6 +15,7 @@ import { Route as LoginRouteImport } from './routes/login'
 import { Route as AppIndexRouteImport } from './routes/_app/index'
 import { Route as AppAccountRouteImport } from './routes/_app/account'
 import { Route as AppHistoryRouteImport } from './routes/_app/history'
+import { Route as AppSettingsRouteImport } from './routes/_app/settings'
 import { Route as AppUsersIndexRouteImport } from './routes/_app/users/index'
 import { Route as AppUsersUserIdRouteImport } from './routes/_app/users/$userId'
 import { Route as AppUsersNewRouteImport } from './routes/_app/users/new'
@@ -48,6 +49,11 @@ const AppHistoryRoute = AppHistoryRouteImport.update({
   path: '/history',
   getParentRoute: () => AppRoute,
 } as any)
+const AppSettingsRoute = AppSettingsRouteImport.update({
+  id: '/settings',
+  path: '/settings',
+  getParentRoute: () => AppRoute,
+} as any)
 const AppUsersIndexRoute = AppUsersIndexRouteImport.update({
   id: '/users/',
   path: '/users/',
@@ -70,6 +76,7 @@ export interface FileRoutesByFullPath {
   '/login': typeof LoginRoute
   '/account': typeof AppAccountRoute
   '/history': typeof AppHistoryRoute
+  '/settings': typeof AppSettingsRoute
   '/users/$userId': typeof AppUsersUserIdRoute
   '/users/new': typeof AppUsersNewRoute
   '/users/': typeof AppUsersIndexRoute
@@ -79,6 +86,7 @@ export interface FileRoutesByTo {
   '/login': typeof LoginRoute
   '/account': typeof AppAccountRoute
   '/history': typeof AppHistoryRoute
+  '/settings': typeof AppSettingsRoute
   '/': typeof AppIndexRoute
   '/users/$userId': typeof AppUsersUserIdRoute
   '/users/new': typeof AppUsersNewRoute
@@ -91,6 +99,7 @@ export interface FileRoutesById {
   '/login': typeof LoginRoute
   '/_app/account': typeof AppAccountRoute
   '/_app/history': typeof AppHistoryRoute
+  '/_app/settings': typeof AppSettingsRoute
   '/_app/': typeof AppIndexRoute
   '/_app/users/$userId': typeof AppUsersUserIdRoute
   '/_app/users/new': typeof AppUsersNewRoute
@@ -104,6 +113,7 @@ export interface FileRouteTypes {
     | '/login'
     | '/account'
     | '/history'
+    | '/settings'
     | '/users/$userId'
     | '/users/new'
     | '/users/'
@@ -113,6 +123,7 @@ export interface FileRouteTypes {
     | '/login'
     | '/account'
     | '/history'
+    | '/settings'
     | '/'
     | '/users/$userId'
     | '/users/new'
@@ -124,6 +135,7 @@ export interface FileRouteTypes {
     | '/login'
     | '/_app/account'
     | '/_app/history'
+    | '/_app/settings'
     | '/_app/'
     | '/_app/users/$userId'
     | '/_app/users/new'
@@ -180,6 +192,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AppHistoryRouteImport
       parentRoute: typeof AppRoute
     }
+    '/_app/settings': {
+      id: '/_app/settings'
+      path: '/settings'
+      fullPath: '/settings'
+      preLoaderRoute: typeof AppSettingsRouteImport
+      parentRoute: typeof AppRoute
+    }
     '/_app/users/': {
       id: '/_app/users/'
       path: '/users'
@@ -207,6 +226,7 @@ declare module '@tanstack/react-router' {
 interface AppRouteChildren {
   AppAccountRoute: typeof AppAccountRoute
   AppHistoryRoute: typeof AppHistoryRoute
+  AppSettingsRoute: typeof AppSettingsRoute
   AppIndexRoute: typeof AppIndexRoute
   AppUsersUserIdRoute: typeof AppUsersUserIdRoute
   AppUsersNewRoute: typeof AppUsersNewRoute
@@ -216,6 +236,7 @@ interface AppRouteChildren {
 const AppRouteChildren: AppRouteChildren = {
   AppAccountRoute: AppAccountRoute,
   AppHistoryRoute: AppHistoryRoute,
+  AppSettingsRoute: AppSettingsRoute,
   AppIndexRoute: AppIndexRoute,
   AppUsersUserIdRoute: AppUsersUserIdRoute,
   AppUsersNewRoute: AppUsersNewRoute,

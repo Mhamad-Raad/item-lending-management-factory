@@ -16,6 +16,8 @@ interface SnapshotSpec {
  */
 export const SNAPSHOT_SPECS: Partial<Record<AuditEntityType, SnapshotSpec>> = {
   USER: { fields: ['id', 'username', 'displayName', 'role', 'isActive', 'mustChangePassword', 'createdAt'] },
+  UPLOAD: { fields: ['id', 'fileName', 'kind', 'width', 'height', 'sizeBytes', 'createdAt'] },
+  SETTINGS: { fields: ['factoryName', 'phone', 'address', 'logoUploadId', 'version'] },
 };
 
 function normalise(value: unknown, isBusinessDate: boolean): unknown {

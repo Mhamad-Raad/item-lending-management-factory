@@ -33,6 +33,14 @@
       "body": "Someone else saved changes while you were editing. Reload to see the latest version, or keep editing and save again.",
       "reload": "Reload",
       "keepEditing": "Keep editing"
+    },
+    "upload": {
+      "choose": "Choose image",
+      "replace": "Replace image",
+      "remove": "Remove",
+      "uploading": "Uploading",
+      "preview": "Image preview",
+      "hint": "An image of up to 5 MB."
     }
   },
   "nav": {
@@ -41,7 +49,8 @@
     "history": "History",
     "users": "Users",
     "account": "My account",
-    "logout": "Log out"
+    "logout": "Log out",
+    "settings": "Settings"
   },
   "auth": {
     "login": {
@@ -229,6 +238,10 @@
       "LEDGER_ENTRY": "Money entry",
       "SETTINGS": "Settings",
       "UPLOAD": "Image"
+    },
+    "uploadKind": {
+      "ITEM_IMAGE": "Item image",
+      "FACTORY_LOGO": "Factory logo"
     }
   },
   "audit": {
@@ -249,6 +262,12 @@
         "LOGIN_SUCCESS": "{{username}} signed in",
         "LOGOUT": "{{username}} signed out",
         "SESSION_REUSE_DETECTED": "A used sign-in token of {{username}} was presented again"
+      },
+      "UPLOAD": {
+        "UPLOAD_CREATE": "Uploaded {{kind}} ({{width}}×{{height}})"
+      },
+      "SETTINGS": {
+        "SETTINGS_CHANGE": "Changed the factory settings"
       }
     }
   },
@@ -395,5 +414,16 @@
     "IDEMPOTENCY_KEY_REUSED": "This key was used for a different request",
     "NETWORK_ERROR": "No connection to the server",
     "UNKNOWN_ERROR": "Something went wrong"
+  },
+  "settings": {
+    "title": "Factory settings",
+    "receiptHint": "Shown on every printed receipt.",
+    "saved": "Settings saved",
+    "fields": {
+      "factoryName": "Factory name",
+      "phone": "Phone",
+      "address": "Address",
+      "logo": "Logo"
+    }
   }
 }

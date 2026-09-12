@@ -1,5 +1,5 @@
 import type { GrantablePermissionKey, PermissionKey } from '../permissions.js';
-import type { AuditAction, AuditEntityType, Role } from '../enums.js';
+import type { AuditAction, AuditEntityType, Role, UploadKind } from '../enums.js';
 
 export interface UserRefDto {
   id: number;
@@ -59,4 +59,23 @@ export interface AuditLogDto {
   requestId: string | null;
   before: unknown;
   after: unknown;
+}
+
+export interface SettingsDto {
+  factoryName: string;
+  phone: string;
+  address: string;
+  logoUploadId: number | null;
+  /** `/api/uploads/<file>` of the logo, or null when there is none. */
+  logoUrl: string | null;
+  version: number;
+  updatedAt: string;
+}
+
+export interface UploadDto {
+  id: number;
+  kind: UploadKind;
+  url: string;
+  width: number;
+  height: number;
 }

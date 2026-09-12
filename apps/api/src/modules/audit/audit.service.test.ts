@@ -14,7 +14,8 @@ function fakeTx(): { tx: Prisma.TransactionClient; created: () => Record<string,
 
 describe('the credential scrub and the snapshot allow-lists agree', () => {
   it('keeps every field that toAuditSnapshot is allowed to write', async () => {
-    const fields = Object.values(SNAPSHOT_SPECS).flatMap((spec) => spec.fields);
+    // Deduplicated: several entities share field names such as `id` and `createdAt`.
+    const fields = [...new Set(Object.values(SNAPSHOT_SPECS).flatMap((spec) => spec.fields))];
     const row = Object.fromEntries(fields.map((field) => [field, 'value']));
     const { tx, created } = fakeTx();
 

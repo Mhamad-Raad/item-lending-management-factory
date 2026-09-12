@@ -3,6 +3,7 @@ import { DiscoveryModule } from '@nestjs/core';
 import { Test } from '@nestjs/testing';
 import { beforeAll, describe, expect, it } from 'vitest';
 import { AppModule } from '../../app.module';
+import { MaintenanceService } from '../../modules/maintenance/maintenance.service';
 import { PrismaService } from '../../prisma/prisma.service';
 import { ACCESS_METADATA, AdminOnly, Authenticated, Public } from '../decorators/access.decorators';
 import { PermissionDeclarationCheck } from './permission-declaration.check';
@@ -110,6 +111,9 @@ describe('PermissionDeclarationCheck', () => {
     const moduleRef = await Test.createTestingModule({ imports: [AppModule] })
       .overrideProvider(PrismaService)
       .useValue({ $connect: () => Promise.resolve(), $disconnect: () => Promise.resolve() })
+      // Its startup purge would run against the fake database above and log failures on a green run.
+      .overrideProvider(MaintenanceService)
+      .useValue({})
       .compile();
 
     const app = moduleRef.createNestApplication();
