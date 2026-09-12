@@ -30,8 +30,10 @@ export type Quantity = z.infer<typeof Quantity>;
 /** Business date `YYYY-MM-DD`, not before MIN_BUSINESS_DATE. "Not in the future" is checked by the API. */
 export const BusinessDate = z
   .string()
-  .refine(isBusinessDate, { message: 'invalid_date' })
-  .refine((v) => v >= MIN_BUSINESS_DATE, { message: 'too_small' });
+  // Codes travel in `params`, where the issue mapper reads them (§6.3.2); `abort` keeps a string
+  // that is not a date at all from also being compared as one.
+  .refine(isBusinessDate, { params: { code: 'invalid_date' }, abort: true })
+  .refine((v) => v >= MIN_BUSINESS_DATE, { params: { code: 'too_small', params: { minimum: MIN_BUSINESS_DATE } } });
 export type BusinessDate = z.infer<typeof BusinessDate>;
 
 /** Path parameter ids arrive as strings, so they are coerced (§6.1.4). */
