@@ -1,4 +1,4 @@
-import type { ItemDto, StockMovementDto, StockMovementReason } from '@pallet/shared';
+import type { ItemDto, ItemRefDto, StockMovementDto, StockMovementReason } from '@pallet/shared';
 import { toSafeMoney } from '../../common/utils/money';
 import type { Item, Upload } from '../../generated/prisma/client';
 import { uploadUrl } from '../uploads/uploads.mapper';
@@ -54,4 +54,16 @@ export interface StockMovementRow {
 export function toStockMovementDto(row: StockMovementRow): StockMovementDto {
   const { userId, username, displayName, createdAt, ...movement } = row;
   return { ...movement, createdAt: createdAt.toISOString(), createdBy: { id: userId, username, displayName } };
+}
+
+/** How another record names an item: enough to show it, including when it has been archived. */
+export function toItemRef(
+  item: Pick<Item, 'id' | 'name' | 'archivedAt'> & { image: Pick<Upload, 'fileName'> | null },
+): ItemRefDto {
+  return {
+    id: item.id,
+    name: item.name,
+    imageUrl: item.image ? uploadUrl(item.image.fileName) : null,
+    archived: item.archivedAt !== null,
+  };
 }

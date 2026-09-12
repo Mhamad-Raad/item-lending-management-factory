@@ -1,6 +1,7 @@
 import { computeOrderTotals } from '@pallet/shared';
 import type { PrismaClient } from '../generated/prisma/client';
 import { toSafeMoney } from '../common/utils/money';
+import { ORDER_STATE_INCLUDE, toOrderState } from '../modules/orders/order-state';
 
 export interface Discrepancy {
   entity: 'item' | 'order' | 'orderLine';
@@ -33,28 +34,11 @@ export async function findLedgerDiscrepancies(prisma: PrismaClient): Promise<Dis
 
   const orders = await prisma.order.findMany({
     orderBy: { id: 'asc' },
-    include: {
-      lines: { orderBy: { id: 'asc' } },
-      returns: { include: { lines: true } },
-      ledgerEntries: { select: { type: true, amount: true } },
-    },
+    include: ORDER_STATE_INCLUDE,
   });
 
   for (const order of orders) {
-    const totals = computeOrderTotals({
-      cancelled: order.cancelledAt !== null,
-      lines: order.lines.map((l) => ({ id: l.id, quantity: l.quantity, unitDeposit: toSafeMoney(l.unitDeposit) })),
-      returns: order.returns.map((r) => ({
-        reversed: r.reversedAt !== null,
-        lines: r.lines.map((rl) => ({
-          orderLineId: rl.orderLineId,
-          acceptedQuantity: rl.acceptedQuantity,
-          damagedQuantity: rl.damagedQuantity,
-          damagedRefund: toSafeMoney(rl.damagedRefund),
-        })),
-      })),
-      ledger: order.ledgerEntries.map((e) => ({ type: e.type, amount: toSafeMoney(e.amount) })),
-    });
+    const totals = computeOrderTotals(toOrderState(order));
 
     const orderFields = {
       status: order.status,

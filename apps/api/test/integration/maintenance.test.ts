@@ -45,6 +45,25 @@ describe('maintenance purges', () => {
     expect(await prisma.loginThrottle.count()).toBe(0);
   });
 
+  it('forgets an idempotency key after its 24 hours, so the key starts a new submission', async () => {
+    const admin = await prisma.user.findFirstOrThrow({ where: { role: 'ADMIN' } });
+    await prisma.idempotencyKey.create({
+      data: {
+        userId: admin.id,
+        key: 'k'.repeat(16),
+        scope: 'ORDER_CREATE',
+        requestHash: '0'.repeat(64),
+        responseStatus: 201,
+        responseBody: {},
+        expiresAt: new Date(START.getTime() + DAY_MS),
+      },
+    });
+    expect(await maintenance.purgeIdempotencyKeys()).toBe(0);
+
+    clock.advance(DAY_MS + 1);
+    expect(await maintenance.purgeIdempotencyKeys()).toBe(1);
+  });
+
   it('runs the purges once at startup, not only after the first full interval', async () => {
     // Every deploy or restart would otherwise reset the countdown, and a daily job on an API that
     // restarts daily would never run at all.

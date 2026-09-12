@@ -21,6 +21,7 @@ import { MaintenanceModule } from './modules/maintenance/maintenance.module';
 import { CustomersModule } from './modules/customers/customers.module';
 import { DriversModule } from './modules/drivers/drivers.module';
 import { ItemsModule } from './modules/items/items.module';
+import { OrdersModule } from './modules/orders/orders.module';
 import { PurchasesModule } from './modules/purchases/purchases.module';
 import { SettingsModule } from './modules/settings/settings.module';
 import { UploadsModule } from './modules/uploads/uploads.module';
@@ -71,6 +72,7 @@ import { PrismaModule } from './prisma/prisma.module';
     PurchasesModule,
     CustomersModule,
     DriversModule,
+    OrdersModule,
     MaintenanceModule,
     HealthModule,
   ],

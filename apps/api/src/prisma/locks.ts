@@ -54,3 +54,16 @@ export async function lockCustomer(tx: Prisma.TransactionClient, customerId: num
 export async function lockDriver(tx: Prisma.TransactionClient, driverId: number): Promise<void> {
   await tx.$queryRaw`SELECT id FROM drivers WHERE id = ${driverId} FOR UPDATE`;
 }
+
+/** Locks one order; always after its customer (§6.6). */
+export async function lockOrder(tx: Prisma.TransactionClient, orderId: number): Promise<void> {
+  await tx.$queryRaw`SELECT id FROM orders WHERE id = ${orderId} FOR UPDATE`;
+}
+
+/** Locks the order counter — last in the chain — and returns the last number handed out. */
+export async function lockOrderCounter(tx: Prisma.TransactionClient): Promise<number> {
+  const [row] = await tx.$queryRaw<{ last_number: number }[]>`
+    SELECT last_number FROM order_counter WHERE id = 1 FOR UPDATE`;
+  if (!row) throw new Error('order_counter has no row; constraints.sql inserts it');
+  return row.last_number;
+}

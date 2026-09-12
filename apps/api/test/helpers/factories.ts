@@ -1,5 +1,6 @@
+import { randomUUID } from 'node:crypto';
 import type { INestApplication } from '@nestjs/common';
-import { businessDateToDb, type CustomerDto, type DriverDto, type ItemDto } from '@pallet/shared';
+import { businessDateToDb, type CustomerDto, type DriverDto, type ItemDto, type OrderDetailDto } from '@pallet/shared';
 import request from 'supertest';
 import argon2 from 'argon2';
 import type { GrantablePermissionKey } from '@pallet/shared';
@@ -126,8 +127,9 @@ export async function createDriver(
 
 /**
  * Writes an order and its lines straight into the database, with the maintained totals a real order
- * would carry. A read-side fixture until M3 brings the order flow: it writes no stock movements, so
- * `reconcile` does not hold in a test that uses it.
+ * would carry — including returned pallets and amounts owed, which `createOrder` cannot produce
+ * until returns and payments exist (M4). It writes no stock movements, so `reconcile` does not hold
+ * in a test that uses it; tests of the order flow itself use `createOrder`.
  */
 export async function insertOrder(
   app: INestApplication,
@@ -179,4 +181,25 @@ export async function insertOrder(
     },
   });
   return { id: order.id, orderNumber: order.orderNumber };
+}
+
+/** Creates an order through `POST /api/orders`, as the web app does: LENT and dated 2026-09-10 unless told otherwise. */
+export async function createOrder(
+  app: INestApplication,
+  session: Session,
+  body: {
+    customerId: number;
+    driverId: number;
+    lines: { itemId: number; quantity: number; unitDeposit?: number }[];
+    paymentType?: 'CASH' | 'LENT';
+    date?: string;
+  },
+): Promise<OrderDetailDto> {
+  const response = await request(app.getHttpServer())
+    .post('/api/orders')
+    .set(asUser(session))
+    .set('Idempotency-Key', randomUUID())
+    .send({ paymentType: 'LENT', date: '2026-09-10', ...body })
+    .expect(201);
+  return response.body as OrderDetailDto;
 }

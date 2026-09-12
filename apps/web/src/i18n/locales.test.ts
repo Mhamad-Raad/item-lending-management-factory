@@ -2,6 +2,7 @@ import {
   AUDIT_ACTIONS,
   AUDIT_ENTITY_TYPES,
   ERROR_CODE_LIST,
+  PAYMENT_TYPES,
   PERMISSION_KEYS,
   ROLES,
   STOCK_MOVEMENT_REASONS,
@@ -52,6 +53,7 @@ describe('translation files', () => {
       ...AUDIT_ACTIONS.map((action) => `enums.auditAction.${action}`),
       ...AUDIT_ENTITY_TYPES.map((entity) => `enums.auditEntityType.${entity}`),
       ...STOCK_MOVEMENT_REASONS.map((reason) => `enums.stockMovementReason.${reason}`),
+      ...PAYMENT_TYPES.map((type) => `enums.paymentType.${type}`),
       ...PERMISSION_KEYS.map((key) => `permissions.${key.replace(/\./g, '_')}`),
     ];
 

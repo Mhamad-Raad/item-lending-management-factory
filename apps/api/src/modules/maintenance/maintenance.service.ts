@@ -29,7 +29,7 @@ export class MaintenanceService implements OnApplicationBootstrap, OnApplication
 
   onApplicationBootstrap(): void {
     // `unref` keeps a timer from holding the process open — a test harness would otherwise hang.
-    this.hourly = setInterval(() => void this.runSafely('login throttles', () => this.purgeLoginThrottles()), HOUR_MS);
+    this.hourly = setInterval(() => void this.runHourly(), HOUR_MS);
     this.daily = setInterval(() => void this.runSafely('session families', () => this.purgeSessionFamilies()), DAY_MS);
     this.hourly.unref();
     this.daily.unref();
@@ -58,8 +58,19 @@ export class MaintenanceService implements OnApplicationBootstrap, OnApplication
     return count;
   }
 
-  private async runAll(): Promise<void> {
+  /** Forgets idempotency keys past their 24 hours; a retry after that is a new submission (§6.7 step 7). */
+  async purgeIdempotencyKeys(): Promise<number> {
+    const { count } = await this.prisma.idempotencyKey.deleteMany({ where: { expiresAt: { lt: this.clock.now() } } });
+    return count;
+  }
+
+  private async runHourly(): Promise<void> {
     await this.runSafely('login throttles', () => this.purgeLoginThrottles());
+    await this.runSafely('idempotency keys', () => this.purgeIdempotencyKeys());
+  }
+
+  private async runAll(): Promise<void> {
+    await this.runHourly();
     await this.runSafely('session families', () => this.purgeSessionFamilies());
   }
 

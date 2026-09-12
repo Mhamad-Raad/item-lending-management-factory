@@ -319,6 +319,10 @@
       "RETURN_EDIT": "ڕاستکردنەوەی گەڕاندنەوە",
       "RETURN_DELETE": "سڕینەوەی گەڕاندنەوە",
       "MANUAL_ADJUSTMENT": "ڕێکخستنی دەستی"
+    },
+    "paymentType": {
+      "CASH": "نەقد",
+      "LENT": "قەرز"
     }
   },
   "audit": {
@@ -366,6 +370,13 @@
         "CREATE": "شۆفێری {{name}} زیادکرا",
         "UPDATE": "شۆفێری {{name}} نوێکرایەوە",
         "DELETE": "شۆفێری {{name}} ئەرشیف کرا"
+      },
+      "ORDER": {
+        "CREATE": "داواکاری #{{orderNumber}} بۆ {{customerName}} ({{paymentType}}، {{depositTotal}})",
+        "CREDIT_OVERRIDE": "سنووری قەرز بە {{excess}} تێپەڕێندرا لە داواکاری #{{orderNumber}} بۆ {{customerName}}"
+      },
+      "LEDGER_ENTRY": {
+        "PAYMENT_CREATE": "پارەدانی {{amount}} لەسەر داواکاری #{{orderNumber}}"
       }
     }
   },
@@ -488,7 +499,6 @@
     "DRIVER_ALREADY_ARCHIVED": "ئەم شۆفێرە پێشتر ئەرشیف کراوە",
     "ORDER_NOT_FOUND": "داواکاری نەدۆزرایەوە",
     "ORDER_CANCELLED": "ئەم داواکارییە هەڵوەشێنراوەتەوە",
-    "ORDER_DUPLICATE_ITEM": "هەمان کاڵا دوو جار هاتووە",
     "ORDER_HAS_ACTIVITY": "ئەم داواکارییە گەڕاندنەوە یان پارەدانی هەیە",
     "ORDER_DATE_AFTER_ACTIVITY": "بەروارەکە دوای گەڕاندنەوە یان پارەدانێکی ئەم داواکارییەیە",
     "CREDIT_LIMIT_EXCEEDED": "ئەمە بە {{excess}} سنووری قەرز تێدەپەڕێنێت",

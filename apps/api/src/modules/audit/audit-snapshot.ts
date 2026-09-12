@@ -39,6 +39,28 @@ export const SNAPSHOT_SPECS: Partial<Record<AuditEntityType, SnapshotSpec>> = {
     fields: ['id', 'name', 'phone', 'altPhone', 'address', 'creditLimit', 'archivedAt', 'version', 'createdAt'],
   },
   DRIVER: { fields: ['id', 'name', 'phone', 'carNumber', 'archivedAt', 'version', 'createdAt'] },
+  ORDER: {
+    fields: [
+      'id',
+      'orderNumber',
+      'customerId',
+      'driverId',
+      'date',
+      'paymentType',
+      'notes',
+      'status',
+      'depositTotal',
+      'creditOverrideByUserId',
+      'creditOverrideAt',
+      'cancelledAt',
+      'version',
+    ],
+    businessDates: ['date'],
+  },
+  LEDGER_ENTRY: {
+    fields: ['id', 'orderId', 'type', 'source', 'amount', 'date', 'isAutomatic', 'returnId', 'reversesEntryId', 'note'],
+    businessDates: ['date'],
+  },
 };
 
 function normalise(value: unknown, isBusinessDate: boolean): unknown {

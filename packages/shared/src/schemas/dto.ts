@@ -1,5 +1,16 @@
 import type { GrantablePermissionKey, PermissionKey } from '../permissions.js';
-import type { AuditAction, AuditEntityType, Role, StockMovementReason, UploadKind } from '../enums.js';
+import type {
+  AuditAction,
+  AuditEntityType,
+  LedgerEntrySource,
+  LedgerEntryType,
+  OrderStatus,
+  PaymentType,
+  ReturnReversalKind,
+  Role,
+  StockMovementReason,
+  UploadKind,
+} from '../enums.js';
 
 export interface UserRefDto {
   id: number;
@@ -206,4 +217,127 @@ export interface DriverDto {
   version: number;
   createdAt: string;
   updatedAt: string;
+}
+
+export interface CustomerRefDto {
+  id: number;
+  name: string;
+  phone: string;
+  archived: boolean;
+}
+
+export interface DriverRefDto {
+  id: number;
+  name: string;
+  phone: string;
+  carNumber: string;
+  archived: boolean;
+}
+
+export interface OrderListItemDto {
+  id: number;
+  orderNumber: number;
+  date: string;
+  paymentType: PaymentType;
+  status: OrderStatus;
+  customer: CustomerRefDto;
+  driver: DriverRefDto;
+  depositTotal: number;
+  owed: number;
+  outValue: number;
+  held: number;
+  outQuantityTotal: number;
+  createdAt: string;
+}
+
+export interface OrderLineDto {
+  id: number;
+  item: ItemRefDto;
+  quantity: number;
+  unitDeposit: number;
+  lineTotal: number;
+  returnedAccepted: number;
+  returnedDamaged: number;
+  outQuantity: number;
+}
+
+export interface ReturnLineDto {
+  id: number;
+  orderLineId: number;
+  item: ItemRefDto;
+  acceptedQuantity: number;
+  damagedQuantity: number;
+  unitDeposit: number;
+  damagedRefund: number;
+  /** `damagedQuantity × unitDeposit − damagedRefund`. */
+  compensation: number;
+}
+
+export interface ReturnDto {
+  id: number;
+  orderId: number;
+  orderNumber: number;
+  date: string;
+  notes: string | null;
+  refundDue: number;
+  owedBefore: number;
+  cashRefund: number;
+  lines: ReturnLineDto[];
+  reversed: boolean;
+  reversedAt: string | null;
+  reversedBy: UserRefDto | null;
+  reversalKind: ReturnReversalKind | null;
+  replacedByReturnId: number | null;
+  replacesReturnId: number | null;
+  /** `!reversed`, whatever the viewer's permissions. */
+  canReverse: boolean;
+  createdAt: string;
+  createdBy: UserRefDto;
+}
+
+export interface LedgerEntryDto {
+  id: number;
+  orderId: number;
+  orderNumber: number;
+  customer: CustomerRefDto;
+  type: LedgerEntryType;
+  source: LedgerEntrySource;
+  amount: number;
+  /** The stored business date; null only for the automatic hand-over payment. */
+  date: string | null;
+  /** `date`, or the order's date for the automatic payment. */
+  effectiveDate: string;
+  isAutomatic: boolean;
+  returnId: number | null;
+  reversesEntryId: number | null;
+  reversedByEntryId: number | null;
+  isReversed: boolean;
+  /** A manual payment that is not yet reversed, whatever the viewer's permissions. */
+  canReverse: boolean;
+  note: string | null;
+  createdAt: string;
+  createdBy: UserRefDto;
+}
+
+export interface OrderDetailDto extends OrderListItemDto {
+  notes: string | null;
+  paymentsNet: number;
+  creditsTotal: number;
+  refundsNet: number;
+  compensation: number;
+  cancelledAt: string | null;
+  cancelledBy: UserRefDto | null;
+  creditOverride: { by: UserRefDto; at: string } | null;
+  /** By line id. */
+  lines: OrderLineDto[];
+  /** Every return, reversed ones included, by id. */
+  returns: ReturnDto[];
+  /** Every ledger row, reversals included, by id — the order they were recorded in. */
+  ledgerEntries: LedgerEntryDto[];
+  /** Not cancelled, and no non-reversed return or manual payment yet. */
+  canEditLines: boolean;
+  canCancel: boolean;
+  version: number;
+  updatedAt: string;
+  createdBy: UserRefDto;
 }

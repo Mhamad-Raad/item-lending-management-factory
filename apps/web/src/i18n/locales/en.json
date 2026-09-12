@@ -319,6 +319,10 @@
       "RETURN_EDIT": "Return corrected",
       "RETURN_DELETE": "Return deleted",
       "MANUAL_ADJUSTMENT": "Manual adjustment"
+    },
+    "paymentType": {
+      "CASH": "Cash",
+      "LENT": "On credit"
     }
   },
   "audit": {
@@ -366,6 +370,13 @@
         "CREATE": "Added driver {{name}}",
         "UPDATE": "Updated driver {{name}}",
         "DELETE": "Archived driver {{name}}"
+      },
+      "ORDER": {
+        "CREATE": "Order #{{orderNumber}} for {{customerName}} ({{paymentType}}, {{depositTotal}})",
+        "CREDIT_OVERRIDE": "Credit limit overridden by {{excess}} on order #{{orderNumber}} for {{customerName}}"
+      },
+      "LEDGER_ENTRY": {
+        "PAYMENT_CREATE": "Payment of {{amount}} on order #{{orderNumber}}"
       }
     }
   },
@@ -488,7 +499,6 @@
     "DRIVER_ALREADY_ARCHIVED": "This driver is already archived",
     "ORDER_NOT_FOUND": "Order not found",
     "ORDER_CANCELLED": "This order is cancelled",
-    "ORDER_DUPLICATE_ITEM": "The same item appears twice",
     "ORDER_HAS_ACTIVITY": "This order already has returns or payments",
     "ORDER_DATE_AFTER_ACTIVITY": "The date is after a return or payment on this order",
     "CREDIT_LIMIT_EXCEEDED": "This exceeds the credit limit by {{excess}}",

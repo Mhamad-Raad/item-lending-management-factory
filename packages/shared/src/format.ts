@@ -33,3 +33,22 @@ export function toWesternDigits(value: string): string {
 export function normalizePhone(value: string): string {
   return toWesternDigits(value).replace(/[\s\-()]/g, '');
 }
+
+/**
+ * JSON with object keys sorted at every depth and no whitespace (§8.7), so two bodies that differ only
+ * in key order hash the same: a retried submission is recognised as the same submission.
+ */
+export function canonicalJson(value: unknown): string {
+  return JSON.stringify(sortKeys(value));
+}
+
+function sortKeys(value: unknown): unknown {
+  if (Array.isArray(value)) return value.map(sortKeys);
+  if (value === null || typeof value !== 'object') return value;
+  const record = value as Record<string, unknown>;
+  return Object.fromEntries(
+    Object.keys(record)
+      .sort()
+      .map((key) => [key, sortKeys(record[key])]),
+  );
+}

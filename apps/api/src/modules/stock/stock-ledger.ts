@@ -32,18 +32,7 @@ export class StockLedger {
       throw new Error('A stock movement must move a whole, non-zero quantity');
     }
 
-    const net = new Map<number, number>();
-    for (const movement of movements) net.set(movement.itemId, (net.get(movement.itemId) ?? 0) + movement.quantity);
-
-    const items = await tx.item.findMany({
-      where: { id: { in: [...net.keys()] } },
-      select: { id: true, quantityOnHand: true },
-    });
-    const onHand = new Map(items.map((item) => [item.id, item.quantityOnHand]));
-    const short = [...net]
-      .filter(([itemId, change]) => (onHand.get(itemId) ?? 0) + change < 0)
-      .map(([itemId, change]) => ({ itemId, requested: -change, available: onHand.get(itemId) ?? 0 }));
-    if (short.length > 0) throw new ApiError('STOCK_INSUFFICIENT', { items: short });
+    const net = await this.assertAvailable(tx, movements);
 
     await tx.stockMovement.createMany({
       data: movements.map((movement) => ({
@@ -64,5 +53,28 @@ export class StockLedger {
       // edit of the item — its `version` and `updated_at` stay as they are (§4.6).
       await tx.$executeRaw`UPDATE items SET quantity_on_hand = quantity_on_hand + ${change} WHERE id = ${itemId}`;
     }
+  }
+
+  /**
+   * Refuses with STOCK_INSUFFICIENT — every item that would go below zero, with what was asked for
+   * and what there is — and otherwise returns each item's net change. The caller holds the locks.
+   */
+  async assertAvailable(
+    tx: Prisma.TransactionClient,
+    movements: readonly { itemId: number; quantity: number }[],
+  ): Promise<Map<number, number>> {
+    const net = new Map<number, number>();
+    for (const movement of movements) net.set(movement.itemId, (net.get(movement.itemId) ?? 0) + movement.quantity);
+
+    const items = await tx.item.findMany({
+      where: { id: { in: [...net.keys()] } },
+      select: { id: true, quantityOnHand: true },
+    });
+    const onHand = new Map(items.map((item) => [item.id, item.quantityOnHand]));
+    const short = [...net]
+      .filter(([itemId, change]) => (onHand.get(itemId) ?? 0) + change < 0)
+      .map(([itemId, change]) => ({ itemId, requested: -change, available: onHand.get(itemId) ?? 0 }));
+    if (short.length > 0) throw new ApiError('STOCK_INSUFFICIENT', { items: short });
+    return net;
   }
 }

@@ -151,13 +151,13 @@ Read: §4.1–4.4, §4.8 (order flow), §6.5–6.7, §6.19, §7.4, §7.16.
 
 `locks.ts` (customer → order → items sorted by id → counter), `recomputeOrder(tx, orderId)`, idempotency
 service, `POST /api/orders` (steps 1–7), `GET` list and detail, credit-limit check with admin override.
-**Exit:** worked examples 7 and 9 pass as integration tests; reconcile → 0.
+**Exit:** the creation row of every worked example (§4.10) passes as an integration test, with the credit rule and its admin override; reconcile → 0. (E7 and E9 continue with an edit and a cancel, which are 3b's.)
 
 ### 3b — Order mutations and receipt
 
 `PATCH /api/orders/:id` (header + line edit with CASH re-issue), `POST /cancel`, `GET /receipt`,
 `GET /api/ledger-entries` (automatic payments so far).
-**Exit:** I4 (cancel without activity), I5, I7, I8, I9, I10.
+**Exit:** worked examples 7 and 9 end to end; I4 (cancel without activity), I5, I7, I8, I9, I10.
 
 ### 3c — Orders web
 

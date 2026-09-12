@@ -12,7 +12,7 @@ import {
 import type { AuthContext } from '../../common/auth-context';
 import { Clock } from '../../common/clock';
 import { ApiError } from '../../common/errors/api-error';
-import { assertNotInFuture } from '../../common/utils/dates';
+import { assertDateRange, assertNotInFuture, businessDateFilter } from '../../common/utils/dates';
 import { safeProduct, toDbMoney, toSafeMoney } from '../../common/utils/money';
 import { parseSort } from '../../common/utils/sort';
 import type { Prisma, PurchaseBatch } from '../../generated/prisma/client';
@@ -43,21 +43,12 @@ export class PurchasesService {
   ) {}
 
   async list(query: PurchaseBatchListQuery, canViewCost: boolean): Promise<PageDto<PurchaseBatchDto>> {
-    if (query.dateFrom && query.dateTo && query.dateFrom > query.dateTo) {
-      throw new ApiError('DATE_RANGE_INVALID', { dateFrom: query.dateFrom, dateTo: query.dateTo });
-    }
+    assertDateRange(query.dateFrom, query.dateTo);
 
     const where: Prisma.PurchaseBatchWhereInput = {
       deletedAt: null,
       ...(query.itemId ? { itemId: query.itemId } : {}),
-      ...(query.dateFrom || query.dateTo
-        ? {
-            date: {
-              ...(query.dateFrom ? { gte: businessDateToDb(query.dateFrom) } : {}),
-              ...(query.dateTo ? { lte: businessDateToDb(query.dateTo) } : {}),
-            },
-          }
-        : {}),
+      date: businessDateFilter(query.dateFrom, query.dateTo),
     };
     const { field, direction } = parseSort<keyof typeof SORT_FIELDS>(query.sort);
 

@@ -149,7 +149,7 @@ Every item below is an ambiguity, contradiction or gap in the brief. The builder
 | A5 | Does a new item need a cost history? | Item creation accepts an optional initial purchase batch (`date`, `quantity`, `unitCost`, `note`); without it the item starts at quantity 0. The initial batch additionally requires `purchases.create`. |
 | A6 | How are order numbers allocated? | Gap-free increasing integers from 1, allocated inside the creation transaction from the locked single-row `order_counter`; shown zero-padded to 6 digits (`000123`) on the receipt and in the UI; numbers above 999999 are shown unpadded. Cancelled orders keep their number. |
 | A7 | Payment limits and scope? | A payment on a `LENT` order cannot exceed the order's current `owed`. Payments are per order; there is no customer-level payment. Manual payments on `CASH` orders are rejected (`PAYMENT_ORDER_NOT_LENT`). |
-| A8 | Cardinalities? | One customer per order; one driver per order; an item appears at most once per order (`ORDER_DUPLICATE_ITEM`; DB unique `(order_id, item_id)`). |
+| A8 | Cardinalities? | One customer per order; one driver per order; an item appears at most once per order (`VALIDATION_FAILED` `duplicate`, Q38; DB unique `(order_id, item_id)`). |
 | A9 | Receipt content? | Only the fields listed in section 7 (receipt print route); no notes, no signature lines. |
 | A10 | Report export? | On screen and printable only; CSV/Excel export is out of scope (section 16). |
 | A11 | Password policy and recovery? | Minimum 10, maximum 128 characters; rejected if in the bundled common-password list or equal to the username; admins reset passwords; no email or self-service reset. |
@@ -201,6 +201,7 @@ Every item below is an ambiguity, contradiction or gap in the brief. The builder
 | Q35 | The upload pipeline is described twice (§6.14 and §10.4 I5–I9) with three disagreements. | Settled as follows, and both sections now say the same thing. **Multer limits** `{ fileSize: 5 MiB, files: 1, fields: 0, parts: 2 }`: `kind` travels in the query string, so a request carrying form fields is malformed and is rejected rather than ignored. **Type detection** is both checks in order — the magic bytes first (cheap, and it rejects a renamed text file before any decoder touches it), then `sharp().metadata()`, whose `format` must also be one of `png`, `jpeg`, `webp`. **Output size** 1600 px for `ITEM_IMAGE` and 800 px for `FACTORY_LOGO` (the §10.4 values): an item photo is opened on a detail page, where 1024 px is visibly soft on a laptop screen. Multer's own refusals map to: `LIMIT_FILE_SIZE` → 413 `UPLOAD_TOO_LARGE`; a file under another field name → 400 `UPLOAD_MISSING_FILE`; any form field → 400 `VALIDATION_FAILED` (`unknown_key`); a second file or part → 400 `VALIDATION_FAILED` (`too_big` on `file`); a malformed multipart body → 400 `VALIDATION_FAILED` (`invalid_format` on `file`). |
 | Q36 | What does saving an unchanged settings form do? | Nothing: the stored settings come back as they are, with no version bump and no `SETTINGS_CHANGE` row. A history entry saying nothing changed is noise, and an unchanged version keeps the form open in another tab valid. The version is still checked first, so a stale form is refused even when it would change nothing. |
 | Q37 | What does a PATCH that changes nothing do on an item, a purchase batch, a customer, a driver or a user? | The same as Q36: after the version check, the stored row comes back as it is — no version bump, no `UPDATE` row, no stock movement. A version bump with no history row would be an edit the history cannot explain, and it would needlessly make a form open in another tab stale. |
+| Q38 | How is an item repeated in an order's lines reported? | By the shared schema, as `VALIDATION_FAILED` with the field error `duplicate` on the repeated line's `itemId` (§8.5): the API validates with the same schema before its own checks, so a separate `ORDER_DUPLICATE_ITEM` could never be reached, and the field error points the form at the line to fix. The code is retired from the catalogue. The database's unique `(order_id, item_id)` stays as the backstop. |
 
 ## 3. Actors, roles and permissions
 
@@ -447,7 +448,7 @@ lockOrderCounter(tx)   // SELECT last_number FROM order_counter WHERE id = 1 FOR
 2. `lockCustomer(customerId)`; load it. Missing → `CUSTOMER_NOT_FOUND`; archived → `CUSTOMER_ARCHIVED`.
 3. Load the driver. Missing → `DRIVER_NOT_FOUND`; archived → `DRIVER_ARCHIVED`.
 4. `date ≤ today` else `BUSINESS_DATE_IN_FUTURE`.
-5. `lockItems(line itemIds)`; load them. Missing → `ITEM_NOT_FOUND` (`details.itemId`); archived → `ITEM_ARCHIVED` (`details.itemId`). Duplicate item ids were already rejected by the schema (`ORDER_DUPLICATE_ITEM`).
+5. `lockItems(line itemIds)`; load them. Missing → `ITEM_NOT_FOUND` (`details.itemId`); archived → `ITEM_ARCHIVED` (`details.itemId`). Duplicate item ids were already rejected by the schema (`VALIDATION_FAILED` with `duplicate` on the repeated line, Q38).
 6. Unit deposits: a line with `unitDeposit` supplied requires `orders.editUnitDeposit` (admins always) else 403 `UNIT_DEPOSIT_NOT_PERMITTED`; a line without it gets `item.depositPrice`. `lineTotal = quantity × unitDeposit`; `depositTotal = Σ lineTotal`.
 7. Stock: every line `quantity ≤ item.quantityOnHand` else `STOCK_INSUFFICIENT` listing every short line.
 8. Credit limit (section 4.4) with `depositDelta = depositTotal`; employees blocked, admins may override.
@@ -2311,7 +2312,6 @@ Path and query parameters use the same mapping; their `path` is the parameter na
 | `DRIVER_ALREADY_ARCHIVED` | 409 | `DELETE /api/drivers/:id` on an archived driver. | `{ driverId }` |
 | `ORDER_NOT_FOUND` | 404 | Order id does not exist. | `{ orderId }` |
 | `ORDER_CANCELLED` | 409 | Any edit, cancel, return, payment or receipt on a cancelled order. | `{ orderId }` |
-| `ORDER_DUPLICATE_ITEM` | 400 | The same `itemId` appears twice in `lines`. | `{ itemId }` |
 | `ORDER_HAS_ACTIVITY` | 409 | Line edit or cancel while the order has a non-reversed return or a non-reversed manual payment. | `{ nonReversedReturnCount, nonReversedManualPaymentCount }` |
 | `ORDER_DATE_AFTER_ACTIVITY` | 409 | Order `date` edited to later than the earliest non-reversed return date or non-reversed manual payment date. | `{ earliestActivityDate }` |
 | `CREDIT_LIMIT_EXCEEDED` | 409 | Credit rule (4.4) fails and the request is not a valid admin override. | `{ creditLimit, customerOutValue, depositDelta, excess, canOverride: boolean }` |
@@ -3133,7 +3133,7 @@ OrderCreateBody = z.strictObject({
 ```
 - **Steps:**
   1. Idempotency (6.7) — replay returns here.
-  2. Duplicate `itemId` in `lines` → `ORDER_DUPLICATE_ITEM`.
+  2. Duplicate `itemId` in `lines` → `VALIDATION_FAILED` with `duplicate` on the repeated line's `itemId` (the schema's refine, Q38).
   3. Any line has `unitDeposit` and the user lacks `orders.editUnitDeposit` → `UNIT_DEPOSIT_NOT_PERMITTED { lineIndexes }` (never silently overridden).
   4. `confirmCreditOverride = true` and the user is not ADMIN → `ADMIN_ONLY`.
   5. `date` ≤ today → else `BUSINESS_DATE_IN_FUTURE`.
@@ -3148,9 +3148,9 @@ OrderCreateBody = z.strictObject({
   14. `paymentType = 'CASH'` and `depositTotal > 0` → ledger `PAYMENT`, source `ORDER_CREATE`, `is_automatic = true`, `date = NULL`, `amount = depositTotal`.
   15. `recomputeOrder`.
   16. Audit rows; idempotency row (last statement).
-- **Writes:** movements `ORDER_CREATE`; ledger `PAYMENT` (automatic, CASH only); audit `CREATE` (entity `ORDER`, after = header + lines, params `{ orderNumber, customerName, quantity, depositTotal }`), `PAYMENT_CREATE` (entity `LEDGER_ENTRY`, params `{ orderNumber, amount }`) when a payment was written, `CREDIT_OVERRIDE` (entity `ORDER`, after `{ creditLimit, customerOutValue, depositDelta, excess }`, params `{ orderNumber, customerName, excess }`) when overridden.
+- **Writes:** movements `ORDER_CREATE`; ledger `PAYMENT` (automatic, CASH only); audit `CREATE` (entity `ORDER`, after = header + lines, params `{ orderNumber, customerName, paymentType, depositTotal }` as §11.3), `PAYMENT_CREATE` (entity `LEDGER_ENTRY`, params `{ orderNumber, amount, automatic }` as §11.3) when a payment was written, `CREDIT_OVERRIDE` (entity `ORDER`, after `{ creditLimit, customerOutValue, depositDelta, excess }`, params `{ orderNumber, customerName, excess }`) when overridden.
 - **Response:** 201 `OrderDetailDto`.
-- **Errors:** `IDEMPOTENCY_KEY_REQUIRED`, `IDEMPOTENCY_KEY_INVALID`, `IDEMPOTENCY_KEY_REUSED`, `ORDER_DUPLICATE_ITEM`, `UNIT_DEPOSIT_NOT_PERMITTED`, `ADMIN_ONLY`, `BUSINESS_DATE_IN_FUTURE`, `CUSTOMER_NOT_FOUND`, `CUSTOMER_ARCHIVED`, `DRIVER_NOT_FOUND`, `DRIVER_ARCHIVED`, `ITEM_NOT_FOUND`, `ITEM_ARCHIVED`, `STOCK_INSUFFICIENT`, `CREDIT_LIMIT_EXCEEDED`.
+- **Errors:** `IDEMPOTENCY_KEY_REQUIRED`, `IDEMPOTENCY_KEY_INVALID`, `IDEMPOTENCY_KEY_REUSED`, `UNIT_DEPOSIT_NOT_PERMITTED`, `ADMIN_ONLY`, `BUSINESS_DATE_IN_FUTURE`, `CUSTOMER_NOT_FOUND`, `CUSTOMER_ARCHIVED`, `DRIVER_NOT_FOUND`, `DRIVER_ARCHIVED`, `ITEM_NOT_FOUND`, `ITEM_ARCHIVED`, `STOCK_INSUFFICIENT`, `CREDIT_LIMIT_EXCEEDED`.
 
 #### `PATCH /api/orders/:id`
 - **Access:** `@RequirePermission('orders.edit')`; `unitDeposit` on any line requires `orders.editUnitDeposit`; `confirmCreditOverride: true` requires ADMIN. `customerId` and `paymentType` are not in the schema (unknown keys → `VALIDATION_FAILED`): they are immutable.
@@ -3164,7 +3164,7 @@ OrderUpdateBody = z.strictObject({
 })   // refine: at least one of driverId, date, notes, lines
 ```
 - **Steps:**
-  1. Pre-lock checks: duplicate `itemId` → `ORDER_DUPLICATE_ITEM`; `unitDeposit` without permission → `UNIT_DEPOSIT_NOT_PERMITTED`; override by non-admin → `ADMIN_ONLY`; `date` ≤ today.
+  1. Pre-lock checks: duplicate `itemId` → `VALIDATION_FAILED` `duplicate` (schema, Q38); `unitDeposit` without permission → `UNIT_DEPOSIT_NOT_PERMITTED`; override by non-admin → `ADMIN_ONLY`; `date` ≤ today.
   2. Read order (missing → `ORDER_NOT_FOUND`); `lockCustomer(order.customerId)`; `lockOrder`; if `lines` present `lockItems(old ∪ new item ids)`.
   3. Version check; cancelled → `ORDER_CANCELLED`.
   4. `driverId` changed → driver exists (`DRIVER_NOT_FOUND`) and is not archived (`DRIVER_ARCHIVED`).
@@ -3178,7 +3178,7 @@ OrderUpdateBody = z.strictObject({
   7. Apply header fields; `version += 1`; `recomputeOrder`.
 - **Writes:** movements `ORDER_LINE_EDIT`; ledger `PAYMENT_REVERSAL` / `PAYMENT` (CASH only); audit `UPDATE` (entity `ORDER`, before/after of header fields and lines, params `{ orderNumber }`), `PAYMENT_REVERSE` and `PAYMENT_CREATE` per ledger row, `CREDIT_OVERRIDE` when overridden.
 - **Response:** 200 `OrderDetailDto`.
-- **Errors:** `ORDER_NOT_FOUND`, `ORDER_CANCELLED`, `VERSION_CONFLICT`, `ORDER_DUPLICATE_ITEM`, `UNIT_DEPOSIT_NOT_PERMITTED`, `ADMIN_ONLY`, `BUSINESS_DATE_IN_FUTURE`, `DRIVER_NOT_FOUND`, `DRIVER_ARCHIVED`, `ORDER_DATE_AFTER_ACTIVITY`, `ORDER_HAS_ACTIVITY`, `ITEM_NOT_FOUND`, `ITEM_ARCHIVED`, `STOCK_INSUFFICIENT`, `CREDIT_LIMIT_EXCEEDED`.
+- **Errors:** `ORDER_NOT_FOUND`, `ORDER_CANCELLED`, `VERSION_CONFLICT`, `UNIT_DEPOSIT_NOT_PERMITTED`, `ADMIN_ONLY`, `BUSINESS_DATE_IN_FUTURE`, `DRIVER_NOT_FOUND`, `DRIVER_ARCHIVED`, `ORDER_DATE_AFTER_ACTIVITY`, `ORDER_HAS_ACTIVITY`, `ITEM_NOT_FOUND`, `ITEM_ARCHIVED`, `STOCK_INSUFFICIENT`, `CREDIT_LIMIT_EXCEEDED`.
 
 #### `POST /api/orders/:id/cancel`
 - **Access:** `@RequirePermission('orders.cancel')`.
@@ -3732,7 +3732,7 @@ Fields, in DOM and tab order:
 | 2 | `driverId` | `EntityCombobox kind="driver"` (non-archived only) | none | required |
 | 3 | `date` | `DatePicker` (max = today in Asia/Baghdad, min = `2000-01-01`) | today (Asia/Baghdad) | required, `YYYY-MM-DD`, not in future |
 | 4 | `paymentType` | `SegmentedRadio` with two large options "Paid cash" (`Banknote` icon) and "Lent" (`HandCoins` icon) | **none** (explicit choice required, because payment type is immutable after creation) | required |
-| 5 | `lines[]` | `OrderLinesEditor` | one empty row | 1..100 rows; each `itemId` required and unique within the order (`ORDER_DUPLICATE_ITEM` → `validation.duplicate`); `quantity` integer 1..`QUANTITY_INPUT_MAX` |
+| 5 | `lines[]` | `OrderLinesEditor` | one empty row | 1..50 rows (`OrderLines`, §6.19); each `itemId` required and unique within the order (`duplicate` on the repeated line, Q38); `quantity` integer 1..`QUANTITY_INPUT_MAX` |
 | 6 | `notes` | `Textarea` (3 rows) | empty | 0..1000 chars |
 
 `OrderLinesEditor` row: `EntityCombobox kind="item"` (thumbnail, name, on-hand and deposit price in the option row; excludes archived items and items already chosen in another row) · `QuantityInput` · unit deposit · line total (`MoneyText`, live) · remove button (`Trash2`, `aria-label` `orders.lines.remove`; hidden when only one row). Below the rows: "Add line" button (`Plus`). Pressing Enter in the last row's quantity input does **not** submit; it adds a new row and focuses its item picker (the only Enter override, documented in the field's `aria-describedby` hint).

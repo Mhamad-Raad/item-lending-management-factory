@@ -319,6 +319,10 @@
       "RETURN_EDIT": "تصحيح إرجاع",
       "RETURN_DELETE": "حذف إرجاع",
       "MANUAL_ADJUSTMENT": "تعديل يدوي"
+    },
+    "paymentType": {
+      "CASH": "نقداً",
+      "LENT": "آجل"
     }
   },
   "audit": {
@@ -366,6 +370,13 @@
         "CREATE": "أُضيف السائق {{name}}",
         "UPDATE": "عُدّل السائق {{name}}",
         "DELETE": "أُرشف السائق {{name}}"
+      },
+      "ORDER": {
+        "CREATE": "الطلب #{{orderNumber}} لـ {{customerName}} ({{paymentType}}، {{depositTotal}})",
+        "CREDIT_OVERRIDE": "تم تجاوز حد الائتمان بمقدار {{excess}} في الطلب #{{orderNumber}} لـ {{customerName}}"
+      },
+      "LEDGER_ENTRY": {
+        "PAYMENT_CREATE": "دفعة بمبلغ {{amount}} على الطلب #{{orderNumber}}"
       }
     }
   },
@@ -488,7 +499,6 @@
     "DRIVER_ALREADY_ARCHIVED": "هذا السائق مؤرشف بالفعل",
     "ORDER_NOT_FOUND": "الطلب غير موجود",
     "ORDER_CANCELLED": "هذا الطلب ملغى",
-    "ORDER_DUPLICATE_ITEM": "الصنف نفسه مكرر",
     "ORDER_HAS_ACTIVITY": "لهذا الطلب إرجاعات أو دفعات",
     "ORDER_DATE_AFTER_ACTIVITY": "التاريخ بعد إرجاع أو دفعة على هذا الطلب",
     "CREDIT_LIMIT_EXCEEDED": "هذا يتجاوز حد الائتمان بمقدار {{excess}}",

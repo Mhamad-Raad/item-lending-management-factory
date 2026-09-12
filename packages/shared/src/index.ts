@@ -14,5 +14,6 @@ export * from './schemas/items.js';
 export * from './schemas/purchases.js';
 export * from './schemas/customers.js';
 export * from './schemas/drivers.js';
+export * from './schemas/orders.js';
 export * from './schemas/dto.js';
 export * from './schemas/zod-issues.js';

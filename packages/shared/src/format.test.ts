@@ -1,5 +1,12 @@
 import { describe, expect, it } from 'vitest';
-import { formatMoney, formatNumber, formatOrderNumber, normalizePhone, toWesternDigits } from './format.js';
+import {
+  canonicalJson,
+  formatMoney,
+  formatNumber,
+  formatOrderNumber,
+  normalizePhone,
+  toWesternDigits,
+} from './format.js';
 import { Phone } from './schemas/common.js';
 
 describe('U12: phone normalization', () => {
@@ -28,5 +35,16 @@ describe('number formatting', () => {
     expect(formatMoney(0)).toBe('0');
     expect(formatMoney(1_000_000_000_000)).toBe('1,000,000,000,000');
     expect(formatOrderNumber(42)).toBe('000042');
+  });
+});
+
+describe('canonical JSON', () => {
+  it('sorts keys at every depth, keeps array order and drops whitespace', () => {
+    const body = { lines: [{ quantity: 5, itemId: 2 }], customerId: 1, notes: null };
+
+    expect(canonicalJson(body)).toBe('{"customerId":1,"lines":[{"itemId":2,"quantity":5}],"notes":null}');
+    expect(canonicalJson({ notes: null, customerId: 1, lines: [{ itemId: 2, quantity: 5 }] })).toBe(
+      canonicalJson(body),
+    );
   });
 });
