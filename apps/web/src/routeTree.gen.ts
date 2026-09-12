@@ -10,6 +10,7 @@
 
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as AppRouteImport } from './routes/_app'
+import { Route as PrintRouteImport } from './routes/_print'
 import { Route as ChangePasswordRouteImport } from './routes/change-password'
 import { Route as LoginRouteImport } from './routes/login'
 import { Route as AppIndexRouteImport } from './routes/_app/index'
@@ -21,6 +22,8 @@ import { Route as AppCustomersNewRouteImport } from './routes/_app/customers/new
 import { Route as AppDriversIndexRouteImport } from './routes/_app/drivers/index'
 import { Route as AppItemsIndexRouteImport } from './routes/_app/items/index'
 import { Route as AppItemsNewRouteImport } from './routes/_app/items/new'
+import { Route as AppOrdersIndexRouteImport } from './routes/_app/orders/index'
+import { Route as AppOrdersNewRouteImport } from './routes/_app/orders/new'
 import { Route as AppUsersIndexRouteImport } from './routes/_app/users/index'
 import { Route as AppUsersUserIdRouteImport } from './routes/_app/users/$userId'
 import { Route as AppUsersNewRouteImport } from './routes/_app/users/new'
@@ -28,9 +31,16 @@ import { Route as AppCustomersCustomerIdIndexRouteImport } from './routes/_app/c
 import { Route as AppCustomersCustomerIdEditRouteImport } from './routes/_app/customers/$customerId/edit'
 import { Route as AppItemsItemIdIndexRouteImport } from './routes/_app/items/$itemId/index'
 import { Route as AppItemsItemIdEditRouteImport } from './routes/_app/items/$itemId/edit'
+import { Route as AppOrdersOrderIdIndexRouteImport } from './routes/_app/orders/$orderId/index'
+import { Route as AppOrdersOrderIdEditRouteImport } from './routes/_app/orders/$orderId/edit'
+import { Route as PrintPrintOrdersOrderIdRouteImport } from './routes/_print/print/orders/$orderId'
 
 const AppRoute = AppRouteImport.update({
   id: '/_app',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const PrintRoute = PrintRouteImport.update({
+  id: '/_print',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ChangePasswordRoute = ChangePasswordRouteImport.update({
@@ -88,6 +98,16 @@ const AppItemsNewRoute = AppItemsNewRouteImport.update({
   path: '/items/new',
   getParentRoute: () => AppRoute,
 } as any)
+const AppOrdersIndexRoute = AppOrdersIndexRouteImport.update({
+  id: '/orders/',
+  path: '/orders/',
+  getParentRoute: () => AppRoute,
+} as any)
+const AppOrdersNewRoute = AppOrdersNewRouteImport.update({
+  id: '/orders/new',
+  path: '/orders/new',
+  getParentRoute: () => AppRoute,
+} as any)
 const AppUsersIndexRoute = AppUsersIndexRouteImport.update({
   id: '/users/',
   path: '/users/',
@@ -125,6 +145,21 @@ const AppItemsItemIdEditRoute = AppItemsItemIdEditRouteImport.update({
   path: '/items/$itemId/edit',
   getParentRoute: () => AppRoute,
 } as any)
+const AppOrdersOrderIdIndexRoute = AppOrdersOrderIdIndexRouteImport.update({
+  id: '/orders/$orderId/',
+  path: '/orders/$orderId/',
+  getParentRoute: () => AppRoute,
+} as any)
+const AppOrdersOrderIdEditRoute = AppOrdersOrderIdEditRouteImport.update({
+  id: '/orders/$orderId/edit',
+  path: '/orders/$orderId/edit',
+  getParentRoute: () => AppRoute,
+} as any)
+const PrintPrintOrdersOrderIdRoute = PrintPrintOrdersOrderIdRouteImport.update({
+  id: '/print/orders/$orderId',
+  path: '/print/orders/$orderId',
+  getParentRoute: () => PrintRoute,
+} as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof AppIndexRoute
@@ -135,40 +170,51 @@ export interface FileRoutesByFullPath {
   '/settings': typeof AppSettingsRoute
   '/customers/new': typeof AppCustomersNewRoute
   '/items/new': typeof AppItemsNewRoute
+  '/orders/new': typeof AppOrdersNewRoute
   '/users/$userId': typeof AppUsersUserIdRoute
   '/users/new': typeof AppUsersNewRoute
   '/customers/': typeof AppCustomersIndexRoute
   '/drivers/': typeof AppDriversIndexRoute
   '/items/': typeof AppItemsIndexRoute
+  '/orders/': typeof AppOrdersIndexRoute
   '/users/': typeof AppUsersIndexRoute
   '/customers/$customerId/edit': typeof AppCustomersCustomerIdEditRoute
   '/items/$itemId/edit': typeof AppItemsItemIdEditRoute
+  '/orders/$orderId/edit': typeof AppOrdersOrderIdEditRoute
+  '/print/orders/$orderId': typeof PrintPrintOrdersOrderIdRoute
   '/customers/$customerId/': typeof AppCustomersCustomerIdIndexRoute
   '/items/$itemId/': typeof AppItemsItemIdIndexRoute
+  '/orders/$orderId/': typeof AppOrdersOrderIdIndexRoute
 }
 export interface FileRoutesByTo {
+  '/': typeof AppIndexRoute
   '/change-password': typeof ChangePasswordRoute
   '/login': typeof LoginRoute
   '/account': typeof AppAccountRoute
   '/history': typeof AppHistoryRoute
   '/settings': typeof AppSettingsRoute
-  '/': typeof AppIndexRoute
   '/customers/new': typeof AppCustomersNewRoute
   '/items/new': typeof AppItemsNewRoute
+  '/orders/new': typeof AppOrdersNewRoute
   '/users/$userId': typeof AppUsersUserIdRoute
   '/users/new': typeof AppUsersNewRoute
   '/customers': typeof AppCustomersIndexRoute
   '/drivers': typeof AppDriversIndexRoute
   '/items': typeof AppItemsIndexRoute
+  '/orders': typeof AppOrdersIndexRoute
   '/users': typeof AppUsersIndexRoute
   '/customers/$customerId/edit': typeof AppCustomersCustomerIdEditRoute
   '/items/$itemId/edit': typeof AppItemsItemIdEditRoute
+  '/orders/$orderId/edit': typeof AppOrdersOrderIdEditRoute
+  '/print/orders/$orderId': typeof PrintPrintOrdersOrderIdRoute
   '/customers/$customerId': typeof AppCustomersCustomerIdIndexRoute
   '/items/$itemId': typeof AppItemsItemIdIndexRoute
+  '/orders/$orderId': typeof AppOrdersOrderIdIndexRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/_app': typeof AppRouteWithChildren
+  '/_print': typeof PrintRouteWithChildren
   '/change-password': typeof ChangePasswordRoute
   '/login': typeof LoginRoute
   '/_app/account': typeof AppAccountRoute
@@ -177,16 +223,21 @@ export interface FileRoutesById {
   '/_app/': typeof AppIndexRoute
   '/_app/customers/new': typeof AppCustomersNewRoute
   '/_app/items/new': typeof AppItemsNewRoute
+  '/_app/orders/new': typeof AppOrdersNewRoute
   '/_app/users/$userId': typeof AppUsersUserIdRoute
   '/_app/users/new': typeof AppUsersNewRoute
   '/_app/customers/': typeof AppCustomersIndexRoute
   '/_app/drivers/': typeof AppDriversIndexRoute
   '/_app/items/': typeof AppItemsIndexRoute
+  '/_app/orders/': typeof AppOrdersIndexRoute
   '/_app/users/': typeof AppUsersIndexRoute
   '/_app/customers/$customerId/edit': typeof AppCustomersCustomerIdEditRoute
   '/_app/items/$itemId/edit': typeof AppItemsItemIdEditRoute
+  '/_app/orders/$orderId/edit': typeof AppOrdersOrderIdEditRoute
+  '/_print/print/orders/$orderId': typeof PrintPrintOrdersOrderIdRoute
   '/_app/customers/$customerId/': typeof AppCustomersCustomerIdIndexRoute
   '/_app/items/$itemId/': typeof AppItemsItemIdIndexRoute
+  '/_app/orders/$orderId/': typeof AppOrdersOrderIdIndexRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -199,39 +250,50 @@ export interface FileRouteTypes {
     | '/settings'
     | '/customers/new'
     | '/items/new'
+    | '/orders/new'
     | '/users/$userId'
     | '/users/new'
     | '/customers/'
     | '/drivers/'
     | '/items/'
+    | '/orders/'
     | '/users/'
     | '/customers/$customerId/edit'
     | '/items/$itemId/edit'
+    | '/orders/$orderId/edit'
+    | '/print/orders/$orderId'
     | '/customers/$customerId/'
     | '/items/$itemId/'
+    | '/orders/$orderId/'
   fileRoutesByTo: FileRoutesByTo
   to:
+    | '/'
     | '/change-password'
     | '/login'
     | '/account'
     | '/history'
     | '/settings'
-    | '/'
     | '/customers/new'
     | '/items/new'
+    | '/orders/new'
     | '/users/$userId'
     | '/users/new'
     | '/customers'
     | '/drivers'
     | '/items'
+    | '/orders'
     | '/users'
     | '/customers/$customerId/edit'
     | '/items/$itemId/edit'
+    | '/orders/$orderId/edit'
+    | '/print/orders/$orderId'
     | '/customers/$customerId'
     | '/items/$itemId'
+    | '/orders/$orderId'
   id:
     | '__root__'
     | '/_app'
+    | '/_print'
     | '/change-password'
     | '/login'
     | '/_app/account'
@@ -240,20 +302,26 @@ export interface FileRouteTypes {
     | '/_app/'
     | '/_app/customers/new'
     | '/_app/items/new'
+    | '/_app/orders/new'
     | '/_app/users/$userId'
     | '/_app/users/new'
     | '/_app/customers/'
     | '/_app/drivers/'
     | '/_app/items/'
+    | '/_app/orders/'
     | '/_app/users/'
     | '/_app/customers/$customerId/edit'
     | '/_app/items/$itemId/edit'
+    | '/_app/orders/$orderId/edit'
+    | '/_print/print/orders/$orderId'
     | '/_app/customers/$customerId/'
     | '/_app/items/$itemId/'
+    | '/_app/orders/$orderId/'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   AppRoute: typeof AppRouteWithChildren
+  PrintRoute: typeof PrintRouteWithChildren
   ChangePasswordRoute: typeof ChangePasswordRoute
   LoginRoute: typeof LoginRoute
 }
@@ -265,6 +333,13 @@ declare module '@tanstack/react-router' {
       path: ''
       fullPath: '/'
       preLoaderRoute: typeof AppRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/_print': {
+      id: '/_print'
+      path: ''
+      fullPath: '/'
+      preLoaderRoute: typeof PrintRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/change-password': {
@@ -344,6 +419,20 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AppItemsNewRouteImport
       parentRoute: typeof AppRoute
     }
+    '/_app/orders/': {
+      id: '/_app/orders/'
+      path: '/orders'
+      fullPath: '/orders/'
+      preLoaderRoute: typeof AppOrdersIndexRouteImport
+      parentRoute: typeof AppRoute
+    }
+    '/_app/orders/new': {
+      id: '/_app/orders/new'
+      path: '/orders/new'
+      fullPath: '/orders/new'
+      preLoaderRoute: typeof AppOrdersNewRouteImport
+      parentRoute: typeof AppRoute
+    }
     '/_app/users/': {
       id: '/_app/users/'
       path: '/users'
@@ -393,6 +482,27 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AppItemsItemIdEditRouteImport
       parentRoute: typeof AppRoute
     }
+    '/_app/orders/$orderId/': {
+      id: '/_app/orders/$orderId/'
+      path: '/orders/$orderId'
+      fullPath: '/orders/$orderId/'
+      preLoaderRoute: typeof AppOrdersOrderIdIndexRouteImport
+      parentRoute: typeof AppRoute
+    }
+    '/_app/orders/$orderId/edit': {
+      id: '/_app/orders/$orderId/edit'
+      path: '/orders/$orderId/edit'
+      fullPath: '/orders/$orderId/edit'
+      preLoaderRoute: typeof AppOrdersOrderIdEditRouteImport
+      parentRoute: typeof AppRoute
+    }
+    '/_print/print/orders/$orderId': {
+      id: '/_print/print/orders/$orderId'
+      path: '/print/orders/$orderId'
+      fullPath: '/print/orders/$orderId'
+      preLoaderRoute: typeof PrintPrintOrdersOrderIdRouteImport
+      parentRoute: typeof PrintRoute
+    }
   }
 }
 
@@ -403,16 +513,20 @@ interface AppRouteChildren {
   AppIndexRoute: typeof AppIndexRoute
   AppCustomersNewRoute: typeof AppCustomersNewRoute
   AppItemsNewRoute: typeof AppItemsNewRoute
+  AppOrdersNewRoute: typeof AppOrdersNewRoute
   AppUsersUserIdRoute: typeof AppUsersUserIdRoute
   AppUsersNewRoute: typeof AppUsersNewRoute
   AppCustomersIndexRoute: typeof AppCustomersIndexRoute
   AppDriversIndexRoute: typeof AppDriversIndexRoute
   AppItemsIndexRoute: typeof AppItemsIndexRoute
+  AppOrdersIndexRoute: typeof AppOrdersIndexRoute
   AppUsersIndexRoute: typeof AppUsersIndexRoute
   AppCustomersCustomerIdEditRoute: typeof AppCustomersCustomerIdEditRoute
   AppItemsItemIdEditRoute: typeof AppItemsItemIdEditRoute
+  AppOrdersOrderIdEditRoute: typeof AppOrdersOrderIdEditRoute
   AppCustomersCustomerIdIndexRoute: typeof AppCustomersCustomerIdIndexRoute
   AppItemsItemIdIndexRoute: typeof AppItemsItemIdIndexRoute
+  AppOrdersOrderIdIndexRoute: typeof AppOrdersOrderIdIndexRoute
 }
 
 const AppRouteChildren: AppRouteChildren = {
@@ -422,22 +536,37 @@ const AppRouteChildren: AppRouteChildren = {
   AppIndexRoute: AppIndexRoute,
   AppCustomersNewRoute: AppCustomersNewRoute,
   AppItemsNewRoute: AppItemsNewRoute,
+  AppOrdersNewRoute: AppOrdersNewRoute,
   AppUsersUserIdRoute: AppUsersUserIdRoute,
   AppUsersNewRoute: AppUsersNewRoute,
   AppCustomersIndexRoute: AppCustomersIndexRoute,
   AppDriversIndexRoute: AppDriversIndexRoute,
   AppItemsIndexRoute: AppItemsIndexRoute,
+  AppOrdersIndexRoute: AppOrdersIndexRoute,
   AppUsersIndexRoute: AppUsersIndexRoute,
   AppCustomersCustomerIdEditRoute: AppCustomersCustomerIdEditRoute,
   AppItemsItemIdEditRoute: AppItemsItemIdEditRoute,
+  AppOrdersOrderIdEditRoute: AppOrdersOrderIdEditRoute,
   AppCustomersCustomerIdIndexRoute: AppCustomersCustomerIdIndexRoute,
   AppItemsItemIdIndexRoute: AppItemsItemIdIndexRoute,
+  AppOrdersOrderIdIndexRoute: AppOrdersOrderIdIndexRoute,
 }
 
 const AppRouteWithChildren = AppRoute._addFileChildren(AppRouteChildren)
 
+interface PrintRouteChildren {
+  PrintPrintOrdersOrderIdRoute: typeof PrintPrintOrdersOrderIdRoute
+}
+
+const PrintRouteChildren: PrintRouteChildren = {
+  PrintPrintOrdersOrderIdRoute: PrintPrintOrdersOrderIdRoute,
+}
+
+const PrintRouteWithChildren = PrintRoute._addFileChildren(PrintRouteChildren)
+
 const rootRouteChildren: RootRouteChildren = {
   AppRoute: AppRouteWithChildren,
+  PrintRoute: PrintRouteWithChildren,
   ChangePasswordRoute: ChangePasswordRoute,
   LoginRoute: LoginRoute,
 }

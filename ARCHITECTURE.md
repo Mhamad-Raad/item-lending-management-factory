@@ -3583,7 +3583,7 @@ Common rules for every page:
 - **Search params:** `status` (`OPEN` default, `SETTLED`, `CANCELLED`, `ALL`), `q`, `customerId`, `driverId`, `itemId`, `paymentType`, `dateFrom`, `dateTo`, `sort` (default `-orderNumber`), `page` (default 1), `pageSize` (default 25).
 - **Data:** `GET /api/orders` with those params (key `['orders','list',params]`).
 - **Components:** `Tabs` for status (OPEN / SETTLED / CANCELLED / ALL) above a `DataTable`; filter bar: search input (`q`, debounced 300 ms), customer, driver and item `EntityCombobox`, payment type `Select`, `DateRangePicker`.
-- **Columns:** order number (`formatOrderNumber`), date, customer, driver, payment type (translated), deposit total, pallets out (`outQuantityTotal`), owed, held, status (`StatusBadge`). Sortable: order number, date, owed, out value (mapped to `outValue`).
+- **Columns:** order number (`formatOrderNumber`), date, customer, driver, payment type (translated), deposit total, pallets out (`outQuantityTotal`), owed, out value, held, status (`StatusBadge`). Sortable: order number, date, owed, out value (mapped to `outValue`).
 - **Actions:** "New order" (`orders.create`). Row click → `/orders/$orderId`.
 
 #### 7.3.5 `/orders/new` New order — daily flow 1 (section 7.4.1)
@@ -3765,7 +3765,7 @@ credit             = checkCreditLimit({ creditLimit, customerOutValue: currentOu
 - `credit.allowed = false` renders a destructive `Alert` `orders.new.creditExceeded` with params `limit`, `outValue`, `newTotal`, `excess` (all `formatMoney`).
   - **Employee:** the submit button is disabled while the alert shows.
   - **Admin:** the submit button text becomes `orders.new.submitWithOverride`. Pressing it opens `ConfirmDialog` (warning variant, title `orders.new.overrideTitle`, body with the same four numbers). Confirm sends the request with `confirmCreditOverride: true`.
-- A `409 CREDIT_LIMIT_EXCEEDED` from the server (a concurrent order changed the out value) is handled the same way using `error.details` (`creditLimit`, `customerOutValue`, `newDepositTotal`, `excess`, `canOverride`): employees see the alert; admins get the override dialog. The resubmission carries the **same** Idempotency-Key only if the body is unchanged apart from `confirmCreditOverride` — per 7.7.6 a changed body produces a new key, which is correct because the failed attempt stored nothing.
+- A `409 CREDIT_LIMIT_EXCEEDED` from the server (a concurrent order changed the out value) is handled the same way using `error.details` (`creditLimit`, `customerOutValue`, `depositDelta`, `excess`, `canOverride` — §4.4): employees see the alert; admins get the override dialog. The resubmission carries the **same** Idempotency-Key only if the body is unchanged apart from `confirmCreditOverride` — per 7.7.6 a changed body produces a new key, which is correct because the failed attempt stored nothing.
 - Archived customer, driver or item errors (`CUSTOMER_ARCHIVED`, `DRIVER_ARCHIVED`, `ITEM_ARCHIVED`) → toast and invalidate the matching combobox query.
 
 Worked example (must match the Playwright flow test): items A (deposit 1,000, on hand 500) and B (deposit 2,500, on hand 40); lines A × 100 and B × 10 → depositTotal = 100 × 1,000 + 10 × 2,500 = 125,000. Customer with creditLimit 300,000 and outValue 200,000 → headroomBefore 100,000, headroomAfter −25,000, `checkCreditLimit` → `{ allowed: false, excess: 25,000 }`.

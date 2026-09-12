@@ -111,7 +111,8 @@
     "settings": "Settings",
     "customers": "Customers",
     "items": "Items",
-    "drivers": "Drivers"
+    "drivers": "Drivers",
+    "orders": "Orders"
   },
   "auth": {
     "login": {
@@ -323,6 +324,27 @@
     "paymentType": {
       "CASH": "Cash",
       "LENT": "On credit"
+    },
+    "orderStatus": {
+      "OPEN": "Open",
+      "SETTLED": "Settled",
+      "CANCELLED": "Cancelled"
+    },
+    "ledgerEntryType": {
+      "PAYMENT": "Payment",
+      "REFUND": "Refund",
+      "PAYMENT_REVERSAL": "Payment reversed",
+      "REFUND_REVERSAL": "Refund reversed"
+    },
+    "ledgerEntrySource": {
+      "ORDER_CREATE": "Hand-over",
+      "ORDER_LINE_EDIT": "Order corrected",
+      "ORDER_CANCEL": "Order cancelled",
+      "MANUAL": "Recorded by hand",
+      "PAYMENT_DELETE": "Payment deleted",
+      "RETURN_CREATE": "Return",
+      "RETURN_EDIT": "Return corrected",
+      "RETURN_DELETE": "Return deleted"
     }
   },
   "audit": {
@@ -445,7 +467,8 @@
     "not_integer": "Must be a whole number",
     "unknown_key": "This field is not expected here",
     "duplicate": "This value is repeated",
-    "passwordMismatch": "The two passwords do not match"
+    "passwordMismatch": "The two passwords do not match",
+    "stockExceeded": "Only {{available}} on hand"
   },
   "errors": {
     "VALIDATION_FAILED": "Please check the highlighted fields",
@@ -701,5 +724,141 @@
       "carNumber": "Car number",
       "status": "Status"
     }
+  },
+  "payments": {
+    "automatic": "Automatic"
+  },
+  "orders": {
+    "list": {
+      "title": "Orders",
+      "new": "New order",
+      "empty": "No orders here yet",
+      "allStatuses": "All",
+      "anyCustomer": "Any customer",
+      "anyDriver": "Any driver",
+      "anyItem": "Any item",
+      "anyPaymentType": "Any payment type"
+    },
+    "fields": {
+      "orderNumber": "Order",
+      "customer": "Customer",
+      "chooseCustomer": "Choose a customer",
+      "driver": "Driver",
+      "chooseDriver": "Choose a driver",
+      "date": "Date",
+      "paymentType": "Payment",
+      "notes": "Notes",
+      "depositTotal": "Deposit total",
+      "owed": "Owed",
+      "held": "Deposit held",
+      "palletsOut": "Pallets out",
+      "status": "Status",
+      "outValue": "Out value"
+    },
+    "lines": {
+      "title": "Pallets",
+      "item": "Item",
+      "chooseItem": "Choose an item",
+      "quantity": "Quantity",
+      "unitDeposit": "Deposit each",
+      "lineTotal": "Line total",
+      "returnedAccepted": "Returned",
+      "returnedDamaged": "Damaged",
+      "outQuantity": "Still out",
+      "add": "Add line",
+      "remove": "Remove line",
+      "enterHint": "Enter in the last quantity adds a line"
+    },
+    "new": {
+      "title": "New order",
+      "paidCash": "Paid cash",
+      "lent": "Lent",
+      "submit": "Hand over",
+      "submitWithOverride": "Hand over past the limit",
+      "created": "Order #{{orderNumber}} recorded",
+      "creditExceeded": "Credit limit {{limit}}, already out {{outValue}}: this order of {{newTotal}} passes it by {{excess}}.",
+      "overrideTitle": "Hand over past the credit limit?",
+      "overrideBody": "Credit limit {{limit}}, already out {{outValue}}, this order {{newTotal}}: {{excess}} over. The override is recorded in the history.",
+      "summary": {
+        "title": "Summary",
+        "paysNow": "The customer pays this now",
+        "willOwe": "The customer will owe this",
+        "headroomAfter": "Credit left after"
+      }
+    },
+    "detail": {
+      "title": "Order",
+      "backToList": "Back to orders",
+      "createdBanner": "Order {{orderNumber}} is recorded.",
+      "printReceipt": "Print receipt",
+      "cancelOrder": "Cancel order",
+      "cancelled": "Order cancelled",
+      "cancelledBanner": "Cancelled by {{name}} on",
+      "creditOverridden": "Credit limit passed by {{name}} on",
+      "returns": "Returns",
+      "noReturns": "Nothing returned yet",
+      "showReversed": "Show reversed",
+      "reversed": "Reversed",
+      "replacedBy": "Replaced by return #{{id}}",
+      "returnAccepted": "Accepted",
+      "returnDamaged": "Damaged",
+      "damagedRefund": "Damage refund",
+      "refundDue": "Refund due",
+      "cashRefund": "Paid back in cash",
+      "money": "Money",
+      "noMoney": "No money recorded on this order"
+    },
+    "money": {
+      "date": "Date",
+      "type": "Type",
+      "source": "From",
+      "amount": "Amount",
+      "note": "Note",
+      "createdBy": "By",
+      "reverses": "Reverses #{{id}}"
+    },
+    "cancel": {
+      "confirmTitle": "Cancel order {{orderNumber}}?",
+      "confirmBody": "Its pallets come back into stock and a cash payment is reversed. The order keeps its number."
+    },
+    "edit": {
+      "title": "Edit order",
+      "saved": "Order saved",
+      "immutableHint": "To change the customer or payment type, cancel this order and create a new one.",
+      "linesLocked": "Returns or payments are recorded on this order, so its lines can no longer change.",
+      "cashReissueNotice": "The automatic payment will be re-issued for the new total.",
+      "summary": {
+        "title": "Summary",
+        "newTotal": "New deposit total",
+        "delta": "Change"
+      }
+    }
+  },
+  "receipt": {
+    "pageTitle": "Hand-over receipt",
+    "title": "Pallet hand-over receipt",
+    "receiptNumber": "Receipt no.",
+    "date": "Date",
+    "factoryPhone": "Phone",
+    "factoryAddress": "Address",
+    "customer": "Customer",
+    "driver": "Driver",
+    "name": "Name",
+    "phone": "Phone number",
+    "address": "Address",
+    "carNumber": "Car number",
+    "item": "Pallet type",
+    "quantity": "Quantity",
+    "unitDeposit": "Deposit per pallet",
+    "lineTotal": "Line total",
+    "depositTotal": "Total deposit",
+    "paymentType": "Payment type",
+    "paymentCash": "Paid cash",
+    "paymentLent": "Lent (not paid)",
+    "currency": "IQD",
+    "continued": "Continued on the next sheet",
+    "sheetOf": "Sheet {{x}} of {{y}}",
+    "cancelledError": "This order is cancelled; its receipt cannot be printed",
+    "print": "Print"
   }
 }

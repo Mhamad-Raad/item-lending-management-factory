@@ -1,0 +1,142 @@
+/* §7.16.3, inlined by the receipt route alone (`?inline`) and removed with it. The layout is fixed in
+   millimetres: the UI font-size preference and theme never apply, and nothing may overflow a half. */
+@page {
+  size: A4 portrait;
+  margin: 0;
+}
+@media print {
+  html,
+  body {
+    margin: 0;
+    background: #fff;
+  }
+  .receipt-toolbar {
+    display: none;
+  }
+}
+.receipt {
+  font-family: 'Noto Sans Arabic Variable', 'Inter Variable', sans-serif;
+  font-size: 10pt;
+  line-height: 1.35;
+  color: #000;
+  -webkit-print-color-adjust: exact;
+  print-color-adjust: exact;
+}
+.receipt .num {
+  font-family: 'Inter Variable', sans-serif;
+  direction: ltr;
+  unicode-bidi: isolate;
+  font-variant-numeric: tabular-nums;
+}
+.sheet {
+  width: 210mm;
+  height: 297mm;
+  box-sizing: border-box;
+  overflow: hidden;
+  break-after: page;
+  page-break-after: always;
+  background: #fff;
+}
+.sheet:last-child {
+  break-after: auto;
+  page-break-after: auto;
+}
+.half {
+  position: relative;
+  height: 148.5mm;
+  box-sizing: border-box;
+  padding: 8mm 10mm;
+  display: flex;
+  flex-direction: column;
+  gap: 4mm;
+  overflow: hidden;
+}
+.half + .half {
+  border-top: 0.3mm dashed #000;
+} /* the cut line, exactly at 148.5 mm */
+.cut-mark {
+  position: absolute;
+  inset-inline-start: 4mm;
+  top: 0;
+  margin-top: -2.5mm;
+  width: 5mm;
+  height: 5mm;
+  background: #fff;
+}
+.block-header {
+  height: 22mm;
+  display: flex;
+  justify-content: space-between;
+  gap: 4mm;
+}
+.block-parties {
+  height: 24mm;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 4mm;
+}
+.block-parties > div {
+  border: 0.2mm solid #000;
+  padding: 2mm;
+  overflow: hidden;
+}
+.block-lines {
+  height: 49mm;
+} /* 1 header row + 6 body rows, 7mm each */
+.block-footer {
+  height: 20mm;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+}
+.lines {
+  width: 100%;
+  border-collapse: collapse;
+  table-layout: fixed;
+}
+.lines th,
+.lines td {
+  height: 7mm;
+  padding: 0 1.5mm;
+  border: 0.2mm solid #000;
+  vertical-align: middle;
+}
+.lines th {
+  font-size: 8.5pt;
+  font-weight: 600;
+  background: #f0f0f0;
+}
+.lines td.col-item {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.lines .num-cell {
+  text-align: end;
+}
+.col-no {
+  width: 8mm;
+}
+.col-qty {
+  width: 20mm;
+}
+.col-unit {
+  width: 30mm;
+}
+.col-total {
+  width: 34mm;
+}
+.clamp {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+@media screen {
+  body {
+    background: #e5e5e5;
+  }
+  .sheet {
+    margin: 8mm auto;
+    box-shadow: 0 1mm 4mm rgb(0 0 0 / 0.25);
+  }
+}

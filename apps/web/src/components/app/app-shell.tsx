@@ -1,6 +1,17 @@
 import type { PermissionKey } from '@pallet/shared';
 import { Link, useRouterState } from '@tanstack/react-router';
-import { Building2, History, LayoutDashboard, LogOut, Package, Settings, Truck, UserCircle, Users } from 'lucide-react';
+import {
+  Building2,
+  ClipboardList,
+  History,
+  LayoutDashboard,
+  LogOut,
+  Package,
+  Settings,
+  Truck,
+  UserCircle,
+  Users,
+} from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { Button } from '@/components/ui/button';
@@ -19,6 +30,7 @@ interface NavItem {
 /** Milestones after M1 add their entries here; the filtering below needs no change. */
 const NAV_ITEMS: NavItem[] = [
   { to: '/', labelKey: 'nav.dashboard', icon: LayoutDashboard },
+  { to: '/orders', labelKey: 'nav.orders', icon: ClipboardList, permission: 'orders.view' },
   { to: '/customers', labelKey: 'nav.customers', icon: Building2, permission: 'customers.view' },
   { to: '/items', labelKey: 'nav.items', icon: Package, permission: 'items.view' },
   { to: '/drivers', labelKey: 'nav.drivers', icon: Truck, permission: 'drivers.view' },

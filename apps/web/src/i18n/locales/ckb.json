@@ -111,7 +111,8 @@
     "settings": "ڕێکخستنەکان",
     "customers": "کڕیاران",
     "items": "کاڵاکان",
-    "drivers": "شۆفێران"
+    "drivers": "شۆفێران",
+    "orders": "داواکارییەکان"
   },
   "auth": {
     "login": {
@@ -323,6 +324,27 @@
     "paymentType": {
       "CASH": "نەقد",
       "LENT": "قەرز"
+    },
+    "orderStatus": {
+      "OPEN": "کراوە",
+      "SETTLED": "تەواوبوو",
+      "CANCELLED": "هەڵوەشێندراوە"
+    },
+    "ledgerEntryType": {
+      "PAYMENT": "پارەدان",
+      "REFUND": "گەڕاندنەوەی پارە",
+      "PAYMENT_REVERSAL": "پارەدانی گەڕێندراوە",
+      "REFUND_REVERSAL": "گەڕاندنەوەی پارەی گەڕێندراوە"
+    },
+    "ledgerEntrySource": {
+      "ORDER_CREATE": "ڕادەستکردن",
+      "ORDER_LINE_EDIT": "ڕاستکردنەوەی داواکاری",
+      "ORDER_CANCEL": "هەڵوەشاندنەوەی داواکاری",
+      "MANUAL": "تۆمارکراو بە دەست",
+      "PAYMENT_DELETE": "سڕینەوەی پارەدان",
+      "RETURN_CREATE": "گەڕاندنەوە",
+      "RETURN_EDIT": "ڕاستکردنەوەی گەڕاندنەوە",
+      "RETURN_DELETE": "سڕینەوەی گەڕاندنەوە"
     }
   },
   "audit": {
@@ -445,7 +467,8 @@
     "not_integer": "دەبێت ژمارەیەکی تەواو بێت",
     "unknown_key": "ئەم خانەیە لێرە چاوەڕوان ناکرێت",
     "duplicate": "ئەم نرخە دووبارە بووەتەوە",
-    "passwordMismatch": "هەردوو وشەی تێپەڕ وەک یەک نین"
+    "passwordMismatch": "هەردوو وشەی تێپەڕ وەک یەک نین",
+    "stockExceeded": "تەنها {{available}} لە کۆگا هەیە"
   },
   "errors": {
     "VALIDATION_FAILED": "تکایە خانە نیشانکراوەکان بپشکنە",
@@ -701,5 +724,141 @@
       "carNumber": "ژمارەی ئۆتۆمبێل",
       "status": "دۆخ"
     }
+  },
+  "payments": {
+    "automatic": "خۆکار"
+  },
+  "orders": {
+    "list": {
+      "title": "داواکارییەکان",
+      "new": "داواکاری نوێ",
+      "empty": "هێشتا هیچ داواکارییەک لێرە نییە",
+      "allStatuses": "هەموو",
+      "anyCustomer": "هەر کڕیارێک",
+      "anyDriver": "هەر شۆفێرێک",
+      "anyItem": "هەر کاڵایەک",
+      "anyPaymentType": "هەر جۆرێکی پارەدان"
+    },
+    "fields": {
+      "orderNumber": "داواکاری",
+      "customer": "کڕیار",
+      "chooseCustomer": "کڕیارێک هەڵبژێرە",
+      "driver": "شۆفێر",
+      "chooseDriver": "شۆفێرێک هەڵبژێرە",
+      "date": "بەروار",
+      "paymentType": "پارەدان",
+      "notes": "تێبینییەکان",
+      "depositTotal": "کۆی بارمتە",
+      "owed": "قەرز",
+      "held": "بارمتەی گیراو",
+      "palletsOut": "پالێتی لایان",
+      "status": "دۆخ",
+      "outValue": "بەهای لایان"
+    },
+    "lines": {
+      "title": "پالێتەکان",
+      "item": "کاڵا",
+      "chooseItem": "کاڵایەک هەڵبژێرە",
+      "quantity": "ژمارە",
+      "unitDeposit": "بارمتەی دانە",
+      "lineTotal": "کۆی دێڕ",
+      "returnedAccepted": "گەڕاوە",
+      "returnedDamaged": "زیانلێکەوتوو",
+      "outQuantity": "هێشتا لایانە",
+      "add": "زیادکردنی دێڕ",
+      "remove": "لابردنی دێڕ",
+      "enterHint": "کلیلی ئینتەر لە دوایین ژمارەدا دێڕێک زیاد دەکات"
+    },
+    "new": {
+      "title": "داواکاری نوێ",
+      "paidCash": "پارەی نەقد دراوە",
+      "lent": "بە قەرز",
+      "submit": "ڕادەستکردن",
+      "submitWithOverride": "ڕادەستکردن سەرووی سنوور",
+      "created": "داواکاری #{{orderNumber}} تۆمار کرا",
+      "creditExceeded": "سنووری قەرز {{limit}}، ئێستا لایانە {{outValue}}: ئەم داواکارییەی {{newTotal}} بە {{excess}} تێیدەپەڕێت.",
+      "overrideTitle": "سەرووی سنووری قەرز ڕادەست بکرێت؟",
+      "overrideBody": "سنووری قەرز {{limit}}، ئێستا لایانە {{outValue}}، ئەم داواکارییە {{newTotal}}: {{excess}} زیاترە. تێپەڕاندنەکە لە مێژوودا تۆمار دەکرێت.",
+      "summary": {
+        "title": "پوختە",
+        "paysNow": "کڕیار ئێستا ئەمە دەدات",
+        "willOwe": "کڕیار ئەمەی قەرز دەبێت",
+        "headroomAfter": "قەرزی ماوە دوای ئەمە"
+      }
+    },
+    "detail": {
+      "title": "داواکاری",
+      "backToList": "گەڕانەوە بۆ داواکارییەکان",
+      "createdBanner": "داواکاری {{orderNumber}} تۆمار کرا.",
+      "printReceipt": "چاپکردنی پسووڵە",
+      "cancelOrder": "هەڵوەشاندنەوەی داواکاری",
+      "cancelled": "داواکارییەکە هەڵوەشێندرایەوە",
+      "cancelledBanner": "هەڵوەشێندرایەوە لەلایەن {{name}} لە",
+      "creditOverridden": "سنووری قەرز تێپەڕێندرا لەلایەن {{name}} لە",
+      "returns": "گەڕاندنەوەکان",
+      "noReturns": "هێشتا هیچ نەگەڕاوەتەوە",
+      "showReversed": "پیشاندانی گەڕێندراوەکان",
+      "reversed": "گەڕێندراوە",
+      "replacedBy": "بە گەڕاندنەوەی #{{id}} گۆڕدرا",
+      "returnAccepted": "وەرگیراو",
+      "returnDamaged": "زیانلێکەوتوو",
+      "damagedRefund": "گەڕاندنەوەی زیان",
+      "refundDue": "پارەی گەڕاندنەوە",
+      "cashRefund": "بە نەقد گەڕێندرایەوە",
+      "money": "پارە",
+      "noMoney": "هیچ پارەیەک لەسەر ئەم داواکارییە تۆمار نەکراوە"
+    },
+    "money": {
+      "date": "بەروار",
+      "type": "جۆر",
+      "source": "سەرچاوە",
+      "amount": "بڕ",
+      "note": "تێبینی",
+      "createdBy": "لەلایەن",
+      "reverses": "گەڕاندنەوەی #{{id}}"
+    },
+    "cancel": {
+      "confirmTitle": "داواکاری {{orderNumber}} هەڵبوەشێندرێتەوە؟",
+      "confirmBody": "پالێتەکانی دەگەڕێنەوە کۆگا و پارەدانی نەقد دەگەڕێندرێتەوە. داواکارییەکە ژمارەکەی دەپارێزێت."
+    },
+    "edit": {
+      "title": "دەستکاریی داواکاری",
+      "saved": "داواکارییەکە پاشەکەوت کرا",
+      "immutableHint": "بۆ گۆڕینی کڕیار یان جۆری پارەدان، ئەم داواکارییە هەڵبوەشێنەوە و داواکارییەکی نوێ دروست بکە.",
+      "linesLocked": "گەڕاندنەوە یان پارەدان لەسەر ئەم داواکارییە تۆمار کراوە، بۆیە دێڕەکانی ئیتر ناگۆڕدرێن.",
+      "cashReissueNotice": "پارەدانی خۆکار بۆ کۆی نوێ دووبارە دەردەچێتەوە.",
+      "summary": {
+        "title": "پوختە",
+        "newTotal": "کۆی نوێی بارمتە",
+        "delta": "گۆڕانکاری"
+      }
+    }
+  },
+  "receipt": {
+    "pageTitle": "پسووڵەی ڕادەستکردن",
+    "title": "پسووڵەی ڕادەستکردنی پالێت",
+    "receiptNumber": "ژمارەی پسووڵە",
+    "date": "بەروار",
+    "factoryPhone": "تەلەفۆن",
+    "factoryAddress": "ناونیشان",
+    "customer": "کڕیار",
+    "driver": "شۆفێر",
+    "name": "ناو",
+    "phone": "ژمارەی تەلەفۆن",
+    "address": "ناونیشان",
+    "carNumber": "ژمارەی ئۆتۆمبێل",
+    "item": "جۆری پالێت",
+    "quantity": "بڕ",
+    "unitDeposit": "تەئمیناتی دانە",
+    "lineTotal": "کۆ",
+    "depositTotal": "کۆی گشتی تەئمینات",
+    "paymentType": "جۆری پارەدان",
+    "paymentCash": "پارە دراوە (نەقد)",
+    "paymentLent": "بە قەرز",
+    "currency": "دینار",
+    "continued": "بەردەوامە لە پەڕەی داهاتوو",
+    "sheetOf": "پەڕەی {{x}} لە {{y}}",
+    "cancelledError": "ئەم داواکارییە هەڵوەشێنراوەتەوە و پسووڵەی بۆ چاپ ناکرێت",
+    "print": "چاپکردن"
   }
 }

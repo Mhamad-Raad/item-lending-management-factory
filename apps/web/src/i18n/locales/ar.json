@@ -111,7 +111,8 @@
     "settings": "الإعدادات",
     "customers": "الزبائن",
     "items": "الأصناف",
-    "drivers": "السائقون"
+    "drivers": "السائقون",
+    "orders": "الطلبات"
   },
   "auth": {
     "login": {
@@ -323,6 +324,27 @@
     "paymentType": {
       "CASH": "نقداً",
       "LENT": "آجل"
+    },
+    "orderStatus": {
+      "OPEN": "مفتوح",
+      "SETTLED": "مُسدَّد",
+      "CANCELLED": "مُلغى"
+    },
+    "ledgerEntryType": {
+      "PAYMENT": "دفعة",
+      "REFUND": "استرداد",
+      "PAYMENT_REVERSAL": "عكس دفعة",
+      "REFUND_REVERSAL": "عكس استرداد"
+    },
+    "ledgerEntrySource": {
+      "ORDER_CREATE": "التسليم",
+      "ORDER_LINE_EDIT": "تصحيح الطلب",
+      "ORDER_CANCEL": "إلغاء الطلب",
+      "MANUAL": "مُسجَّل يدوياً",
+      "PAYMENT_DELETE": "حذف دفعة",
+      "RETURN_CREATE": "إرجاع",
+      "RETURN_EDIT": "تصحيح إرجاع",
+      "RETURN_DELETE": "حذف إرجاع"
     }
   },
   "audit": {
@@ -445,7 +467,8 @@
     "not_integer": "يجب أن يكون رقماً صحيحاً",
     "unknown_key": "هذا الحقل غير متوقع هنا",
     "duplicate": "هذه القيمة مكررة",
-    "passwordMismatch": "كلمتا المرور غير متطابقتين"
+    "passwordMismatch": "كلمتا المرور غير متطابقتين",
+    "stockExceeded": "المتوفر {{available}} فقط"
   },
   "errors": {
     "VALIDATION_FAILED": "يرجى مراجعة الحقول المحددة",
@@ -701,5 +724,141 @@
       "carNumber": "رقم السيارة",
       "status": "الحالة"
     }
+  },
+  "payments": {
+    "automatic": "تلقائي"
+  },
+  "orders": {
+    "list": {
+      "title": "الطلبات",
+      "new": "طلب جديد",
+      "empty": "لا توجد طلبات هنا بعد",
+      "allStatuses": "الكل",
+      "anyCustomer": "أي زبون",
+      "anyDriver": "أي سائق",
+      "anyItem": "أي صنف",
+      "anyPaymentType": "أي نوع دفع"
+    },
+    "fields": {
+      "orderNumber": "الطلب",
+      "customer": "الزبون",
+      "chooseCustomer": "اختر زبوناً",
+      "driver": "السائق",
+      "chooseDriver": "اختر سائقاً",
+      "date": "التاريخ",
+      "paymentType": "الدفع",
+      "notes": "ملاحظات",
+      "depositTotal": "مجموع التأمين",
+      "owed": "المستحق",
+      "held": "التأمين المحتجز",
+      "palletsOut": "المنصات لديهم",
+      "status": "الحالة",
+      "outValue": "قيمة ما لديهم"
+    },
+    "lines": {
+      "title": "المنصات",
+      "item": "الصنف",
+      "chooseItem": "اختر صنفاً",
+      "quantity": "الكمية",
+      "unitDeposit": "تأمين الوحدة",
+      "lineTotal": "مجموع السطر",
+      "returnedAccepted": "المُرجَع",
+      "returnedDamaged": "التالف",
+      "outQuantity": "ما زال لديهم",
+      "add": "إضافة سطر",
+      "remove": "حذف السطر",
+      "enterHint": "مفتاح الإدخال في آخر كمية يضيف سطراً"
+    },
+    "new": {
+      "title": "طلب جديد",
+      "paidCash": "مدفوع نقداً",
+      "lent": "آجل",
+      "submit": "تسليم",
+      "submitWithOverride": "تسليم رغم تجاوز الحد",
+      "created": "تم تسجيل الطلب #{{orderNumber}}",
+      "creditExceeded": "حد الائتمان {{limit}}، والقائم حالياً {{outValue}}: هذا الطلب بقيمة {{newTotal}} يتجاوزه بمقدار {{excess}}.",
+      "overrideTitle": "التسليم رغم تجاوز حد الائتمان؟",
+      "overrideBody": "حد الائتمان {{limit}}، والقائم {{outValue}}، وهذا الطلب {{newTotal}}: بزيادة {{excess}}. يُسجَّل التجاوز في السجل.",
+      "summary": {
+        "title": "الملخص",
+        "paysNow": "يدفع الزبون هذا الآن",
+        "willOwe": "سيبقى هذا ديناً على الزبون",
+        "headroomAfter": "الائتمان المتبقي بعده"
+      }
+    },
+    "detail": {
+      "title": "الطلب",
+      "backToList": "العودة إلى الطلبات",
+      "createdBanner": "تم تسجيل الطلب {{orderNumber}}.",
+      "printReceipt": "طباعة الإيصال",
+      "cancelOrder": "إلغاء الطلب",
+      "cancelled": "تم إلغاء الطلب",
+      "cancelledBanner": "ألغاه {{name}} في",
+      "creditOverridden": "تجاوز حد الائتمان {{name}} في",
+      "returns": "المرتجعات",
+      "noReturns": "لم يُرجَع شيء بعد",
+      "showReversed": "إظهار المعكوسة",
+      "reversed": "معكوس",
+      "replacedBy": "استُبدل بالإرجاع #{{id}}",
+      "returnAccepted": "مقبول",
+      "returnDamaged": "تالف",
+      "damagedRefund": "استرداد التالف",
+      "refundDue": "المبلغ المستحق للإرجاع",
+      "cashRefund": "أُعيد نقداً",
+      "money": "المال",
+      "noMoney": "لا توجد مبالغ مسجلة على هذا الطلب"
+    },
+    "money": {
+      "date": "التاريخ",
+      "type": "النوع",
+      "source": "المصدر",
+      "amount": "المبلغ",
+      "note": "ملاحظة",
+      "createdBy": "بواسطة",
+      "reverses": "يعكس #{{id}}"
+    },
+    "cancel": {
+      "confirmTitle": "إلغاء الطلب {{orderNumber}}؟",
+      "confirmBody": "تعود منصاته إلى المخزون ويُعكس الدفع النقدي. يحتفظ الطلب برقمه."
+    },
+    "edit": {
+      "title": "تعديل الطلب",
+      "saved": "تم حفظ الطلب",
+      "immutableHint": "لتغيير الزبون أو نوع الدفع، ألغِ هذا الطلب وأنشئ طلباً جديداً.",
+      "linesLocked": "سُجّلت مرتجعات أو دفعات على هذا الطلب، لذا لا يمكن تغيير أسطره.",
+      "cashReissueNotice": "ستُعاد إصدار الدفعة التلقائية بالمجموع الجديد.",
+      "summary": {
+        "title": "الملخص",
+        "newTotal": "مجموع التأمين الجديد",
+        "delta": "التغيير"
+      }
+    }
+  },
+  "receipt": {
+    "pageTitle": "إيصال التسليم",
+    "title": "إيصال تسليم المنصات",
+    "receiptNumber": "رقم الإيصال",
+    "date": "التاريخ",
+    "factoryPhone": "الهاتف",
+    "factoryAddress": "العنوان",
+    "customer": "الزبون",
+    "driver": "السائق",
+    "name": "الاسم",
+    "phone": "رقم الهاتف",
+    "address": "العنوان",
+    "carNumber": "رقم السيارة",
+    "item": "نوع المنصة",
+    "quantity": "الكمية",
+    "unitDeposit": "التأمين لكل منصة",
+    "lineTotal": "المجموع",
+    "depositTotal": "إجمالي التأمين",
+    "paymentType": "نوع الدفع",
+    "paymentCash": "مدفوع نقداً",
+    "paymentLent": "آجل (غير مدفوع)",
+    "currency": "دينار",
+    "continued": "يُتبع في الصفحة التالية",
+    "sheetOf": "الصفحة {{x}} من {{y}}",
+    "cancelledError": "هذا الطلب ملغى؛ لا يمكن طباعة إيصاله",
+    "print": "طباعة"
   }
 }

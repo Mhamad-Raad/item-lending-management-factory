@@ -2,6 +2,9 @@ import {
   AUDIT_ACTIONS,
   AUDIT_ENTITY_TYPES,
   ERROR_CODE_LIST,
+  LEDGER_ENTRY_SOURCES,
+  LEDGER_ENTRY_TYPES,
+  ORDER_STATUSES,
   PAYMENT_TYPES,
   PERMISSION_KEYS,
   ROLES,
@@ -54,6 +57,9 @@ describe('translation files', () => {
       ...AUDIT_ENTITY_TYPES.map((entity) => `enums.auditEntityType.${entity}`),
       ...STOCK_MOVEMENT_REASONS.map((reason) => `enums.stockMovementReason.${reason}`),
       ...PAYMENT_TYPES.map((type) => `enums.paymentType.${type}`),
+      ...ORDER_STATUSES.map((status) => `enums.orderStatus.${status}`),
+      ...LEDGER_ENTRY_TYPES.map((type) => `enums.ledgerEntryType.${type}`),
+      ...LEDGER_ENTRY_SOURCES.map((source) => `enums.ledgerEntrySource.${source}`),
       ...PERMISSION_KEYS.map((key) => `permissions.${key.replace(/\./g, '_')}`),
     ];
 
