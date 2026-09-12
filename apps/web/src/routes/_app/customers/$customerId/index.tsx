@@ -29,6 +29,7 @@ import { qk } from '@/lib/query-keys';
 import { requirePermission } from '@/lib/route-guards';
 import { cn } from '@/lib/utils';
 import { z } from 'zod';
+import { prefetch } from '@/lib/prefetch';
 
 const TABS = ['orders', 'payments', 'refunds'] as const;
 const SearchSchema = z.object({ tab: z.enum(TABS).optional().catch(undefined) });
@@ -36,6 +37,7 @@ const SearchSchema = z.object({ tab: z.enum(TABS).optional().catch(undefined) })
 export const Route = createFileRoute('/_app/customers/$customerId/')({
   validateSearch: SearchSchema,
   beforeLoad: () => requirePermission('customers.view'),
+  loader: ({ context, params }) => prefetch(context.queryClient, customerQuery(Number(params.customerId))),
   component: CustomerProfilePage,
 });
 

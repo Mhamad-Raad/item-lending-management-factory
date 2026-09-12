@@ -8,9 +8,11 @@ import { customerQuery } from '@/features/customers/api';
 import { CustomerForm } from '@/features/customers/customer-form';
 import { usePageTitle } from '@/hooks/use-page-title';
 import { requirePermission } from '@/lib/route-guards';
+import { prefetch } from '@/lib/prefetch';
 
 export const Route = createFileRoute('/_app/customers/$customerId/edit')({
   beforeLoad: () => requirePermission('customers.edit'),
+  loader: ({ context, params }) => prefetch(context.queryClient, customerQuery(Number(params.customerId))),
   component: EditCustomerPage,
 });
 

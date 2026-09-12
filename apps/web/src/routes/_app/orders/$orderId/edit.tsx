@@ -8,9 +8,11 @@ import { orderQuery } from '@/features/orders/api';
 import { EditOrderForm } from '@/features/orders/edit-order-form';
 import { usePageTitle } from '@/hooks/use-page-title';
 import { requirePermission } from '@/lib/route-guards';
+import { prefetch } from '@/lib/prefetch';
 
 export const Route = createFileRoute('/_app/orders/$orderId/edit')({
   beforeLoad: () => requirePermission('orders.edit'),
+  loader: ({ context, params }) => prefetch(context.queryClient, orderQuery(Number(params.orderId))),
   component: EditOrderPage,
 });
 

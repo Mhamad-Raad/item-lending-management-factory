@@ -8,9 +8,11 @@ import { itemQuery } from '@/features/items/api';
 import { ItemForm } from '@/features/items/item-form';
 import { usePageTitle } from '@/hooks/use-page-title';
 import { requirePermission } from '@/lib/route-guards';
+import { prefetch } from '@/lib/prefetch';
 
 export const Route = createFileRoute('/_app/items/$itemId/edit')({
   beforeLoad: () => requirePermission('items.edit'),
+  loader: ({ context, params }) => prefetch(context.queryClient, itemQuery(Number(params.itemId))),
   component: EditItemPage,
 });
 

@@ -28,12 +28,14 @@ import { useCan } from '@/lib/auth';
 import { handleApiError } from '@/lib/errors';
 import { qk } from '@/lib/query-keys';
 import { requirePermission } from '@/lib/route-guards';
+import { prefetch } from '@/lib/prefetch';
 
 const SearchSchema = z.object({ tab: z.enum(['movements', 'batches']).optional().catch(undefined) });
 
 export const Route = createFileRoute('/_app/items/$itemId/')({
   validateSearch: SearchSchema,
   beforeLoad: () => requirePermission('items.view'),
+  loader: ({ context, params }) => prefetch(context.queryClient, itemQuery(Number(params.itemId))),
   component: ItemDetailPage,
 });
 

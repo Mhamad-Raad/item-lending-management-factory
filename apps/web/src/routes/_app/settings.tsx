@@ -1,6 +1,6 @@
 import { zodResolver } from '@hookform/resolvers/zod';
 import { SettingsUpdateBody, type SettingsDto } from '@pallet/shared';
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { queryOptions, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { createFileRoute } from '@tanstack/react-router';
 import { useState } from 'react';
 import { useForm } from 'react-hook-form';
@@ -18,12 +18,23 @@ import { useUnsavedChangesGuard } from '@/hooks/use-unsaved-changes-guard';
 import { apiFetch } from '@/lib/api-client';
 import { handleApiError } from '@/lib/errors';
 import { qk } from '@/lib/query-keys';
+import { prefetch } from '@/lib/prefetch';
 import { requireAdmin } from '@/lib/route-guards';
 
 export const Route = createFileRoute('/_app/settings')({
   beforeLoad: () => requireAdmin(),
+  loader: ({ context }) => prefetch(context.queryClient, settingsQuery()),
   component: SettingsPage,
 });
+
+function settingsQuery() {
+  return queryOptions({
+    queryKey: qk.settings(),
+    queryFn: () => apiFetch<SettingsDto>('/settings'),
+    // Changes rarely, and only by an admin (§7.8.1).
+    staleTime: 5 * 60_000,
+  });
+}
 
 const TEXT_FIELDS = ['factoryName', 'phone', 'address'] as const;
 
@@ -31,12 +42,7 @@ function SettingsPage() {
   const { t } = useTranslation();
   usePageTitle('settings.title');
 
-  const settings = useQuery({
-    queryKey: qk.settings(),
-    queryFn: () => apiFetch<SettingsDto>('/settings'),
-    // Changes rarely, and only by an admin (§7.8.1).
-    staleTime: 5 * 60_000,
-  });
+  const settings = useQuery(settingsQuery());
 
   if (settings.isPending) return <PageSkeleton rows={4} />;
   if (settings.isError) return <QueryErrorState error={settings.error} onRetry={() => void settings.refetch()} />;

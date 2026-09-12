@@ -6,7 +6,7 @@ import {
   type Role,
   type UserDto,
 } from '@pallet/shared';
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { queryOptions, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { createFileRoute } from '@tanstack/react-router';
 import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
@@ -38,12 +38,18 @@ import { useAuth } from '@/lib/auth';
 import { handleApiError } from '@/lib/errors';
 import { generatePassword } from '@/lib/generate-password';
 import { qk } from '@/lib/query-keys';
+import { prefetch } from '@/lib/prefetch';
 import { requireAdmin } from '@/lib/route-guards';
 
 export const Route = createFileRoute('/_app/users/$userId')({
   beforeLoad: () => requireAdmin(),
+  loader: ({ context, params }) => prefetch(context.queryClient, userQuery(Number(params.userId))),
   component: UserDetailPage,
 });
+
+function userQuery(id: number) {
+  return queryOptions({ queryKey: qk.users.detail(id), queryFn: () => apiFetch<UserDto>(`/users/${id}`) });
+}
 
 function UserDetailPage() {
   const { t } = useTranslation();
@@ -53,10 +59,7 @@ function UserDetailPage() {
   const { user: self } = useAuth();
   usePageTitle('users.detail.title');
 
-  const user = useQuery({
-    queryKey: qk.users.detail(id),
-    queryFn: () => apiFetch<UserDto>(`/users/${id}`),
-  });
+  const user = useQuery(userQuery(id));
 
   const invalidate = async (): Promise<void> => {
     await queryClient.invalidateQueries({ queryKey: qk.users.all() });

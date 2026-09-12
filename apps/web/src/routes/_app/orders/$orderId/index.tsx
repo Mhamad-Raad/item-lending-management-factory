@@ -25,12 +25,14 @@ import { useCan } from '@/lib/auth';
 import { handleApiError } from '@/lib/errors';
 import { qk } from '@/lib/query-keys';
 import { requirePermission } from '@/lib/route-guards';
+import { prefetch } from '@/lib/prefetch';
 
 const SearchSchema = z.object({ created: z.boolean().optional().catch(undefined) });
 
 export const Route = createFileRoute('/_app/orders/$orderId/')({
   validateSearch: SearchSchema,
   beforeLoad: () => requirePermission('orders.view'),
+  loader: ({ context, params }) => prefetch(context.queryClient, orderQuery(Number(params.orderId))),
   component: OrderDetailPage,
 });
 

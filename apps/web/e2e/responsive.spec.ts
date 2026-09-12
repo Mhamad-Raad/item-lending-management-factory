@@ -1,5 +1,5 @@
 import { expect, test, type Page } from './fixtures';
-import { ADMIN, mockApi } from './mock-api';
+import { ADMIN, ITEM, mockApi } from './mock-api';
 
 /**
  * §7.15: every screen is usable at 390 px with no horizontal page scroll. Each route renders with
@@ -187,4 +187,74 @@ test('on a phone, the customer summary sits two cards to a row', async ({ page }
     }),
   );
   expect(spills).toEqual([]);
+});
+
+test('opening a record from its list shows the record, never a loading skeleton', async ({ page }) => {
+  await page.setViewportSize({ width: 1280, height: 800 });
+  await mockApi(page, ADMIN, 'en');
+  // A detail answer a little slower than a click: without a loader the page would mount first and
+  // show its skeleton. (Slower than the router's pending delay, a skeleton is the right answer.)
+  await page.route(/\/api\/items\/5$/, async (route) => {
+    await new Promise((resolve) => setTimeout(resolve, 100));
+    await route.fulfill({ json: ITEM });
+  });
+  await page.goto('/items');
+  await expect(page.getByRole('link', { name: ITEM.name })).toBeVisible();
+  // A skeleton in place of the record counts; the tabs below it may still load their own lists.
+  await page.evaluate((name) => {
+    new MutationObserver(() => {
+      const skeleton = document.querySelector('main [data-slot="skeleton"]');
+      if (skeleton && document.querySelector('main h1')?.textContent !== name)
+        document.body.dataset.sawSkeleton = 'yes';
+    }).observe(document.body, { childList: true, subtree: true });
+  }, ITEM.name);
+
+  await page.getByRole('link', { name: ITEM.name }).click();
+
+  await expect(page.getByRole('heading', { level: 1, name: ITEM.name })).toBeVisible();
+  expect(await page.evaluate(() => document.body.dataset.sawSkeleton)).toBeUndefined();
+});
+
+test('a record that does not exist still shows its not-found state after the loader', async ({ page }) => {
+  await mockApi(page, ADMIN, 'en');
+  await page.route(/\/api\/items\/999$/, (route) =>
+    route.fulfill({ status: 404, json: { error: { code: 'ITEM_NOT_FOUND', details: { itemId: 999 } } } }),
+  );
+
+  await page.goto('/items/999');
+
+  await expect(page.getByText('This record does not exist')).toBeVisible();
+});
+
+test('a failing record opens at once instead of holding the list through retries', async ({ page }) => {
+  await page.setViewportSize({ width: 1280, height: 800 });
+  await mockApi(page, ADMIN, 'en');
+  await page.route(/\/api\/items\/5$/, (route) =>
+    route.fulfill({ status: 502, json: { error: { code: 'UNKNOWN_ERROR', details: {} } } }),
+  );
+  await page.goto('/items');
+
+  await page.getByRole('link', { name: ITEM.name }).click();
+
+  // The loader does not sit through the client's 1 s + 2 s retry backoff with the list still up:
+  // the record's page takes over at once and reports the failure itself. (The address changes at
+  // once either way, so the rendered page is what is measured.)
+  await expect(page.getByRole('heading', { level: 1, name: 'Items' })).toBeHidden({ timeout: 1_000 });
+  // The page's own query retries once and again (1 s + 2 s); a loader retrying first would double it.
+  await expect(page.getByRole('button', { name: 'Retry' })).toBeVisible({ timeout: 4_500 });
+});
+
+test('a slow record shows its skeleton while the list is left behind', async ({ page }) => {
+  await page.setViewportSize({ width: 1280, height: 800 });
+  await mockApi(page, ADMIN, 'en');
+  await page.route(/\/api\/items\/5$/, async (route) => {
+    await new Promise((resolve) => setTimeout(resolve, 3_000));
+    await route.fulfill({ json: ITEM });
+  });
+  await page.goto('/items');
+
+  await page.getByRole('link', { name: ITEM.name }).click();
+
+  await expect(page.locator('main [data-slot="skeleton"]').first()).toBeVisible({ timeout: 1_000 });
+  await expect(page.getByRole('heading', { level: 1, name: 'Items' })).toBeHidden();
 });
