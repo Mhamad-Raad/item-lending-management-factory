@@ -16,6 +16,7 @@ import { useTranslation } from 'react-i18next';
 import { z } from 'zod';
 import { DateRangePicker } from '@/components/app/date-picker';
 import { EntityCombobox } from '@/components/app/entity-combobox';
+import { ListFilters } from '@/components/app/list-controls';
 import { PageHeader } from '@/components/app/page-header';
 import { Pagination } from '@/components/app/pagination';
 import { EmptyState, PageSkeleton, QueryErrorState } from '@/components/app/states';
@@ -111,6 +112,12 @@ function HistoryPage() {
     placeholderData: keepPreviousData,
   });
 
+  const activeFilters = [
+    search.action,
+    search.entityType,
+    isAdmin ? search.userId : undefined,
+    search.dateFrom ?? search.dateTo,
+  ].filter(Boolean).length;
   const setFilter = (patch: Partial<typeof search>): void =>
     void navigate({ search: (prev) => ({ ...prev, ...patch, page: 1 }), replace: true });
 
@@ -118,12 +125,24 @@ function HistoryPage() {
     <>
       <PageHeader title={t('history.title')} description={t('history.description')} />
 
-      <div className="flex flex-wrap gap-3">
+      <ListFilters
+        activeCount={activeFilters}
+        onClear={() =>
+          setFilter({
+            action: undefined,
+            entityType: undefined,
+            userId: undefined,
+            dateFrom: undefined,
+            dateTo: undefined,
+          })
+        }
+        error={rangeInvalid ? t('errors.DATE_RANGE_INVALID') : undefined}
+      >
         <Select
           value={search.action ?? ALL}
           onValueChange={(value) => setFilter({ action: value === ALL ? undefined : (value as AuditAction) })}
         >
-          <SelectTrigger className="w-56" aria-label={t('history.filters.action')}>
+          <SelectTrigger className="w-full md:w-56" aria-label={t('history.filters.action')}>
             <SelectValue placeholder={t('history.filters.action')} />
           </SelectTrigger>
           <SelectContent>
@@ -140,7 +159,7 @@ function HistoryPage() {
           value={search.entityType ?? ALL}
           onValueChange={(value) => setFilter({ entityType: value === ALL ? undefined : (value as AuditEntityType) })}
         >
-          <SelectTrigger className="w-56" aria-label={t('history.filters.entityType')}>
+          <SelectTrigger className="w-full md:w-56" aria-label={t('history.filters.entityType')}>
             <SelectValue placeholder={t('history.filters.entityType')} />
           </SelectTrigger>
           <SelectContent>
@@ -154,9 +173,10 @@ function HistoryPage() {
         </Select>
 
         {isAdmin ? (
-          <div className="w-64">
+          <div className="w-full md:w-64">
             <EntityCombobox
               kind="user"
+              aria-label={t('history.columns.user')}
               value={search.userId ?? null}
               onChange={(userId) => setFilter({ userId: userId ?? undefined })}
               placeholder={t('history.filters.allUsers')}
@@ -168,16 +188,15 @@ function HistoryPage() {
             {t('history.filters.clearUser')}
           </Button>
         ) : null}
-      </div>
-
-      <DateRangePicker
-        idPrefix="history-date"
-        from={search.dateFrom}
-        to={search.dateTo}
-        max={businessToday()}
-        onChange={({ from, to }) => setFilter({ dateFrom: from, dateTo: to })}
-        error={rangeInvalid ? t('errors.DATE_RANGE_INVALID') : undefined}
-      />
+        <DateRangePicker
+          idPrefix="history-date"
+          from={search.dateFrom}
+          to={search.dateTo}
+          max={businessToday()}
+          onChange={({ from, to }) => setFilter({ dateFrom: from, dateTo: to })}
+          error={rangeInvalid ? t('errors.DATE_RANGE_INVALID') : undefined}
+        />
+      </ListFilters>
 
       {rangeInvalid ? null : logs.isPending ? (
         <PageSkeleton />

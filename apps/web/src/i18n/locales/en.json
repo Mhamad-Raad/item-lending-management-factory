@@ -22,7 +22,8 @@
       "clearFilters": "Clear filters",
       "delete": "Delete",
       "edit": "Edit",
-      "title": "Actions"
+      "title": "Actions",
+      "done": "Done"
     },
     "password": {
       "show": "Show password",
@@ -99,6 +100,9 @@
     },
     "fields": {
       "createdAt": "Added"
+    },
+    "filters": {
+      "title": "Filters"
     }
   },
   "nav": {

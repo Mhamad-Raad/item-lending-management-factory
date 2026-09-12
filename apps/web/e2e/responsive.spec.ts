@@ -116,3 +116,45 @@ test('the skip link is the first tab stop and moves focus to the content', async
 
   await expect(page.locator('main#main')).toBeFocused();
 });
+
+test('on a phone, the orders list shows results first and keeps its filters one tap away', async ({ page }) => {
+  await mockApi(page, ADMIN, 'en');
+  const asked: string[] = [];
+  page.on('request', (request) => {
+    if (request.url().includes('/api/orders?')) asked.push(new URL(request.url()).search);
+  });
+  await page.goto('/orders');
+
+  await expect(page.getByRole('list', { name: 'Orders' }).getByRole('listitem').first()).toBeInViewport({ ratio: 1 });
+  await expect(page.getByRole('combobox', { name: 'Payment', exact: true })).toBeHidden();
+
+  await page.getByRole('button', { name: 'Filters' }).click();
+  const sheet = page.getByRole('dialog', { name: 'Filters' });
+  await sheet.getByRole('combobox', { name: 'Payment', exact: true }).click();
+  await page.getByRole('option', { name: 'Cash' }).click();
+  await sheet.getByRole('combobox', { name: 'Customer' }).click();
+  await page.getByPlaceholder('Search').last().fill('Kurdistan');
+  await page.getByRole('option', { name: /Kurdistan Cement/ }).click();
+  await sheet.getByRole('button', { name: 'Done' }).click();
+
+  await expect(sheet).toBeHidden();
+  await expect(page.getByRole('button', { name: 'Filters' })).toContainText('2');
+  await expect
+    .poll(() => asked.some((search) => search.includes('paymentType=CASH') && search.includes('customerId=3')))
+    .toBe(true);
+});
+
+test('turning the phone does not reopen a filter sheet it closed by widening', async ({ page }) => {
+  await mockApi(page, ADMIN, 'en');
+  await page.goto('/orders');
+  await page.getByRole('button', { name: 'Filters' }).click();
+  await expect(page.getByRole('dialog', { name: 'Filters' })).toBeVisible();
+
+  await page.setViewportSize({ width: 844, height: 390 });
+  // The wide layout has rendered once the button is gone (the sheet's own pickers would match too early).
+  await expect(page.getByRole('button', { name: 'Filters' })).toBeHidden();
+  await page.setViewportSize({ width: 390, height: 844 });
+
+  await expect(page.getByRole('button', { name: 'Filters' })).toBeVisible();
+  await expect(page.getByRole('dialog', { name: 'Filters' })).toBeHidden();
+});

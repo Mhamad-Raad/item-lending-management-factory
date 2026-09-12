@@ -81,8 +81,11 @@ export function EntityCombobox({
   disabled = false,
   invalid = false,
   autoFocus = false,
+  'aria-label': ariaLabel,
 }: {
   id?: string;
+  /** The accessible name when no `<label htmlFor={id}>` names the picker, as in a list's filters. */
+  'aria-label'?: string;
   kind: EntityKind;
   value: number | null;
   onChange: (value: number | null) => void;
@@ -133,6 +136,7 @@ export function EntityCombobox({
           variant="outline"
           role="combobox"
           autoFocus={autoFocus}
+          aria-label={ariaLabel}
           aria-expanded={open}
           aria-invalid={invalid}
           disabled={disabled}

@@ -113,3 +113,14 @@ test('a record links to its page only for a viewer who may open it', async ({ pa
   await expect(table.getByRole('link', { name: '#2' })).toHaveCount(0);
   await expect(table.getByRole('link', { name: '#5' })).toHaveCount(0);
 });
+
+test('on a phone, a reversed date range is reported without opening the filters', async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await signIn(page, ADMIN);
+  await mockHistory(page);
+
+  await page.goto('/history?dateFrom=2026-09-10&dateTo=2026-09-01');
+
+  await expect(page.getByRole('alert').filter({ hasText: 'The start date is after the end date' })).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Filters' })).toContainText('1');
+});

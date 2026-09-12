@@ -8,7 +8,7 @@ import { z } from 'zod';
 import { DataTable } from '@/components/app/data-table';
 import { DateRangePicker } from '@/components/app/date-picker';
 import { EntityCombobox } from '@/components/app/entity-combobox';
-import { ListEmpty, SearchBox } from '@/components/app/list-controls';
+import { ListEmpty, ListFilters, SearchBox } from '@/components/app/list-controls';
 import { PageHeader } from '@/components/app/page-header';
 import { PageSkeleton, QueryErrorState } from '@/components/app/states';
 import { Button } from '@/components/ui/button';
@@ -90,15 +90,15 @@ function OrdersPage() {
       </Link>
     </Button>
   ) : null;
-  const filtered = Boolean(
-    search.q ||
-    search.customerId ||
-    search.driverId ||
-    search.itemId ||
-    search.paymentType ||
-    search.dateFrom ||
-    search.dateTo,
-  );
+  // The date range counts once, however many of its ends are set.
+  const activeFilters = [
+    search.customerId,
+    search.driverId,
+    search.itemId,
+    search.paymentType,
+    search.dateFrom ?? search.dateTo,
+  ].filter(Boolean).length;
+  const filtered = Boolean(search.q) || activeFilters > 0;
 
   return (
     <>
@@ -119,29 +119,45 @@ function OrdersPage() {
         </TabsList>
       </Tabs>
 
-      <div className="flex flex-wrap items-end gap-3">
-        <SearchBox value={term} onChange={setTerm} />
-        <div className="w-56">
+      <ListFilters
+        search={<SearchBox value={term} onChange={setTerm} />}
+        activeCount={activeFilters}
+        onClear={() =>
+          setFilter({
+            customerId: undefined,
+            driverId: undefined,
+            itemId: undefined,
+            paymentType: undefined,
+            dateFrom: undefined,
+            dateTo: undefined,
+          })
+        }
+        error={rangeInvalid ? t('errors.DATE_RANGE_INVALID') : undefined}
+      >
+        <div className="w-full md:w-56">
           <EntityCombobox
             kind="customer"
+            aria-label={t('orders.fields.customer')}
             includeArchived
             value={search.customerId ?? null}
             onChange={(customerId) => setFilter({ customerId: customerId ?? undefined })}
             placeholder={t('orders.list.anyCustomer')}
           />
         </div>
-        <div className="w-56">
+        <div className="w-full md:w-56">
           <EntityCombobox
             kind="driver"
+            aria-label={t('orders.fields.driver')}
             includeArchived
             value={search.driverId ?? null}
             onChange={(driverId) => setFilter({ driverId: driverId ?? undefined })}
             placeholder={t('orders.list.anyDriver')}
           />
         </div>
-        <div className="w-56">
+        <div className="w-full md:w-56">
           <EntityCombobox
             kind="item"
+            aria-label={t('orders.lines.item')}
             includeArchived
             value={search.itemId ?? null}
             onChange={(itemId) => setFilter({ itemId: itemId ?? undefined })}
@@ -154,7 +170,7 @@ function OrdersPage() {
             setFilter({ paymentType: value === ALL_TYPES ? undefined : (value as PaymentType) })
           }
         >
-          <SelectTrigger className="w-44" aria-label={t('orders.fields.paymentType')}>
+          <SelectTrigger className="w-full md:w-44" aria-label={t('orders.fields.paymentType')}>
             <SelectValue />
           </SelectTrigger>
           <SelectContent>
@@ -173,7 +189,7 @@ function OrdersPage() {
           onChange={({ from, to }) => setFilter({ dateFrom: from, dateTo: to })}
           error={rangeInvalid ? t('errors.DATE_RANGE_INVALID') : undefined}
         />
-      </div>
+      </ListFilters>
 
       {rangeInvalid ? null : orders.isPending ? (
         <PageSkeleton />
