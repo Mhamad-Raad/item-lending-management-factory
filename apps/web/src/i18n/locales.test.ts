@@ -4,6 +4,7 @@ import {
   ERROR_CODE_LIST,
   PERMISSION_KEYS,
   ROLES,
+  STOCK_MOVEMENT_REASONS,
   VALIDATION_CODES,
 } from '@pallet/shared';
 import { describe, expect, it } from 'vitest';
@@ -50,6 +51,7 @@ describe('translation files', () => {
       ...ROLES.map((role) => `enums.role.${role}`),
       ...AUDIT_ACTIONS.map((action) => `enums.auditAction.${action}`),
       ...AUDIT_ENTITY_TYPES.map((entity) => `enums.auditEntityType.${entity}`),
+      ...STOCK_MOVEMENT_REASONS.map((reason) => `enums.stockMovementReason.${reason}`),
       ...PERMISSION_KEYS.map((key) => `permissions.${key.replace(/\./g, '_')}`),
     ];
 

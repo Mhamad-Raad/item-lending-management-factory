@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { normalizePhone, toWesternDigits } from './format.js';
+import { formatMoney, formatNumber, formatOrderNumber, normalizePhone, toWesternDigits } from './format.js';
 import { Phone } from './schemas/common.js';
 
 describe('U12: phone normalization', () => {
@@ -18,5 +18,15 @@ describe('U12: phone normalization', () => {
     expect(Phone.safeParse('12ab').success).toBe(false);
     expect(Phone.safeParse('123456').success).toBe(false);
     expect(Phone.safeParse('+9647501234567890').success).toBe(false);
+  });
+});
+
+describe('number formatting', () => {
+  it('uses Western digits and comma thousands, whatever the UI language', () => {
+    expect(formatNumber(1_234_567)).toBe('1,234,567');
+    expect(formatNumber(-45)).toBe('-45');
+    expect(formatMoney(0)).toBe('0');
+    expect(formatMoney(1_000_000_000_000)).toBe('1,000,000,000,000');
+    expect(formatOrderNumber(42)).toBe('000042');
   });
 });

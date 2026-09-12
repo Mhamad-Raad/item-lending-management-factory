@@ -6,7 +6,8 @@
     "notFound": {
       "title": "Page not found",
       "body": "The page you asked for does not exist.",
-      "backHome": "Go to dashboard"
+      "backHome": "Go to dashboard",
+      "record": "This record does not exist"
     },
     "forbidden": {
       "title": "You do not have permission to open this page",
@@ -16,7 +17,12 @@
       "save": "Save",
       "cancel": "Cancel",
       "close": "Close",
-      "retry": "Retry"
+      "retry": "Retry",
+      "archive": "Archive",
+      "clearFilters": "Clear filters",
+      "delete": "Delete",
+      "edit": "Edit",
+      "title": "Actions"
     },
     "password": {
       "show": "Show password",
@@ -26,7 +32,8 @@
       "page": "Page {{page}} of {{lastPage}}",
       "previous": "Previous",
       "next": "Next",
-      "total": "{{total}} records"
+      "total": "{{total}} records",
+      "pageSize": "Rows per page"
     },
     "versionConflict": {
       "title": "This record changed",
@@ -41,6 +48,54 @@
       "uploading": "Uploading",
       "preview": "Image preview",
       "hint": "An image of up to 5 MB."
+    },
+    "archived": "Archived",
+    "includeArchived": "Include archived",
+    "listSeparator": ", ",
+    "combobox": {
+      "search": "Type to search",
+      "empty": "Nothing found",
+      "loading": "Loading…",
+      "itemDetail": "On hand {{onHand}} · deposit {{deposit}}"
+    },
+    "datePicker": {
+      "open": "Open calendar",
+      "placeholder": "dd/mm/yyyy"
+    },
+    "dateRange": {
+      "from": "From",
+      "to": "To"
+    },
+    "empty": {
+      "filtered": "Nothing matches these filters"
+    },
+    "unsavedChanges": {
+      "title": "Leave without saving?",
+      "body": "The changes on this form will be lost.",
+      "leave": "Leave"
+    },
+    "months": {
+      "1": "January",
+      "2": "February",
+      "3": "March",
+      "4": "April",
+      "5": "May",
+      "6": "June",
+      "7": "July",
+      "8": "August",
+      "9": "September",
+      "10": "October",
+      "11": "November",
+      "12": "December"
+    },
+    "weekdaysShort": {
+      "0": "Sun",
+      "1": "Mon",
+      "2": "Tue",
+      "3": "Wed",
+      "4": "Thu",
+      "5": "Fri",
+      "6": "Sat"
     }
   },
   "nav": {
@@ -50,7 +105,10 @@
     "users": "Users",
     "account": "My account",
     "logout": "Log out",
-    "settings": "Settings"
+    "settings": "Settings",
+    "customers": "Customers",
+    "items": "Items",
+    "drivers": "Drivers"
   },
   "auth": {
     "login": {
@@ -179,13 +237,17 @@
       "action": "Action",
       "entityType": "Record type",
       "allActions": "All actions",
-      "allEntities": "All record types"
+      "allEntities": "All record types",
+      "allUsers": "All users",
+      "clearUser": "Any user"
     },
     "columns": {
       "time": "Time",
       "user": "User",
       "summary": "What happened",
-      "ip": "Address"
+      "ip": "Address",
+      "action": "Action",
+      "entity": "Record"
     },
     "diff": {
       "field": "Field",
@@ -242,6 +304,18 @@
     "uploadKind": {
       "ITEM_IMAGE": "Item image",
       "FACTORY_LOGO": "Factory logo"
+    },
+    "stockMovementReason": {
+      "BATCH_ADD": "Purchase",
+      "BATCH_EDIT": "Purchase corrected",
+      "BATCH_DELETE": "Purchase deleted",
+      "ORDER_CREATE": "Handed over",
+      "ORDER_LINE_EDIT": "Order corrected",
+      "ORDER_CANCEL": "Order cancelled",
+      "RETURN_ACCEPTED": "Returned",
+      "RETURN_EDIT": "Return corrected",
+      "RETURN_DELETE": "Return deleted",
+      "MANUAL_ADJUSTMENT": "Manual adjustment"
     }
   },
   "audit": {
@@ -445,6 +519,170 @@
       "phone": "Phone",
       "address": "Address",
       "logo": "Logo"
+    }
+  },
+  "items": {
+    "list": {
+      "title": "Items",
+      "new": "New item",
+      "empty": "No items yet. Add the first one.",
+      "lowStockOnly": "Only low stock"
+    },
+    "lowStock": "Low stock",
+    "new": {
+      "title": "New item"
+    },
+    "edit": {
+      "title": "Edit item"
+    },
+    "detail": {
+      "title": "Item",
+      "backToList": "Back to items",
+      "archivedBanner": "This item is archived: it cannot be edited or bought any more, but its stock can still be adjusted.",
+      "archived": "Item archived",
+      "archiveTitle": "Archive {{name}}?",
+      "archiveBody": "The item stays in the history and on existing orders, but can no longer be chosen for new ones.",
+      "addBatch": "Add purchase",
+      "adjustStock": "Adjust stock",
+      "noMinStock": "Not set",
+      "tabs": {
+        "movements": "Stock movements",
+        "batches": "Purchases"
+      }
+    },
+    "fields": {
+      "name": "Name",
+      "image": "Image",
+      "depositPrice": "Deposit price",
+      "quantityOnHand": "On hand",
+      "quantityOut": "Out with customers",
+      "damagedTotal": "Damaged",
+      "minStock": "Minimum stock",
+      "status": "Status"
+    },
+    "form": {
+      "saved": "Item saved",
+      "created": "Item added",
+      "depositPriceHelp": "Changing the price never changes existing orders.",
+      "minStockHelp": "Leave empty for no low-stock warning.",
+      "initialStock": "Initial stock",
+      "addInitialStock": "Add initial stock",
+      "noInitialStockHelp": "Without initial stock the item starts at 0."
+    },
+    "adjust": {
+      "title": "Adjust stock",
+      "description": "On hand now: {{onHand}}",
+      "quantity": "Change",
+      "quantityHelp": "A positive number adds pallets; a negative one, with a minus sign, takes them out.",
+      "notZero": "The change cannot be zero",
+      "note": "Reason",
+      "submit": "Adjust",
+      "done": "Stock adjusted"
+    },
+    "movements": {
+      "time": "Time",
+      "reason": "Reason",
+      "quantity": "Quantity",
+      "reference": "Reference",
+      "note": "Note",
+      "user": "By",
+      "batchReference": "Purchase #{{id}}",
+      "empty": "No stock movements yet"
+    },
+    "stock": {
+      "insufficient": "Not enough stock: {{requested}} needed, {{available}} available"
+    }
+  },
+  "purchases": {
+    "newTitle": "Add purchase",
+    "editTitle": "Correct purchase",
+    "created": "Purchase recorded",
+    "saved": "Purchase corrected",
+    "deleted": "Purchase deleted",
+    "deleteTitle": "Delete this purchase?",
+    "deleteBody": "Its pallets are taken back out of stock. The deletion stays in the history.",
+    "empty": "No purchases recorded yet",
+    "fields": {
+      "date": "Date",
+      "quantity": "Quantity",
+      "unitCost": "Unit cost",
+      "totalCost": "Total cost",
+      "note": "Note"
+    }
+  },
+  "customers": {
+    "list": {
+      "title": "Customers",
+      "new": "New customer",
+      "empty": "No customers yet. Add the first one.",
+      "hasOpenOrders": "Only with open orders"
+    },
+    "noLimit": "No limit",
+    "new": {
+      "title": "New customer"
+    },
+    "edit": {
+      "title": "Edit customer"
+    },
+    "detail": {
+      "title": "Customer",
+      "backToList": "Back to customers",
+      "archivedBanner": "This customer is archived and can no longer take new orders.",
+      "archived": "Customer archived",
+      "archiveTitle": "Archive {{name}}?",
+      "archiveBody": "The customer stays in the history and on past orders, but cannot take new ones. A customer with open orders cannot be archived.",
+      "overLimit": "Over limit"
+    },
+    "fields": {
+      "name": "Name",
+      "phone": "Phone",
+      "altPhone": "Second phone",
+      "address": "Address",
+      "creditLimit": "Credit limit",
+      "palletsOut": "Pallets out",
+      "outValue": "Value out",
+      "owed": "Owed",
+      "held": "Deposit held",
+      "headroom": "Credit left",
+      "status": "Status"
+    },
+    "form": {
+      "saved": "Customer saved",
+      "created": "Customer added",
+      "creditLimitHelp": "Leave empty for no limit; 0 means the customer may not take anything.",
+      "phoneDuplicateWarning": "This number is already used by:",
+      "duplicateTitle": "This phone number is already in use",
+      "duplicateBody": "It belongs to {{names}}. Save anyway?",
+      "saveAnyway": "Save anyway"
+    },
+    "holdings": {
+      "title": "Pallets held",
+      "item": "Item",
+      "quantityOut": "Out",
+      "sources": "Orders",
+      "empty": "The customer holds no pallets"
+    }
+  },
+  "drivers": {
+    "list": {
+      "title": "Drivers",
+      "new": "New driver",
+      "empty": "No drivers yet. Add the first one.",
+      "archived": "Driver archived",
+      "archiveTitle": "Archive {{name}}?",
+      "archiveBody": "Orders keep showing this driver, but they can no longer be chosen for new ones."
+    },
+    "dialog": {
+      "newTitle": "New driver",
+      "editTitle": "Edit driver",
+      "created": "Driver added",
+      "saved": "Driver saved"
+    },
+    "fields": {
+      "name": "Name",
+      "phone": "Phone",
+      "carNumber": "Car number",
+      "status": "Status"
     }
   }
 }
