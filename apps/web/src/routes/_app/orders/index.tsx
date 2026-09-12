@@ -5,20 +5,16 @@ import { ClipboardList, Plus } from 'lucide-react';
 import { useCallback } from 'react';
 import { useTranslation } from 'react-i18next';
 import { z } from 'zod';
-import { DataTable, type DataColumn } from '@/components/app/data-table';
+import { DataTable } from '@/components/app/data-table';
 import { DateRangePicker } from '@/components/app/date-picker';
-import { DateText } from '@/components/app/date-text';
 import { EntityCombobox } from '@/components/app/entity-combobox';
 import { ListEmpty, SearchBox } from '@/components/app/list-controls';
-import { MoneyText } from '@/components/app/money-text';
 import { PageHeader } from '@/components/app/page-header';
-import { QuantityText } from '@/components/app/quantity-text';
 import { PageSkeleton, QueryErrorState } from '@/components/app/states';
-import { StatusBadge } from '@/components/app/status-badge';
 import { Button } from '@/components/ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { orderLabel } from '@/features/orders/order-text';
+import { ORDER_COLUMNS } from '@/features/orders/order-columns';
 import { usePageTitle } from '@/hooks/use-page-title';
 import { useSearchInput } from '@/hooks/use-search-input';
 import { apiFetch } from '@/lib/api-client';
@@ -48,65 +44,6 @@ export const Route = createFileRoute('/_app/orders/')({
   beforeLoad: () => requirePermission('orders.view'),
   component: OrdersPage,
 });
-
-const COLUMNS: DataColumn<OrderListItemDto>[] = [
-  {
-    id: 'orderNumber',
-    header: 'orders.fields.orderNumber',
-    cell: (order) => orderLabel(order.orderNumber),
-    sortKey: 'orderNumber',
-  },
-  { id: 'date', header: 'orders.fields.date', cell: (order) => <DateText value={order.date} />, sortKey: 'date' },
-  { id: 'customer', header: 'orders.fields.customer', cell: (order) => order.customer.name, mobile: 'subtitle' },
-  { id: 'driver', header: 'orders.fields.driver', cell: (order) => order.driver.name, hideBelow: 'lg' },
-  {
-    id: 'paymentType',
-    header: 'orders.fields.paymentType',
-    cell: (order) => <PaymentTypeText type={order.paymentType} />,
-    hideBelow: 'lg',
-  },
-  {
-    id: 'depositTotal',
-    header: 'orders.fields.depositTotal',
-    cell: (order) => <MoneyText value={order.depositTotal} />,
-    align: 'end',
-    hideBelow: 'lg',
-  },
-  {
-    id: 'palletsOut',
-    header: 'orders.fields.palletsOut',
-    cell: (order) => <QuantityText value={order.outQuantityTotal} />,
-    align: 'end',
-  },
-  {
-    id: 'owed',
-    header: 'orders.fields.owed',
-    cell: (order) => <MoneyText value={order.owed} />,
-    sortKey: 'owed',
-    align: 'end',
-  },
-  {
-    id: 'outValue',
-    header: 'orders.fields.outValue',
-    cell: (order) => <MoneyText value={order.outValue} />,
-    sortKey: 'outValue',
-    align: 'end',
-    hideBelow: 'lg',
-  },
-  {
-    id: 'held',
-    header: 'orders.fields.held',
-    cell: (order) => <MoneyText value={order.held} />,
-    align: 'end',
-    hideBelow: 'lg',
-  },
-  { id: 'status', header: 'orders.fields.status', cell: (order) => <StatusBadge status={order.status} /> },
-];
-
-function PaymentTypeText({ type }: { type: PaymentType }) {
-  const { t } = useTranslation();
-  return <>{t(`enums.paymentType.${type}`)}</>;
-}
 
 function OrdersPage() {
   const { t } = useTranslation();
@@ -245,7 +182,7 @@ function OrdersPage() {
       ) : (
         <DataTable
           label={t('orders.list.title')}
-          columns={COLUMNS}
+          columns={ORDER_COLUMNS}
           rows={orders.data.items}
           rowKey={(order) => order.id}
           rowLink={(order, children) => (

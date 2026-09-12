@@ -701,6 +701,12 @@
       "quantityOut": "لديهم",
       "sources": "الطلبات",
       "empty": "لا توجد منصات لدى الزبون"
+    },
+    "tabs": {
+      "orders": "الطلبات",
+      "payments": "الدفعات",
+      "refunds": "المبالغ المستردة",
+      "money": "المال"
     }
   },
   "drivers": {
@@ -831,7 +837,9 @@
         "title": "الملخص",
         "newTotal": "مجموع التأمين الجديد",
         "delta": "التغيير"
-      }
+      },
+      "creditExceeded": "حد الائتمان {{limit}}، والقائم حالياً {{outValue}}: زيادة هذا الطلب بمقدار {{newTotal}} تتجاوزه بمقدار {{excess}}.",
+      "overrideBody": "حد الائتمان {{limit}}، والقائم {{outValue}}، وهذه الزيادة {{newTotal}}: بزيادة {{excess}}. يُسجَّل التجاوز في السجل."
     }
   },
   "receipt": {

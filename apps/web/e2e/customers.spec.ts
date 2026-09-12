@@ -1,4 +1,4 @@
-import { expect, test, type Page } from '@playwright/test';
+import { expect, test, type Page } from './fixtures';
 
 const ADMIN = {
   id: 1,
@@ -119,4 +119,42 @@ test('customers sort by when they were added', async ({ page }) => {
   await page.getByRole('button', { name: 'Added' }).click();
 
   await expect(page).toHaveURL(/sort=createdAt/);
+});
+
+const ORDER_ROW = {
+  id: 9,
+  orderNumber: 42,
+  date: '2026-09-11',
+  paymentType: 'LENT',
+  status: 'OPEN',
+  customer: { id: 7, name: 'Kurdistan Cement', phone: '07501234567', archived: false },
+  driver: { id: 4, name: 'Karwan Aziz', phone: '07701112233', carNumber: 'Erbil 12 A 34567', archived: false },
+  depositTotal: 100_000,
+  owed: 100_000,
+  outValue: 100_000,
+  held: 0,
+  outQuantityTotal: 100,
+  createdAt: '2026-09-11T08:00:00.000Z',
+};
+
+test('a customer profile offers a new order for them and lists their orders and money', async ({ page }) => {
+  await signIn(page);
+  await page.route(/\/api\/customers\/7$/, (route) => route.fulfill({ json: CUSTOMER }));
+  await page.route(/\/api\/orders\?/, (route) =>
+    route.fulfill({ json: { items: [ORDER_ROW], page: 1, pageSize: 25, total: 1 } }),
+  );
+  const ledgerQueries: string[] = [];
+  await page.route(/\/api\/ledger-entries\?/, (route) => {
+    ledgerQueries.push(decodeURIComponent(new URL(route.request().url()).search));
+    return route.fulfill({ json: { items: [], page: 1, pageSize: 25, total: 0 } });
+  });
+
+  await page.goto('/customers/7');
+
+  await expect(page.getByRole('link', { name: 'New order' })).toHaveAttribute('href', '/orders/new?customerId=7');
+  await page.getByRole('tab', { name: 'Orders' }).click();
+  await expect(page.getByRole('link', { name: '#000042' })).toBeVisible();
+  await page.getByRole('tab', { name: 'Payments' }).click();
+  await expect.poll(() => ledgerQueries.some((query) => query.includes('type=PAYMENT,PAYMENT_REVERSAL'))).toBe(true);
+  expect(ledgerQueries.every((query) => query.includes('customerId=7'))).toBe(true);
 });

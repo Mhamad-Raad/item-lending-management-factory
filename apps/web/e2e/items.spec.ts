@@ -1,4 +1,4 @@
-import { expect, test, type Page } from '@playwright/test';
+import { expect, test, type Page } from './fixtures';
 
 const ADMIN = {
   id: 1,
@@ -215,4 +215,33 @@ test("a purchase in the stock ledger links to the item's purchases, and items so
   await page.goto('/items');
   await page.getByRole('button', { name: 'Added' }).click();
   await expect(page).toHaveURL(/sort=createdAt/);
+});
+
+test('an order in the stock ledger links to that order', async ({ page }) => {
+  await signIn(page, ADMIN);
+  await page.route(/\/api\/items\/5$/, (route) => route.fulfill({ json: ITEM }));
+  await page.route(/\/api\/items\/5\/stock-movements/, (route) =>
+    route.fulfill({
+      json: page1([
+        {
+          id: 2,
+          itemId: 5,
+          quantity: -10,
+          reason: 'ORDER_CREATE',
+          batchId: null,
+          orderId: 9,
+          orderNumber: 42,
+          returnId: null,
+          note: null,
+          balanceAfter: 40,
+          createdAt: '2026-09-12T08:00:00.000Z',
+          createdBy: { id: 1, username: 'admin', displayName: 'Admin' },
+        },
+      ]),
+    }),
+  );
+
+  await page.goto('/items/5');
+
+  await expect(page.getByRole('link', { name: '#000042' })).toHaveAttribute('href', '/orders/9');
 });

@@ -1,4 +1,4 @@
-import { expect, test, type Page } from '@playwright/test';
+import { expect, test, type Page } from './fixtures';
 
 const ADMIN = {
   id: 1,
@@ -319,4 +319,45 @@ test('orders sort by their out value under a column that shows it', async ({ pag
 
   await expect(page).toHaveURL(/sort=outValue/);
   await expect(page.getByRole('columnheader', { name: 'Deposit held' }).getByRole('button')).toHaveCount(0);
+});
+
+test('the edit page describes a credit breach as the increase, not as the order', async ({ page }) => {
+  await page.setViewportSize({ width: 1280, height: 900 });
+  // A clerk who may edit orders, but not pass a credit limit.
+  await mockApi(page, { ...CLERK, permissions: [...CLERK.permissions, 'orders.edit'] });
+  const editable = {
+    ...ORDER,
+    depositTotal: 100_000,
+    lines: [
+      {
+        id: 1,
+        item: { id: 1, name: 'Pallet A', imageUrl: null, archived: false },
+        quantity: 100,
+        unitDeposit: 1_000,
+        lineTotal: 100_000,
+        returnedAccepted: 0,
+        returnedDamaged: 0,
+        outQuantity: 100,
+      },
+    ],
+  };
+  await page.route(/\/api\/orders\/9$/, (route) => route.fulfill({ json: editable }));
+  await page.route(/\/api\/customers\/3$/, (route) =>
+    route.fulfill({ json: { ...CUSTOMER, creditLimit: 105_000, summary: { ...CUSTOMER.summary, outValue: 100_000 } } }),
+  );
+
+  await page.goto('/orders/9/edit');
+  await page.locator('#lines-0-quantity').fill('110');
+
+  const alert = page.getByRole('complementary', { name: 'Summary' }).getByRole('alert');
+  await expect(alert).toContainText('raising this order by 10,000');
+  await expect(alert).toContainText('passes it by 5,000');
+});
+
+test('the new-order page starts on the customer picker', async ({ page }) => {
+  await mockApi(page, ADMIN);
+
+  await page.goto('/orders/new');
+
+  await expect(page.getByRole('combobox', { name: 'Customer' })).toBeFocused();
 });

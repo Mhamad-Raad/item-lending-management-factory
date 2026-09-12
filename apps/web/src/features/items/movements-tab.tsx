@@ -61,8 +61,14 @@ export function MovementsTab({ itemId }: { itemId: number }) {
       id: 'reference',
       header: 'items.movements.reference',
       cell: (movement) =>
-        movement.orderNumber !== null ? (
-          <span dir="ltr">#{formatOrderNumber(movement.orderNumber)}</span>
+        movement.orderNumber !== null && movement.orderId !== null ? (
+          <Link
+            to="/orders/$orderId"
+            params={{ orderId: String(movement.orderId) }}
+            className="text-primary underline-offset-4 hover:underline"
+          >
+            <span dir="ltr">#{formatOrderNumber(movement.orderNumber)}</span>
+          </Link>
         ) : movement.batchId !== null ? (
           <Link
             to="/items/$itemId"

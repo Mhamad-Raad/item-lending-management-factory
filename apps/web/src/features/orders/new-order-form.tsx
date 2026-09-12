@@ -193,6 +193,7 @@ export function NewOrderForm({ initialCustomerId }: { initialCustomerId?: number
                   <EntityCombobox
                     id="customerId"
                     kind="customer"
+                    autoFocus
                     value={field.value}
                     onChange={(next) => {
                       field.onChange(next);
@@ -325,7 +326,7 @@ export function NewOrderForm({ initialCustomerId }: { initialCustomerId?: number
             </>
           ) : null}
         </dl>
-        {credit ? <CreditAlert credit={credit} /> : null}
+        {credit ? <CreditAlert credit={credit} kind="order" /> : null}
       </SummaryPanel>
 
       <ConfirmDialog

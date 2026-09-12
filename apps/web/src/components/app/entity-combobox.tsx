@@ -80,6 +80,7 @@ export function EntityCombobox({
   excludeIds = [],
   disabled = false,
   invalid = false,
+  autoFocus = false,
 }: {
   id?: string;
   kind: EntityKind;
@@ -90,6 +91,8 @@ export function EntityCombobox({
   excludeIds?: readonly number[];
   disabled?: boolean;
   invalid?: boolean;
+  /** The first field of a flow takes focus when the page opens (§7.4.1). */
+  autoFocus?: boolean;
 }) {
   const { t } = useTranslation();
   const [open, setOpen] = useState(false);
@@ -129,6 +132,7 @@ export function EntityCombobox({
           type="button"
           variant="outline"
           role="combobox"
+          autoFocus={autoFocus}
           aria-expanded={open}
           aria-invalid={invalid}
           disabled={disabled}

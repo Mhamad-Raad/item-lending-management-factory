@@ -300,7 +300,7 @@ export function EditOrderForm({ order }: { order: OrderDetailDto }) {
             <AlertDescription>{t('orders.edit.cashReissueNotice')}</AlertDescription>
           </Alert>
         ) : null}
-        {credit ? <CreditAlert credit={credit} /> : null}
+        {credit ? <CreditAlert credit={credit} kind="change" /> : null}
       </SummaryPanel>
 
       <ConfirmDialog
@@ -308,7 +308,7 @@ export function EditOrderForm({ order }: { order: OrderDetailDto }) {
         onOpenChange={setConfirmingOverride}
         destructive={false}
         title={t('orders.new.overrideTitle')}
-        description={credit ? t('orders.new.overrideBody', creditMessageParams(credit)) : ''}
+        description={credit ? t('orders.edit.overrideBody', creditMessageParams(credit)) : ''}
         confirmLabel={t('orders.new.submitWithOverride')}
         pending={save.isPending}
         onConfirm={() => void submit(true)()}

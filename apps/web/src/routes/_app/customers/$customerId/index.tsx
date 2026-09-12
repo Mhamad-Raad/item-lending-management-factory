@@ -1,7 +1,7 @@
 import { formatOrderNumber, type CustomerHoldingDto } from '@pallet/shared';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Link, createFileRoute } from '@tanstack/react-router';
-import { Archive, Package, Pencil, TriangleAlert } from 'lucide-react';
+import { Archive, Package, Pencil, Plus, TriangleAlert } from 'lucide-react';
 import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { toast } from 'sonner';
@@ -18,15 +18,22 @@ import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { customerQuery, invalidateCustomers } from '@/features/customers/api';
+import { CustomerLedgerTab, CustomerOrdersTab } from '@/features/customers/customer-tabs';
 import { usePageTitle } from '@/hooks/use-page-title';
 import { apiFetch } from '@/lib/api-client';
 import { useCan } from '@/lib/auth';
 import { handleApiError } from '@/lib/errors';
 import { qk } from '@/lib/query-keys';
 import { requirePermission } from '@/lib/route-guards';
+import { z } from 'zod';
+
+const TABS = ['orders', 'payments', 'refunds'] as const;
+const SearchSchema = z.object({ tab: z.enum(TABS).optional().catch(undefined) });
 
 export const Route = createFileRoute('/_app/customers/$customerId/')({
+  validateSearch: SearchSchema,
   beforeLoad: () => requirePermission('customers.view'),
   component: CustomerProfilePage,
 });
@@ -65,8 +72,8 @@ const HOLDING_COLUMNS: DataColumn<CustomerHoldingDto>[] = [
 ];
 
 /**
- * A customer's position (§7.3.12): what they hold and owe, from their orders. The history, orders and
- * money tabs arrive with the endpoints they list (M3, M4); until then the figures are zeros.
+ * A customer's position (§7.3.12): what they hold and owe, their orders and their money. The history
+ * tab, a timeline of hand-overs, returns and money, arrives with returns in M4.
  */
 function CustomerProfilePage() {
   const { t } = useTranslation();
@@ -75,6 +82,10 @@ function CustomerProfilePage() {
   const customer = useQuery(customerQuery(Number(customerId)));
   const canEdit = useCan('customers.edit');
   const canArchive = useCan('customers.delete');
+  const canViewOrders = useCan('orders.view');
+  const canCreateOrder = useCan('orders.create');
+  const navigate = Route.useNavigate();
+  const tab = Route.useSearch().tab ?? 'orders';
   const [confirming, setConfirming] = useState(false);
   usePageTitle('customers.detail.title');
 
@@ -158,6 +169,14 @@ function CustomerProfilePage() {
         title={data.name}
         actions={
           <div className="flex flex-wrap gap-2">
+            {canCreateOrder && live ? (
+              <Button asChild>
+                <Link to="/orders/new" search={{ customerId: data.id }}>
+                  <Plus aria-hidden />
+                  {t('orders.list.new')}
+                </Link>
+              </Button>
+            ) : null}
             {canEdit && live ? (
               <Button variant="outline" asChild>
                 <Link to="/customers/$customerId/edit" params={{ customerId }}>
@@ -219,6 +238,28 @@ function CustomerProfilePage() {
           empty={<EmptyState icon={Package} title={t('customers.holdings.empty')} />}
         />
       </section>
+
+      {canViewOrders ? (
+        <Tabs
+          value={tab}
+          onValueChange={(next) => void navigate({ search: { tab: next as (typeof TABS)[number] }, replace: true })}
+        >
+          <TabsList>
+            <TabsTrigger value="orders">{t('customers.tabs.orders')}</TabsTrigger>
+            <TabsTrigger value="payments">{t('customers.tabs.payments')}</TabsTrigger>
+            <TabsTrigger value="refunds">{t('customers.tabs.refunds')}</TabsTrigger>
+          </TabsList>
+          <TabsContent value="orders">
+            <CustomerOrdersTab customerId={data.id} />
+          </TabsContent>
+          <TabsContent value="payments">
+            <CustomerLedgerTab customerId={data.id} types={['PAYMENT', 'PAYMENT_REVERSAL']} />
+          </TabsContent>
+          <TabsContent value="refunds">
+            <CustomerLedgerTab customerId={data.id} types={['REFUND', 'REFUND_REVERSAL']} />
+          </TabsContent>
+        </Tabs>
+      ) : null}
 
       <ConfirmDialog
         open={confirming}

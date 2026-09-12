@@ -3638,8 +3638,8 @@ Common rules for every page:
 - **Tabs** (URL search param `tab`, default `history`); each tab renders only when `orders.view` is held:
   - `history` — `GET /api/customers/:id/history` paginated timeline: hand-overs, returns (accepted/damaged), money rows (payments, refunds, reversals), with dates and amounts. Reversed returns carry the `reversed` badge.
   - `orders` — `GET /api/orders?customerId=<id>&status=<tab status>` with its own status `Select` (default OPEN).
-  - `payments` — `GET /api/ledger-entries?customerId=<id>&type=PAYMENT&type=PAYMENT_REVERSAL`.
-  - `refunds` — `GET /api/ledger-entries?customerId=<id>&type=REFUND&type=REFUND_REVERSAL`.
+  - `payments` — `GET /api/ledger-entries?customerId=<id>&type=PAYMENT,PAYMENT_REVERSAL` (a comma list, §6.21).
+  - `refunds` — `GET /api/ledger-entries?customerId=<id>&type=REFUND,REFUND_REVERSAL`.
 - **Actions:** "New order" (`orders.create`, customer not archived) → `/orders/new?customerId=<id>`; "Edit" (`customers.edit`); "Archive" (`customers.delete`, not archived) → `ConfirmDialog` → `DELETE /api/customers/:id?version=N`. `CUSTOMER_HAS_OPEN_ORDERS` → toast.
 - An archived customer shows a muted banner `customers.detail.archivedBanner`.
 

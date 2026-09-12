@@ -701,6 +701,12 @@
       "quantityOut": "Out",
       "sources": "Orders",
       "empty": "The customer holds no pallets"
+    },
+    "tabs": {
+      "orders": "Orders",
+      "payments": "Payments",
+      "refunds": "Refunds",
+      "money": "Money"
     }
   },
   "drivers": {
@@ -831,7 +837,9 @@
         "title": "Summary",
         "newTotal": "New deposit total",
         "delta": "Change"
-      }
+      },
+      "creditExceeded": "Credit limit {{limit}}, already out {{outValue}}: raising this order by {{newTotal}} passes it by {{excess}}.",
+      "overrideBody": "Credit limit {{limit}}, already out {{outValue}}, this increase {{newTotal}}: {{excess}} over. The override is recorded in the history."
     }
   },
   "receipt": {
