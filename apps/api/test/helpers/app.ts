@@ -27,6 +27,10 @@ export async function createTestApp(options: TestAppOptions = {}): Promise<INest
   const app = moduleRef.createNestApplication<NestExpressApplication>({ logger: false, bodyParser: false });
 
   configureApp(app, app.get<Env>(ENV));
-  await app.init();
+  // Listening once here matters: given a server that is not listening, supertest calls `listen(0)`
+  // on it for each request and closes it when that request ends — so of two concurrent requests,
+  // one can close the server under the other, and a later request can reach a port handed out
+  // again. That showed as a stray 404 or "Parse Error: Expected HTTP/".
+  await app.listen(0, '127.0.0.1');
   return app;
 }
