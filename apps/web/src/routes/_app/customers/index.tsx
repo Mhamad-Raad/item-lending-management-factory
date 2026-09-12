@@ -7,6 +7,7 @@ import { useTranslation } from 'react-i18next';
 import { z } from 'zod';
 import { ArchivedBadge } from '@/components/app/archived-badge';
 import { DataTable, type DataColumn } from '@/components/app/data-table';
+import { DateText } from '@/components/app/date-text';
 import { FilterSwitch, ListEmpty, SearchBox } from '@/components/app/list-controls';
 import { MoneyText } from '@/components/app/money-text';
 import { PageHeader } from '@/components/app/page-header';
@@ -85,6 +86,13 @@ const COLUMNS: DataColumn<CustomerDto>[] = [
     header: 'customers.fields.creditLimit',
     cell: (customer) => <CreditLimit value={customer.creditLimit} />,
     align: 'end',
+    hideBelow: 'lg',
+  },
+  {
+    id: 'createdAt',
+    header: 'common.fields.createdAt',
+    cell: (customer) => <DateText value={customer.createdAt} />,
+    sortKey: 'createdAt',
     hideBelow: 'lg',
   },
   {

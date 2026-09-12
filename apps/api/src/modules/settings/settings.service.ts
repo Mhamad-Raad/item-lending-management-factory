@@ -8,6 +8,7 @@ import { pickSnapshot, toAuditSnapshot } from '../audit/audit-snapshot';
 import { AuditService } from '../audit/audit.service';
 import { UploadsService } from '../uploads/uploads.service';
 import { toSettingsDto } from './settings.mapper';
+import { runInTransaction } from '../../prisma/transaction';
 
 /** The single settings row, seeded by the migrate step (§13.3). */
 const SETTINGS_ID = 1;
@@ -31,7 +32,7 @@ export class SettingsService {
 
   /** §6.13: version first, then the logo's kind, then only what actually changed. */
   async update(body: SettingsUpdateBody, actor: AuthContext): Promise<SettingsDto> {
-    return this.prisma.$transaction(async (tx) => {
+    return runInTransaction(this.prisma, async (tx) => {
       await lockSettings(tx);
       const before = await tx.factorySettings.findUniqueOrThrow({ where: { id: SETTINGS_ID }, include: WITH_LOGO });
       if (before.version !== body.version) {

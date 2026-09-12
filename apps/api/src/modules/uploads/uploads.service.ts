@@ -12,6 +12,7 @@ import { toAuditSnapshot } from '../audit/audit-snapshot';
 import { AuditService } from '../audit/audit.service';
 import { processImage } from './image-processor';
 import { toUploadDto } from './uploads.mapper';
+import { runInTransaction } from '../../prisma/transaction';
 
 @Injectable()
 export class UploadsService implements OnModuleInit {
@@ -43,7 +44,7 @@ export class UploadsService implements OnModuleInit {
     await writeFile(filePath, image.buffer, { flag: 'wx', mode: 0o640 });
 
     try {
-      return await this.prisma.$transaction(async (tx) => {
+      return await runInTransaction(this.prisma, async (tx) => {
         const upload = await tx.upload.create({
           data: {
             fileName,

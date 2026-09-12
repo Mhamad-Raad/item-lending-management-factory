@@ -148,6 +148,24 @@ describe('user management', () => {
     expect([response.status, errorCode(response.body)]).toEqual([409, 'PERMISSIONS_ADMIN_IMPLICIT']);
   });
 
+  it('Q37: treats an edit that changes nothing as a no-op, after checking its version', async () => {
+    const clerk = await createEmployee(app, [], 'clerk');
+
+    const response = await request(app.getHttpServer())
+      .patch(`/api/users/${clerk.id}`)
+      .set(asUser(admin))
+      .send({ version: 1, displayName: 'clerk', isActive: true })
+      .expect(200);
+
+    expect((response.body as UserDto).version).toBe(1);
+    expect(await prisma.auditLog.count({ where: { entityType: 'USER', entityId: String(clerk.id) } })).toBe(0);
+    await request(app.getHttpServer())
+      .patch(`/api/users/${clerk.id}`)
+      .set(asUser(admin))
+      .send({ version: 5, displayName: 'clerk' })
+      .expect(409);
+  });
+
   it('S-15: refuses self-deactivation, self-demotion and removing the last admin', async () => {
     const self = await prisma.user.findUniqueOrThrow({ where: { username: TEST_ADMIN.username } });
 

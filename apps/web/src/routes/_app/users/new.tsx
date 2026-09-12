@@ -15,6 +15,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { usePageTitle } from '@/hooks/use-page-title';
+import { useUnsavedChangesGuard } from '@/hooks/use-unsaved-changes-guard';
 import { apiFetch } from '@/lib/api-client';
 import { handleApiError } from '@/lib/errors';
 import { generatePassword } from '@/lib/generate-password';
@@ -38,6 +39,7 @@ function NewUserPage() {
     mode: 'onTouched',
   });
   const role = useWatch({ control: form.control, name: 'role' });
+  const guard = useUnsavedChangesGuard(form.formState.isDirty);
   // Usernames are stored lower-case; lower-casing inside the registered handler keeps react-hook-form
   // in charge of validation and leaves the caret where the user put it.
   const username = form.register('username');
@@ -47,6 +49,7 @@ function NewUserPage() {
     onSuccess: async (user) => {
       await queryClient.invalidateQueries({ queryKey: qk.users.all() });
       toast.success(t('users.new.created'));
+      guard.allowLeave();
       await navigate({ to: '/users/$userId', params: { userId: String(user.id) } });
     },
     onError: (error) =>
@@ -173,6 +176,7 @@ function NewUserPage() {
             {t('common.actions.cancel')}
           </Button>
         </div>
+        {guard.dialog}
       </form>
     </>
   );

@@ -124,3 +124,18 @@ test('Save waits for a logo that is still uploading', async ({ page }) => {
   await expect(page.getByRole('img', { name: 'Image preview' })).toBeVisible();
   await expect(save).toBeEnabled();
 });
+
+test('leaving the settings with unsaved changes asks first', async ({ page }) => {
+  await signInAsAdmin(page);
+  await page.route(/\/api\/settings$/, (route) => route.fulfill({ json: SETTINGS }));
+
+  await page.goto('/settings');
+  await page.getByLabel('Factory name').fill('Erbil Pallets');
+  await page.getByRole('navigation').getByRole('link', { name: 'History' }).click();
+
+  const dialog = page.getByRole('dialog');
+  await expect(dialog).toContainText('Leave without saving?');
+  await dialog.getByRole('button', { name: 'Cancel' }).click();
+  await expect(page).toHaveURL(/\/settings$/);
+  await expect(page.getByLabel('Factory name')).toHaveValue('Erbil Pallets');
+});

@@ -9,6 +9,7 @@ import { z } from 'zod';
 import { ArchivedBadge } from '@/components/app/archived-badge';
 import { ConfirmDialog } from '@/components/app/confirm-dialog';
 import { DataTable, type DataColumn } from '@/components/app/data-table';
+import { DateText } from '@/components/app/date-text';
 import { FilterSwitch, ListEmpty, SearchBox } from '@/components/app/list-controls';
 import { PageHeader } from '@/components/app/page-header';
 import { PageSkeleton, QueryErrorState } from '@/components/app/states';
@@ -89,7 +90,18 @@ function DriversPage() {
       cell: (driver) => <span dir="ltr">{driver.phone}</span>,
       mobile: 'subtitle',
     },
-    { id: 'carNumber', header: 'drivers.fields.carNumber', cell: (driver) => driver.carNumber },
+    {
+      id: 'carNumber',
+      header: 'drivers.fields.carNumber',
+      cell: (driver) => <span dir="ltr">{driver.carNumber}</span>,
+    },
+    {
+      id: 'createdAt',
+      header: 'common.fields.createdAt',
+      cell: (driver) => <DateText value={driver.createdAt} />,
+      sortKey: 'createdAt',
+      hideBelow: 'lg',
+    },
     {
       id: 'status',
       header: 'drivers.fields.status',

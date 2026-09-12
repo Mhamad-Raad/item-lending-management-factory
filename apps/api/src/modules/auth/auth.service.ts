@@ -13,6 +13,7 @@ import { LoginThrottleService } from './login-throttle.service';
 import { checkPasswordPolicy } from './password-policy';
 import { PasswordService } from './password.service';
 import { SessionService, type IssuedToken } from './session.service';
+import { runInTransaction } from '../../prisma/transaction';
 
 export interface RequestOrigin {
   ip: string;
@@ -43,7 +44,7 @@ export class AuthService {
   async login(body: LoginBody, origin: RequestOrigin): Promise<AuthResult> {
     // A failed attempt still writes: its throttle counter and its audit row. Those must commit,
     // so the refusal is returned from the transaction and thrown only after it (§6.8.2 step 5).
-    const result = await this.prisma.$transaction(async (tx): Promise<AuthResult | null> => {
+    const result = await runInTransaction(this.prisma, async (tx): Promise<AuthResult | null> => {
       const { username, password } = body;
       const throttle = await this.throttle.lock(tx, origin.ip, username);
       // Locked before the hash is read: a reset or change committing while this attempt verifies
@@ -122,7 +123,7 @@ export class AuthService {
   async refresh(presented: string | undefined, ip: string): Promise<AuthResult> {
     if (!presented) throw new ApiError('AUTH_REFRESH_INVALID');
 
-    const result = await this.prisma.$transaction(async (tx): Promise<AuthResult | null> => {
+    const result = await runInTransaction(this.prisma, async (tx): Promise<AuthResult | null> => {
       const rotation = await this.sessions.rotate(tx, presented, ip);
       if (!rotation.ok) return null;
 
@@ -143,7 +144,7 @@ export class AuthService {
   async logout(presented: string | undefined): Promise<void> {
     if (!presented) return;
 
-    await this.prisma.$transaction(async (tx) => {
+    await runInTransaction(this.prisma, async (tx) => {
       const family = await this.sessions.lockFamilyByToken(tx, presented);
       if (!family || family.revokedAt) return;
 
@@ -160,7 +161,7 @@ export class AuthService {
   }
 
   async logoutAll(userId: number): Promise<void> {
-    await this.prisma.$transaction(async (tx) => {
+    await runInTransaction(this.prisma, async (tx) => {
       await lockUser(tx, userId);
       const user = await tx.user.findUniqueOrThrow({ where: { id: userId } });
       const families = await this.sessions.revokeAllFamilies(tx, userId, 'LOGOUT_ALL');
@@ -176,7 +177,7 @@ export class AuthService {
 
   /** §6.8.6. Ends with a fresh family so the tab that changed the password stays signed in. */
   async changePassword(userId: number, body: ChangePasswordBody, origin: RequestOrigin): Promise<AuthResult> {
-    return this.prisma.$transaction(async (tx) => {
+    return runInTransaction(this.prisma, async (tx) => {
       await lockUser(tx, userId);
       const user = await tx.user.findUniqueOrThrow({
         where: { id: userId },

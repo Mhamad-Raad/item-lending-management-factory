@@ -1,3 +1,4 @@
+import { SEARCH_MAX_LENGTH } from '@pallet/shared';
 import { z } from 'zod';
 
 export const PAGE_SIZES = [10, 25, 50, 100] as const;
@@ -7,7 +8,12 @@ export const PAGE_SIZES = [10, 25, 50, 100] as const;
  * bookmark, a hand-edited address — falls back to the default instead of failing the page.
  */
 export const listSearch = {
-  q: z.string().optional().catch(undefined),
+  // A longer term — pasted, or from an old link — is cut to what the API accepts instead of failing the page.
+  q: z
+    .string()
+    .transform((q) => q.slice(0, SEARCH_MAX_LENGTH))
+    .optional()
+    .catch(undefined),
   page: z.coerce.number().int().min(1).default(1).catch(1),
   pageSize: z.coerce
     .number()

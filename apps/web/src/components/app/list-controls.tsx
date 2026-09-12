@@ -1,3 +1,4 @@
+import { SEARCH_MAX_LENGTH } from '@pallet/shared';
 import type { LucideIcon } from 'lucide-react';
 import { SearchX } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
@@ -14,6 +15,7 @@ export function SearchBox({ value, onChange }: { value: string; onChange: (value
       aria-label={t('common.search')}
       placeholder={t('common.search')}
       value={value}
+      maxLength={SEARCH_MAX_LENGTH}
       onChange={(event) => onChange(event.target.value)}
       className="w-full sm:max-w-xs"
     />

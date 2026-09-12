@@ -21,6 +21,7 @@ import { pickSnapshot, toAuditSnapshot } from '../audit/audit-snapshot';
 import { AuditService } from '../audit/audit.service';
 import { NO_ORDERS, toCustomerDto } from './customers.mapper';
 import { queryCustomerHoldings, queryCustomerPage, queryCustomerTotals } from './customers.queries';
+import { runInTransaction } from '../../prisma/transaction';
 
 const EDITABLE_FIELDS = ['name', 'phone', 'altPhone', 'address', 'creditLimit'] as const;
 
@@ -89,7 +90,7 @@ export class CustomersService {
   async create(body: CustomerCreateBody, actor: AuthContext): Promise<CustomerDto> {
     if (!body.confirmDuplicatePhone) await this.assertNoDuplicates(this.prisma, [body.phone, body.altPhone]);
 
-    return this.prisma.$transaction(async (tx) => {
+    return runInTransaction(this.prisma, async (tx) => {
       const customer = await tx.customer.create({
         data: {
           name: body.name,
@@ -113,7 +114,7 @@ export class CustomersService {
 
   /** Lowering the credit limit below what is out is allowed: it only blocks future orders (§6.17). */
   async update(customerId: number, body: CustomerUpdateBody): Promise<CustomerDto> {
-    return this.prisma.$transaction(async (tx) => {
+    return runInTransaction(this.prisma, async (tx) => {
       await lockCustomer(tx, customerId);
       const before = await tx.customer.findUnique({ where: { id: customerId } });
       if (!before) throw new ApiError('CUSTOMER_NOT_FOUND', { customerId });
@@ -167,7 +168,7 @@ export class CustomersService {
 
   /** Always an archive, and only once nothing is open: the pallets out must come back first. */
   async archive(customerId: number, version: number, actor: AuthContext): Promise<CustomerDto> {
-    return this.prisma.$transaction(async (tx) => {
+    return runInTransaction(this.prisma, async (tx) => {
       await lockCustomer(tx, customerId);
       const before = await tx.customer.findUnique({ where: { id: customerId } });
       if (!before) throw new ApiError('CUSTOMER_NOT_FOUND', { customerId });

@@ -200,7 +200,7 @@ Every item below is an ambiguity, contradiction or gap in the brief. The builder
 | Q34 | Passport or a plain guard for the access token? | A plain `AuthGuard` using `JwtService`. The application has exactly one credential type and must load the user from the database on every request anyway (§10.1 S8), so `@nestjs/passport` + `passport-jwt` would add two dependencies and a strategy indirection around a three-line verification. The behaviour of §6.4.1 is unchanged; only the mechanism is simpler. |
 | Q35 | The upload pipeline is described twice (§6.14 and §10.4 I5–I9) with three disagreements. | Settled as follows, and both sections now say the same thing. **Multer limits** `{ fileSize: 5 MiB, files: 1, fields: 0, parts: 2 }`: `kind` travels in the query string, so a request carrying form fields is malformed and is rejected rather than ignored. **Type detection** is both checks in order — the magic bytes first (cheap, and it rejects a renamed text file before any decoder touches it), then `sharp().metadata()`, whose `format` must also be one of `png`, `jpeg`, `webp`. **Output size** 1600 px for `ITEM_IMAGE` and 800 px for `FACTORY_LOGO` (the §10.4 values): an item photo is opened on a detail page, where 1024 px is visibly soft on a laptop screen. Multer's own refusals map to: `LIMIT_FILE_SIZE` → 413 `UPLOAD_TOO_LARGE`; a file under another field name → 400 `UPLOAD_MISSING_FILE`; any form field → 400 `VALIDATION_FAILED` (`unknown_key`); a second file or part → 400 `VALIDATION_FAILED` (`too_big` on `file`); a malformed multipart body → 400 `VALIDATION_FAILED` (`invalid_format` on `file`). |
 | Q36 | What does saving an unchanged settings form do? | Nothing: the stored settings come back as they are, with no version bump and no `SETTINGS_CHANGE` row. A history entry saying nothing changed is noise, and an unchanged version keeps the form open in another tab valid. The version is still checked first, so a stale form is refused even when it would change nothing. |
-| Q37 | What does a PATCH that changes nothing do on an item, a purchase batch, a customer or a driver? | The same as Q36: after the version check, the stored row comes back as it is — no version bump, no `UPDATE` row, no stock movement. A version bump with no history row would be an edit the history cannot explain, and it would needlessly make a form open in another tab stale. |
+| Q37 | What does a PATCH that changes nothing do on an item, a purchase batch, a customer, a driver or a user? | The same as Q36: after the version check, the stored row comes back as it is — no version bump, no `UPDATE` row, no stock movement. A version bump with no history row would be an edit the history cannot explain, and it would needlessly make a form open in another tab stale. |
 
 ## 3. Actors, roles and permissions
 
@@ -2862,7 +2862,7 @@ UserCreateBody = z.strictObject({
 #### `PATCH /api/users/:id`
 - **Body:** `UserUpdateBody = z.strictObject({ version: Version, displayName: z.string().trim().min(1).max(100).optional(), role: z.enum(ROLES).optional(), isActive: z.boolean().optional() })` + at least one of the three.
 - **Steps:** (1) if `role` or `isActive` is present: `lockActiveAdmins`; (2) `lockUser(target)`; not found → `USER_NOT_FOUND`; version check; (3) target = self and `isActive === false` → `SELF_DEACTIVATE_FORBIDDEN`; target = self and `role === 'EMPLOYEE'` while self is ADMIN → `SELF_DEMOTE_FORBIDDEN`; (4) target is an active ADMIN, the change removes admin power (`role → EMPLOYEE` or `isActive → false`), and the number of other active admins is 0 → `LAST_ADMIN_GUARD`; (5) apply: role ADMIN → EMPLOYEE leaves `user_permissions` empty (deleted); EMPLOYEE → ADMIN deletes stored permissions (implicit); `isActive → false` revokes all families (`USER_DEACTIVATED`) and `token_version += 1`; (6) `version += 1`.
-- **Writes:** audit `UPDATE` (displayName change, before/after), `PERMISSION_CHANGE` (role change, before/after `{ role, permissions }`), `USER_DEACTIVATE` / `USER_ACTIVATE`; params `{ username }`.
+- **Writes:** audit `UPDATE` (displayName change, before/after), `PERMISSION_CHANGE` (role change, before/after `{ role, permissions }`), `USER_DEACTIVATE` / `USER_ACTIVATE`; params `{ username }`. A body identical to the stored row changes nothing: no version bump, no audit row (Q37).
 - **Response:** 200 `UserDto`.
 - **Errors:** `USER_NOT_FOUND`, `VERSION_CONFLICT`, `SELF_DEACTIVATE_FORBIDDEN`, `SELF_DEMOTE_FORBIDDEN`, `LAST_ADMIN_GUARD`.
 
@@ -2958,7 +2958,7 @@ ItemCreateBody = z.strictObject({
 - **Access:** `@RequirePermission('items.delete')`. Always an archive (A1).
 - **Query:** `VersionQuery`.
 - **Steps:** `lockItems([id])`; not found; already archived → `ITEM_ALREADY_ARCHIVED`; version check; set `archived_at = now()`, `archived_by_user_id`, `version += 1`. Stock, open lines and history are untouched.
-- **Writes:** audit `DELETE` (entity `ITEM`, params `{ itemName }`).
+- **Writes:** audit `DELETE` (entity `ITEM`, before/after, params `{ name }` as §11.3).
 - **Response:** 200 `ItemDto`.
 - **Errors:** `ITEM_NOT_FOUND`, `ITEM_ALREADY_ARCHIVED`, `VERSION_CONFLICT`.
 
@@ -5238,7 +5238,7 @@ Acceptance: U6, U10, U14, U15; integration S-1 … S-18, S-20, S-21; first admin
 2. Settings (`GET`/`PUT /api/settings`, logo upload).
 3. Items (CRUD-as-archive, `initialBatch`, stock adjustments, stock-movement list, derived `quantityOut`/`damagedTotal`/`isLowStock`), purchase batches (CRUD with soft delete and BATCH_* movements, cost stripping), shared `applyStockMovements(tx, movements[])` helper (per-item net, non-negative check, one UPDATE per item).
 4. Customers (phone normalization, duplicate warning flow, phone-check endpoint, archive rule), drivers.
-5. Web pages: `/items*`, `/customers*` (profile summary shows zeros until M3/M4), `/drivers` with dialog, `/settings`; shared `DataTable` (search, sort, pagination, sticky header, card layout < 640 px), `ImagePicker`, `MoneyInput`, `QuantityInput`, searchable selects.
+5. Web pages: `/items*`, `/customers*` (profile summary shows zeros until M3/M4), `/drivers` with dialog, `/settings`; shared `DataTable` (search, sort, pagination, sticky header, card layout below `md`, §7.5), `ImageUploadField`, `MoneyInput`, `QuantityInput`, searchable selects.
 
 Acceptance: U9, U12; I6 (stock parts), I11, I15, I16, S-14, S-19; item with initial batch shows on-hand stock; employee without `items.viewCost` never sees cost anywhere (UI and API); reconciliation reports 0 differences for items.
 

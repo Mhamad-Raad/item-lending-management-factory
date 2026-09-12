@@ -29,6 +29,7 @@ import { checkPasswordPolicy } from '../auth/password-policy';
 import { PasswordService } from '../auth/password.service';
 import { SessionService } from '../auth/session.service';
 import { toUserDto, toUserListItemDto } from './users.mapper';
+import { runInTransaction } from '../../prisma/transaction';
 
 /** The unique constraint behind `users.username`, named for both driver error shapes. */
 const USERNAME_UNIQUE = { index: 'users_username_key', columns: ['username'] } as const;
@@ -102,7 +103,7 @@ export class UsersService {
     const permissions = this.validatePermissions(body.role, body.permissions);
     const passwordHash = await this.passwords.hash(body.password);
 
-    return this.prisma.$transaction(async (tx) => {
+    return runInTransaction(this.prisma, async (tx) => {
       const created = await tx.user
         .create({
           data: {
@@ -136,7 +137,7 @@ export class UsersService {
   async update(userId: number, body: UserUpdateBody, actor: AuthContext): Promise<UserDto> {
     const touchesAdminPower = body.role !== undefined || body.isActive !== undefined;
 
-    return this.prisma.$transaction(async (tx) => {
+    return runInTransaction(this.prisma, async (tx) => {
       if (touchesAdminPower) await lockActiveAdmins(tx);
       await lockUser(tx, userId);
 
@@ -148,6 +149,13 @@ export class UsersService {
       if (before.version !== body.version) {
         throw new ApiError('VERSION_CONFLICT', { currentVersion: before.version });
       }
+
+      // Q37: a save that changes nothing writes nothing — no version bump, no history row.
+      const changes =
+        (body.displayName !== undefined && body.displayName !== before.displayName) ||
+        (body.role !== undefined && body.role !== before.role) ||
+        (body.isActive !== undefined && body.isActive !== before.isActive);
+      if (!changes) return toUserDto(before, await this.countActiveSessions(tx, userId));
 
       if (userId === actor.userId && body.isActive === false) throw new ApiError('SELF_DEACTIVATE_FORBIDDEN');
       if (userId === actor.userId && body.role === 'EMPLOYEE' && before.role === 'ADMIN') {
@@ -189,7 +197,7 @@ export class UsersService {
   }
 
   async setPermissions(userId: number, body: UserPermissionsBody): Promise<UserDto> {
-    return this.prisma.$transaction(async (tx) => {
+    return runInTransaction(this.prisma, async (tx) => {
       await lockUser(tx, userId);
       const before = await tx.user.findUnique({
         where: { id: userId },
@@ -236,7 +244,7 @@ export class UsersService {
   }
 
   async resetPassword(userId: number, body: UserResetPasswordBody): Promise<void> {
-    await this.prisma.$transaction(async (tx) => {
+    await runInTransaction(this.prisma, async (tx) => {
       await lockUser(tx, userId);
       const user = await tx.user.findUnique({ where: { id: userId } });
       if (!user) throw new ApiError('USER_NOT_FOUND', { userId });
@@ -265,7 +273,7 @@ export class UsersService {
   }
 
   async logoutAll(userId: number): Promise<void> {
-    await this.prisma.$transaction(async (tx) => {
+    await runInTransaction(this.prisma, async (tx) => {
       await lockUser(tx, userId);
       const user = await tx.user.findUnique({ where: { id: userId } });
       if (!user) throw new ApiError('USER_NOT_FOUND', { userId });

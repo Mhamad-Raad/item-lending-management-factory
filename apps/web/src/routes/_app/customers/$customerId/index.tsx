@@ -156,7 +156,6 @@ function CustomerProfilePage() {
     <>
       <PageHeader
         title={data.name}
-        description={[data.phone, data.altPhone].filter(Boolean).join(' · ')}
         actions={
           <div className="flex flex-wrap gap-2">
             {canEdit && live ? (
@@ -185,7 +184,12 @@ function CustomerProfilePage() {
           </AlertDescription>
         </Alert>
       )}
-      <p className="text-muted-foreground text-sm">{data.address}</p>
+      {/* Phone numbers read left to right in every language (§7.11). */}
+      <p className="text-muted-foreground flex flex-wrap gap-x-3 gap-y-1 text-sm">
+        <span dir="ltr">{data.phone}</span>
+        {data.altPhone ? <span dir="ltr">{data.altPhone}</span> : null}
+        <span>{data.address}</span>
+      </p>
 
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
         {cards.map((card) => (

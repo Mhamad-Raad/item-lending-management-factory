@@ -14,6 +14,7 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { usePageTitle } from '@/hooks/use-page-title';
+import { useUnsavedChangesGuard } from '@/hooks/use-unsaved-changes-guard';
 import { apiFetch } from '@/lib/api-client';
 import { handleApiError } from '@/lib/errors';
 import { qk } from '@/lib/query-keys';
@@ -71,6 +72,9 @@ function SettingsForm({ settings }: { settings: SettingsDto }) {
     },
     mode: 'onTouched',
   });
+  const logoChanged = (logo?.id ?? null) !== settings.logoUploadId;
+  // A save remounts this form (it is keyed by version), which clears the guard with it.
+  const guard = useUnsavedChangesGuard(form.formState.isDirty || logoChanged);
 
   const save = useMutation({
     mutationFn: (body: SettingsUpdateBody) => apiFetch<SettingsDto>('/settings', { method: 'PUT', body }),
@@ -123,6 +127,7 @@ function SettingsForm({ settings }: { settings: SettingsDto }) {
           <Button type="submit" disabled={save.isPending || uploadingLogo} className="self-start">
             {t('common.actions.save')}
           </Button>
+          {guard.dialog}
         </form>
       </CardContent>
     </Card>

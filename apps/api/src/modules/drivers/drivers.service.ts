@@ -11,6 +11,7 @@ import { PrismaService } from '../../prisma/prisma.service';
 import { pickSnapshot, toAuditSnapshot } from '../audit/audit-snapshot';
 import { AuditService } from '../audit/audit.service';
 import { toDriverDto } from './drivers.mapper';
+import { runInTransaction } from '../../prisma/transaction';
 
 const SORT_FIELDS = { name: 'name', createdAt: 'createdAt' } as const;
 const EDITABLE_FIELDS = ['name', 'phone', 'carNumber'] as const;
@@ -60,7 +61,7 @@ export class DriversService {
   }
 
   create(body: DriverCreateBody, actor: AuthContext): Promise<DriverDto> {
-    return this.prisma.$transaction(async (tx) => {
+    return runInTransaction(this.prisma, async (tx) => {
       const driver = await tx.driver.create({ data: { ...body, createdByUserId: actor.userId } });
       await this.audit.record(tx, {
         action: 'CREATE',
@@ -74,7 +75,7 @@ export class DriversService {
   }
 
   update(driverId: number, body: DriverUpdateBody): Promise<DriverDto> {
-    return this.prisma.$transaction(async (tx) => {
+    return runInTransaction(this.prisma, async (tx) => {
       await lockDriver(tx, driverId);
       const before = await tx.driver.findUnique({ where: { id: driverId } });
       if (!before) throw new ApiError('DRIVER_NOT_FOUND', { driverId });
@@ -103,7 +104,7 @@ export class DriversService {
 
   /** Always an archive, allowed at any time: open orders keep referring to the driver. */
   archive(driverId: number, version: number, actor: AuthContext): Promise<DriverDto> {
-    return this.prisma.$transaction(async (tx) => {
+    return runInTransaction(this.prisma, async (tx) => {
       await lockDriver(tx, driverId);
       const before = await tx.driver.findUnique({ where: { id: driverId } });
       if (!before) throw new ApiError('DRIVER_NOT_FOUND', { driverId });

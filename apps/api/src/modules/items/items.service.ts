@@ -28,6 +28,7 @@ import { StockLedger } from '../stock/stock-ledger';
 import { UploadsService } from '../uploads/uploads.service';
 import { NO_ACTIVITY, toItemDto, toStockMovementDto, type ItemRow } from './items.mapper';
 import { queryItemDerived, queryStockMovements } from './items.queries';
+import { runInTransaction } from '../../prisma/transaction';
 
 const SORT_FIELDS = {
   name: 'name',
@@ -98,7 +99,7 @@ export class ItemsService {
       }
     }
 
-    return this.prisma.$transaction(async (tx) => {
+    return runInTransaction(this.prisma, async (tx) => {
       if (body.imageUploadId !== null) await this.uploads.assertKind(tx, body.imageUploadId, 'ITEM_IMAGE');
       if (batch) {
         assertNotInFuture(this.clock, batch.date, 'initialBatch.date');
@@ -138,7 +139,7 @@ export class ItemsService {
 
   /** A new deposit price applies to new orders only; existing lines keep the price they were lent at. */
   async update(itemId: number, body: ItemUpdateBody): Promise<ItemDto> {
-    return this.prisma.$transaction(async (tx) => {
+    return runInTransaction(this.prisma, async (tx) => {
       await lockItems(tx, [itemId]);
       const before = await this.findEditable(tx, itemId);
       if (before.version !== body.version) throw new ApiError('VERSION_CONFLICT', { currentVersion: before.version });
@@ -177,7 +178,7 @@ export class ItemsService {
 
   /** Always an archive (A1): stock, open order lines and history all stay. */
   async archive(itemId: number, version: number, actor: AuthContext): Promise<ItemDto> {
-    return this.prisma.$transaction(async (tx) => {
+    return runInTransaction(this.prisma, async (tx) => {
       await lockItems(tx, [itemId]);
       const before = await tx.item.findUnique({ where: { id: itemId }, include: WITH_IMAGE });
       if (!before) throw new ApiError('ITEM_NOT_FOUND', { itemId });
@@ -210,7 +211,7 @@ export class ItemsService {
     body: StockAdjustmentCreateBody,
     actor: AuthContext,
   ): Promise<StockAdjustmentResultDto> {
-    return this.prisma.$transaction(async (tx) => {
+    return runInTransaction(this.prisma, async (tx) => {
       await lockItems(tx, [itemId]);
       const before = await tx.item.findUnique({ where: { id: itemId }, select: { name: true, quantityOnHand: true } });
       if (!before) throw new ApiError('ITEM_NOT_FOUND', { itemId });

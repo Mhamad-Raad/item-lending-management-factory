@@ -96,6 +96,9 @@
       "4": "Thu",
       "5": "Fri",
       "6": "Sat"
+    },
+    "fields": {
+      "createdAt": "Added"
     }
   },
   "nav": {

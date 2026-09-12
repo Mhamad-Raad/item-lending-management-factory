@@ -161,3 +161,58 @@ test('the first batch of a new item is dated today, even on a form opened yester
 
   await expect(page.getByLabel('Date')).toHaveValue('13/09/2026');
 });
+
+test('a search longer than the API accepts is cut to its limit, and the list stays usable', async ({ page }) => {
+  await signIn(page, ADMIN);
+  const asked: string[] = [];
+  await page.route(/\/api\/items(\?.*)?$/, (route) => {
+    const q = new URL(route.request().url()).searchParams.get('q') ?? '';
+    asked.push(q);
+    return q.length > 100
+      ? route.fulfill({
+          status: 400,
+          json: { error: { code: 'VALIDATION_FAILED', fields: [{ path: 'q', code: 'too_long' }] } },
+        })
+      : route.fulfill({ json: page1([]) });
+  });
+
+  await page.goto(`/items?q=${'x'.repeat(101)}`);
+
+  await expect(page.getByRole('textbox', { name: 'Search' })).toBeVisible();
+  expect(asked.every((q) => q.length <= 100)).toBe(true);
+});
+
+test("a purchase in the stock ledger links to the item's purchases, and items sort by when they were added", async ({
+  page,
+}) => {
+  await signIn(page, ADMIN);
+  await page.route(/\/api\/items\/5$/, (route) => route.fulfill({ json: ITEM }));
+  await page.route(/\/api\/items\/5\/stock-movements/, (route) =>
+    route.fulfill({
+      json: page1([
+        {
+          id: 1,
+          itemId: 5,
+          quantity: 50,
+          reason: 'BATCH_ADD',
+          batchId: 9,
+          orderId: null,
+          orderNumber: null,
+          returnId: null,
+          note: null,
+          balanceAfter: 50,
+          createdAt: '2026-09-12T08:00:00.000Z',
+          createdBy: { id: 1, username: 'admin', displayName: 'Admin' },
+        },
+      ]),
+    }),
+  );
+  await page.route(/\/api\/items(\?.*)?$/, (route) => route.fulfill({ json: page1([ITEM]) }));
+
+  await page.goto('/items/5');
+  await expect(page.getByRole('link', { name: 'Purchase #9' })).toHaveAttribute('href', /tab=batches/);
+
+  await page.goto('/items');
+  await page.getByRole('button', { name: 'Added' }).click();
+  await expect(page).toHaveURL(/sort=createdAt/);
+});

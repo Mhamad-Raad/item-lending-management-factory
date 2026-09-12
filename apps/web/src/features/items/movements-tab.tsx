@@ -1,5 +1,6 @@
 import { formatNumber, formatOrderNumber, type PageDto, type StockMovementDto } from '@pallet/shared';
 import { keepPreviousData, useQuery } from '@tanstack/react-query';
+import { Link } from '@tanstack/react-router';
 import { ArrowDownLeft, ArrowUpRight, History } from 'lucide-react';
 import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
@@ -63,7 +64,14 @@ export function MovementsTab({ itemId }: { itemId: number }) {
         movement.orderNumber !== null ? (
           <span dir="ltr">#{formatOrderNumber(movement.orderNumber)}</span>
         ) : movement.batchId !== null ? (
-          t('items.movements.batchReference', { id: movement.batchId })
+          <Link
+            to="/items/$itemId"
+            params={{ itemId: String(itemId) }}
+            search={{ tab: 'batches' }}
+            className="text-primary underline-offset-4 hover:underline"
+          >
+            {t('items.movements.batchReference', { id: movement.batchId })}
+          </Link>
         ) : (
           '—'
         ),

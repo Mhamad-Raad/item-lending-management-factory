@@ -21,6 +21,7 @@ import { PrismaService } from '../../prisma/prisma.service';
 import { AuditService } from '../audit/audit.service';
 import { StockLedger } from '../stock/stock-ledger';
 import { batchAuditSnapshot, toPurchaseBatchDto, type BatchRow } from './purchases.mapper';
+import { runInTransaction } from '../../prisma/transaction';
 
 const SORT_FIELDS = { date: 'date', quantity: 'quantity', createdAt: 'createdAt' } as const;
 const WITH_REFS = {
@@ -84,7 +85,7 @@ export class PurchasesService {
     assertNotInFuture(this.clock, body.date, 'date');
     safeProduct(body.quantity, body.unitCost, 'unitCost');
 
-    return this.prisma.$transaction(async (tx) => {
+    return runInTransaction(this.prisma, async (tx) => {
       await lockItems(tx, [body.itemId]);
       const item = await tx.item.findUnique({ where: { id: body.itemId }, select: { name: true, archivedAt: true } });
       if (!item) throw new ApiError('ITEM_NOT_FOUND', { itemId: body.itemId });
@@ -134,7 +135,7 @@ export class PurchasesService {
 
   /** §6.16 PATCH: the stock moves by the difference in quantity, never below zero. */
   async update(batchId: number, body: PurchaseBatchUpdateBody, actor: AuthContext): Promise<PurchaseBatchDto> {
-    return this.prisma.$transaction(async (tx) => {
+    return runInTransaction(this.prisma, async (tx) => {
       const before = await this.lockLive(tx, batchId);
       if (before.version !== body.version) throw new ApiError('VERSION_CONFLICT', { currentVersion: before.version });
       if (body.date !== undefined) assertNotInFuture(this.clock, body.date, 'date');
@@ -192,7 +193,7 @@ export class PurchasesService {
 
   /** A soft delete that takes the batch's pallets back out of stock — refused if they are gone. */
   async remove(batchId: number, version: number, actor: AuthContext): Promise<void> {
-    await this.prisma.$transaction(async (tx) => {
+    await runInTransaction(this.prisma, async (tx) => {
       const before = await this.lockLive(tx, batchId);
       if (before.version !== version) throw new ApiError('VERSION_CONFLICT', { currentVersion: before.version });
 

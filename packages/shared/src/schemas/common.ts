@@ -1,6 +1,6 @@
 import { z } from 'zod';
 import { MONEY_INPUT_MAX, QUANTITY_INPUT_MAX } from '../domain/ledger-math.js';
-import { PHONE_PATTERN } from '../constants.js';
+import { PHONE_PATTERN, SEARCH_MAX_LENGTH } from '../constants.js';
 import { MIN_BUSINESS_DATE, isBusinessDate } from '../dates.js';
 import { normalizePhone } from '../format.js';
 
@@ -62,7 +62,7 @@ export const PageQuery = {
 export const SearchQuery = z
   .string()
   .trim()
-  .max(100)
+  .max(SEARCH_MAX_LENGTH)
   .optional()
   .transform((value) => (value ? value : undefined));
 
