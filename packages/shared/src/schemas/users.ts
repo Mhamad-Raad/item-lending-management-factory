@@ -1,6 +1,14 @@
 import { z } from 'zod';
 import { AUDIT_ACTIONS, AUDIT_ENTITY_TYPES, ROLES } from '../enums.js';
-import { IdParam, PageQuery, SearchQuery, dateRange, sortParam } from './common.js';
+import {
+  AT_LEAST_ONE_FIELD_ERROR,
+  IdParam,
+  PageQuery,
+  SearchQuery,
+  dateRange,
+  hasFieldBesidesVersion,
+  sortParam,
+} from './common.js';
 
 /** Usernames are lower-cased on the way in; the pattern is what `POST /api/users` enforces. */
 export const Username = z
@@ -40,11 +48,7 @@ export const UserUpdateBody = z
     role: z.enum(ROLES).optional(),
     isActive: z.boolean().optional(),
   })
-  .refine((body) => body.displayName !== undefined || body.role !== undefined || body.isActive !== undefined, {
-    error: 'required',
-    path: [],
-    params: { code: 'required' },
-  });
+  .refine(hasFieldBesidesVersion, AT_LEAST_ONE_FIELD_ERROR);
 export type UserUpdateBody = z.infer<typeof UserUpdateBody>;
 
 export const UserPermissionsBody = z.strictObject({

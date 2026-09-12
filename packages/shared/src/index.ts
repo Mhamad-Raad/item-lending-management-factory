@@ -8,5 +8,7 @@ export * from './schemas/auth.js';
 export * from './schemas/users.js';
 export * from './schemas/settings.js';
 export * from './schemas/uploads.js';
+export * from './schemas/items.js';
+export * from './schemas/purchases.js';
 export * from './schemas/dto.js';
 export * from './schemas/zod-issues.js';

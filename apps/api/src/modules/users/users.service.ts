@@ -18,6 +18,7 @@ import type { AuthContext } from '../../common/auth-context';
 import { Clock } from '../../common/clock';
 import { ApiError } from '../../common/errors/api-error';
 import { escapeLikePattern } from '../../common/utils/search';
+import { parseSort } from '../../common/utils/sort';
 import { isUniqueViolation } from '../../common/errors/prisma-errors';
 import type { Prisma, User } from '../../generated/prisma/client';
 import { lockActiveAdmins, lockUser } from '../../prisma/locks';
@@ -63,11 +64,9 @@ export class UsersService {
         : {}),
     };
 
-    const descending = query.sort.startsWith('-');
-    const field = (descending ? query.sort.slice(1) : query.sort) as keyof typeof SORT_COLUMNS;
+    const { field, direction } = parseSort<keyof typeof SORT_COLUMNS>(query.sort);
     // `lastLoginAt` is null for anyone who has never signed in, and PostgreSQL sorts nulls first
     // when descending — which would head "most recent login" with the people who never logged in.
-    const direction = descending ? 'desc' : 'asc';
     const order =
       SORT_COLUMNS[field] === 'lastLoginAt'
         ? { lastLoginAt: { sort: direction, nulls: 'last' } as const }

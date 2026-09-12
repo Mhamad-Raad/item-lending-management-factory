@@ -4,7 +4,7 @@ import type { AuthContext } from '../../common/auth-context';
 import { ApiError } from '../../common/errors/api-error';
 import { lockSettings } from '../../prisma/locks';
 import { PrismaService } from '../../prisma/prisma.service';
-import { toAuditSnapshot } from '../audit/audit-snapshot';
+import { pickSnapshot, toAuditSnapshot } from '../audit/audit-snapshot';
 import { AuditService } from '../audit/audit.service';
 import { UploadsService } from '../uploads/uploads.service';
 import { toSettingsDto } from './settings.mapper';
@@ -13,10 +13,6 @@ import { toSettingsDto } from './settings.mapper';
 const SETTINGS_ID = 1;
 const EDITABLE_FIELDS = ['factoryName', 'phone', 'address', 'logoUploadId'] as const;
 const WITH_LOGO = { logo: { select: { fileName: true } } } as const;
-
-function pickFields(snapshot: Record<string, unknown>, fields: readonly string[]): Record<string, unknown> {
-  return Object.fromEntries(fields.map((field) => [field, snapshot[field]]));
-}
 
 @Injectable()
 export class SettingsService {
@@ -66,8 +62,8 @@ export class SettingsService {
         entityId: String(SETTINGS_ID),
         summaryParams: { fields: changed },
         // Only the fields that changed, before and after (§6.13).
-        before: pickFields(toAuditSnapshot('SETTINGS', before), changed),
-        after: pickFields(toAuditSnapshot('SETTINGS', after), changed),
+        before: pickSnapshot(toAuditSnapshot('SETTINGS', before), changed),
+        after: pickSnapshot(toAuditSnapshot('SETTINGS', after), changed),
       });
       return toSettingsDto(after);
     });

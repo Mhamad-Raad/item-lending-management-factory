@@ -32,3 +32,15 @@ export async function lockUserByUsername(tx: Prisma.TransactionClient, username:
 export async function lockSettings(tx: Prisma.TransactionClient): Promise<void> {
   await tx.$queryRaw`SELECT id FROM factory_settings WHERE id = 1 FOR UPDATE`;
 }
+
+/** Locks items in ascending id order (§4.8) — the order every transaction uses, so none can deadlock. */
+export async function lockItems(tx: Prisma.TransactionClient, ids: readonly number[]): Promise<void> {
+  const sorted = [...new Set(ids)].sort((a, b) => a - b);
+  if (sorted.length === 0) return;
+  await tx.$queryRaw`SELECT id FROM items WHERE id = ANY(${sorted}::int[]) ORDER BY id FOR UPDATE`;
+}
+
+/** Locks one purchase batch; always taken after its item (§6.16). */
+export async function lockBatch(tx: Prisma.TransactionClient, batchId: number): Promise<void> {
+  await tx.$queryRaw`SELECT id FROM purchase_batches WHERE id = ${batchId} FOR UPDATE`;
+}

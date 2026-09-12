@@ -1,5 +1,5 @@
 import type { GrantablePermissionKey, PermissionKey } from '../permissions.js';
-import type { AuditAction, AuditEntityType, Role, UploadKind } from '../enums.js';
+import type { AuditAction, AuditEntityType, Role, StockMovementReason, UploadKind } from '../enums.js';
 
 export interface UserRefDto {
   id: number;
@@ -78,4 +78,61 @@ export interface UploadDto {
   url: string;
   width: number;
   height: number;
+}
+
+export interface ItemDto {
+  id: number;
+  name: string;
+  imageUploadId: number | null;
+  imageUrl: string | null;
+  depositPrice: number;
+  quantityOnHand: number;
+  minStock: number | null;
+  /** `minStock !== null && quantityOnHand <= minStock`. */
+  isLowStock: boolean;
+  /** Pallets out with customers, over orders that are not cancelled. */
+  quantityOut: number;
+  /** Pallets returned damaged, over live returns of orders that are not cancelled. */
+  damagedTotal: number;
+  archivedAt: string | null;
+  version: number;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface StockMovementDto {
+  id: number;
+  itemId: number;
+  quantity: number;
+  reason: StockMovementReason;
+  batchId: number | null;
+  orderId: number | null;
+  orderNumber: number | null;
+  returnId: number | null;
+  note: string | null;
+  /** The item's stock right after this row: the running sum of its whole ledger. */
+  balanceAfter: number;
+  createdAt: string;
+  createdBy: UserRefDto;
+}
+
+export interface StockAdjustmentResultDto {
+  movement: StockMovementDto;
+  item: ItemDto;
+}
+
+export interface PurchaseBatchDto {
+  id: number;
+  itemId: number;
+  itemName: string;
+  date: string;
+  quantity: number;
+  /** Omitted, not null, for a viewer without `items.viewCost`. */
+  unitCost?: number;
+  totalCost?: number;
+  note: string | null;
+  version: number;
+  createdAt: string;
+  updatedAt: string;
+  createdBy: UserRefDto;
 }

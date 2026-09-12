@@ -268,6 +268,17 @@
       },
       "SETTINGS": {
         "SETTINGS_CHANGE": "غُيّرت إعدادات المصنع"
+      },
+      "ITEM": {
+        "CREATE": "أُضيف الصنف {{name}}",
+        "UPDATE": "عُدّل الصنف {{name}}",
+        "DELETE": "أُرشف الصنف {{name}}",
+        "STOCK_ADJUST": "عُدّل مخزون {{name}} بمقدار {{quantity}}"
+      },
+      "PURCHASE_BATCH": {
+        "CREATE": "اشتُري {{quantity}} من {{itemName}}",
+        "UPDATE": "صُحّحت دفعة شراء من {{itemName}}",
+        "DELETE": "حُذفت دفعة شراء {{quantity}} من {{itemName}}"
       }
     }
   },

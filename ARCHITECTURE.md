@@ -200,6 +200,7 @@ Every item below is an ambiguity, contradiction or gap in the brief. The builder
 | Q34 | Passport or a plain guard for the access token? | A plain `AuthGuard` using `JwtService`. The application has exactly one credential type and must load the user from the database on every request anyway (§10.1 S8), so `@nestjs/passport` + `passport-jwt` would add two dependencies and a strategy indirection around a three-line verification. The behaviour of §6.4.1 is unchanged; only the mechanism is simpler. |
 | Q35 | The upload pipeline is described twice (§6.14 and §10.4 I5–I9) with three disagreements. | Settled as follows, and both sections now say the same thing. **Multer limits** `{ fileSize: 5 MiB, files: 1, fields: 0, parts: 2 }`: `kind` travels in the query string, so a request carrying form fields is malformed and is rejected rather than ignored. **Type detection** is both checks in order — the magic bytes first (cheap, and it rejects a renamed text file before any decoder touches it), then `sharp().metadata()`, whose `format` must also be one of `png`, `jpeg`, `webp`. **Output size** 1600 px for `ITEM_IMAGE` and 800 px for `FACTORY_LOGO` (the §10.4 values): an item photo is opened on a detail page, where 1024 px is visibly soft on a laptop screen. Multer's own refusals map to: `LIMIT_FILE_SIZE` → 413 `UPLOAD_TOO_LARGE`; a file under another field name → 400 `UPLOAD_MISSING_FILE`; any form field → 400 `VALIDATION_FAILED` (`unknown_key`); a second file or part → 400 `VALIDATION_FAILED` (`too_big` on `file`); a malformed multipart body → 400 `VALIDATION_FAILED` (`invalid_format` on `file`). |
 | Q36 | What does saving an unchanged settings form do? | Nothing: the stored settings come back as they are, with no version bump and no `SETTINGS_CHANGE` row. A history entry saying nothing changed is noise, and an unchanged version keeps the form open in another tab valid. The version is still checked first, so a stale form is refused even when it would change nothing. |
+| Q37 | What does a PATCH that changes nothing do on an item or a purchase batch? | The same as Q36: after the version check, the stored row comes back as it is — no version bump, no `UPDATE` row, no stock movement. A version bump with no history row would be an edit the history cannot explain, and it would needlessly make a form open in another tab stale. |
 
 ## 3. Actors, roles and permissions
 
@@ -2941,7 +2942,7 @@ ItemCreateBody = z.strictObject({
 })
 ```
 - **Steps:** (1) `imageUploadId` → exists (`UPLOAD_NOT_FOUND`), kind `ITEM_IMAGE` (`UPLOAD_KIND_MISMATCH`); (2) `initialBatch.date` ≤ today (`BUSINESS_DATE_IN_FUTURE`); `quantity × unitCost` safe; (3) insert item (`quantity_on_hand = 0`); (4) if `initialBatch`: insert batch (`total_cost = quantity × unit_cost`), movement `BATCH_ADD` `+quantity` (`batch_id`), `quantity_on_hand = quantity`.
-- **Writes:** audit `CREATE` (entity `ITEM`, after = item fields + `initialBatch`, params `{ itemName }`); with a batch also `CREATE` (entity `PURCHASE_BATCH`, params `{ itemName, quantity }`).
+- **Writes:** audit `CREATE` (entity `ITEM`, after = item fields + `initialBatch`, params `{ name, depositPrice, initialQuantity }` as §11.3); with a batch also `CREATE` (entity `PURCHASE_BATCH`, params `{ itemName, quantity, date }` as §11.3), in that order.
 - **Response:** 201 `ItemDto`.
 - **Errors:** `UPLOAD_NOT_FOUND`, `UPLOAD_KIND_MISMATCH`, `BUSINESS_DATE_IN_FUTURE`, `PERMISSION_DENIED`.
 
@@ -2949,7 +2950,7 @@ ItemCreateBody = z.strictObject({
 - **Access:** `@RequirePermission('items.edit')`.
 - **Body:** `ItemUpdateBody = z.strictObject({ version: Version, name: Name200.optional(), depositPrice: Money.optional(), minStock: NonNegQuantity.nullable().optional(), imageUploadId: Id.nullable().optional() })` + at least one field besides `version`.
 - **Steps:** `lockItems([id])`; not found → `ITEM_NOT_FOUND`; archived → `ITEM_ARCHIVED`; version check; upload checks as in create; update; `version += 1`. A `depositPrice` change never touches existing order lines.
-- **Writes:** audit `UPDATE` (entity `ITEM`, before/after of changed fields, params `{ itemName }`).
+- **Writes:** audit `UPDATE` (entity `ITEM`, before/after of changed fields, params `{ name, fields }` as §11.3); nothing at all when no field changed (Q37).
 - **Response:** 200 `ItemDto`.
 - **Errors:** `ITEM_NOT_FOUND`, `ITEM_ARCHIVED`, `VERSION_CONFLICT`, `UPLOAD_NOT_FOUND`, `UPLOAD_KIND_MISMATCH`.
 
@@ -2965,7 +2966,7 @@ ItemCreateBody = z.strictObject({
 - **Access:** `@RequirePermission('items.adjustStock')`.
 - **Body:** `StockAdjustmentCreateBody = z.strictObject({ quantity: z.int().min(-QUANTITY_INPUT_MAX).max(QUANTITY_INPUT_MAX).refine((q) => q !== 0, { params: { code: 'too_small' } }), note: z.string().trim().min(3).max(500) })`.
 - **Steps:** `lockItems([id])`; not found; `quantity_on_hand + quantity < 0` → `STOCK_INSUFFICIENT`; insert movement `MANUAL_ADJUSTMENT` (`note`); update `quantity_on_hand`. Allowed on archived items. No `version` (additive, serialised by the lock; item version unchanged).
-- **Writes:** audit `STOCK_ADJUST` (entity `ITEM`, after `{ quantity, note, quantityOnHandAfter }`, params `{ itemName, quantity }`).
+- **Writes:** audit `STOCK_ADJUST` (entity `ITEM`, before `{ quantityOnHand }`, after `{ quantityOnHand, movement: { quantity, note } }` as §11.2, params `{ name, quantity }` as §11.3).
 - **Response:** 201 `{ movement: StockMovementDto; item: ItemDto }`.
 - **Errors:** `ITEM_NOT_FOUND`, `STOCK_INSUFFICIENT`.
 
@@ -2987,15 +2988,15 @@ Soft-deleted batches (`deleted_at IS NOT NULL`) are invisible to every endpoint 
 - **Access:** `@RequirePermission('purchases.create')` (cost is write-without-read for users lacking `items.viewCost`).
 - **Body:** `PurchaseBatchCreateBody = z.strictObject({ itemId: Id, date: BusinessDate, quantity: Quantity, unitCost: Money, note: optionalText(500) })`.
 - **Steps:** date ≤ today; `quantity × unitCost` safe; `lockItems([itemId])`; not found → `ITEM_NOT_FOUND`; archived → `ITEM_ARCHIVED`; insert batch (`total_cost = quantity × unit_cost`); movement `BATCH_ADD +quantity`; `quantity_on_hand += quantity`.
-- **Writes:** audit `CREATE` (entity `PURCHASE_BATCH`, after includes cost fields, params `{ itemName, quantity }`).
+- **Writes:** audit `CREATE` (entity `PURCHASE_BATCH`, after includes cost fields, params `{ itemName, quantity, date }` — never cost, §11.3).
 - **Response:** 201 `PurchaseBatchDto`.
 - **Errors:** `ITEM_NOT_FOUND`, `ITEM_ARCHIVED`, `BUSINESS_DATE_IN_FUTURE`.
 
 #### `PATCH /api/purchase-batches/:id`
 - **Access:** `@RequirePermission('purchases.edit')`.
 - **Body:** `PurchaseBatchUpdateBody = z.strictObject({ version: Version, date: BusinessDate.optional(), quantity: Quantity.optional(), unitCost: Money.optional(), note: optionalText(500) })` + at least one field besides `version`.
-- **Steps:** read batch (not found or deleted → `BATCH_NOT_FOUND`); `lockItems([batch.itemId])`; `lockBatch(id)`; re-check not deleted; version check; date ≤ today; `delta = newQuantity − oldQuantity`; if `delta ≠ 0`: `quantity_on_hand + delta < 0` → `STOCK_INSUFFICIENT`, movement `BATCH_EDIT` (`+delta`), update item; recompute `total_cost`; `version += 1`. Editing is allowed when the item is archived.
-- **Writes:** audit `UPDATE` (entity `PURCHASE_BATCH`, before/after, params `{ itemName, quantity }`).
+- **Steps:** read batch (not found or deleted → `BATCH_NOT_FOUND`); `lockItems([batch.itemId])`; `lockBatch(id)`; re-check not deleted; version check; date ≤ today; `delta = newQuantity − oldQuantity`; if `delta ≠ 0`: `quantity_on_hand + delta < 0` → `STOCK_INSUFFICIENT`, movement `BATCH_EDIT` (`+delta`), update item; recompute `total_cost`; `version += 1`. Editing is allowed when the item is archived. A body identical to the stored row changes nothing: no version bump, no movement, no audit row (Q37).
+- **Writes:** audit `UPDATE` (entity `PURCHASE_BATCH`, before/after, params `{ itemName, quantity, fields }` — field names only, §11.3).
 - **Response:** 200 `PurchaseBatchDto`.
 - **Errors:** `BATCH_NOT_FOUND`, `VERSION_CONFLICT`, `STOCK_INSUFFICIENT`, `BUSINESS_DATE_IN_FUTURE`.
 
@@ -4455,7 +4456,7 @@ apps/api/
 │   │   ├── users/                # admin user management, permissions, reset password, guards (self/last admin)
 │   │   ├── settings/             # factory settings (single row)
 │   │   ├── uploads/              # upload-intake.interceptor.ts (multer, Q35 refusals), image-processor.ts (signature + sharp), upload-throttle.guard.ts (per-user limit), uploads.service.ts (+ assertKind for settings and items), uploads.controller.ts (POST, and GET /api/uploads/:fileName)
-│   │   ├── stock/                # StockService.applyMovements(tx, movements) — the only writer of quantity_on_hand
+│   │   ├── stock/                # StockLedger.apply(tx, movements, userId) (§4.6) — the only writer of quantity_on_hand
 │   │   ├── items/                # items CRUD/archive, stock adjustments, stock movement listing
 │   │   ├── purchases/            # purchase batches CRUD (soft delete), cost-field stripping
 │   │   ├── customers/            # customers CRUD/archive, phone check, profile summary, holdings, history timeline

@@ -27,6 +27,13 @@ export type PositiveMoney = z.infer<typeof PositiveMoney>;
 export const Quantity = z.number().int().min(1).max(QUANTITY_INPUT_MAX);
 export type Quantity = z.infer<typeof Quantity>;
 
+/** A count that may be zero: a minimum stock level, a quantity returned. */
+export const NonNegQuantity = z.number().int().min(0).max(QUANTITY_INPUT_MAX);
+export type NonNegQuantity = z.infer<typeof NonNegQuantity>;
+
+/** A required name: trimmed, then 1–200 characters. */
+export const Name200 = z.string().trim().min(1).max(200);
+
 /** Business date `YYYY-MM-DD`, not before MIN_BUSINESS_DATE. "Not in the future" is checked by the API. */
 export const BusinessDate = z
   .string()
@@ -65,6 +72,35 @@ export const dateRange = {
   dateFrom: BusinessDate.optional(),
   dateTo: BusinessDate.optional(),
 } as const;
+
+/**
+ * Optional free text: trimmed, and an empty box is stored as null. Absent stays undefined, so a
+ * PATCH can tell "leave it" from "clear it".
+ */
+export function optionalText(max: number) {
+  return z
+    .string()
+    .trim()
+    .max(max)
+    .nullable()
+    .optional()
+    .transform((value) => (value === undefined ? undefined : value === '' || value === null ? null : value));
+}
+
+/** `?flag=true` / `?flag=false` and nothing else (§6.1.3). */
+export const BoolQuery = z.enum(['true', 'false']).transform((value) => value === 'true');
+
+/** `?version=N` on a DELETE, which has no body to carry it. */
+export const VersionQuery = z.strictObject({ version: z.coerce.number().int().min(1) });
+export type VersionQuery = z.infer<typeof VersionQuery>;
+
+/** A PATCH must change something: at least one field besides `version` (§6.1.4). */
+export function hasFieldBesidesVersion(body: Record<string, unknown>): boolean {
+  return Object.entries(body).some(([key, value]) => key !== 'version' && value !== undefined);
+}
+
+/** The object-level error for that rule: `required` at the root of the body. */
+export const AT_LEAST_ONE_FIELD_ERROR = { path: [] as PropertyKey[], params: { code: 'required' } };
 
 export interface PageDto<T> {
   items: T[];

@@ -18,6 +18,23 @@ export const SNAPSHOT_SPECS: Partial<Record<AuditEntityType, SnapshotSpec>> = {
   USER: { fields: ['id', 'username', 'displayName', 'role', 'isActive', 'mustChangePassword', 'createdAt'] },
   UPLOAD: { fields: ['id', 'fileName', 'kind', 'width', 'height', 'sizeBytes', 'createdAt'] },
   SETTINGS: { fields: ['factoryName', 'phone', 'address', 'logoUploadId', 'version'] },
+  ITEM: {
+    fields: [
+      'id',
+      'name',
+      'depositPrice',
+      'minStock',
+      'imageUploadId',
+      'quantityOnHand',
+      'archivedAt',
+      'version',
+      'createdAt',
+    ],
+  },
+  PURCHASE_BATCH: {
+    fields: ['id', 'itemId', 'itemName', 'date', 'quantity', 'unitCost', 'totalCost', 'note', 'deletedAt', 'version'],
+    businessDates: ['date'],
+  },
 };
 
 function normalise(value: unknown, isBusinessDate: boolean): unknown {
@@ -40,4 +57,9 @@ export function toAuditSnapshot(entityType: AuditEntityType, row: Record<string,
     snapshot[field] = normalise(row[field], spec.businessDates?.includes(field) ?? false);
   }
   return snapshot;
+}
+
+/** The named fields of a snapshot, for the rows that record only what changed (§6.13, §6.15). */
+export function pickSnapshot(snapshot: Record<string, unknown>, fields: readonly string[]): Record<string, unknown> {
+  return Object.fromEntries(fields.map((field) => [field, snapshot[field]]));
 }

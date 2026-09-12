@@ -126,7 +126,7 @@ Read: §4.6, §4.7 (stock ledger), §5.2, §6.13–6.18, §7.3, §7.5, §12.5.
 
 ### 2b — Items, batches, stock ledger (API)
 
-Shared `applyStockMovements(tx, movements[])` (per-item net, non-negative check, one UPDATE per item);
+Shared `StockLedger.apply(tx, movements[], userId)` (§4.6: per-item net, non-negative check, one UPDATE per item);
 items CRUD-as-archive with `initialBatch`, stock adjustments, stock-movement list, derived `quantityOut` /
 `damagedTotal` / `isLowStock`; purchase batches CRUD with soft delete, `BATCH_*` movements, cost stripping.
 **Exit:** employee without `items.viewCost` sees no cost anywhere, API or UI; reconcile → 0 for items.
