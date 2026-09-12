@@ -3686,7 +3686,7 @@ Common: a filter bar, a `ReportTable` (a `DataTable` without pagination, with a 
 - **Search params:** `userId` (admins only), `entityType`, `entityId`, `action`, `dateFrom`, `dateTo`, `page`, `pageSize`.
 - **Data:** `GET /api/audit-logs`.
 - **Filters:** user `EntityCombobox` rendered **only for admins** (its data comes from `GET /api/users`, which is admin-only); entity type `Select`; action `Select`; date range.
-- **Columns:** time (`DateText` with time), user display name (or `usernameAttempt` in muted italics for failed logins), action (translated), entity type (translated), entity id (links to the entity page for ITEM, CUSTOMER, DRIVER, ORDER, USER; RETURN and LEDGER_ENTRY link to their order when `summaryParams.orderId` is present), summary (`t(summaryKey, summaryParams)`), IP.
+- **Columns:** time (`DateText` with time), user display name (or `usernameAttempt` in muted italics for failed logins), action (translated), entity type (translated), entity id (links to the entity page for ITEM, CUSTOMER, ORDER, USER — drivers have no page of their own; RETURN and LEDGER_ENTRY link to their order through `after.orderId` / `before.orderId`, as §11.4; each link only for a viewer who may open that page), summary (`t(summaryKey, summaryParams)`), IP.
 - **Row expand:** a `AuditDiff` panel listing every top-level key present in `before` or `after` in a two-column table (before / after) with changed rows highlighted by background **and** a `•` marker. Values are rendered as text with `JSON.stringify(value, null, 2)` inside `<pre>`. Cost fields never appear (the server strips them).
 - Read-only: no actions.
 

@@ -124,3 +124,79 @@ test('on a phone, a reversed date range is reported without opening the filters'
   await expect(page.getByRole('alert').filter({ hasText: 'The start date is after the end date' })).toBeVisible();
   await expect(page.getByRole('button', { name: 'Filters' })).toContainText('1');
 });
+
+test('an order, and the payments and returns recorded on it, link to that order', async ({ page }) => {
+  await signIn(page, ADMIN);
+  const base = { createdAt: '2026-09-12T09:00:00.000Z', user: ROWS[0]?.user ?? null, usernameAttempt: null, ip: null };
+  const rows = [
+    {
+      ...base,
+      id: 3,
+      action: 'CREATE',
+      entityType: 'ORDER',
+      entityId: '9',
+      summaryKey: 'audit.summary.ORDER.UPDATE',
+      summaryParams: { orderNumber: 42 },
+      before: null,
+      after: null,
+    },
+    {
+      ...base,
+      id: 4,
+      action: 'PAYMENT_CREATE',
+      entityType: 'LEDGER_ENTRY',
+      entityId: '11',
+      summaryKey: 'audit.summary.LEDGER_ENTRY.PAYMENT_CREATE',
+      summaryParams: { orderNumber: 42, amount: 1000 },
+      before: null,
+      after: { id: 11, orderId: 9 },
+    },
+    {
+      ...base,
+      id: 5,
+      action: 'RETURN_DELETE',
+      entityType: 'RETURN',
+      entityId: '12',
+      summaryKey: 'audit.summary.ORDER.UPDATE',
+      summaryParams: { orderNumber: 42 },
+      before: { id: 12, orderId: 9 },
+      after: null,
+    },
+  ];
+  await page.route(/\/api\/audit-logs(\?.*)?$/, (route) =>
+    route.fulfill({ json: { items: rows, page: 1, pageSize: 50, total: rows.length } }),
+  );
+
+  await page.goto('/history');
+
+  const table = page.getByRole('table');
+  for (const id of ['#9', '#11', '#12']) {
+    await expect(table.getByRole('link', { name: id })).toHaveAttribute('href', '/orders/9');
+  }
+});
+
+test('order links need permission to view orders', async ({ page }) => {
+  await signIn(page, AUDITOR);
+  const row = {
+    id: 4,
+    createdAt: '2026-09-12T09:00:00.000Z',
+    user: null,
+    usernameAttempt: null,
+    ip: null,
+    action: 'PAYMENT_CREATE',
+    entityType: 'LEDGER_ENTRY',
+    entityId: '11',
+    summaryKey: 'audit.summary.LEDGER_ENTRY.PAYMENT_CREATE',
+    summaryParams: { orderNumber: 42, amount: 1000 },
+    before: null,
+    after: { id: 11, orderId: 9 },
+  };
+  await page.route(/\/api\/audit-logs(\?.*)?$/, (route) =>
+    route.fulfill({ json: { items: [row], page: 1, pageSize: 50, total: 1 } }),
+  );
+
+  await page.goto('/history');
+
+  await expect(page.getByRole('table').getByText('#11')).toBeVisible();
+  await expect(page.getByRole('table').getByRole('link', { name: '#11' })).toHaveCount(0);
+});

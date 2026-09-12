@@ -50,16 +50,35 @@ export const Route = createFileRoute('/_app/history')({
 const LINK = 'text-primary underline-offset-4 hover:underline';
 
 /** The record a row is about, linked only when the viewer may open its page (§7.3.18). */
+/** The order a return or ledger row belongs to, read from its snapshot (§11.4). */
+function owningOrderId(row: AuditLogDto): string | null {
+  for (const snapshot of [row.after, row.before]) {
+    if (snapshot && typeof snapshot === 'object' && 'orderId' in snapshot) {
+      const { orderId } = snapshot as { orderId: unknown };
+      if (typeof orderId === 'number' || typeof orderId === 'string') return String(orderId);
+    }
+  }
+  return null;
+}
+
 function EntityRef({ row }: { row: AuditLogDto }) {
   const { t } = useTranslation();
   const isAdmin = useAuth().user?.role === 'ADMIN';
   const canViewItems = useCan('items.view');
   const canViewCustomers = useCan('customers.view');
+  const canViewOrders = useCan('orders.view');
   const label = t(`enums.auditEntityType.${row.entityType}`);
   if (!row.entityId) return <>{label}</>;
 
   const id = row.entityId;
   const text = <span dir="ltr">#{id}</span>;
+  const orderId =
+    row.entityType === 'ORDER'
+      ? id
+      : row.entityType === 'RETURN' || row.entityType === 'LEDGER_ENTRY'
+        ? owningOrderId(row)
+        : null;
+  // Drivers have no page of their own: they are edited in a dialog on their list.
   const target =
     row.entityType === 'ITEM' && canViewItems ? (
       <Link to="/items/$itemId" params={{ itemId: id }} className={LINK}>
@@ -71,6 +90,10 @@ function EntityRef({ row }: { row: AuditLogDto }) {
       </Link>
     ) : row.entityType === 'USER' && isAdmin ? (
       <Link to="/users/$userId" params={{ userId: id }} className={LINK}>
+        {text}
+      </Link>
+    ) : orderId && canViewOrders ? (
+      <Link to="/orders/$orderId" params={{ orderId }} className={LINK}>
         {text}
       </Link>
     ) : (
