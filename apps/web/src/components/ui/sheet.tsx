@@ -36,7 +36,7 @@ export function SheetContent({
         {...props}
       >
         {children}
-        <DialogPrimitive.Close className="focus-visible:ring-ring/50 absolute end-4 top-4 flex size-9 items-center justify-center rounded-md opacity-70 outline-none hover:opacity-100 focus-visible:ring-[3px]">
+        <DialogPrimitive.Close className="focus-visible:ring-ring/50 absolute end-4 top-4 flex size-10 items-center justify-center md:size-9 rounded-md opacity-70 outline-none hover:opacity-100 focus-visible:ring-[3px]">
           <X className="size-4" aria-hidden />
           <span className="sr-only">{closeLabel}</span>
         </DialogPrimitive.Close>

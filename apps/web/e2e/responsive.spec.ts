@@ -39,6 +39,28 @@ async function expectNoHorizontalScroll(page: Page): Promise<void> {
   expect(widths.document).toBeLessThanOrEqual(widths.viewport);
 }
 
+/**
+ * §7.15 target sizes: below `md` every control is at least `h-10` (40 px). Checkboxes and switches are
+ * left out — their visible label is part of the target — and so is a file input, which stays hidden
+ * behind its own button.
+ */
+async function expectTouchTargets(page: Page): Promise<void> {
+  const small = await page.evaluate(() =>
+    [
+      ...document.querySelectorAll<HTMLElement>(
+        '[data-slot="button"], [role="combobox"], [role="tab"], input:not([type="checkbox"]):not([type="radio"]):not([type="hidden"]):not([type="file"]), textarea',
+      ),
+    ]
+      .filter((element) => element.getClientRects().length > 0 && !element.closest('[aria-hidden="true"]'))
+      .filter((element) => element.getBoundingClientRect().height < 40)
+      .map(
+        (element) =>
+          `${element.tagName} "${(element.getAttribute('aria-label') ?? element.textContent ?? '').trim().slice(0, 30)}" ${Math.round(element.getBoundingClientRect().height)}px`,
+      ),
+  );
+  expect(small).toEqual([]);
+}
+
 for (const path of ROUTES) {
   test(`${path} fits a 390 px screen`, async ({ page }) => {
     await mockApi(page);
@@ -48,6 +70,7 @@ for (const path of ROUTES) {
     await expect(page.getByRole('heading', { level: 1 })).toBeVisible();
     await page.waitForLoadState('networkidle');
     await expectNoHorizontalScroll(page);
+    await expectTouchTargets(page);
   });
 }
 

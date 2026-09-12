@@ -26,7 +26,7 @@ export function Pagination({
         <span className="text-muted-foreground text-sm">{t('common.pagination.total', { total })}</span>
         {onPageSizeChange ? (
           <Select value={String(pageSize)} onValueChange={(value) => onPageSizeChange(Number(value))}>
-            <SelectTrigger className="h-8 w-20" aria-label={t('common.pagination.pageSize')}>
+            <SelectTrigger className="w-20 md:h-9" aria-label={t('common.pagination.pageSize')}>
               <SelectValue />
             </SelectTrigger>
             <SelectContent>

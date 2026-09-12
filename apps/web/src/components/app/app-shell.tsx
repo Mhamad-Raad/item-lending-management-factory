@@ -106,7 +106,7 @@ function UserMenu({ onLogout, compact }: { onLogout: () => void; compact?: boole
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
         {compact ? (
-          <Button variant="ghost" size="icon" className="size-10" aria-label={user.displayName}>
+          <Button variant="ghost" size="icon" aria-label={user.displayName}>
             <UserCircle className="size-5" aria-hidden />
           </Button>
         ) : (
@@ -178,7 +178,7 @@ export function AppShell({ children, onLogout }: { children: React.ReactNode; on
         <header className="bg-card sticky top-0 z-30 flex h-14 items-center gap-1 border-b px-2 lg:hidden">
           <Sheet open={menuOpen} onOpenChange={setMenuOpen}>
             <SheetTrigger asChild>
-              <Button variant="ghost" size="icon" className="size-10" aria-label={t('nav.openMenu')}>
+              <Button variant="ghost" size="icon" aria-label={t('nav.openMenu')}>
                 <Menu className="size-5" aria-hidden />
               </Button>
             </SheetTrigger>
