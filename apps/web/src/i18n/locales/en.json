@@ -112,7 +112,9 @@
     "customers": "Customers",
     "items": "Items",
     "drivers": "Drivers",
-    "orders": "Orders"
+    "orders": "Orders",
+    "openMenu": "Open menu",
+    "skipToContent": "Skip to content"
   },
   "auth": {
     "login": {

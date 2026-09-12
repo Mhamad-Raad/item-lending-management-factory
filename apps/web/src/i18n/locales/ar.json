@@ -112,7 +112,9 @@
     "customers": "الزبائن",
     "items": "الأصناف",
     "drivers": "السائقون",
-    "orders": "الطلبات"
+    "orders": "الطلبات",
+    "openMenu": "فتح القائمة",
+    "skipToContent": "انتقل إلى المحتوى"
   },
   "auth": {
     "login": {

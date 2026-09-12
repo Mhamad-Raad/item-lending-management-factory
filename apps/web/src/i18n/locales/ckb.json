@@ -112,7 +112,9 @@
     "customers": "کڕیاران",
     "items": "کاڵاکان",
     "drivers": "شۆفێران",
-    "orders": "داواکارییەکان"
+    "orders": "داواکارییەکان",
+    "openMenu": "کردنەوەی پێڕست",
+    "skipToContent": "بازدان بۆ ناوەڕۆک"
   },
   "auth": {
     "login": {

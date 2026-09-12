@@ -1,5 +1,5 @@
 import { expect, test, type Page } from './fixtures';
-import { mockApi } from './mock-api';
+import { ADMIN, mockApi } from './mock-api';
 
 /**
  * §7.15: every screen is usable at 390 px with no horizontal page scroll. Each route renders with
@@ -56,4 +56,40 @@ test('the sign-in page fits a 390 px screen', async ({ page }) => {
 
   await expect(page.getByLabel('ناوی بەکارهێنەر')).toBeVisible();
   await expectNoHorizontalScroll(page);
+});
+
+test('on a phone, every navigation entry and signing out are reachable from the menu', async ({ page }) => {
+  await mockApi(page, ADMIN, 'en');
+  await page.goto('/drivers');
+  await expect(page.getByRole('heading', { level: 1, name: 'Drivers' })).toBeVisible();
+  await expect(page.getByRole('banner')).toContainText('Drivers');
+
+  await page.getByRole('button', { name: 'Open menu' }).click();
+
+  const menu = page.getByRole('dialog');
+  for (const name of ['Dashboard', 'Orders', 'Customers', 'Items', 'Drivers', 'History', 'Users', 'Settings']) {
+    await expect(menu.getByRole('link', { name })).toBeInViewport();
+  }
+  await expect(menu.getByRole('link', { name: 'Drivers' })).toHaveAttribute('aria-current', 'page');
+  await menu.getByRole('link', { name: 'Customers' }).click();
+  await expect(page).toHaveURL(/\/customers(\?|$)/);
+  await expect(page.getByRole('dialog')).toBeHidden();
+  await expect(page.getByRole('banner')).toContainText('Customers');
+
+  await page.getByRole('button', { name: 'Hawre Abdulrahman Mohammed' }).click();
+  await expect(page.getByRole('menuitem', { name: 'My account' })).toBeVisible();
+  await expect(page.getByRole('menuitem', { name: 'Log out' })).toBeVisible();
+});
+
+test('the skip link is the first tab stop and moves focus to the content', async ({ page }) => {
+  await mockApi(page, ADMIN, 'en');
+  await page.goto('/drivers');
+  await expect(page.getByRole('heading', { level: 1, name: 'Drivers' })).toBeVisible();
+
+  await page.keyboard.press('Tab');
+  const skip = page.getByRole('link', { name: 'Skip to content' });
+  await expect(skip).toBeFocused();
+  await skip.press('Enter');
+
+  await expect(page.locator('main#main')).toBeFocused();
 });
