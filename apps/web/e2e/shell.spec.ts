@@ -1,4 +1,4 @@
-import { expect, test } from '@playwright/test';
+import { expect, test } from './fixtures';
 
 /**
  * Runs against the built app with no API behind it: the session bootstrap fails, so every visit
