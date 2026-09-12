@@ -1,7 +1,14 @@
 @import 'tailwindcss';
 @import 'tw-animate-css';
 
-@custom-variant dark (&:where(.dark, .dark *));
+/* Dark styles apply on screen only: whatever is printed uses the light palette (§7.12). */
+@custom-variant dark {
+  @media screen {
+    &:where(.dark, .dark *) {
+      @slot;
+    }
+  }
+}
 
 /*
  * Design tokens (shadcn/ui convention). Light and dark palettes meet WCAG AA for text on
@@ -28,35 +35,52 @@
   --accent-foreground: oklch(0.25 0.01 60);
   --destructive: oklch(0.55 0.2 27);
   --destructive-foreground: oklch(0.985 0 0);
-  --success: oklch(0.5 0.12 150);
-  --warning: oklch(0.62 0.14 70);
+  --success: oklch(0.5 0.13 150);
+  --success-foreground: oklch(0.99 0 0);
+  --warning: oklch(0.52 0.14 70);
+  --warning-foreground: oklch(0.15 0.03 70);
+  --info: oklch(0.5 0.13 240);
+  --info-foreground: oklch(0.99 0 0);
   --border: oklch(0.9 0.008 80);
   --input: oklch(0.88 0.01 80);
   --ring: oklch(0.6 0.12 55);
 }
 
-.dark {
-  --background: oklch(0.17 0.008 60);
-  --foreground: oklch(0.96 0.004 80);
-  --card: oklch(0.21 0.008 60);
-  --card-foreground: oklch(0.96 0.004 80);
-  --popover: oklch(0.21 0.008 60);
-  --popover-foreground: oklch(0.96 0.004 80);
-  --primary: oklch(0.75 0.13 65);
-  --primary-foreground: oklch(0.2 0.01 60);
-  --secondary: oklch(0.27 0.008 60);
-  --secondary-foreground: oklch(0.96 0.004 80);
-  --muted: oklch(0.27 0.008 60);
-  --muted-foreground: oklch(0.72 0.01 80);
-  --accent: oklch(0.3 0.015 65);
-  --accent-foreground: oklch(0.96 0.004 80);
-  --destructive: oklch(0.65 0.2 25);
-  --destructive-foreground: oklch(0.985 0 0);
-  --success: oklch(0.7 0.14 150);
-  --warning: oklch(0.78 0.14 75);
-  --border: oklch(1 0 0 / 12%);
-  --input: oklch(1 0 0 / 16%);
-  --ring: oklch(0.7 0.12 65);
+@media screen {
+  .dark {
+    --background: oklch(0.17 0.008 60);
+    --foreground: oklch(0.96 0.004 80);
+    --card: oklch(0.21 0.008 60);
+    --card-foreground: oklch(0.96 0.004 80);
+    --popover: oklch(0.21 0.008 60);
+    --popover-foreground: oklch(0.96 0.004 80);
+    --primary: oklch(0.75 0.13 65);
+    --primary-foreground: oklch(0.2 0.01 60);
+    --secondary: oklch(0.27 0.008 60);
+    --secondary-foreground: oklch(0.96 0.004 80);
+    --muted: oklch(0.27 0.008 60);
+    --muted-foreground: oklch(0.72 0.01 80);
+    --accent: oklch(0.3 0.015 65);
+    --accent-foreground: oklch(0.96 0.004 80);
+    --destructive: oklch(0.65 0.2 25);
+    --destructive-foreground: oklch(0.985 0 0);
+    --success: oklch(0.75 0.14 150);
+    --success-foreground: oklch(0.17 0.03 150);
+    --warning: oklch(0.8 0.14 80);
+    --warning-foreground: oklch(0.17 0.03 80);
+    --info: oklch(0.76 0.11 240);
+    --info-foreground: oklch(0.17 0.03 240);
+    --border: oklch(1 0 0 / 12%);
+    --input: oklch(1 0 0 / 16%);
+    --ring: oklch(0.7 0.12 65);
+  }
+}
+
+@media print {
+  /* Beats the inline colour scheme the theme preference writes on <html>. */
+  :root {
+    color-scheme: light !important;
+  }
 }
 
 @theme inline {
@@ -79,7 +103,11 @@
   --color-destructive: var(--destructive);
   --color-destructive-foreground: var(--destructive-foreground);
   --color-success: var(--success);
+  --color-success-foreground: var(--success-foreground);
   --color-warning: var(--warning);
+  --color-warning-foreground: var(--warning-foreground);
+  --color-info: var(--info);
+  --color-info-foreground: var(--info-foreground);
   --color-border: var(--border);
   --color-input: var(--input);
   --color-ring: var(--ring);
@@ -90,8 +118,28 @@
   --radius-xl: calc(var(--radius) + 4px);
 }
 
+/*
+ * Line height (§7.13): 1.5 in English, 1.7 for Arabic script, which needs room above and below its
+ * letters. Tailwind's text-xs … text-lg set their own line heights through these variables, so body
+ * copy of every size follows the language, not only text that inherits from the root. Headings
+ * (text-xl and up) keep Tailwind's tighter defaults.
+ */
+:root {
+  --body-line-height: 1.5;
+  --text-xs--line-height: var(--body-line-height);
+  --text-sm--line-height: var(--body-line-height);
+  --text-base--line-height: var(--body-line-height);
+  --text-lg--line-height: var(--body-line-height);
+}
+
+:root:lang(ckb),
+:root:lang(ar) {
+  --body-line-height: 1.7;
+}
+
 html {
   font-size: var(--app-font-size);
+  line-height: var(--body-line-height);
 }
 
 @layer base {

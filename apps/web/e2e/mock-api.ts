@@ -239,10 +239,18 @@ const SETTINGS: SettingsDto = {
 const page1 = <T>(items: T[]): PageDto<T> => ({ items, page: 1, pageSize: 25, total: items.length * 40 });
 
 /** Signs `user` in and answers every read the built pages make; writes are not needed here. */
-export async function mockApi(page: Page, user: MeDto = ADMIN, language = 'ckb'): Promise<void> {
-  await page.addInitScript((lang) => {
-    window.localStorage.setItem('pallet.prefs.v1', JSON.stringify({ language: lang }));
-  }, language);
+export async function mockApi(
+  page: Page,
+  user: MeDto = ADMIN,
+  language = 'ckb',
+  theme: 'light' | 'dark' = 'light',
+): Promise<void> {
+  await page.addInitScript(
+    ([lang, colours]) => {
+      window.localStorage.setItem('pallet.prefs.v1', JSON.stringify({ language: lang, theme: colours }));
+    },
+    [language, theme] as const,
+  );
   const routes: [RegExp, unknown][] = [
     [
       /\/api\/auth\/refresh$/,

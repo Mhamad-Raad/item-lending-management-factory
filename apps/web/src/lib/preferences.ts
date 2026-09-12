@@ -51,6 +51,7 @@ export function applyPreferences(prefs: Preferences): void {
   root.lang = prefs.language;
   root.dir = isRtl(prefs.language) ? 'rtl' : 'ltr';
   root.classList.toggle('dark', prefs.theme === 'dark');
+  root.style.colorScheme = prefs.theme;
   root.style.setProperty('--app-font-size', `${FONT_SIZE_PX[prefs.fontSize]}px`);
 }
 

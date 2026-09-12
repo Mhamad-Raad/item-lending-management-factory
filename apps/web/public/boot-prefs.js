@@ -16,5 +16,6 @@
   root.lang = prefs.language;
   root.dir = prefs.language === 'en' ? 'ltr' : 'rtl';
   root.classList.toggle('dark', prefs.theme === 'dark');
+  root.style.colorScheme = prefs.theme;
   root.style.setProperty('--app-font-size', FONT_PX[prefs.fontSize] + 'px');
 })();

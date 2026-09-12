@@ -4112,7 +4112,7 @@ The Playwright spec `e2e/rtl.spec.ts` runs the three daily flows (7.4) and the o
 | `--destructive-foreground` | `oklch(0.99 0 0)` | `oklch(0.17 0.02 25)` |
 | `--success` | `oklch(0.5 0.13 150)` | `oklch(0.75 0.14 150)` |
 | `--success-foreground` | `oklch(0.99 0 0)` | `oklch(0.17 0.03 150)` |
-| `--warning` | `oklch(0.58 0.14 70)` | `oklch(0.8 0.14 80)` |
+| `--warning` | `oklch(0.52 0.14 70)` | `oklch(0.8 0.14 80)` |
 | `--warning-foreground` | `oklch(0.15 0.03 70)` | `oklch(0.17 0.03 80)` |
 | `--info` | `oklch(0.5 0.13 240)` | `oklch(0.76 0.11 240)` |
 | `--info-foreground` | `oklch(0.99 0 0)` | `oklch(0.17 0.03 240)` |

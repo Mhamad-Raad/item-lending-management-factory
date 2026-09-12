@@ -4,7 +4,7 @@ import { useTranslation } from 'react-i18next';
 import { Badge } from '@/components/ui/badge';
 
 const STYLE = {
-  OPEN: { icon: CircleDot, variant: 'outline' },
+  OPEN: { icon: CircleDot, variant: 'info' },
   SETTLED: { icon: CircleCheck, variant: 'success' },
   CANCELLED: { icon: Ban, variant: 'secondary' },
 } as const;

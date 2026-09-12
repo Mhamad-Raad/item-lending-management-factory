@@ -5,7 +5,7 @@ import { Badge } from '@/components/ui/badge';
 export function LowStockBadge() {
   const { t } = useTranslation();
   return (
-    <Badge variant="destructive">
+    <Badge variant="warning">
       <TriangleAlert aria-hidden />
       {t('items.lowStock')}
     </Badge>
