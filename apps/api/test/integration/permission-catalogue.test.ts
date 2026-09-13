@@ -148,6 +148,14 @@ describe('S-12: permission denial over the endpoint catalogue', () => {
       if (denied.status !== 403 || deniedCode !== expectedCode) {
         failures.push(`${route} with no permissions → ${denied.status} ${deniedCode ?? ''}`);
       }
+      // The error table: a denial names the keys that were missing, so the client can say what to ask for.
+      const required = (denied.body as { error?: { details?: { required?: string[] } } }).error?.details?.required;
+      if (
+        expectedCode === 'PERMISSION_DENIED' &&
+        JSON.stringify(required) !== JSON.stringify('keys' in rule ? rule.keys : [])
+      ) {
+        failures.push(`${route} with no permissions → details.required ${JSON.stringify(required)}`);
+      }
 
       // "All of" needs every key; "any of" is satisfied by each key alone. Dependencies come along,
       // as the permissions form grants them (§6.4.2).

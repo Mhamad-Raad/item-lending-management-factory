@@ -20,13 +20,17 @@ export class PermissionGuard implements CanActivate {
     if (auth.isAdmin) return true;
     if (rule.kind === 'adminOnly') throw new ApiError('ADMIN_ONLY');
 
-    if (!this.holds(auth, rule)) throw new ApiError('PERMISSION_DENIED');
+    const required = this.missing(auth, rule);
+    if (required.length > 0) throw new ApiError('PERMISSION_DENIED', { required });
     return true;
   }
 
-  private holds(auth: AuthContext, rule: Extract<AccessRule, { kind: 'all' | 'any' }>): boolean {
-    return rule.kind === 'all'
-      ? rule.keys.every((key) => auth.permissions.has(key))
-      : rule.keys.some((key) => auth.permissions.has(key));
+  /**
+   * The keys a denial names (§6.3 error table): for "all of", the ones the employee still lacks; for
+   * "any of", every key that would do. Empty when the rule is satisfied.
+   */
+  private missing(auth: AuthContext, rule: Extract<AccessRule, { kind: 'all' | 'any' }>): string[] {
+    if (rule.kind === 'all') return rule.keys.filter((key) => !auth.permissions.has(key));
+    return rule.keys.some((key) => auth.permissions.has(key)) ? [] : [...rule.keys];
   }
 }
