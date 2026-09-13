@@ -79,6 +79,14 @@ describe('translation files', () => {
     }
   });
 
+  it('write numbers in Western digits, as the whole UI does (§7.11)', () => {
+    for (const lang of ['ckb', 'ar'] as const) {
+      for (const [key, value] of Object.entries(files[lang])) {
+        expect(/[\u0660-\u0669\u06F0-\u06F9]/.test(value), `${lang}:${key} = "${value}"`).toBe(false);
+      }
+    }
+  });
+
   it('do not leave a translated value identical to the English one', () => {
     for (const lang of ['ckb', 'ar'] as const) {
       for (const [key, value] of Object.entries(files[lang])) {
