@@ -129,3 +129,24 @@ test('a click anywhere on a recent-activity row opens its order', async ({ page 
   await events.nth(2).getByText('Hand-over').click();
   await expect(page).toHaveURL(/\/orders\/9$/);
 });
+
+test('the dashboard is fetched again when it is opened 15 seconds after its last answer (§7.8)', async ({ page }) => {
+  await page.clock.install();
+  let answers = 0;
+  await mockApi(page, ADMIN, 'en');
+  await page.route(/\/api\/dashboard$/, (route) => {
+    answers += 1;
+    return route.fulfill({ json: FULL });
+  });
+  await page.goto('/');
+  await expect(page.getByRole('link', { name: /Pallets out/ })).toBeVisible();
+  expect(answers).toBe(1);
+
+  await page.getByRole('navigation').getByRole('link', { name: 'Orders' }).first().click();
+  await expect(page).toHaveURL(/\/orders/);
+  await page.clock.fastForward(16_000);
+  await page.getByRole('navigation').getByRole('link', { name: 'Dashboard' }).first().click();
+
+  await expect(page.getByRole('link', { name: /Pallets out/ })).toBeVisible();
+  await expect.poll(() => answers).toBe(2);
+});

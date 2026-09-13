@@ -52,7 +52,12 @@ function DashboardPage() {
   const { t } = useTranslation();
   const { user } = useAuth();
   usePageTitle('dashboard.title');
-  const dashboard = useQuery({ queryKey: qk.dashboard(), queryFn: () => apiFetch<DashboardDto>('/dashboard') });
+  const dashboard = useQuery({
+    queryKey: qk.dashboard(),
+    queryFn: () => apiFetch<DashboardDto>('/dashboard'),
+    // Fresher than the 30 s default: the home page is where the day's figures are read (§7.8).
+    staleTime: 15_000,
+  });
   const can = { order: useCan('orders.create'), return: useCan('returns.create'), payment: useCan('payments.create') };
 
   const quickActions = [
