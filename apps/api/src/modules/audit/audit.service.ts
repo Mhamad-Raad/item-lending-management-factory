@@ -1,5 +1,5 @@
 import { Injectable } from '@nestjs/common';
-import type { AuditAction, AuditEntityType } from '@pallet/shared';
+import { isAuditPair, type AuditAction, type AuditEntityType } from '@pallet/shared';
 import { RequestContext } from '../../common/context/request-context';
 import type { Prisma } from '../../generated/prisma/client';
 
@@ -54,6 +54,10 @@ function toJsonInput(value: unknown): Prisma.InputJsonValue | undefined {
 @Injectable()
 export class AuditService {
   async record(tx: Prisma.TransactionClient, entry: AuditEntry): Promise<void> {
+    if (!isAuditPair(entry.entityType, entry.action)) {
+      // A caller bug, not a user error: §11.3 is exhaustive, and every pair in it has a summary to show.
+      throw new Error(`No audit row ${entry.entityType}.${entry.action} in §11.3`);
+    }
     const context = RequestContext.get();
     const userId = entry.userId === undefined ? (context?.userId ?? null) : entry.userId;
 

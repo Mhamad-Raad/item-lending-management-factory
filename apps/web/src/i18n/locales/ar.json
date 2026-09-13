@@ -409,7 +409,14 @@
       },
       "LEDGER_ENTRY": {
         "PAYMENT_CREATE": "دفعة بمبلغ {{amount}} على الطلب #{{orderNumber}}",
-        "PAYMENT_REVERSE": "عُكست دفعة بمبلغ {{amount}} على الطلب #{{orderNumber}}"
+        "PAYMENT_REVERSE": "عُكست دفعة بمبلغ {{amount}} على الطلب #{{orderNumber}}",
+        "REFUND_CREATE": "استرداد بمبلغ {{amount}} على الطلب #{{orderNumber}}",
+        "REFUND_REVERSE": "عُكس استرداد بمبلغ {{amount}} على الطلب #{{orderNumber}}"
+      },
+      "RETURN": {
+        "RETURN_CREATE": "إرجاع على الطلب #{{orderNumber}}: {{accepted}} مقبولة، {{damaged}} تالفة، رصيد {{refundDue}}، استرداد نقدي {{cashRefund}}",
+        "RETURN_EDIT": "صُحّح إرجاع الطلب #{{orderNumber}}؛ حلّ محله الإرجاع #{{newReturnId}}",
+        "RETURN_DELETE": "حُذف إرجاع الطلب #{{orderNumber}}"
       }
     }
   },

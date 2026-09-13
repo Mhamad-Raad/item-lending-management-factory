@@ -409,7 +409,14 @@
       },
       "LEDGER_ENTRY": {
         "PAYMENT_CREATE": "Payment of {{amount}} on order #{{orderNumber}}",
-        "PAYMENT_REVERSE": "Payment of {{amount}} reversed on order #{{orderNumber}}"
+        "PAYMENT_REVERSE": "Payment of {{amount}} reversed on order #{{orderNumber}}",
+        "REFUND_CREATE": "Refund of {{amount}} on order #{{orderNumber}}",
+        "REFUND_REVERSE": "Refund of {{amount}} reversed on order #{{orderNumber}}"
+      },
+      "RETURN": {
+        "RETURN_CREATE": "Return on order #{{orderNumber}}: {{accepted}} accepted, {{damaged}} damaged, credit {{refundDue}}, cash refund {{cashRefund}}",
+        "RETURN_EDIT": "Return on order #{{orderNumber}} corrected; replaced by return #{{newReturnId}}",
+        "RETURN_DELETE": "Return on order #{{orderNumber}} deleted"
       }
     }
   },

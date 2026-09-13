@@ -1,4 +1,5 @@
 export * from './enums.js';
+export * from './audit-matrix.js';
 export * from './permissions.js';
 export * from './error-codes.js';
 export * from './dates.js';

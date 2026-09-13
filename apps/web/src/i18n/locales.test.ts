@@ -1,5 +1,6 @@
 import {
   AUDIT_ACTIONS,
+  AUDIT_SUMMARY_KEYS,
   AUDIT_ENTITY_TYPES,
   ERROR_CODE_LIST,
   LEDGER_ENTRY_SOURCES,
@@ -61,6 +62,8 @@ describe('translation files', () => {
       ...LEDGER_ENTRY_TYPES.map((type) => `enums.ledgerEntryType.${type}`),
       ...LEDGER_ENTRY_SOURCES.map((source) => `enums.ledgerEntrySource.${source}`),
       ...PERMISSION_KEYS.map((key) => `permissions.${key.replace(/\./g, '_')}`),
+      // §11.1: every audit row the API can write reads as a sentence.
+      ...AUDIT_SUMMARY_KEYS,
     ];
 
     expect(required.filter((key) => !(key in files.en))).toEqual([]);

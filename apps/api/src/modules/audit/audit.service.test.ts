@@ -28,6 +28,14 @@ describe('the credential scrub and the snapshot allow-lists agree', () => {
 });
 
 describe('AuditService.record', () => {
+  it('refuses a row outside the §11.3 matrix, which would have no summary to show', async () => {
+    const { tx } = fakeTx();
+
+    await expect(
+      new AuditService().record(tx, { action: 'REFUND_CREATE', entityType: 'ORDER', entityId: '7' }),
+    ).rejects.toThrow('ORDER.REFUND_CREATE');
+  });
+
   it('derives the summary key from the entity type and action', async () => {
     const { tx, created } = fakeTx();
 

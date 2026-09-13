@@ -409,7 +409,14 @@
       },
       "LEDGER_ENTRY": {
         "PAYMENT_CREATE": "پارەدانی {{amount}} لەسەر داواکاری #{{orderNumber}}",
-        "PAYMENT_REVERSE": "پارەدانی {{amount}} لەسەر داواکاری #{{orderNumber}} گەڕێندرایەوە"
+        "PAYMENT_REVERSE": "پارەدانی {{amount}} لەسەر داواکاری #{{orderNumber}} گەڕێندرایەوە",
+        "REFUND_CREATE": "گەڕاندنەوەی پارەی {{amount}} لەسەر داواکاری #{{orderNumber}}",
+        "REFUND_REVERSE": "گەڕاندنەوەی پارەی {{amount}} لەسەر داواکاری #{{orderNumber}} پووچەڵکرایەوە"
+      },
+      "RETURN": {
+        "RETURN_CREATE": "گەڕاندنەوە لەسەر داواکاری #{{orderNumber}}: {{accepted}} وەرگیراو، {{damaged}} تێکچوو، بڕی لێبڕدراو {{refundDue}}، پارەی گەڕێندراوە {{cashRefund}}",
+        "RETURN_EDIT": "گەڕاندنەوەی داواکاری #{{orderNumber}} ڕاستکرایەوە؛ گەڕاندنەوەی #{{newReturnId}} جێگەی گرتەوە",
+        "RETURN_DELETE": "گەڕاندنەوەی داواکاری #{{orderNumber}} سڕایەوە"
       }
     }
   },
