@@ -1,3 +1,4 @@
+import { useRef } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Button } from '@/components/ui/button';
 import {
@@ -33,17 +34,27 @@ export function ConfirmDialog({
   children?: React.ReactNode;
 }) {
   const { t } = useTranslation();
+  const cancel = useRef<HTMLButtonElement>(null);
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent closeLabel={t('common.actions.close')} className="sm:max-w-md">
+      <DialogContent
+        closeLabel={t('common.actions.close')}
+        className="sm:max-w-md"
+        // A destructive confirmation starts on Cancel, so Enter pressed by habit does not confirm (§7.15).
+        onOpenAutoFocus={(event) => {
+          if (!destructive) return;
+          event.preventDefault();
+          cancel.current?.focus();
+        }}
+      >
         <DialogHeader>
           <DialogTitle>{title}</DialogTitle>
           <DialogDescription>{description}</DialogDescription>
         </DialogHeader>
         {children}
         <DialogFooter>
-          <Button variant="outline" onClick={() => onOpenChange(false)} disabled={pending}>
+          <Button ref={cancel} variant="outline" onClick={() => onOpenChange(false)} disabled={pending}>
             {t('common.actions.cancel')}
           </Button>
           <Button variant={destructive ? 'destructive' : 'default'} onClick={onConfirm} disabled={pending}>

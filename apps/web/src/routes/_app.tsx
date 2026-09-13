@@ -1,4 +1,5 @@
-import { Outlet, createFileRoute, useNavigate } from '@tanstack/react-router';
+import { createFileRoute, useNavigate } from '@tanstack/react-router';
+import { AnimatedOutlet } from '@/components/app/animated-outlet';
 import { AppShell } from '@/components/app/app-shell';
 import { logout } from '@/lib/auth';
 import { requireAuthenticated } from '@/lib/route-guards';
@@ -18,7 +19,7 @@ function AppLayout() {
         await navigate({ to: '/login' });
       }}
     >
-      <Outlet />
+      <AnimatedOutlet />
     </AppShell>
   );
 }

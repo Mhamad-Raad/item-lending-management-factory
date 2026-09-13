@@ -5,7 +5,7 @@ import { cn } from '@/lib/utils';
 
 // shadcn/ui button (new-york). RTL-audited: no physical left/right classes; icon spacing uses gap.
 const buttonVariants = cva(
-  "inline-flex shrink-0 items-center justify-center gap-2 rounded-md text-sm font-medium whitespace-nowrap transition-all outline-none focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50 disabled:pointer-events-none disabled:opacity-50 aria-invalid:border-destructive [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4",
+  "inline-flex shrink-0 items-center justify-center gap-2 rounded-md text-sm font-medium whitespace-nowrap duration-150 outline-none focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background disabled:pointer-events-none disabled:opacity-50 aria-invalid:border-destructive [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4",
   {
     variants: {
       variant: {
@@ -27,6 +27,11 @@ const buttonVariants = cva(
   },
 );
 
+/**
+ * A press shrinks the button to 98 % (§7.14) through CSS `:active`, on a button of its own and on the element
+ * it wraps with `asChild` alike. motion's `whileTap` is not used (Q45): on Enter it emulates a pointer press,
+ * and a Radix trigger toggled by both closes the menu it just opened.
+ */
 export function Button({
   className,
   variant,
@@ -35,5 +40,15 @@ export function Button({
   ...props
 }: ComponentProps<'button'> & VariantProps<typeof buttonVariants> & { asChild?: boolean }) {
   const Comp = asChild ? Slot.Root : 'button';
-  return <Comp data-slot="button" className={cn(buttonVariants({ variant, size, className }))} {...props} />;
+  return (
+    <Comp
+      data-slot="button"
+      className={cn(
+        buttonVariants({ variant, size }),
+        'transition-[color,background-color,border-color,scale] active:scale-[0.98]',
+        className,
+      )}
+      {...props}
+    />
+  );
 }

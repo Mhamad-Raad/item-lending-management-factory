@@ -1,9 +1,11 @@
 import { ArrowDown, ArrowUp, ArrowUpDown } from 'lucide-react';
+import { AnimatePresence, motion } from 'motion/react';
 import { useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
 import type { TranslationKey } from '@/i18n/keys';
 import { Pagination } from '@/components/app/pagination';
 import { TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
+import { DURATION } from '@/lib/motion';
 import { nextSort, sortStateOf } from '@/lib/sort-cycle';
 import { isolated } from '@/components/app/bdi';
 import { cn } from '@/lib/utils';
@@ -45,6 +47,12 @@ interface DataTableProps<T> {
   empty: React.ReactNode;
 }
 
+/** A row motion can fade in and out. */
+const MotionTableRow = motion.create(TableRow);
+
+/** §7.14: row animations only up to this many rows. */
+const ROW_ANIMATION_LIMIT = 50;
+
 const HIDE_BELOW = { md: 'hidden md:table-cell', lg: 'hidden lg:table-cell' } as const;
 
 /** A click on a row opens its link, unless the click was on something interactive of its own. */
@@ -85,6 +93,19 @@ export function DataTable<T>({
     if (rows.length === 0 && page > lastPage) onPageChange(lastPage);
   }, [rows.length, page, lastPage, onPageChange]);
 
+  // Rows and cards that arrive fade in and those that leave fade out (§7.14), on lists short enough for
+  // it to stay smooth; a longer page renders plainly.
+  const animated = rows.length <= ROW_ANIMATION_LIMIT;
+  const Row = animated ? MotionTableRow : TableRow;
+  const Card = animated ? motion.li : 'li';
+  const rowMotion = animated
+    ? {
+        initial: { opacity: 0, y: 4 },
+        animate: { opacity: 1, y: 0 },
+        exit: { opacity: 0 },
+        transition: { duration: DURATION.fast },
+      }
+    : {};
   const [firstColumn] = columns;
   const renderCell = (column: DataColumn<T>, row: T): React.ReactNode => {
     const value = isolated(column.cell(row));
@@ -126,7 +147,7 @@ export function DataTable<T>({
                         {column.sortKey && onSortChange ? (
                           <button
                             type="button"
-                            className="hover:text-foreground focus-visible:ring-ring/50 inline-flex items-center gap-1 rounded-sm outline-none focus-visible:ring-[3px]"
+                            className="hover:text-foreground inline-flex items-center gap-1 rounded-sm outline-none focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background"
                             onClick={() => onSortChange(nextSort(column.sortKey as string, activeSort, defaultSort))}
                           >
                             {t(column.header)}
@@ -141,62 +162,68 @@ export function DataTable<T>({
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {rows.map((row) => (
-                  <TableRow
-                    key={rowKey(row)}
-                    className={cn(rowLink && 'cursor-pointer')}
-                    onClick={rowLink ? openRowLink : undefined}
-                  >
-                    {columns.map((column) => (
-                      <TableCell
-                        key={column.id}
-                        className={cn(
-                          column.align === 'end' && 'text-end tabular-nums',
-                          column.hideBelow && HIDE_BELOW[column.hideBelow],
-                        )}
-                      >
-                        {renderCell(column, row)}
-                      </TableCell>
-                    ))}
-                  </TableRow>
-                ))}
+                <AnimatePresence initial={false}>
+                  {rows.map((row) => (
+                    <Row
+                      key={rowKey(row)}
+                      {...rowMotion}
+                      className={cn(rowLink && 'cursor-pointer')}
+                      onClick={rowLink ? openRowLink : undefined}
+                    >
+                      {columns.map((column) => (
+                        <TableCell
+                          key={column.id}
+                          className={cn(
+                            column.align === 'end' && 'text-end tabular-nums',
+                            column.hideBelow && HIDE_BELOW[column.hideBelow],
+                          )}
+                        >
+                          {renderCell(column, row)}
+                        </TableCell>
+                      ))}
+                    </Row>
+                  ))}
+                </AnimatePresence>
               </TableBody>
             </table>
           </div>
 
           <ul aria-label={label} className="flex flex-col gap-2 md:hidden">
-            {rows.map((row) => (
-              <li
-                key={rowKey(row)}
-                className={cn('flex flex-col gap-2 rounded-lg border p-4', rowLink && 'cursor-pointer')}
-                onClick={rowLink ? openRowLink : undefined}
-              >
-                {columns
-                  .filter((column) => mobileRole(column) === 'title')
-                  .map((column) => (
-                    <div key={column.id} className="font-medium">
-                      {renderCell(column, row)}
-                    </div>
-                  ))}
-                {columns
-                  .filter((column) => mobileRole(column) === 'subtitle')
-                  .map((column) => (
-                    <div key={column.id} className="text-muted-foreground text-sm">
-                      {renderCell(column, row)}
-                    </div>
-                  ))}
-                <dl className="grid grid-cols-[auto_1fr] gap-x-4 gap-y-1 text-sm">
+            <AnimatePresence initial={false}>
+              {rows.map((row) => (
+                <Card
+                  key={rowKey(row)}
+                  {...rowMotion}
+                  className={cn('flex flex-col gap-2 rounded-lg border p-4', rowLink && 'cursor-pointer')}
+                  onClick={rowLink ? openRowLink : undefined}
+                >
                   {columns
-                    .filter((column) => mobileRole(column) === 'meta')
+                    .filter((column) => mobileRole(column) === 'title')
                     .map((column) => (
-                      <div key={column.id} className="contents">
-                        <dt className="text-muted-foreground">{t(column.header)}</dt>
-                        <dd>{renderCell(column, row)}</dd>
+                      <div key={column.id} className="font-medium">
+                        {renderCell(column, row)}
                       </div>
                     ))}
-                </dl>
-              </li>
-            ))}
+                  {columns
+                    .filter((column) => mobileRole(column) === 'subtitle')
+                    .map((column) => (
+                      <div key={column.id} className="text-muted-foreground text-sm">
+                        {renderCell(column, row)}
+                      </div>
+                    ))}
+                  <dl className="grid grid-cols-[auto_1fr] gap-x-4 gap-y-1 text-sm">
+                    {columns
+                      .filter((column) => mobileRole(column) === 'meta')
+                      .map((column) => (
+                        <div key={column.id} className="contents">
+                          <dt className="text-muted-foreground">{t(column.header)}</dt>
+                          <dd>{renderCell(column, row)}</dd>
+                        </div>
+                      ))}
+                  </dl>
+                </Card>
+              ))}
+            </AnimatePresence>
           </ul>
 
           <Pagination

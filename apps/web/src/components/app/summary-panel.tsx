@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { createPortal } from 'react-dom';
 import { useTranslation } from 'react-i18next';
 import { Button } from '@/components/ui/button';
 import { Sheet, SheetContent, SheetTitle } from '@/components/ui/sheet';
@@ -36,17 +37,25 @@ export function SummaryPanel({
         </div>
       </aside>
 
-      <div className="bg-background fixed inset-x-0 bottom-0 z-40 flex items-center gap-3 border-t p-3 lg:hidden">
-        <button
-          type="button"
-          className="flex min-w-0 flex-1 flex-col items-start text-start"
-          onClick={() => setOpen(true)}
+      {/* On <body>, not in the page: the page slides in with a transform, and a fixed bar inside it would
+          ride along at the foot of the form until the slide ends. The submit button reaches its form by `form`. */}
+      {createPortal(
+        <div
+          data-slot="summary-bar"
+          className="bg-background fixed inset-x-0 bottom-0 z-40 flex items-center gap-3 border-t p-3 lg:hidden"
         >
-          <span className="text-muted-foreground text-xs">{keyLabel ?? title}</span>
-          <span className="truncate text-lg font-semibold">{keyFigure}</span>
-        </button>
-        {submit}
-      </div>
+          <button
+            type="button"
+            className="flex min-w-0 flex-1 flex-col items-start text-start"
+            onClick={() => setOpen(true)}
+          >
+            <span className="text-muted-foreground text-xs">{keyLabel ?? title}</span>
+            <span className="truncate text-lg font-semibold">{keyFigure}</span>
+          </button>
+          {submit}
+        </div>,
+        document.body,
+      )}
       <Sheet open={open} onOpenChange={setOpen}>
         <SheetContent closeLabel={t('common.actions.close')}>
           <SheetTitle className="font-semibold">{title}</SheetTitle>

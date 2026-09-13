@@ -12,7 +12,7 @@ export function RadioGroupItem({ className, ...props }: React.ComponentProps<typ
       data-slot="radio-group-item"
       className={cn(
         'border-input text-primary aspect-square size-4 shrink-0 rounded-full border shadow-xs outline-none',
-        'focus-visible:border-ring focus-visible:ring-ring/50 focus-visible:ring-[3px]',
+        'focus-visible:border-ring focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background',
         'disabled:cursor-not-allowed disabled:opacity-50',
         className,
       )}

@@ -49,7 +49,7 @@ export function SegmentedRadio<V extends string>({
           value={option.value}
           className={cn(
             'flex h-16 items-center justify-center gap-3 rounded-lg border text-base font-medium transition-colors outline-none',
-            'hover:bg-accent focus-visible:ring-ring/50 focus-visible:ring-[3px]',
+            'hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background',
             'data-[state=checked]:border-primary data-[state=checked]:bg-primary/10',
             invalid && 'border-destructive',
           )}

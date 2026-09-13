@@ -24,6 +24,7 @@ import { LowStockBadge } from '@/features/items/item-badges';
 import { MovementsTab } from '@/features/items/movements-tab';
 import { usePageTitle } from '@/hooks/use-page-title';
 import { isolate } from '@/lib/bidi';
+import { useDialogState } from '@/hooks/use-dialog-state';
 import { apiFetch } from '@/lib/api-client';
 import { useCan } from '@/lib/auth';
 import { handleApiError } from '@/lib/errors';
@@ -57,6 +58,7 @@ function ItemDetailPage() {
     archive: useCan('items.delete'),
   };
   const [dialog, setDialog] = useState<Dialog>(null);
+  const batchDialog = useDialogState(dialog === 'batch' ? dialog : null);
   usePageTitle('items.detail.title');
 
   const archive = useMutation({
@@ -182,9 +184,14 @@ function ItemDetailPage() {
         ) : null}
       </Tabs>
 
-      {/* Mounted only while open, so its date defaults to the day it is opened, not the day the page was. */}
-      {dialog === 'batch' ? (
-        <BatchDialog itemId={data.id} open onOpenChange={(open) => setDialog(open ? 'batch' : null)} />
+      {/* Remounted on every opening, so its date defaults to the day it is opened, not the day the page was. */}
+      {batchDialog.value ? (
+        <BatchDialog
+          key={batchDialog.key}
+          itemId={data.id}
+          open={batchDialog.open}
+          onOpenChange={(open) => setDialog(open ? 'batch' : null)}
+        />
       ) : null}
       <AdjustStockDialog
         item={data}

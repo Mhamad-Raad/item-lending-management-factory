@@ -164,3 +164,70 @@ function contrastOf(locator: Locator): Promise<number> {
     return ((lighter ?? 0) + 0.05) / ((darker ?? 0) + 0.05);
   });
 }
+
+test('an active user is marked in the success colour, readable in both themes', async ({ page }) => {
+  for (const theme of ['light', 'dark'] as const) {
+    await mockApi(page, undefined, 'en', theme);
+    await page.goto('/users');
+    const badge = page.locator('main [data-slot="badge"]').filter({ hasText: 'Active' }).first();
+    await expect(badge).toBeVisible();
+    await page.waitForTimeout(350);
+    expect(await tokenColours(badge, '--success')).toMatchObject({ matches: true, defined: true });
+    expect(await contrastOf(badge), theme).toBeGreaterThanOrEqual(4.5);
+  }
+});
+
+test('the font-size steps scale the whole interface, controls included, without a reload (§7.12)', async ({ page }) => {
+  await mockApi(page, undefined, 'en');
+  await page.setViewportSize({ width: 1280, height: 800 });
+  await page.goto('/account');
+  const heading = page.locator('main h1');
+  await expect(heading).toBeVisible();
+  const measure = () =>
+    page.evaluate(() => ({
+      root: getComputedStyle(document.documentElement).fontSize,
+      control: document.querySelector<HTMLElement>('main [data-slot="button"]')?.getBoundingClientRect().height ?? 0,
+    }));
+
+  const steps: Record<string, { root: string; control: number }> = {};
+  for (const [label, key] of [
+    ['Small', 'sm'],
+    ['Extra large', 'xl'],
+    ['Normal', 'md'],
+  ] as const) {
+    await page.getByRole('button', { name: label, exact: true }).click();
+    steps[key] = await measure();
+  }
+  expect(steps.sm?.root).toBe('14px');
+  expect(steps.md?.root).toBe('16px');
+  expect(steps.xl?.root).toBe('20px');
+  // A 2.25 rem control follows the root size: 31.5, 36 and 45 px.
+  expect(steps.sm?.control).toBeCloseTo(31.5, 0);
+  expect(steps.md?.control).toBeCloseTo(36, 0);
+  expect(steps.xl?.control).toBeCloseTo(45, 0);
+});
+
+test('every field outline, pickers included, uses the field token at 3 : 1 (Q44)', async ({ page }) => {
+  await mockApi(page, undefined, 'en');
+  await page.goto('/orders/new');
+  await expect(page.locator('main h1')).toBeVisible();
+  const outlines = await page.evaluate(() => {
+    const probe = document.createElement('span');
+    probe.style.color = 'var(--input)';
+    document.body.append(probe);
+    const input = getComputedStyle(probe).color;
+    probe.remove();
+    return [
+      ...document.querySelectorAll<HTMLElement>(
+        'main input:not([type="hidden"]):not([type="radio"]):not([type="checkbox"]), main textarea, main [role="combobox"]',
+      ),
+    ]
+      .filter((el) => el.getBoundingClientRect().width > 0)
+      .map((el) => ({
+        field: el.getAttribute('aria-label') ?? el.id ?? el.tagName,
+        matches: getComputedStyle(el).borderTopColor === input,
+      }));
+  });
+  expect(outlines.length).toBeGreaterThan(2);
+  expect(outlines.filter((outline) => !outline.matches)).toEqual([]);
+});

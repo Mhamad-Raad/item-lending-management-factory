@@ -15,6 +15,7 @@ import { PageHeader } from '@/components/app/page-header';
 import { PageSkeleton, QueryErrorState } from '@/components/app/states';
 import { Button } from '@/components/ui/button';
 import { DriverDialog } from '@/features/drivers/driver-dialog';
+import { useDialogState } from '@/hooks/use-dialog-state';
 import { usePageTitle } from '@/hooks/use-page-title';
 import { useSearchInput } from '@/hooks/use-search-input';
 import { isolate } from '@/lib/bidi';
@@ -43,6 +44,7 @@ function DriversPage() {
   const search = Route.useSearch();
   const can = { create: useCan('drivers.create'), edit: useCan('drivers.edit'), archive: useCan('drivers.delete') };
   const [open, setOpen] = useState<Open>(null);
+  const editor = useDialogState(open?.kind === 'new' || open?.kind === 'edit' ? open : null);
   usePageTitle('drivers.list.title');
 
   const commitSearch = useCallback(
@@ -191,11 +193,11 @@ function DriversPage() {
         }
       />
 
-      {open?.kind === 'new' || open?.kind === 'edit' ? (
+      {editor.value ? (
         <DriverDialog
-          key={open.kind === 'edit' ? open.driver.id : 'new'}
-          driver={open.kind === 'edit' ? open.driver : undefined}
-          open
+          key={editor.key}
+          driver={editor.value.kind === 'edit' ? editor.value.driver : undefined}
+          open={editor.open}
           onOpenChange={(next) => !next && setOpen(null)}
         />
       ) : null}

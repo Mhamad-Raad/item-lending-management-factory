@@ -11,6 +11,7 @@ import { MoneyText } from '@/components/app/money-text';
 import { QuantityText } from '@/components/app/quantity-text';
 import { EmptyState, PageSkeleton, QueryErrorState } from '@/components/app/states';
 import { Button } from '@/components/ui/button';
+import { useDialogState } from '@/hooks/use-dialog-state';
 import { apiFetch } from '@/lib/api-client';
 import { useCan } from '@/lib/auth';
 import { handleApiError } from '@/lib/errors';
@@ -29,6 +30,7 @@ export function BatchesTab({ itemId }: { itemId: number }) {
   const canDelete = useCan('purchases.delete');
   const [page, setPage] = useState(1);
   const [editing, setEditing] = useState<PurchaseBatchDto | null>(null);
+  const editor = useDialogState(editing);
   const [deleting, setDeleting] = useState<PurchaseBatchDto | null>(null);
 
   const params = { itemId, sort: '-date', page, pageSize: 25 };
@@ -134,12 +136,12 @@ export function BatchesTab({ itemId }: { itemId: number }) {
         isFetching={batches.isFetching}
         empty={<EmptyState icon={PackagePlus} title={t('purchases.empty')} />}
       />
-      {editing ? (
+      {editor.value ? (
         <BatchDialog
-          key={editing.id}
+          key={editor.key}
           itemId={itemId}
-          batch={editing}
-          open
+          batch={editor.value}
+          open={editor.open}
           onOpenChange={(open) => !open && setEditing(null)}
         />
       ) : null}
