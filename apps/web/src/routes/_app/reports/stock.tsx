@@ -3,6 +3,7 @@ import { useQuery } from '@tanstack/react-query';
 import { Link, createFileRoute, useNavigate } from '@tanstack/react-router';
 import { useTranslation } from 'react-i18next';
 import { z } from 'zod';
+import { ArchivedBadge } from '@/components/app/archived-badge';
 import { FilterSwitch } from '@/components/app/list-controls';
 import { QuantityText } from '@/components/app/quantity-text';
 import { PageSkeleton, QueryErrorState } from '@/components/app/states';
@@ -66,6 +67,7 @@ function StockReportPage() {
           ) : (
             row.item.name
           )}
+          {row.item.archived ? <ArchivedBadge /> : null}
           {row.isLowStock ? <LowStockBadge /> : null}
         </span>
       ),

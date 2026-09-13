@@ -400,3 +400,75 @@ test('every report prints on A4, activity in landscape throughout, with column h
     expect(new Set(headers), path).toEqual(new Set(['table-header-group']));
   }
 });
+
+test('a period ending in the future is refused on its date field, typed or refused by the server', async ({ page }) => {
+  const asked = await mockReports(page);
+  await page.goto('/reports/activity?dateFrom=2026-09-01&dateTo=2099-01-01');
+  await expect(page.getByRole('alert').filter({ hasText: 'The date cannot be in the future' })).toBeVisible();
+  expect(asked.filter((url) => url.pathname.endsWith('/activity'))).toEqual([]);
+
+  // The browser's clock can run ahead of the server's around midnight: the refusal lands on the field too.
+  await page.route(/\/api\/reports\/purchases/, (route) =>
+    route.fulfill({ status: 400, json: { error: { code: 'BUSINESS_DATE_IN_FUTURE', requestId: 'r1' } } }),
+  );
+  await page.goto('/reports/purchases?dateFrom=2026-09-01&dateTo=2026-09-12');
+  await expect(page.getByRole('alert').filter({ hasText: 'The date cannot be in the future' })).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Retry' })).toHaveCount(0);
+});
+
+test('purchases group each item with its subtotal, and a cut-off item still shows its subtotal', async ({ page }) => {
+  await mockReports(page);
+  const C = { id: 7, name: 'Pallet C', imageUrl: null, archived: false };
+  await page.route(/\/api\/reports\/purchases/, (route) =>
+    route.fulfill({
+      json: {
+        ...PURCHASES,
+        // Pallet C's only batch fell past the row cap: no row of its own, but its subtotal is known.
+        perItem: [...PURCHASES.perItem, { item: C, batchCount: 1, quantity: 5, totalCost: 3_500 }],
+        totals: { batchCount: 4, quantity: 655, totalCost: 463_500 },
+        truncated: true,
+      },
+    }),
+  );
+  await page.goto('/reports/purchases?dateFrom=2026-09-01&dateTo=2026-09-12');
+
+  const rows = page.getByRole('table').locator('tbody tr');
+  await expect(rows).toHaveCount(6);
+  const firstCells = await rows.evaluateAll((all) => all.map((row) => row.querySelector('td')?.textContent ?? ''));
+  expect(firstCells).toEqual([
+    'Pallet A',
+    'Pallet A',
+    'Subtotal: Pallet A',
+    'Pallet B',
+    'Subtotal: Pallet B',
+    'Subtotal: Pallet C',
+  ]);
+  await expect(rows.nth(5)).toContainText('3,500');
+});
+
+test('positions for one chosen customer show that customer even with nothing out', async ({ page }) => {
+  const asked = await mockReports(page);
+  await page.goto('/reports/positions?customerId=3');
+  await expect(page.getByRole('table')).toBeVisible();
+  const request = asked.find((url) => url.pathname.endsWith('/positions'));
+  expect(request?.searchParams.get('customerId')).toBe('3');
+  expect(request?.searchParams.get('includeZero')).toBe('true');
+});
+
+test('stock marks an archived item when archived items are included', async ({ page }) => {
+  await mockReports(page);
+  await page.route(/\/api\/reports\/stock/, (route) =>
+    route.fulfill({
+      json: {
+        ...STOCK,
+        rows: [
+          ...STOCK.rows,
+          { ...STOCK.rows[0], item: { id: 8, name: 'Old pallet', imageUrl: null, archived: true } },
+        ],
+      },
+    }),
+  );
+  await page.goto('/reports/stock?includeArchived=true');
+  await expect(page.getByRole('row', { name: /Old pallet/ })).toContainText('Archived');
+  await expect(page.getByRole('row', { name: /Pallet A/ })).not.toContainText('Archived');
+});

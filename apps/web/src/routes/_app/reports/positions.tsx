@@ -42,7 +42,8 @@ function PositionsReportPage() {
   const [open, setOpen] = useState<ReadonlySet<number>>(new Set());
   const canCustomers = useCanFilterBy('customer');
   const customerName = useFilterName('customer', search.customerId);
-  const params = { customerId: search.customerId };
+  // A customer chosen by name is shown even with nothing out, owed or held.
+  const params = { customerId: search.customerId, includeZero: search.customerId ? true : undefined };
   const report = useQuery({
     queryKey: [...qk.reports.all(), 'positions', params],
     queryFn: () => apiFetch<PositionsReportDto>('/reports/positions', { query: params }),

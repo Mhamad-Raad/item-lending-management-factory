@@ -21,7 +21,7 @@ import { PageSkeleton, QueryErrorState } from '@/components/app/states';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Badge } from '@/components/ui/badge';
 import { orderLabel } from '@/features/orders/order-text';
-import { defaultPeriod } from '@/features/reports/report-dates';
+import { periodRefusalOf, reportPeriod } from '@/features/reports/report-dates';
 import { useCanFilterBy, useFilterName } from '@/features/reports/report-filters';
 import { ReportFrame } from '@/features/reports/report-frame';
 import { ReportTable, type ReportColumn } from '@/features/reports/report-table';
@@ -49,10 +49,7 @@ function ActivityReportPage() {
   const { t } = useTranslation();
   const navigate = useNavigate({ from: Route.fullPath });
   const search = Route.useSearch();
-  const period = defaultPeriod();
-  const dateFrom = search.dateFrom ?? period.dateFrom;
-  const dateTo = search.dateTo ?? period.dateTo;
-  const rangeInvalid = dateFrom > dateTo;
+  const { dateFrom, dateTo, refusal } = reportPeriod(search);
   const allowed = {
     customer: useCanFilterBy('customer'),
     item: useCanFilterBy('item'),
@@ -68,8 +65,9 @@ function ActivityReportPage() {
     queryKey: [...qk.reports.all(), 'activity', params],
     queryFn: () => apiFetch<ActivityReportDto>('/reports/activity', { query: params }),
     staleTime: 0,
-    enabled: !rangeInvalid,
+    enabled: refusal === null,
   });
+  const dateRefusal = refusal ?? periodRefusalOf(report.error);
   const setFilter = (patch: Partial<typeof search>) =>
     void navigate({ search: (prev) => ({ ...prev, ...patch }), replace: true });
 
@@ -124,7 +122,7 @@ function ActivityReportPage() {
             to={dateTo}
             max={businessToday()}
             onChange={({ from, to }) => setFilter({ dateFrom: from, dateTo: to })}
-            error={rangeInvalid ? t('errors.DATE_RANGE_INVALID') : undefined}
+            error={dateRefusal ? t(`errors.${dateRefusal}`) : undefined}
           />
           {(['customer', 'item', 'driver'] as const)
             .filter((kind) => allowed[kind])
@@ -145,7 +143,7 @@ function ActivityReportPage() {
         </>
       }
     >
-      {rangeInvalid ? null : report.isPending ? (
+      {dateRefusal ? null : report.isPending ? (
         <PageSkeleton rows={6} />
       ) : report.isError || !data ? (
         <QueryErrorState error={report.error} onRetry={() => void report.refetch()} />

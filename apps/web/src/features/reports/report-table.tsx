@@ -26,6 +26,7 @@ export function ReportTable<T>({
   sort,
   defaultSort,
   onSortChange,
+  rowClassName,
   expanded,
   emptyText,
 }: {
@@ -40,6 +41,7 @@ export function ReportTable<T>({
   /** The order the API returns the rows in, shown as the sort in effect when the URL names none. */
   defaultSort?: string;
   onSortChange?: (sort: string | undefined) => void;
+  rowClassName?: (row: T) => string | undefined;
   /** A row rendered under a row, such as its per-item breakdown or a subtotal. */
   expanded?: (row: T) => React.ReactNode;
   emptyText: string;
@@ -113,7 +115,7 @@ export function ReportTable<T>({
           ) : (
             ordered.map((row) => (
               <Fragment key={rowKey(row)}>
-                <tr className="border-b last:border-b-0">
+                <tr className={cn('border-b last:border-b-0', rowClassName?.(row))}>
                   {columns.map((col) => (
                     <td
                       key={col.id}
