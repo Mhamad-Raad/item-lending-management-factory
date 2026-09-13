@@ -200,3 +200,56 @@ test('order links need permission to view orders', async ({ page }) => {
   await expect(page.getByRole('table').getByText('#11')).toBeVisible();
   await expect(page.getByRole('table').getByRole('link', { name: '#11' })).toHaveCount(0);
 });
+
+test('on a phone each history entry is a card that leads with its summary and opens its changes', async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await signIn(page, ADMIN);
+  await mockHistory(page);
+
+  await page.goto('/history');
+
+  const entries = page.getByRole('list', { name: 'History' }).getByRole('listitem');
+  await expect(entries).toHaveCount(ROWS.length);
+  const summary = entries.first().getByRole('button', { name: /clerk/ });
+  await expect(summary).toBeInViewport({ ratio: 1 });
+  // A one-line summary is still a 40 px target on a phone (§7.15).
+  expect((await summary.boundingBox())?.height).toBeGreaterThanOrEqual(40);
+  await expect(entries.first().getByRole('link', { name: '#2' })).toBeVisible();
+
+  await summary.click();
+  await expect(summary).toHaveAttribute('aria-expanded', 'true');
+});
+
+test('changed values read left to right in Kurdish, quotes and all', async ({ page }) => {
+  await page.addInitScript(() => window.localStorage.setItem('pallet.prefs.v1', JSON.stringify({ language: 'ckb' })));
+  await page.route('**/api/auth/refresh', (route) =>
+    route.fulfill({
+      json: { accessToken: 'token', accessTokenExpiresAt: new Date(Date.now() + 900_000).toISOString(), user: ADMIN },
+    }),
+  );
+  const row = { ...ROWS[0], before: { displayName: 'ناوی کۆن' }, after: { displayName: 'ناوی نوێ' } };
+  await page.route(/\/api\/audit-logs(\?.*)?$/, (route) =>
+    route.fulfill({ json: { items: [row], page: 1, pageSize: 50, total: 1 } }),
+  );
+
+  await page.goto('/history');
+  await page.getByRole('table').getByRole('button').first().click();
+
+  // A Kurdish value decides its own direction unless the JSON is isolated left to right, and then
+  // its opening quote lands on the right-hand side. Measured on the rendered glyphs.
+  const value = page.getByRole('table').locator('pre', { hasText: 'ناوی نوێ' });
+  await expect(value).toBeVisible();
+  const quotes = await value.evaluate((element) => {
+    const walker = document.createTreeWalker(element, NodeFilter.SHOW_TEXT);
+    const node = walker.nextNode();
+    const text = node?.textContent ?? '';
+    const at = (index: number) => {
+      const range = document.createRange();
+      range.setStart(node as Text, index);
+      range.setEnd(node as Text, index + 1);
+      return range.getBoundingClientRect().left;
+    };
+    return { opening: at(text.indexOf('"')), closing: at(text.lastIndexOf('"')) };
+  });
+  expect(quotes.opening).toBeLessThan(quotes.closing);
+});

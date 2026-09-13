@@ -40,7 +40,7 @@ async function expectNoHorizontalScroll(page: Page): Promise<void> {
 }
 
 /**
- * §7.15 target sizes: below `md` every control is at least `h-10` (40 px). Checkboxes and switches are
+ * §7.15 target sizes: below `md` every control is at least `h-10` (40 px). Checkboxes, radios and switches are
  * left out — their visible label is part of the target — and so is a file input, which stays hidden
  * behind its own button.
  */
@@ -48,7 +48,7 @@ async function expectTouchTargets(page: Page): Promise<void> {
   const small = await page.evaluate(() =>
     [
       ...document.querySelectorAll<HTMLElement>(
-        '[data-slot="button"], [role="combobox"], [role="tab"], input:not([type="checkbox"]):not([type="radio"]):not([type="hidden"]):not([type="file"]), textarea',
+        'button:not([role="switch"]):not([role="checkbox"]):not([role="radio"]), [data-slot="button"], [role="combobox"], [role="tab"], input:not([type="checkbox"]):not([type="radio"]):not([type="hidden"]):not([type="file"]), textarea',
       ),
     ]
       .filter((element) => element.getClientRects().length > 0 && !element.closest('[aria-hidden="true"]'))

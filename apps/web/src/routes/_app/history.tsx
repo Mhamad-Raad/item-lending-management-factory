@@ -107,11 +107,39 @@ function EntityRef({ row }: { row: AuditLogDto }) {
   );
 }
 
+/** Who did it; a failed sign-in has no user, only the name that was tried. */
+function AuditUser({ row }: { row: AuditLogDto }) {
+  return row.user ? (
+    <span>{row.user.displayName}</span>
+  ) : (
+    <span className="text-muted-foreground italic">{row.usernameAttempt ?? '—'}</span>
+  );
+}
+
+/** The entry's summary, which opens the before/after comparison below it. */
+function AuditSummary({ row, expanded, onToggle }: { row: AuditLogDto; expanded: boolean; onToggle: () => void }) {
+  const { t } = useTranslation();
+  return (
+    <div className="flex flex-col items-start gap-1">
+      <button
+        type="button"
+        className="min-h-10 text-start underline-offset-4 hover:underline md:min-h-0"
+        aria-expanded={expanded}
+        onClick={onToggle}
+      >
+        {t(row.summaryKey, translateSummaryParams(t, row.summaryParams))}
+      </button>
+      {expanded ? <AuditDiff row={row} /> : null}
+    </div>
+  );
+}
+
 function HistoryPage() {
   const { t } = useTranslation();
   const navigate = useNavigate({ from: Route.fullPath });
   const search = Route.useSearch();
   const [expanded, setExpanded] = useState<number | null>(null);
+  const toggle = (id: number): void => setExpanded((open) => (open === id ? null : id));
   // The user filter lists users, which only an admin may read (§7.3.18).
   const isAdmin = useAuth().user?.role === 'ADMIN';
   usePageTitle('history.title');
@@ -230,54 +258,60 @@ function HistoryPage() {
           {logs.data.items.length === 0 ? (
             <EmptyState title={t('history.empty')} />
           ) : (
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>{t('history.columns.time')}</TableHead>
-                  <TableHead>{t('history.columns.user')}</TableHead>
-                  <TableHead>{t('history.columns.action')}</TableHead>
-                  <TableHead>{t('history.columns.entity')}</TableHead>
-                  <TableHead>{t('history.columns.summary')}</TableHead>
-                  <TableHead>{t('history.columns.ip')}</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
+            <>
+              <div className="hidden overflow-x-auto md:block">
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>{t('history.columns.time')}</TableHead>
+                      <TableHead>{t('history.columns.user')}</TableHead>
+                      <TableHead>{t('history.columns.action')}</TableHead>
+                      <TableHead>{t('history.columns.entity')}</TableHead>
+                      <TableHead>{t('history.columns.summary')}</TableHead>
+                      <TableHead>{t('history.columns.ip')}</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {logs.data.items.map((row) => (
+                      <TableRow key={row.id}>
+                        <TableCell className="whitespace-nowrap" dir="ltr">
+                          {formatTimestamp(row.createdAt)}
+                        </TableCell>
+                        <TableCell>
+                          <AuditUser row={row} />
+                        </TableCell>
+                        <TableCell className="whitespace-nowrap">{t(`enums.auditAction.${row.action}`)}</TableCell>
+                        <TableCell>
+                          <EntityRef row={row} />
+                        </TableCell>
+                        <TableCell>
+                          <AuditSummary row={row} expanded={expanded === row.id} onToggle={() => toggle(row.id)} />
+                        </TableCell>
+                        <TableCell className="text-muted-foreground" dir="ltr">
+                          {row.ip ?? '—'}
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </div>
+
+              {/* Below md a table of six columns scrolls sideways and hides the summary: one card per entry. */}
+              <ul aria-label={t('history.title')} className="flex flex-col gap-3 md:hidden">
                 {logs.data.items.map((row) => (
-                  <TableRow key={row.id}>
-                    <TableCell className="whitespace-nowrap" dir="ltr">
-                      {formatTimestamp(row.createdAt)}
-                    </TableCell>
-                    <TableCell>
-                      {row.user ? (
-                        row.user.displayName
-                      ) : (
-                        <span className="text-muted-foreground italic">{row.usernameAttempt ?? '—'}</span>
-                      )}
-                    </TableCell>
-                    <TableCell className="whitespace-nowrap">{t(`enums.auditAction.${row.action}`)}</TableCell>
-                    <TableCell>
+                  <li key={row.id} className="bg-card flex flex-col gap-2 rounded-lg border p-4">
+                    <AuditSummary row={row} expanded={expanded === row.id} onToggle={() => toggle(row.id)} />
+                    <div className="text-muted-foreground flex flex-wrap gap-x-3 gap-y-1 text-sm">
+                      <span dir="ltr">{formatTimestamp(row.createdAt)}</span>
+                      <AuditUser row={row} />
+                      <span>{t(`enums.auditAction.${row.action}`)}</span>
                       <EntityRef row={row} />
-                    </TableCell>
-                    <TableCell>
-                      <div className="flex flex-col items-start gap-1">
-                        <button
-                          type="button"
-                          className="text-start underline-offset-4 hover:underline"
-                          aria-expanded={expanded === row.id}
-                          onClick={() => setExpanded(expanded === row.id ? null : row.id)}
-                        >
-                          {t(row.summaryKey, translateSummaryParams(t, row.summaryParams))}
-                        </button>
-                        {expanded === row.id ? <AuditDiff row={row} /> : null}
-                      </div>
-                    </TableCell>
-                    <TableCell className="text-muted-foreground" dir="ltr">
-                      {row.ip ?? '—'}
-                    </TableCell>
-                  </TableRow>
+                      {row.ip ? <span dir="ltr">{row.ip}</span> : null}
+                    </div>
+                  </li>
                 ))}
-              </TableBody>
-            </Table>
+              </ul>
+            </>
           )}
 
           <Pagination
@@ -313,8 +347,12 @@ function AuditDiff({ row }: { row: AuditLogDto }) {
               {changed ? '• ' : ''}
               {key}
             </span>
-            <pre className="overflow-x-auto whitespace-pre-wrap">{JSON.stringify(before[key] ?? null)}</pre>
-            <pre className="overflow-x-auto whitespace-pre-wrap">{JSON.stringify(after[key] ?? null)}</pre>
+            <pre className="overflow-x-auto whitespace-pre-wrap">
+              <bdi dir="ltr">{JSON.stringify(before[key] ?? null)}</bdi>
+            </pre>
+            <pre className="overflow-x-auto whitespace-pre-wrap">
+              <bdi dir="ltr">{JSON.stringify(after[key] ?? null)}</bdi>
+            </pre>
           </div>
         );
       })}
