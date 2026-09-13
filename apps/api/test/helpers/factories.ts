@@ -128,8 +128,8 @@ export async function createDriver(
 /**
  * Writes an order and its lines straight into the database, with the maintained totals a real order
  * would carry — including returned pallets and amounts owed, which `createOrder` cannot produce
- * until returns and payments exist (M4). It writes no stock movements, so `reconcile` does not hold
- * in a test that uses it; tests of the order flow itself use `createOrder`.
+ * until returns and payments exist (M4). It writes no stock movements, so the database does not
+ * reconcile: a file that uses it calls `skipReconciliation`. Everything else uses `createOrder`.
  */
 export async function insertOrder(
   app: INestApplication,

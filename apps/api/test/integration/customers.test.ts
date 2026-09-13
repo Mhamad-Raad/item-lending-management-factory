@@ -7,6 +7,7 @@ import { PrismaService } from '../../src/prisma/prisma.service';
 import { createTestApp } from '../helpers/app';
 import { asUser, login, type Session } from '../helpers/auth';
 import { disconnectDatabase, resetDatabase } from '../helpers/db';
+import { skipReconciliation } from '../helpers/reconciliation';
 import {
   EMPLOYEE_PASSWORD,
   createCustomer,
@@ -24,6 +25,10 @@ const BODY = {
   address: 'Erbil, 100 m road',
   creditLimit: 5_000_000,
 };
+
+// Built with insertOrder (returned pallets, owed and held set by hand) until M4 brings returns and
+// payments to record them for real; those rows do not reconcile.
+skipReconciliation('orders inserted directly, without stock movements or ledger rows');
 
 describe('customers', () => {
   let app: INestApplication;

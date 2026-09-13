@@ -7,7 +7,7 @@ import { PrismaService } from '../../src/prisma/prisma.service';
 import { createTestApp } from '../helpers/app';
 import { asUser, login, type Session } from '../helpers/auth';
 import { disconnectDatabase, resetDatabase } from '../helpers/db';
-import { createCustomer, createDriver, createItem, insertOrder } from '../helpers/factories';
+import { createCustomer, createDriver, createItem, createOrder } from '../helpers/factories';
 
 const NOW = new Date('2026-09-12T09:00:00Z');
 
@@ -97,11 +97,11 @@ describe('drivers', () => {
   it('archives at any time — even with open orders — and an archived driver takes no edits', async () => {
     const driver = await createDriver(app, admin);
     const customer = await createCustomer(app, admin);
-    const item = await createItem(app, admin);
-    await insertOrder(app, {
+    const item = await createItem(app, admin, { stock: 10 });
+    await createOrder(app, admin, {
       customerId: customer.id,
       driverId: driver.id,
-      lines: [{ itemId: item.id, quantity: 5, unitDeposit: 1_000 }],
+      lines: [{ itemId: item.id, quantity: 5 }],
     });
 
     const archived = await archive(driver.id, 1).expect(200);

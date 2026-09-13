@@ -9,6 +9,7 @@ import { runInTransaction } from '../../src/prisma/transaction';
 import { createTestApp } from '../helpers/app';
 import { asUser, login, type Session } from '../helpers/auth';
 import { disconnectDatabase, resetDatabase } from '../helpers/db';
+import { skipReconciliation } from '../helpers/reconciliation';
 import { createCustomer, createDriver, createItem, createOrder } from '../helpers/factories';
 import { recordManualPayment, recordReversedReturn } from '../helpers/ledger-fixtures';
 
@@ -19,6 +20,8 @@ const TODAY = '2026-09-11';
  * Reconciliation (§4.9 R1–R7): each check is shown to find what it guards, by breaking that invariant
  * on purpose. A clean database reports nothing.
  */
+skipReconciliation('every test breaks an invariant on purpose');
+
 describe('reconciliation', () => {
   let app: INestApplication;
   let prisma: PrismaService;

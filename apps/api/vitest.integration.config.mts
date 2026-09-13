@@ -15,7 +15,7 @@ export default defineConfig({
   test: {
     include: ['test/integration/**/*.test.ts'],
     environment: 'node',
-    setupFiles: ['reflect-metadata'],
+    setupFiles: ['reflect-metadata', './test/reconcile-after-each.ts'],
     globalSetup: ['./test/global-setup.ts'],
     // The application under test connects to the test database as the runtime role.
     env: {
