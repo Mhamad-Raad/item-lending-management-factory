@@ -62,10 +62,10 @@ function StockReportPage() {
               params={{ itemId: String(row.item.id) }}
               className="underline-offset-4 hover:underline"
             >
-              {row.item.name}
+              <bdi>{row.item.name}</bdi>
             </Link>
           ) : (
-            row.item.name
+            <bdi>{row.item.name}</bdi>
           )}
           {row.item.archived ? <ArchivedBadge /> : null}
           {row.isLowStock ? <LowStockBadge /> : null}

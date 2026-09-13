@@ -1,10 +1,11 @@
 import { useEffect, useSyncExternalStore } from 'react';
 import { useTranslation } from 'react-i18next';
+import type { TranslationKey } from '@/i18n/keys';
 
-let currentKey: string | null = null;
+let currentKey: TranslationKey | null = null;
 const listeners = new Set<() => void>();
 
-function publish(key: string | null): void {
+function publish(key: TranslationKey | null): void {
   currentKey = key;
   for (const listener of listeners) listener();
 }
@@ -13,7 +14,7 @@ function publish(key: string | null): void {
  * `document.title = <page> — <app name>`, per §7.2. The key is also published for the shell, whose
  * top bar shows the page title below `lg` (§7.5), so a page names itself in one place.
  */
-export function usePageTitle(titleKey: string): void {
+export function usePageTitle(titleKey: TranslationKey): void {
   const { t, i18n } = useTranslation();
 
   useEffect(() => {
@@ -29,7 +30,7 @@ export function usePageTitle(titleKey: string): void {
 }
 
 /** The i18n key of the title the mounted page declared, or null while none has. */
-export function useCurrentPageTitleKey(): string | null {
+export function useCurrentPageTitleKey(): TranslationKey | null {
   return useSyncExternalStore(
     (listener) => {
       listeners.add(listener);

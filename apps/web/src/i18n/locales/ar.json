@@ -150,7 +150,7 @@
     "welcome": "أهلاً، {{name}}",
     "cards": {
       "title": "الأرقام",
-      "palletsOut": "الطبليات لدى العملاء",
+      "palletsOut": "الطبليات لدى الزبائن",
       "owed": "إجمالي المستحق",
       "held": "إجمالي المحتجز",
       "lowStock": "أصناف منخفضة المخزون"
@@ -377,6 +377,11 @@
       "RETURN": "إرجاع",
       "PAYMENT": "دفعة",
       "REFUND": "استرداد"
+    },
+    "customerHistoryKind": {
+      "HANDOVER": "تسليم",
+      "RETURN": "إرجاع",
+      "LEDGER": "دفعة أو استرداد"
     }
   },
   "audit": {
@@ -509,7 +514,7 @@
     "passwordMismatch": "كلمتا المرور غير متطابقتين",
     "stockExceeded": "المتوفر {{available}} فقط",
     "paymentExceedsOwed": "المستحق {{owed}} على الأكثر",
-    "returnExceedsOut": "{{out}} على الأكثر لدى العميل",
+    "returnExceedsOut": "{{out}} على الأكثر لدى الزبون",
     "damagedRefundTooHigh": "{{maximum}} على الأكثر",
     "returnEmpty": "أدخل طبلية مرتجعة واحدة على الأقل"
   },
@@ -753,9 +758,7 @@
       "history": "السجل"
     },
     "history": {
-      "empty": "لم يُسجَّل شيء لهذا العميل بعد",
-      "handover": "تسليم",
-      "return": "إرجاع",
+      "empty": "لم يُسجَّل شيء لهذا الزبون بعد",
       "deleted": "محذوف",
       "corrected": "مصحّح",
       "pallets": "الطبليات"
@@ -889,7 +892,7 @@
       "editReturn": "تعديل الإرجاع",
       "deleteReturn": "حذف الإرجاع",
       "deleteReturnTitle": "حذف هذا الإرجاع؟",
-      "deleteReturnBody": "تعود طبلياته المقبولة إلى العميل ويُعكس أي استرداد نقدي. يبقى الإرجاع في السجل موسوماً بأنه محذوف.",
+      "deleteReturnBody": "تعود طبلياته المقبولة إلى الزبون ويُعكس أي استرداد نقدي. يبقى الإرجاع في السجل موسوماً بأنه محذوف.",
       "returnDeleted": "حُذف الإرجاع",
       "deletePayment": "حذف الدفعة",
       "deletePaymentTitle": "حذف هذه الدفعة؟",
@@ -926,7 +929,7 @@
     },
     "picker": {
       "title": "اختر الطلب",
-      "empty": "لا يوجد لهذا العميل طلب يمكن اختياره هنا",
+      "empty": "لا يوجد لهذا الزبون طلب يمكن اختياره هنا",
       "change": "تغيير الطلب"
     }
   },
@@ -975,19 +978,19 @@
       "lines": "الطبليات المرتجعة",
       "allAccepted": "كلها مقبولة",
       "everythingAccepted": "كل المرتجع مقبول",
-      "out": "لدى العميل",
+      "out": "لدى الزبون",
       "summary": "الملخص",
       "refundDue": "الرصيد المستحق",
       "cashRefund": "استرداد نقدي",
       "owedBefore": "المستحق قبل",
       "owedAfter": "المستحق بعد",
-      "outAfter": "يبقى لدى العميل",
+      "outAfter": "يبقى لدى الزبون",
       "compensation": "التعويض المقدّر",
-      "cashHandover": "سلّم العميل {{amount}} دينار الآن",
-      "stillOwes": "ما زال على العميل {{amount}}",
+      "cashHandover": "سلّم الزبون {{amount}} دينار الآن",
+      "stillOwes": "ما زال على الزبون {{amount}}",
       "notReplaceable": "لم يعد بالإمكان تصحيح هذا الإرجاع",
       "backToOrder": "العودة إلى الطلب",
-      "nothingOut": "لا شيء لدى العميل من هذا الطلب"
+      "nothingOut": "لا شيء لدى الزبون من هذا الطلب"
     }
   },
   "reports": {
@@ -999,18 +1002,18 @@
     "generatedAt": "أُنشئ {{at}}",
     "printedFilters": "عوامل التصفية: {{filters}}",
     "period": "من {{from}} إلى {{to}}",
-    "allCustomers": "كل العملاء",
+    "allCustomers": "كل الزبائن",
     "allItems": "كل الأصناف",
     "allDrivers": "كل السائقين",
     "positions": {
-      "title": "الطبليات لدى العملاء والأموال",
-      "customer": "العميل",
-      "palletsOut": "الطبليات لدى العميل",
+      "title": "الطبليات لدى الزبائن والأموال",
+      "customer": "الزبون",
+      "palletsOut": "الطبليات لدى الزبون",
       "outValue": "قيمة الطبليات",
       "owed": "المستحق",
       "held": "المحتجز",
       "perItem": "الطبليات حسب الصنف لـ {{name}}",
-      "totalPerItem": "الطبليات لدى العملاء حسب الصنف"
+      "totalPerItem": "الطبليات لدى الزبائن حسب الصنف"
     },
     "purchases": {
       "title": "المشتريات",
@@ -1026,7 +1029,7 @@
       "title": "النشاط",
       "date": "التاريخ",
       "order": "الطلب",
-      "customer": "العميل",
+      "customer": "الزبون",
       "driver": "السائق",
       "item": "الصنف",
       "pallets": "الطبليات",
@@ -1045,7 +1048,7 @@
       "grossReversals": "{{gross}} ناقص {{reversals}} معكوس",
       "moneyOmitted": "تُسجَّل الدفعات والاستردادات لكل طلب لا لكل صنف، لذا تُحذف عند اختيار صنف.",
       "compensationAssessed": "تعويض التلف المقدَّر",
-      "compensationNote": "يُقدَّر على الطبليات التالفة. في الطلبات الآجلة قد يبقى جزءاً مما على العميل.",
+      "compensationNote": "يُقدَّر على الطبليات التالفة. في الطلبات الآجلة قد يبقى جزءاً مما على الزبون.",
       "damagedRefund": "استرداد التالف",
       "compensation": "التعويض"
     },
@@ -1053,7 +1056,7 @@
       "title": "مستويات المخزون",
       "item": "الصنف",
       "onHand": "في المخزن",
-      "out": "لدى العملاء",
+      "out": "لدى الزبائن",
       "damaged": "تالفة",
       "minStock": "الحد الأدنى",
       "lowStockOnly": "المنخفض فقط",

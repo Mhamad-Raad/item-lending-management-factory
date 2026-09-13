@@ -70,14 +70,14 @@ export function BatchesTab({ itemId }: { itemId: number }) {
       ? [
           {
             id: 'unitCost',
-            header: 'purchases.fields.unitCost',
+            header: 'purchases.fields.unitCost' as const,
             cell: (batch: PurchaseBatchDto) =>
               batch.unitCost === undefined ? '—' : <MoneyText value={batch.unitCost} />,
             align: 'end' as const,
           },
           {
             id: 'totalCost',
-            header: 'purchases.fields.totalCost',
+            header: 'purchases.fields.totalCost' as const,
             cell: (batch: PurchaseBatchDto) =>
               batch.totalCost === undefined ? '—' : <MoneyText value={batch.totalCost} />,
             align: 'end' as const,
@@ -89,7 +89,7 @@ export function BatchesTab({ itemId }: { itemId: number }) {
       ? [
           {
             id: 'actions',
-            header: 'common.actions.title',
+            header: 'common.actions.title' as const,
             cell: (batch: PurchaseBatchDto) => (
               <div className="flex justify-end gap-1">
                 {canEdit ? (

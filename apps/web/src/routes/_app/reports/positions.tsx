@@ -12,6 +12,7 @@ import { PageSkeleton, QueryErrorState } from '@/components/app/states';
 import { useCanFilterBy, useFilterName } from '@/features/reports/report-filters';
 import { ReportFrame } from '@/features/reports/report-frame';
 import { ReportTable, type ReportColumn } from '@/features/reports/report-table';
+import { isolate } from '@/lib/bidi';
 import { apiFetch } from '@/lib/api-client';
 import { qk } from '@/lib/query-keys';
 import { requirePermission } from '@/lib/route-guards';
@@ -83,10 +84,10 @@ function PositionsReportPage() {
               params={{ customerId: String(row.customer.id) }}
               className="underline-offset-4 hover:underline"
             >
-              {row.customer.name}
+              <bdi>{row.customer.name}</bdi>
             </Link>
           ) : (
-            row.customer.name
+            <bdi>{row.customer.name}</bdi>
           )}
         </span>
       ),
@@ -129,7 +130,7 @@ function PositionsReportPage() {
         .filter((cell) => cell.quantityOut > 0)
         .map((cell) => (
           <li key={cell.itemId}>
-            {itemName(cell.itemId)}: <QuantityText value={cell.quantityOut} />
+            <bdi>{itemName(cell.itemId)}</bdi>: <QuantityText value={cell.quantityOut} />
           </li>
         ))}
     </ul>
@@ -139,7 +140,7 @@ function PositionsReportPage() {
     <ReportFrame
       report="positions"
       generatedAt={data?.generatedAt}
-      printedFilters={customerName ? [`${t('reports.positions.customer')}: ${customerName}`] : []}
+      printedFilters={customerName ? [`${t('reports.positions.customer')}: ${isolate(customerName)}`] : []}
       filters={
         canCustomers ? (
           <div className="w-full md:w-64">

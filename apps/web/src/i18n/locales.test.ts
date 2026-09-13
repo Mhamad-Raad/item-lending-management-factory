@@ -1,5 +1,7 @@
 import {
   ACTIVITY_EVENT_KINDS,
+  CUSTOMER_HISTORY_KINDS,
+  GRANTABLE_PERMISSION_KEYS,
   AUDIT_ACTIONS,
   AUDIT_SUMMARY_KEYS,
   AUDIT_ENTITY_TYPES,
@@ -11,6 +13,7 @@ import {
   PERMISSION_KEYS,
   ROLES,
   STOCK_MOVEMENT_REASONS,
+  UPLOAD_KINDS,
   VALIDATION_CODES,
 } from '@pallet/shared';
 import { describe, expect, it } from 'vitest';
@@ -61,6 +64,12 @@ describe('translation files', () => {
       ...PAYMENT_TYPES.map((type) => `enums.paymentType.${type}`),
       ...ORDER_STATUSES.map((status) => `enums.orderStatus.${status}`),
       ...ACTIVITY_EVENT_KINDS.map((kind) => `enums.activityEventKind.${kind}`),
+      ...CUSTOMER_HISTORY_KINDS.map((kind) => `enums.customerHistoryKind.${kind}`),
+      // Keys the pages build from data through dynamicKey(): nothing but this test proves they exist.
+      ...UPLOAD_KINDS.map((kind) => `enums.uploadKind.${kind}`),
+      ...new Set(GRANTABLE_PERMISSION_KEYS.map((key) => `permissions.modules.${key.split('.')[0]}`)),
+      // The reasons the API writes into a LOGIN_FAILURE audit row (auth.service.ts).
+      ...['INVALID', 'LOCKED', 'INACTIVE'].map((reason) => `auth.loginFailure.${reason}`),
       ...LEDGER_ENTRY_TYPES.map((type) => `enums.ledgerEntryType.${type}`),
       ...LEDGER_ENTRY_SOURCES.map((source) => `enums.ledgerEntrySource.${source}`),
       ...PERMISSION_KEYS.map((key) => `permissions.${key.replace(/\./g, '_')}`),
@@ -87,6 +96,44 @@ describe('translation files', () => {
         expect(/[\u0660-\u0669\u06F0-\u06F9]/.test(value), `${lang}:${key} = "${value}"`).toBe(false);
       }
     }
+  });
+
+  it('word different things differently where they stand side by side', () => {
+    // An order's payment type sits beside its owed amount on the same row and card: "on credit" and "owed"
+    // must not read as one word (M6 language pass).
+    const DISTINCT: [string, string][] = [
+      ['enums.paymentType.LENT', 'orders.fields.owed'],
+      ['enums.paymentType.LENT', 'customers.fields.owed'],
+      ['customers.fields.headroom', 'customers.fields.owed'],
+      ['enums.paymentType.CASH', 'enums.paymentType.LENT'],
+    ];
+    for (const lang of ['ckb', 'ar', 'en'] as const) {
+      for (const [a, b] of DISTINCT) {
+        expect(files[lang][a], `${lang}: ${a} vs ${b}`).not.toBe(files[lang][b]);
+      }
+    }
+  });
+
+  it('name each concept with one word throughout (the glossary a proofreader checks against)', () => {
+    // English wording → the stem every Kurdish and Arabic string for it uses. The receipt keeps the
+    // wording of the factory's paper receipt (§7.16), which says تەئمینات for the deposit.
+    const GLOSSARY: { en: RegExp; ckb: RegExp; ar: RegExp; except?: RegExp }[] = [
+      { en: /\bdamaged\b/i, ckb: /تێکچوو/, ar: /تالف/ },
+      { en: /\bcustomers?\b/i, ckb: /کڕیار/, ar: /زبون|زبائن/ },
+      { en: /\bdriver/i, ckb: /شۆفێر/, ar: /سائق/ },
+      { en: /\bdeposit/i, ckb: /بارمتە/, ar: /تأمين/, except: /^receipt\./ },
+      { en: /\bdamage(d)? refund/i, ckb: /گەڕاندنەوەی پارەی تێکچوو/, ar: /استرداد التالف/ },
+    ];
+    const offences: string[] = [];
+    for (const { en: english, ckb: kurdish, ar: arabic, except } of GLOSSARY) {
+      for (const [key, value] of Object.entries(files.en)) {
+        // Placeholders ({{customerName}}, {{depositTotal}}) are values, not the word for the concept.
+        if (!english.test(value.replace(PLACEHOLDER, '')) || except?.test(key)) continue;
+        if (!kurdish.test(files.ckb[key] ?? '')) offences.push(`ckb:${key} = "${files.ckb[key]}"`);
+        if (!arabic.test(files.ar[key] ?? '')) offences.push(`ar:${key} = "${files.ar[key]}"`);
+      }
+    }
+    expect(offences).toEqual([]);
   });
 
   it('do not leave a translated value identical to the English one', () => {

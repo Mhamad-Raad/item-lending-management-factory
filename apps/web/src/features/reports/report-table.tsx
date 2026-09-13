@@ -1,6 +1,7 @@
 import { ArrowDown, ArrowUp } from 'lucide-react';
 import { Fragment } from 'react';
 import { useTranslation } from 'react-i18next';
+import { isolated } from '@/components/app/bdi';
 import { nextSort, sortStateOf } from '@/lib/sort-cycle';
 import { cn } from '@/lib/utils';
 
@@ -124,7 +125,7 @@ export function ReportTable<T>({
                         col.align === 'end' ? 'text-end tabular-nums' : 'text-start',
                       )}
                     >
-                      {col.cell(row)}
+                      {isolated(col.cell(row))}
                     </td>
                   ))}
                 </tr>

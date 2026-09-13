@@ -36,7 +36,7 @@ export function ReportFrame({
   const { t } = useTranslation();
   // Re-renders the tabs when permissions change.
   useAuth();
-  const titleKey = `reports.${report}.title`;
+  const titleKey = `reports.${report}.title` as const;
   usePageTitle(titleKey);
   const pathname = useRouterState({ select: (state) => state.location.pathname });
   const settings = useQuery({
@@ -48,7 +48,9 @@ export function ReportFrame({
   return (
     <div className={cn('flex flex-col gap-4', landscape && 'print-landscape')}>
       <div data-print="only" className="hidden flex-col gap-1 text-sm">
-        <span className="font-semibold">{settings.data?.factoryName ?? t('common.appName')}</span>
+        <span className="font-semibold">
+          <bdi>{settings.data?.factoryName ?? t('common.appName')}</bdi>
+        </span>
         <span className="text-lg font-semibold">{t(titleKey)}</span>
         {printedFilters.length > 0 ? (
           <span>{t('reports.printedFilters', { filters: printedFilters.join(' · ') })}</span>

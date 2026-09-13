@@ -1,7 +1,8 @@
 import type { LedgerEntryDto, PaymentResultDto, ReturnDto, ReturnResultDto } from '@pallet/shared';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Link, createFileRoute, useNavigate } from '@tanstack/react-router';
-import { Ban, HandCoins, Pencil, Printer, ShieldAlert, Undo2 } from 'lucide-react';
+import { Ban, HandCoins, Pencil, Printer, ShieldAlert } from 'lucide-react';
+import { Undo2 } from '@/components/app/dir-icon';
 import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { toast } from 'sonner';
@@ -23,6 +24,7 @@ import { invalidateAfterOrderChange, invalidateAfterPayment, orderQuery } from '
 import { OrderLinesTable, OrderMoney, OrderReturns } from '@/features/orders/order-sections';
 import { orderLabel } from '@/features/orders/order-text';
 import { usePageTitle } from '@/hooks/use-page-title';
+import { isolate } from '@/lib/bidi';
 import { apiFetch } from '@/lib/api-client';
 import { useCan } from '@/lib/auth';
 import { handleApiError } from '@/lib/errors';
@@ -202,7 +204,7 @@ function OrderDetailPage() {
       {cancelled ? (
         <Alert>
           <AlertDescription>
-            {t('orders.detail.cancelledBanner', { name: data.cancelledBy?.displayName ?? '' })}{' '}
+            {t('orders.detail.cancelledBanner', { name: isolate(data.cancelledBy?.displayName ?? '') })}{' '}
             <DateText value={data.cancelledAt ?? ''} withTime />
           </AlertDescription>
         </Alert>
@@ -216,7 +218,7 @@ function OrderDetailPage() {
             {data.creditOverride ? (
               <Badge variant="outline">
                 <ShieldAlert aria-hidden />
-                {t('orders.detail.creditOverridden', { name: data.creditOverride.by.displayName })}{' '}
+                {t('orders.detail.creditOverridden', { name: isolate(data.creditOverride.by.displayName) })}{' '}
                 <DateText value={data.creditOverride.at} withTime />
               </Badge>
             ) : null}
@@ -230,14 +232,14 @@ function OrderDetailPage() {
                   params={{ customerId: String(data.customer.id) }}
                   className="text-primary underline-offset-4 hover:underline"
                 >
-                  {data.customer.name}
+                  <bdi>{data.customer.name}</bdi>
                 </Link>
               </dd>
             </div>
             <div className="flex flex-col gap-1">
               <dt className="text-muted-foreground text-sm">{t('orders.fields.driver')}</dt>
               <dd className="flex flex-wrap gap-x-2">
-                <span>{data.driver.name}</span>
+                <bdi>{data.driver.name}</bdi>
                 <span dir="ltr">{data.driver.phone}</span>
                 <span dir="ltr">{data.driver.carNumber}</span>
               </dd>

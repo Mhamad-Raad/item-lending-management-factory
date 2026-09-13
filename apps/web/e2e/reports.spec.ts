@@ -434,7 +434,9 @@ test('purchases group each item with its subtotal, and a cut-off item still show
 
   const rows = page.getByRole('table').locator('tbody tr');
   await expect(rows).toHaveCount(6);
-  const firstCells = await rows.evaluateAll((all) => all.map((row) => row.querySelector('td')?.textContent ?? ''));
+  const firstCells = await rows.evaluateAll((all) =>
+    all.map((row) => (row.querySelector('td')?.textContent ?? '').replace(/[\u2066-\u2069]/g, '')),
+  );
   expect(firstCells).toEqual([
     'Pallet A',
     'Pallet A',

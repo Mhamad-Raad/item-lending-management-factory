@@ -1,15 +1,17 @@
 import { ArrowDown, ArrowUp, ArrowUpDown } from 'lucide-react';
 import { useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
+import type { TranslationKey } from '@/i18n/keys';
 import { Pagination } from '@/components/app/pagination';
 import { TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { nextSort, sortStateOf } from '@/lib/sort-cycle';
+import { isolated } from '@/components/app/bdi';
 import { cn } from '@/lib/utils';
 
 export interface DataColumn<T> {
   id: string;
   /** i18n key of the header, also the label on the phone card. */
-  header: string;
+  header: TranslationKey;
   cell: (row: T) => React.ReactNode;
   /** The `sort` value this column orders by; a column without one is not sortable. */
   sortKey?: string;
@@ -84,8 +86,10 @@ export function DataTable<T>({
   }, [rows.length, page, lastPage, onPageChange]);
 
   const [firstColumn] = columns;
-  const renderCell = (column: DataColumn<T>, row: T): React.ReactNode =>
-    column === firstColumn && rowLink ? rowLink(row, column.cell(row)) : column.cell(row);
+  const renderCell = (column: DataColumn<T>, row: T): React.ReactNode => {
+    const value = isolated(column.cell(row));
+    return column === firstColumn && rowLink ? rowLink(row, value) : value;
+  };
   const mobileRole = (column: DataColumn<T>): NonNullable<DataColumn<T>['mobile']> =>
     column.mobile ?? (column === firstColumn ? 'title' : 'meta');
 

@@ -14,8 +14,15 @@ export function PageHeader({
   return (
     <header className={cn('flex flex-wrap items-start justify-between gap-4', className)}>
       <div className="flex flex-col gap-1">
-        <h1 className="text-2xl font-semibold">{title}</h1>
-        {description ? <p className="text-muted-foreground text-sm">{description}</p> : null}
+        {/* Titles are often a name someone typed: it keeps its own direction (§7.11). */}
+        <h1 className="text-2xl font-semibold">
+          <bdi>{title}</bdi>
+        </h1>
+        {description ? (
+          <p className="text-muted-foreground text-sm">
+            <bdi>{description}</bdi>
+          </p>
+        ) : null}
       </div>
       {actions ? <div className="flex flex-wrap gap-2">{actions}</div> : null}
     </header>

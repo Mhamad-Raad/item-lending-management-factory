@@ -348,7 +348,7 @@
     },
     "paymentType": {
       "CASH": "نەقد",
-      "LENT": "قەرز"
+      "LENT": "بە قەرز"
     },
     "orderStatus": {
       "OPEN": "کراوە",
@@ -377,6 +377,11 @@
       "RETURN": "گەڕاندنەوە",
       "PAYMENT": "پارەدان",
       "REFUND": "گەڕاندنەوەی پارە"
+    },
+    "customerHistoryKind": {
+      "HANDOVER": "ڕادەستکردن",
+      "RETURN": "گەڕاندنەوە",
+      "LEDGER": "پارەدان یان گەڕاندنەوەی پارە"
     }
   },
   "audit": {
@@ -577,7 +582,7 @@
     "RETURN_LINE_NOT_IN_ORDER": "ئەم کاڵایە لە داواکارییەکەدا نییە",
     "RETURN_DUPLICATE_LINE": "هەمان کاڵا دوو جار هاتووە",
     "RETURN_EXCEEDS_OUT": "پالێتی زیاتر لەوەی هێشتا دەرەوەیە",
-    "DAMAGED_REFUND_TOO_HIGH": "گەڕاندنەوەی زیانلێکەوتوو لە بارمتە زیاترە",
+    "DAMAGED_REFUND_TOO_HIGH": "گەڕاندنەوەی پارەی تێکچوو لە بارمتە زیاترە",
     "RETURN_ALREADY_REVERSED": "ئەم گەڕاندنەوەیە پێشتر هەڵوەشێنراوەتەوە",
     "RETURN_DATE_BEFORE_ORDER_DATE": "بەرواری گەڕاندنەوە پێش داواکارییەکەیە",
     "PAYMENT_ORDER_NOT_LENT": "ئەم داواکارییە بە پارەی نەقد دراوە",
@@ -639,7 +644,7 @@
       "depositPrice": "نرخی بارمتە",
       "quantityOnHand": "لە کۆگا",
       "quantityOut": "لای کڕیاران",
-      "damagedTotal": "زیانلێکەوتوو",
+      "damagedTotal": "تێکچوو",
       "minStock": "کەمترین کۆگا",
       "status": "دۆخ"
     },
@@ -726,7 +731,7 @@
       "outValue": "بەهای لایان",
       "owed": "قەرز",
       "held": "بارمتەی گیراو",
-      "headroom": "قەرزی ماوە",
+      "headroom": "سنووری قەرزی ماوە",
       "status": "دۆخ"
     },
     "form": {
@@ -754,8 +759,6 @@
     },
     "history": {
       "empty": "هێشتا هیچ شتێک بۆ ئەم کڕیارە تۆمار نەکراوە",
-      "handover": "ڕادەستکردن",
-      "return": "گەڕاندنەوە",
       "deleted": "سڕاوە",
       "corrected": "ڕاستکراوە",
       "pallets": "پالێت"
@@ -840,7 +843,7 @@
       "unitDeposit": "بارمتەی دانە",
       "lineTotal": "کۆی دێڕ",
       "returnedAccepted": "گەڕاوە",
-      "returnedDamaged": "زیانلێکەوتوو",
+      "returnedDamaged": "تێکچوو",
       "outQuantity": "هێشتا لایانە",
       "add": "زیادکردنی دێڕ",
       "remove": "لابردنی دێڕ",
@@ -860,7 +863,7 @@
         "title": "پوختە",
         "paysNow": "کڕیار ئێستا ئەمە دەدات",
         "willOwe": "کڕیار ئەمەی قەرز دەبێت",
-        "headroomAfter": "قەرزی ماوە دوای ئەمە"
+        "headroomAfter": "سنووری قەرزی ماوە دوای ئەمە"
       }
     },
     "detail": {
@@ -878,8 +881,8 @@
       "reversed": "گەڕێندراوە",
       "replacedBy": "بە گەڕاندنەوەی #{{id}} گۆڕدرا",
       "returnAccepted": "وەرگیراو",
-      "returnDamaged": "زیانلێکەوتوو",
-      "damagedRefund": "گەڕاندنەوەی زیان",
+      "returnDamaged": "تێکچوو",
+      "damagedRefund": "گەڕاندنەوەی پارەی تێکچوو",
       "refundDue": "پارەی گەڕاندنەوە",
       "cashRefund": "بە نەقد گەڕێندرایەوە",
       "money": "پارە",

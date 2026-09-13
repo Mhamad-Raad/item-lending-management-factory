@@ -377,6 +377,11 @@
       "RETURN": "Return",
       "PAYMENT": "Payment",
       "REFUND": "Refund"
+    },
+    "customerHistoryKind": {
+      "HANDOVER": "Hand-over",
+      "RETURN": "Return",
+      "LEDGER": "Payment or refund"
     }
   },
   "audit": {
@@ -754,8 +759,6 @@
     },
     "history": {
       "empty": "Nothing recorded for this customer yet",
-      "handover": "Hand-over",
-      "return": "Return",
       "deleted": "Deleted",
       "corrected": "Corrected",
       "pallets": "Pallets"

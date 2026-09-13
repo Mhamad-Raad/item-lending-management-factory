@@ -60,7 +60,9 @@ function AccountPage() {
             </div>
             <div>
               <dt className="text-muted-foreground">{t('account.profile.displayName')}</dt>
-              <dd className="font-medium">{user?.displayName}</dd>
+              <dd className="font-medium">
+                <bdi>{user?.displayName}</bdi>
+              </dd>
             </div>
             <div>
               <dt className="text-muted-foreground">{t('account.profile.role')}</dt>

@@ -13,6 +13,7 @@ import { keepPreviousData, useQuery } from '@tanstack/react-query';
 import { Link, createFileRoute, useNavigate } from '@tanstack/react-router';
 import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
+import { dynamicKey } from '@/i18n/keys';
 import { z } from 'zod';
 import { DateRangePicker } from '@/components/app/date-picker';
 import { EntityCombobox } from '@/components/app/entity-combobox';
@@ -110,9 +111,9 @@ function EntityRef({ row }: { row: AuditLogDto }) {
 /** Who did it; a failed sign-in has no user, only the name that was tried. */
 function AuditUser({ row }: { row: AuditLogDto }) {
   return row.user ? (
-    <span>{row.user.displayName}</span>
+    <bdi>{row.user.displayName}</bdi>
   ) : (
-    <span className="text-muted-foreground italic">{row.usernameAttempt ?? '—'}</span>
+    <bdi className="text-muted-foreground italic">{row.usernameAttempt ?? '—'}</bdi>
   );
 }
 
@@ -127,7 +128,7 @@ function AuditSummary({ row, expanded, onToggle }: { row: AuditLogDto; expanded:
         aria-expanded={expanded}
         onClick={onToggle}
       >
-        {t(row.summaryKey, translateSummaryParams(t, row.summaryParams))}
+        {t(dynamicKey(row.summaryKey), translateSummaryParams(t, row.summaryParams))}
       </button>
       {expanded ? <AuditDiff row={row} /> : null}
     </div>

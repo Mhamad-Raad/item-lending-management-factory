@@ -32,7 +32,8 @@ describe('audit summary params', () => {
       depositPrice: '5,000',
       quantity: '-1,250',
       initialQuantity: '1,000',
-      name: 'Euro pallet',
+      // A typed name keeps its own direction inside the Kurdish or Arabic sentence (Q43).
+      name: '\u2068Euro pallet\u2069',
     });
   });
 

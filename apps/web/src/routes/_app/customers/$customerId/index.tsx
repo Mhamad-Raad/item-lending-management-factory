@@ -4,6 +4,7 @@ import { Link, createFileRoute } from '@tanstack/react-router';
 import { Archive, Package, Pencil, Plus, TriangleAlert } from 'lucide-react';
 import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
+import type { TranslationKey } from '@/i18n/keys';
 import { toast } from 'sonner';
 import { ArchivedBadge } from '@/components/app/archived-badge';
 import { ConfirmDialog } from '@/components/app/confirm-dialog';
@@ -22,6 +23,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { customerQuery, invalidateCustomers } from '@/features/customers/api';
 import { CustomerHistoryTab, CustomerLedgerTab, CustomerOrdersTab } from '@/features/customers/customer-tabs';
 import { usePageTitle } from '@/hooks/use-page-title';
+import { isolate } from '@/lib/bidi';
 import { apiFetch } from '@/lib/api-client';
 import { useCan } from '@/lib/auth';
 import { handleApiError } from '@/lib/errors';
@@ -48,7 +50,7 @@ const HOLDING_COLUMNS: DataColumn<CustomerHoldingDto>[] = [
     cell: (holding) => (
       <span className="flex items-center gap-3">
         <Thumbnail url={holding.item.imageUrl} />
-        {holding.item.name}
+        <bdi>{holding.item.name}</bdi>
       </span>
     ),
   },
@@ -128,7 +130,7 @@ function CustomerProfilePage() {
   const data = customer.data;
   const { summary } = data;
   const live = data.archivedAt === null;
-  const cards = [
+  const cards: { label: TranslationKey; value: React.ReactNode; extra?: React.ReactNode }[] = [
     {
       label: 'customers.fields.palletsOut',
       value: <QuantityText value={summary.palletsOut} />,
@@ -137,7 +139,7 @@ function CustomerProfilePage() {
           <ul className="text-muted-foreground flex flex-col gap-0.5 text-sm">
             {data.palletsOutByItem.map((row) => (
               <li key={row.itemId} className="flex justify-between gap-2">
-                <span>{row.itemName}</span>
+                <bdi>{row.itemName}</bdi>
                 <QuantityText value={row.quantityOut} />
               </li>
             ))}
@@ -284,7 +286,7 @@ function CustomerProfilePage() {
       <ConfirmDialog
         open={confirming}
         onOpenChange={setConfirming}
-        title={t('customers.detail.archiveTitle', { name: data.name })}
+        title={t('customers.detail.archiveTitle', { name: isolate(data.name) })}
         description={t('customers.detail.archiveBody')}
         confirmLabel={t('common.actions.archive')}
         pending={archive.isPending}

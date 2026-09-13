@@ -151,7 +151,9 @@ export function OrderHeaderCompact({ order, onChange }: { order: OrderDetailDto;
         <dl className="text-muted-foreground grid grid-cols-2 gap-x-4 gap-y-1 text-sm sm:grid-cols-3">
           <div className="col-span-2 sm:col-span-3">
             <dt className="sr-only">{t('orders.fields.customer')}</dt>
-            <dd className="text-foreground">{order.customer.name}</dd>
+            <dd className="text-foreground">
+              <bdi>{order.customer.name}</bdi>
+            </dd>
           </div>
           <div>
             <dt className="sr-only">{t('orders.fields.date')}</dt>

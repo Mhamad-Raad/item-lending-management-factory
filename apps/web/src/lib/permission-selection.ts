@@ -1,8 +1,9 @@
+import { dynamicKey, type TranslationKey } from '@/i18n/keys';
 import { GRANTABLE_PERMISSION_KEYS, closePermissionSet, type GrantablePermissionKey } from '@pallet/shared';
 
 /** `items.view` → `permissions.items_view`, the key convention of §7.10. */
-export function permissionLabelKey(key: string): string {
-  return `permissions.${key.replace(/\./g, '_')}`;
+export function permissionLabelKey(key: string): TranslationKey {
+  return dynamicKey(`permissions.${key.replace(/\./g, '_')}`);
 }
 
 /**

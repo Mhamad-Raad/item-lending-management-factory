@@ -248,7 +248,7 @@ export function ReturnForm({ order, replaceReturnId }: { order: OrderDetailDto; 
                     <div className="flex min-w-0 items-center gap-3">
                       <Thumbnail url={line.item.imageUrl} size="sm" />
                       <span className="min-w-0 font-medium break-words" aria-hidden>
-                        {line.item.name}
+                        <bdi>{line.item.name}</bdi>
                       </span>
                     </div>
                     <div className="flex shrink-0 items-center justify-between gap-3">

@@ -62,7 +62,7 @@ function PhoneDuplicateWarning({ phone, excludeId }: { phone: string | null | un
           params={{ customerId: String(match.customerId) }}
           className="font-medium underline underline-offset-4"
         >
-          {match.name}
+          <bdi>{match.name}</bdi>
         </Link>
       ))}
     </p>

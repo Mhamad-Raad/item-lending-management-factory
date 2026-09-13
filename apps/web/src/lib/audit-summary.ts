@@ -1,5 +1,7 @@
 import { formatMoney, formatNumber, formatOrderNumber } from '@pallet/shared';
 import type { TFunction } from 'i18next';
+import { isolate } from './bidi';
+import { dynamicKey } from '@/i18n/keys';
 
 /**
  * Audit summaries interpolate raw values: the API stores enums untranslated and numbers unformatted
@@ -31,9 +33,13 @@ const NUMBER_PARAMS: Record<string, (value: number) => string> = {
 
 export function translateSummaryParams(t: TFunction, params: Record<string, unknown>): Record<string, unknown> {
   const translated: Record<string, unknown> = { ...params };
+  // Names and other typed text keep their own direction inside the sentence.
+  for (const [key, value] of Object.entries(params)) {
+    if (typeof value === 'string' && !(key in ENUM_PARAMS)) translated[key] = isolate(value);
+  }
   for (const [key, toKey] of Object.entries(ENUM_PARAMS)) {
     const value = params[key];
-    if (typeof value === 'string') translated[key] = t(toKey(value));
+    if (typeof value === 'string') translated[key] = t(dynamicKey(toKey(value)));
   }
   for (const [key, format] of Object.entries(NUMBER_PARAMS)) {
     const value = params[key];

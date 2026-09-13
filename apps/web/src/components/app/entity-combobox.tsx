@@ -152,7 +152,7 @@ export function EntityCombobox({
         >
           <span className="flex min-w-0 items-center gap-2">
             {chosen && kind === 'item' ? <Thumbnail url={chosen.imageUrl} size="sm" /> : null}
-            <span className={cn('truncate', !chosen && 'text-muted-foreground')}>{chosen?.label ?? placeholder}</span>
+            <bdi className={cn('truncate', !chosen && 'text-muted-foreground')}>{chosen?.label ?? placeholder}</bdi>
           </span>
           <ChevronsUpDown className="size-4 opacity-50" aria-hidden />
         </Button>
@@ -178,7 +178,9 @@ export function EntityCombobox({
               >
                 {kind === 'item' ? <Thumbnail url={option.imageUrl} size="sm" /> : null}
                 <span className="flex min-w-0 flex-col">
-                  <span className="truncate">{option.label}</span>
+                  <span className="truncate">
+                    <bdi>{option.label}</bdi>
+                  </span>
                   <span className="text-muted-foreground truncate text-xs" dir="auto">
                     {option.detail}
                   </span>

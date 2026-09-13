@@ -33,6 +33,7 @@ import { Label } from '@/components/ui/label';
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { Switch } from '@/components/ui/switch';
 import { usePageTitle } from '@/hooks/use-page-title';
+import { isolate } from '@/lib/bidi';
 import { apiFetch } from '@/lib/api-client';
 import { useAuth } from '@/lib/auth';
 import { handleApiError } from '@/lib/errors';
@@ -177,7 +178,7 @@ function ProfileCard({ user, isSelf, onSaved }: { user: UserDto; isSelf: boolean
         open={confirmDeactivate}
         onOpenChange={setConfirmDeactivate}
         title={t('users.detail.deactivateTitle')}
-        description={t('users.detail.deactivateConfirm', { name: user.displayName })}
+        description={t('users.detail.deactivateConfirm', { name: isolate(user.displayName) })}
         confirmLabel={t('users.detail.deactivate')}
         pending={patch.isPending}
         onConfirm={() => {
@@ -268,7 +269,7 @@ function SecurityCard({ user, onDone }: { user: UserDto; onDone: () => Promise<v
         open={confirmLogoutAll}
         onOpenChange={setConfirmLogoutAll}
         title={t('users.security.logoutAll')}
-        description={t('users.security.logoutAllConfirm', { name: user.displayName })}
+        description={t('users.security.logoutAllConfirm', { name: isolate(user.displayName) })}
         confirmLabel={t('users.security.logoutAll')}
         pending={logoutAll.isPending}
         onConfirm={() => logoutAll.mutate()}
@@ -308,7 +309,9 @@ function ResetPasswordDialog({
       <DialogContent closeLabel={t('common.actions.close')} className="sm:max-w-md">
         <DialogHeader>
           <DialogTitle>{t('users.security.resetPassword')}</DialogTitle>
-          <DialogDescription>{t('users.security.resetPasswordConfirm', { name: user.displayName })}</DialogDescription>
+          <DialogDescription>
+            {t('users.security.resetPasswordConfirm', { name: isolate(user.displayName) })}
+          </DialogDescription>
         </DialogHeader>
         <Field>
           <FieldLabel htmlFor="newPassword">{t('users.security.newPassword')}</FieldLabel>

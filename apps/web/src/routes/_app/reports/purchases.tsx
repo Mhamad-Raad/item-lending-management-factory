@@ -14,6 +14,7 @@ import { useCanFilterBy, useFilterName } from '@/features/reports/report-filters
 import { ReportFrame } from '@/features/reports/report-frame';
 import { periodRefusalOf, reportPeriod } from '@/features/reports/report-dates';
 import { ReportTable, type ReportColumn } from '@/features/reports/report-table';
+import { isolate } from '@/lib/bidi';
 import { apiFetch } from '@/lib/api-client';
 import { qk } from '@/lib/query-keys';
 import { requirePermission } from '@/lib/route-guards';
@@ -70,7 +71,9 @@ function PurchasesReportPage() {
       id: 'item',
       header: t('reports.purchases.item'),
       cell: (row) =>
-        row.kind === 'batch' ? row.batch.item.name : t('reports.purchases.subtotal', { name: row.subtotal.item.name }),
+        row.kind === 'batch'
+          ? row.batch.item.name
+          : t('reports.purchases.subtotal', { name: isolate(row.subtotal.item.name) }),
     },
     {
       id: 'date',
@@ -108,7 +111,7 @@ function PurchasesReportPage() {
       generatedAt={report.data?.generatedAt}
       printedFilters={[
         t('reports.period', { from: formatBusinessDate(dateFrom), to: formatBusinessDate(dateTo) }),
-        ...(itemName ? [`${t('reports.purchases.item')}: ${itemName}`] : []),
+        ...(itemName ? [`${t('reports.purchases.item')}: ${isolate(itemName)}`] : []),
       ]}
       filters={
         <>

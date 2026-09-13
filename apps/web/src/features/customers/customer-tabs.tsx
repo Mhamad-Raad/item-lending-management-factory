@@ -8,7 +8,8 @@ import type {
 import type { TFunction } from 'i18next';
 import { keepPreviousData, useQuery } from '@tanstack/react-query';
 import { Link } from '@tanstack/react-router';
-import { Ban, ClipboardList, History, PackageOpen, Undo2, Wallet } from 'lucide-react';
+import { Ban, ClipboardList, History, PackageOpen, Wallet } from 'lucide-react';
+import { Undo2 } from '@/components/app/dir-icon';
 import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { DataTable, type DataColumn } from '@/components/app/data-table';
@@ -218,8 +219,7 @@ export function CustomerHistoryTab({ customerId }: { customerId: number }) {
 }
 
 function historyTitle(t: TFunction, entry: CustomerHistoryItemDto): string {
-  if (entry.kind === 'HANDOVER') return t('customers.history.handover');
-  if (entry.kind === 'RETURN') return t('customers.history.return');
+  if (entry.kind !== 'LEDGER') return t(`enums.customerHistoryKind.${entry.kind}`);
   return t(`enums.ledgerEntryType.${entry.type}`);
 }
 
@@ -265,7 +265,7 @@ function HistoryDetail({ entry }: { entry: CustomerHistoryItemDto }) {
         <MoneyText value={entry.amount} />
       </span>
       {entry.isAutomatic ? <span>{t('payments.automatic')}</span> : null}
-      {entry.note ? <span>{entry.note}</span> : null}
+      {entry.note ? <bdi>{entry.note}</bdi> : null}
     </p>
   );
 }

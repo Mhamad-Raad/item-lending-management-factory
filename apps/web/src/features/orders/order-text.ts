@@ -14,7 +14,12 @@ export interface CreditExcess {
 }
 
 /** The four figures the credit alert and the override dialog show, formatted. */
-export function creditMessageParams(credit: CreditExcess): Record<string, string> {
+export function creditMessageParams(credit: CreditExcess): {
+  limit: string;
+  outValue: string;
+  newTotal: string;
+  excess: string;
+} {
   return {
     limit: formatMoney(credit.creditLimit),
     outValue: formatMoney(credit.customerOutValue),

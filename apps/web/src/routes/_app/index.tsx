@@ -11,11 +11,11 @@ import {
   PackageOpen,
   Plus,
   TriangleAlert,
-  Undo2,
   Wallet,
   XCircle,
   type LucideIcon,
 } from 'lucide-react';
+import { Undo2 } from '@/components/app/dir-icon';
 import { useTranslation } from 'react-i18next';
 import { CountUp } from '@/components/app/count-up';
 import { DateText } from '@/components/app/date-text';
@@ -31,6 +31,7 @@ import { orderLabel } from '@/features/orders/order-text';
 import { usePageTitle } from '@/hooks/use-page-title';
 import { apiFetch } from '@/lib/api-client';
 import { useAuth, useCan } from '@/lib/auth';
+import { isolate } from '@/lib/bidi';
 import { qk } from '@/lib/query-keys';
 import { cn } from '@/lib/utils';
 
@@ -70,7 +71,7 @@ function DashboardPage() {
     <>
       <PageHeader
         title={t('dashboard.title')}
-        description={t('dashboard.welcome', { name: user?.displayName ?? '' })}
+        description={t('dashboard.welcome', { name: isolate(user?.displayName ?? '') })}
       />
 
       {quickActions.length > 0 ? (
@@ -140,7 +141,7 @@ function Figures({ data }: { data: DashboardDto }) {
               <ul className="text-muted-foreground flex flex-col gap-0.5">
                 {data.lowStock.items.slice(0, 5).map((item) => (
                   <li key={item.id} className="flex justify-between gap-2">
-                    <span className="truncate">{item.name}</span>
+                    <bdi className="truncate">{item.name}</bdi>
                     <span dir="ltr" className="shrink-0 tabular-nums">
                       <QuantityText value={item.quantityOnHand} /> / <QuantityText value={item.minStock} />
                     </span>
@@ -201,7 +202,7 @@ function RecentActivity({ events }: { events: ActivityEventDto[] }) {
                     >
                       {orderLabel(event.orderNumber)}
                     </Link>
-                    <span className="text-muted-foreground min-w-0 truncate">{event.customer.name}</span>
+                    <bdi className="text-muted-foreground min-w-0 truncate">{event.customer.name}</bdi>
                     <span className="ms-auto flex items-center gap-3 text-sm">
                       {event.amount !== null ? (
                         <MoneyText value={event.amount} />

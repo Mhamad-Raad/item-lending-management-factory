@@ -3,12 +3,12 @@ import {
   businessToday,
   formatBusinessDate,
   formatMoney,
-  formatNumber,
   type ActivityReportDto,
   type LedgerEntryDto,
 } from '@pallet/shared';
 import { useQuery } from '@tanstack/react-query';
 import { createFileRoute, useNavigate } from '@tanstack/react-router';
+import { Fragment } from 'react';
 import { Ban } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { z } from 'zod';
@@ -26,6 +26,7 @@ import { useCanFilterBy, useFilterName } from '@/features/reports/report-filters
 import { ReportFrame } from '@/features/reports/report-frame';
 import { ReportTable, type ReportColumn } from '@/features/reports/report-table';
 import { apiFetch } from '@/lib/api-client';
+import { isolate } from '@/lib/bidi';
 import { qk } from '@/lib/query-keys';
 import { requirePermission } from '@/lib/route-guards';
 
@@ -111,7 +112,7 @@ function ActivityReportPage() {
       printedFilters={[
         t('reports.period', { from: formatBusinessDate(dateFrom), to: formatBusinessDate(dateTo) }),
         ...(['customer', 'item', 'driver'] as const).flatMap((kind) =>
-          names[kind] ? [`${t(`reports.activity.${kind}`)}: ${names[kind]}`] : [],
+          names[kind] ? [`${t(`reports.activity.${kind}`)}: ${isolate(names[kind])}`] : [],
         ),
       ]}
       filters={
@@ -170,8 +171,18 @@ function ActivityReportPage() {
                 {
                   id: 'lines',
                   header: t('reports.activity.pallets'),
-                  cell: (row) =>
-                    row.lines.map((line) => `${line.item.name} × ${formatNumber(line.quantity)}`).join(', '),
+                  // An element, not a string: each name is isolated on its own, and the list keeps the page's
+                  // direction whatever script the first item's name is in.
+                  cell: (row) => (
+                    <span>
+                      {row.lines.map((line, index) => (
+                        <Fragment key={line.item.id}>
+                          {index > 0 ? ', ' : null}
+                          <bdi>{line.item.name}</bdi> × <QuantityText value={line.quantity} />
+                        </Fragment>
+                      ))}
+                    </span>
+                  ),
                 },
                 {
                   id: 'quantity',

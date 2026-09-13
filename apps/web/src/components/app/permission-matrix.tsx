@@ -1,6 +1,7 @@
 import { ADMIN_ONLY_PERMISSION_KEYS, GRANTABLE_PERMISSION_KEYS, type GrantablePermissionKey } from '@pallet/shared';
 import { Lock } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
+import { dynamicKey } from '@/i18n/keys';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Label } from '@/components/ui/label';
 import { permissionLabelKey, togglePermission } from '@/lib/permission-selection';
@@ -27,7 +28,7 @@ export function PermissionMatrix({
     <div className="flex flex-col gap-6">
       {MODULES.map((module) => (
         <fieldset key={module} className="flex flex-col gap-3">
-          <legend className="text-sm font-medium">{t(`permissions.modules.${module}`)}</legend>
+          <legend className="text-sm font-medium">{t(dynamicKey(`permissions.modules.${module}`))}</legend>
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
             {GRANTABLE_PERMISSION_KEYS.filter((key) => key.startsWith(`${module}.`)).map((key) => (
               <div key={key} className="flex items-center gap-2">

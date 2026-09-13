@@ -17,6 +17,7 @@ import { Button } from '@/components/ui/button';
 import { DriverDialog } from '@/features/drivers/driver-dialog';
 import { usePageTitle } from '@/hooks/use-page-title';
 import { useSearchInput } from '@/hooks/use-search-input';
+import { isolate } from '@/lib/bidi';
 import { apiFetch } from '@/lib/api-client';
 import { useCan } from '@/lib/auth';
 import { handleApiError } from '@/lib/errors';
@@ -112,7 +113,7 @@ function DriversPage() {
       ? [
           {
             id: 'actions',
-            header: 'common.actions.title',
+            header: 'common.actions.title' as const,
             align: 'end' as const,
             cell: (driver: DriverDto) =>
               driver.archivedAt ? null : (
@@ -201,7 +202,7 @@ function DriversPage() {
       <ConfirmDialog
         open={open?.kind === 'archive'}
         onOpenChange={(next) => !next && setOpen(null)}
-        title={t('drivers.list.archiveTitle', { name: open?.kind === 'archive' ? open.driver.name : '' })}
+        title={t('drivers.list.archiveTitle', { name: isolate(open?.kind === 'archive' ? open.driver.name : '') })}
         description={t('drivers.list.archiveBody')}
         confirmLabel={t('common.actions.archive')}
         pending={archive.isPending}

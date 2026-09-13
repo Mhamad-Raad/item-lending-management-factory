@@ -208,7 +208,8 @@ export function EditOrderForm({ order }: { order: OrderDetailDto }) {
           <CardContent className="grid grid-cols-1 gap-4 md:grid-cols-2">
             <div className="flex flex-col gap-1 md:col-span-2">
               <span className="text-muted-foreground text-sm">
-                {orderLabel(order.orderNumber)} · {order.customer.name} · {t(`enums.paymentType.${order.paymentType}`)}
+                {orderLabel(order.orderNumber)} · <bdi>{order.customer.name}</bdi> ·{' '}
+                {t(`enums.paymentType.${order.paymentType}`)}
               </span>
               <FieldDescription>{t('orders.edit.immutableHint')}</FieldDescription>
             </div>

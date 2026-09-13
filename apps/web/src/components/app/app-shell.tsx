@@ -6,7 +6,6 @@ import {
   ClipboardList,
   History,
   LayoutDashboard,
-  LogOut,
   Menu,
   Package,
   Settings,
@@ -14,9 +13,11 @@ import {
   UserCircle,
   Users,
 } from 'lucide-react';
+import { LogOut } from '@/components/app/dir-icon';
 import type { LucideIcon } from 'lucide-react';
 import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
+import type { TranslationKey } from '@/i18n/keys';
 import { Button } from '@/components/ui/button';
 import {
   DropdownMenu,
@@ -33,7 +34,7 @@ import { cn } from '@/lib/utils';
 
 interface NavItem {
   to: string;
-  labelKey: string;
+  labelKey: TranslationKey;
   icon: LucideIcon;
   /** Omitted for pages every signed-in user may open. */
   permission?: PermissionKey;
@@ -123,7 +124,10 @@ function UserMenu({ onLogout, compact }: { onLogout: () => void; compact?: boole
           <Button variant="ghost" className="h-auto w-full justify-start gap-3 px-3 py-2 text-start">
             <UserCircle className="size-5" aria-hidden />
             <span className="flex min-w-0 flex-col">
-              <span className="truncate">{user.displayName}</span>
+              {/* The block keeps the page's direction and alignment; only the name inside is isolated. */}
+              <span className="truncate">
+                <bdi>{user.displayName}</bdi>
+              </span>
               <span className="text-muted-foreground truncate text-xs font-normal">{role}</span>
             </span>
           </Button>
@@ -131,7 +135,9 @@ function UserMenu({ onLogout, compact }: { onLogout: () => void; compact?: boole
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end" side={compact ? 'bottom' : 'top'} className="max-w-[calc(100vw-2rem)]">
         <DropdownMenuLabel className="flex flex-col">
-          <span className="truncate font-medium">{user.displayName}</span>
+          <span className="truncate font-medium">
+            <bdi>{user.displayName}</bdi>
+          </span>
           <span className="text-muted-foreground truncate text-xs">{role}</span>
         </DropdownMenuLabel>
         <DropdownMenuSeparator />

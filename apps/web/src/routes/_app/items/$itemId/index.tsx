@@ -23,6 +23,7 @@ import { BatchesTab } from '@/features/items/batches-tab';
 import { LowStockBadge } from '@/features/items/item-badges';
 import { MovementsTab } from '@/features/items/movements-tab';
 import { usePageTitle } from '@/hooks/use-page-title';
+import { isolate } from '@/lib/bidi';
 import { apiFetch } from '@/lib/api-client';
 import { useCan } from '@/lib/auth';
 import { handleApiError } from '@/lib/errors';
@@ -193,7 +194,7 @@ function ItemDetailPage() {
       <ConfirmDialog
         open={dialog === 'archive'}
         onOpenChange={(open) => setDialog(open ? 'archive' : null)}
-        title={t('items.detail.archiveTitle', { name: data.name })}
+        title={t('items.detail.archiveTitle', { name: isolate(data.name) })}
         description={t('items.detail.archiveBody')}
         confirmLabel={t('common.actions.archive')}
         pending={archive.isPending}

@@ -1,5 +1,6 @@
 import type { LedgerEntryDto, OrderDetailDto, ReturnDto } from '@pallet/shared';
-import { ArrowDownLeft, ArrowUpRight, Ban, Trash2, Undo2 } from 'lucide-react';
+import { ArrowDownLeft, ArrowUpRight, Ban, Trash2 } from 'lucide-react';
+import { Undo2 } from '@/components/app/dir-icon';
 import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { DataTable, type DataColumn } from '@/components/app/data-table';
@@ -23,7 +24,7 @@ const LINE_COLUMNS: DataColumn<Line>[] = [
     cell: (line) => (
       <span className="flex items-center gap-3">
         <Thumbnail url={line.item.imageUrl} />
-        {line.item.name}
+        <bdi>{line.item.name}</bdi>
       </span>
     ),
   },
@@ -148,7 +149,7 @@ export function OrderReturns({
               <ul className="flex flex-col gap-1">
                 {pr.lines.map((line) => (
                   <li key={line.id} className="flex flex-wrap gap-x-4">
-                    <span className="font-medium">{line.item.name}</span>
+                    <bdi className="font-medium">{line.item.name}</bdi>
                     <span>
                       {t('orders.detail.returnAccepted')}: <QuantityText value={line.acceptedQuantity} />
                     </span>
@@ -171,9 +172,13 @@ export function OrderReturns({
                   {t('orders.detail.cashRefund')}: <MoneyText value={pr.cashRefund} />
                 </span>
               </div>
-              {pr.notes ? <p className="text-muted-foreground">{pr.notes}</p> : null}
+              {pr.notes ? (
+                <p className="text-muted-foreground">
+                  <bdi>{pr.notes}</bdi>
+                </p>
+              ) : null}
               <p className="text-muted-foreground text-xs">
-                {pr.createdBy.displayName} · <DateText value={pr.createdAt} withTime />
+                <bdi>{pr.createdBy.displayName}</bdi> · <DateText value={pr.createdAt} withTime />
               </p>
               {!pr.reversed && (actions?.edit || actions?.onDelete) ? (
                 <div className="flex flex-wrap gap-2">
@@ -240,7 +245,7 @@ export function OrderMoney({
           {entry.reversesEntryId ? (
             <span className="text-muted-foreground">{t('orders.money.reverses', { id: entry.reversesEntryId })}</span>
           ) : null}
-          {entry.note ?? (entry.reversesEntryId ? null : '—')}
+          {entry.note ? <bdi>{entry.note}</bdi> : entry.reversesEntryId ? null : '—'}
         </span>
       ),
       hideBelow: 'md',
@@ -255,7 +260,7 @@ export function OrderMoney({
       ? [
           {
             id: 'actions',
-            header: 'common.actions.title',
+            header: 'common.actions.title' as const,
             align: 'end' as const,
             cell: (entry: LedgerEntryDto) =>
               entry.canReverse ? (
