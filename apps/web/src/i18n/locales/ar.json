@@ -483,7 +483,11 @@
     "unknown_key": "هذا الحقل غير متوقع هنا",
     "duplicate": "هذه القيمة مكررة",
     "passwordMismatch": "كلمتا المرور غير متطابقتين",
-    "stockExceeded": "المتوفر {{available}} فقط"
+    "stockExceeded": "المتوفر {{available}} فقط",
+    "paymentExceedsOwed": "المستحق {{owed}} على الأكثر",
+    "returnExceedsOut": "{{out}} على الأكثر لدى العميل",
+    "damagedRefundTooHigh": "{{maximum}} على الأكثر",
+    "returnEmpty": "أدخل طبلية مرتجعة واحدة على الأقل"
   },
   "errors": {
     "VALIDATION_FAILED": "يرجى مراجعة الحقول المحددة",
@@ -747,7 +751,26 @@
     }
   },
   "payments": {
-    "automatic": "تلقائي"
+    "automatic": "تلقائي",
+    "fields": {
+      "amount": "المبلغ",
+      "date": "التاريخ",
+      "note": "ملاحظة"
+    },
+    "new": {
+      "title": "تسجيل دفعة",
+      "submit": "تسجيل الدفعة",
+      "created": "سُجّلت دفعة على الطلب #{{orderNumber}}",
+      "full": "المبلغ كاملاً",
+      "half": "النصف",
+      "summary": "الملخص",
+      "owedBefore": "المستحق قبل",
+      "payment": "الدفعة",
+      "owedAfter": "المستحق بعد",
+      "willSettle": "ستتم تسوية هذا الطلب",
+      "nothingOwed": "لا يوجد مستحق على هذا الطلب",
+      "backToOrder": "العودة إلى الطلب"
+    }
   },
   "orders": {
     "list": {
@@ -855,6 +878,11 @@
       },
       "creditExceeded": "حد الائتمان {{limit}}، والقائم حالياً {{outValue}}: زيادة هذا الطلب بمقدار {{newTotal}} تتجاوزه بمقدار {{excess}}.",
       "overrideBody": "حد الائتمان {{limit}}، والقائم {{outValue}}، وهذه الزيادة {{newTotal}}: بزيادة {{excess}}. يُسجَّل التجاوز في السجل."
+    },
+    "picker": {
+      "title": "اختر الطلب",
+      "empty": "لا يوجد لهذا العميل طلب يمكن اختياره هنا",
+      "change": "تغيير الطلب"
     }
   },
   "receipt": {
@@ -883,5 +911,38 @@
     "sheetOf": "الصفحة {{x}} من {{y}}",
     "cancelledError": "هذا الطلب ملغى؛ لا يمكن طباعة إيصاله",
     "print": "طباعة"
+  },
+  "returns": {
+    "fields": {
+      "accepted": "مقبولة",
+      "damaged": "تالفة",
+      "damagedRefund": "استرداد التالف",
+      "date": "التاريخ",
+      "notes": "ملاحظات"
+    },
+    "new": {
+      "title": "تسجيل إرجاع",
+      "titleReplace": "تصحيح إرجاع",
+      "submit": "تسجيل الإرجاع",
+      "submitReplace": "حفظ الإرجاع المصحح",
+      "created": "سُجّل إرجاع على الطلب #{{orderNumber}}",
+      "replaced": "صُحّح إرجاع الطلب #{{orderNumber}}",
+      "lines": "الطبليات المرتجعة",
+      "allAccepted": "كلها مقبولة",
+      "everythingAccepted": "كل المرتجع مقبول",
+      "out": "لدى العميل",
+      "summary": "الملخص",
+      "refundDue": "الرصيد المستحق",
+      "cashRefund": "استرداد نقدي",
+      "owedBefore": "المستحق قبل",
+      "owedAfter": "المستحق بعد",
+      "outAfter": "يبقى لدى العميل",
+      "compensation": "التعويض المقدّر",
+      "cashHandover": "سلّم العميل {{amount}} دينار الآن",
+      "stillOwes": "ما زال على العميل {{amount}}",
+      "notReplaceable": "لم يعد بالإمكان تصحيح هذا الإرجاع",
+      "backToOrder": "العودة إلى الطلب",
+      "nothingOut": "لا شيء لدى العميل من هذا الطلب"
+    }
   }
 }

@@ -483,7 +483,11 @@
     "unknown_key": "This field is not expected here",
     "duplicate": "This value is repeated",
     "passwordMismatch": "The two passwords do not match",
-    "stockExceeded": "Only {{available}} on hand"
+    "stockExceeded": "Only {{available}} on hand",
+    "paymentExceedsOwed": "At most {{owed}} is owed",
+    "returnExceedsOut": "At most {{out}} are out",
+    "damagedRefundTooHigh": "At most {{maximum}}",
+    "returnEmpty": "Enter at least one returned pallet"
   },
   "errors": {
     "VALIDATION_FAILED": "Please check the highlighted fields",
@@ -747,7 +751,26 @@
     }
   },
   "payments": {
-    "automatic": "Automatic"
+    "automatic": "Automatic",
+    "fields": {
+      "amount": "Amount",
+      "date": "Date",
+      "note": "Note"
+    },
+    "new": {
+      "title": "Record payment",
+      "submit": "Record payment",
+      "created": "Payment recorded on order #{{orderNumber}}",
+      "full": "Full amount",
+      "half": "Half",
+      "summary": "Summary",
+      "owedBefore": "Owed before",
+      "payment": "Payment",
+      "owedAfter": "Owed after",
+      "willSettle": "This order will be settled",
+      "nothingOwed": "Nothing is owed on this order",
+      "backToOrder": "Back to the order"
+    }
   },
   "orders": {
     "list": {
@@ -855,6 +878,11 @@
       },
       "creditExceeded": "Credit limit {{limit}}, already out {{outValue}}: raising this order by {{newTotal}} passes it by {{excess}}.",
       "overrideBody": "Credit limit {{limit}}, already out {{outValue}}, this increase {{newTotal}}: {{excess}} over. The override is recorded in the history."
+    },
+    "picker": {
+      "title": "Choose the order",
+      "empty": "This customer has no order to choose here",
+      "change": "Change order"
     }
   },
   "receipt": {
@@ -883,5 +911,38 @@
     "sheetOf": "Sheet {{x}} of {{y}}",
     "cancelledError": "This order is cancelled; its receipt cannot be printed",
     "print": "Print"
+  },
+  "returns": {
+    "fields": {
+      "accepted": "Accepted",
+      "damaged": "Damaged",
+      "damagedRefund": "Damage refund",
+      "date": "Date",
+      "notes": "Notes"
+    },
+    "new": {
+      "title": "Record return",
+      "titleReplace": "Correct return",
+      "submit": "Record return",
+      "submitReplace": "Save the corrected return",
+      "created": "Return recorded on order #{{orderNumber}}",
+      "replaced": "Return corrected on order #{{orderNumber}}",
+      "lines": "Pallets back",
+      "allAccepted": "All accepted",
+      "everythingAccepted": "Everything returned accepted",
+      "out": "Out",
+      "summary": "Summary",
+      "refundDue": "Refund due",
+      "cashRefund": "Cash refund",
+      "owedBefore": "Owed before",
+      "owedAfter": "Owed after",
+      "outAfter": "Still out after",
+      "compensation": "Compensation assessed",
+      "cashHandover": "Hand the customer {{amount}} IQD now",
+      "stillOwes": "The customer still owes {{amount}}",
+      "notReplaceable": "This return can no longer be corrected",
+      "backToOrder": "Back to the order",
+      "nothingOut": "Nothing is out on this order"
+    }
   }
 }

@@ -24,6 +24,8 @@ import { Route as AppItemsIndexRouteImport } from './routes/_app/items/index'
 import { Route as AppItemsNewRouteImport } from './routes/_app/items/new'
 import { Route as AppOrdersIndexRouteImport } from './routes/_app/orders/index'
 import { Route as AppOrdersNewRouteImport } from './routes/_app/orders/new'
+import { Route as AppPaymentsNewRouteImport } from './routes/_app/payments/new'
+import { Route as AppReturnsNewRouteImport } from './routes/_app/returns/new'
 import { Route as AppUsersIndexRouteImport } from './routes/_app/users/index'
 import { Route as AppUsersUserIdRouteImport } from './routes/_app/users/$userId'
 import { Route as AppUsersNewRouteImport } from './routes/_app/users/new'
@@ -108,6 +110,16 @@ const AppOrdersNewRoute = AppOrdersNewRouteImport.update({
   path: '/orders/new',
   getParentRoute: () => AppRoute,
 } as any)
+const AppPaymentsNewRoute = AppPaymentsNewRouteImport.update({
+  id: '/payments/new',
+  path: '/payments/new',
+  getParentRoute: () => AppRoute,
+} as any)
+const AppReturnsNewRoute = AppReturnsNewRouteImport.update({
+  id: '/returns/new',
+  path: '/returns/new',
+  getParentRoute: () => AppRoute,
+} as any)
 const AppUsersIndexRoute = AppUsersIndexRouteImport.update({
   id: '/users/',
   path: '/users/',
@@ -171,6 +183,8 @@ export interface FileRoutesByFullPath {
   '/customers/new': typeof AppCustomersNewRoute
   '/items/new': typeof AppItemsNewRoute
   '/orders/new': typeof AppOrdersNewRoute
+  '/payments/new': typeof AppPaymentsNewRoute
+  '/returns/new': typeof AppReturnsNewRoute
   '/users/$userId': typeof AppUsersUserIdRoute
   '/users/new': typeof AppUsersNewRoute
   '/customers/': typeof AppCustomersIndexRoute
@@ -196,6 +210,8 @@ export interface FileRoutesByTo {
   '/customers/new': typeof AppCustomersNewRoute
   '/items/new': typeof AppItemsNewRoute
   '/orders/new': typeof AppOrdersNewRoute
+  '/payments/new': typeof AppPaymentsNewRoute
+  '/returns/new': typeof AppReturnsNewRoute
   '/users/$userId': typeof AppUsersUserIdRoute
   '/users/new': typeof AppUsersNewRoute
   '/customers': typeof AppCustomersIndexRoute
@@ -224,6 +240,8 @@ export interface FileRoutesById {
   '/_app/customers/new': typeof AppCustomersNewRoute
   '/_app/items/new': typeof AppItemsNewRoute
   '/_app/orders/new': typeof AppOrdersNewRoute
+  '/_app/payments/new': typeof AppPaymentsNewRoute
+  '/_app/returns/new': typeof AppReturnsNewRoute
   '/_app/users/$userId': typeof AppUsersUserIdRoute
   '/_app/users/new': typeof AppUsersNewRoute
   '/_app/customers/': typeof AppCustomersIndexRoute
@@ -251,6 +269,8 @@ export interface FileRouteTypes {
     | '/customers/new'
     | '/items/new'
     | '/orders/new'
+    | '/payments/new'
+    | '/returns/new'
     | '/users/$userId'
     | '/users/new'
     | '/customers/'
@@ -276,6 +296,8 @@ export interface FileRouteTypes {
     | '/customers/new'
     | '/items/new'
     | '/orders/new'
+    | '/payments/new'
+    | '/returns/new'
     | '/users/$userId'
     | '/users/new'
     | '/customers'
@@ -303,6 +325,8 @@ export interface FileRouteTypes {
     | '/_app/customers/new'
     | '/_app/items/new'
     | '/_app/orders/new'
+    | '/_app/payments/new'
+    | '/_app/returns/new'
     | '/_app/users/$userId'
     | '/_app/users/new'
     | '/_app/customers/'
@@ -433,6 +457,20 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AppOrdersNewRouteImport
       parentRoute: typeof AppRoute
     }
+    '/_app/payments/new': {
+      id: '/_app/payments/new'
+      path: '/payments/new'
+      fullPath: '/payments/new'
+      preLoaderRoute: typeof AppPaymentsNewRouteImport
+      parentRoute: typeof AppRoute
+    }
+    '/_app/returns/new': {
+      id: '/_app/returns/new'
+      path: '/returns/new'
+      fullPath: '/returns/new'
+      preLoaderRoute: typeof AppReturnsNewRouteImport
+      parentRoute: typeof AppRoute
+    }
     '/_app/users/': {
       id: '/_app/users/'
       path: '/users'
@@ -514,6 +552,8 @@ interface AppRouteChildren {
   AppCustomersNewRoute: typeof AppCustomersNewRoute
   AppItemsNewRoute: typeof AppItemsNewRoute
   AppOrdersNewRoute: typeof AppOrdersNewRoute
+  AppPaymentsNewRoute: typeof AppPaymentsNewRoute
+  AppReturnsNewRoute: typeof AppReturnsNewRoute
   AppUsersUserIdRoute: typeof AppUsersUserIdRoute
   AppUsersNewRoute: typeof AppUsersNewRoute
   AppCustomersIndexRoute: typeof AppCustomersIndexRoute
@@ -537,6 +577,8 @@ const AppRouteChildren: AppRouteChildren = {
   AppCustomersNewRoute: AppCustomersNewRoute,
   AppItemsNewRoute: AppItemsNewRoute,
   AppOrdersNewRoute: AppOrdersNewRoute,
+  AppPaymentsNewRoute: AppPaymentsNewRoute,
+  AppReturnsNewRoute: AppReturnsNewRoute,
   AppUsersUserIdRoute: AppUsersUserIdRoute,
   AppUsersNewRoute: AppUsersNewRoute,
   AppCustomersIndexRoute: AppCustomersIndexRoute,

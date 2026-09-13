@@ -483,7 +483,11 @@
     "unknown_key": "ئەم خانەیە لێرە چاوەڕوان ناکرێت",
     "duplicate": "ئەم نرخە دووبارە بووەتەوە",
     "passwordMismatch": "هەردوو وشەی تێپەڕ وەک یەک نین",
-    "stockExceeded": "تەنها {{available}} لە کۆگا هەیە"
+    "stockExceeded": "تەنها {{available}} لە کۆگا هەیە",
+    "paymentExceedsOwed": "زۆرترین قەرز {{owed}}ە",
+    "returnExceedsOut": "زۆرترین {{out}} لایانە",
+    "damagedRefundTooHigh": "زۆرترین {{maximum}}",
+    "returnEmpty": "لانیکەم یەک پالێتی گەڕاوە بنووسە"
   },
   "errors": {
     "VALIDATION_FAILED": "تکایە خانە نیشانکراوەکان بپشکنە",
@@ -747,7 +751,26 @@
     }
   },
   "payments": {
-    "automatic": "خۆکار"
+    "automatic": "خۆکار",
+    "fields": {
+      "amount": "بڕ",
+      "date": "بەروار",
+      "note": "تێبینی"
+    },
+    "new": {
+      "title": "تۆمارکردنی پارەدان",
+      "submit": "تۆمارکردنی پارەدان",
+      "created": "پارەدان لەسەر داواکاری #{{orderNumber}} تۆمارکرا",
+      "full": "هەموو بڕەکە",
+      "half": "نیوە",
+      "summary": "پوختە",
+      "owedBefore": "قەرز پێشتر",
+      "payment": "پارەدان",
+      "owedAfter": "قەرز دواتر",
+      "willSettle": "ئەم داواکارییە تەواو دەبێت",
+      "nothingOwed": "هیچ قەرزێک لەسەر ئەم داواکارییە نەماوە",
+      "backToOrder": "گەڕانەوە بۆ داواکاری"
+    }
   },
   "orders": {
     "list": {
@@ -855,6 +878,11 @@
       },
       "creditExceeded": "سنووری قەرز {{limit}}، ئێستا لایانە {{outValue}}: زیادکردنی ئەم داواکارییە بە {{newTotal}} بە {{excess}} تێیدەپەڕێت.",
       "overrideBody": "سنووری قەرز {{limit}}، ئێستا لایانە {{outValue}}، ئەم زیادکردنە {{newTotal}}: {{excess}} زیاترە. تێپەڕاندنەکە لە مێژوودا تۆمار دەکرێت."
+    },
+    "picker": {
+      "title": "داواکارییەکە هەڵبژێرە",
+      "empty": "ئەم کڕیارە هیچ داواکارییەکی نییە بۆ هەڵبژاردن لێرە",
+      "change": "گۆڕینی داواکاری"
     }
   },
   "receipt": {
@@ -883,5 +911,38 @@
     "sheetOf": "پەڕەی {{x}} لە {{y}}",
     "cancelledError": "ئەم داواکارییە هەڵوەشێنراوەتەوە و پسووڵەی بۆ چاپ ناکرێت",
     "print": "چاپکردن"
+  },
+  "returns": {
+    "fields": {
+      "accepted": "وەرگیراو",
+      "damaged": "تێکچوو",
+      "damagedRefund": "گەڕاندنەوەی پارەی تێکچوو",
+      "date": "بەروار",
+      "notes": "تێبینییەکان"
+    },
+    "new": {
+      "title": "تۆمارکردنی گەڕاندنەوە",
+      "titleReplace": "ڕاستکردنەوەی گەڕاندنەوە",
+      "submit": "تۆمارکردنی گەڕاندنەوە",
+      "submitReplace": "پاشەکەوتکردنی گەڕاندنەوەی ڕاستکراوە",
+      "created": "گەڕاندنەوە لەسەر داواکاری #{{orderNumber}} تۆمارکرا",
+      "replaced": "گەڕاندنەوەی داواکاری #{{orderNumber}} ڕاستکرایەوە",
+      "lines": "پالێتی گەڕاوە",
+      "allAccepted": "هەمووی وەرگیرا",
+      "everythingAccepted": "هەموو گەڕاوەکان وەرگیران",
+      "out": "لایانە",
+      "summary": "پوختە",
+      "refundDue": "بڕی لێبڕدراو",
+      "cashRefund": "پارەی گەڕێندراوە",
+      "owedBefore": "قەرز پێشتر",
+      "owedAfter": "قەرز دواتر",
+      "outAfter": "لایان دەمێنێت",
+      "compensation": "قەرەبووی دیاریکراو",
+      "cashHandover": "ئێستا {{amount}} دینار بدە بە کڕیار",
+      "stillOwes": "کڕیار هێشتا {{amount}} قەرزدارە",
+      "notReplaceable": "ئەم گەڕاندنەوەیە ناتوانرێت ڕاستبکرێتەوە",
+      "backToOrder": "گەڕانەوە بۆ داواکاری",
+      "nothingOut": "هیچ پالێتێک لەم داواکارییە لای کڕیار نەماوە"
+    }
   }
 }

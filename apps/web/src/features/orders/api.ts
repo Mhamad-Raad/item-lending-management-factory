@@ -21,3 +21,25 @@ export async function invalidateAfterOrderChange(queryClient: QueryClient): Prom
     ),
   );
 }
+
+/**
+ * What a payment or its reversal can make stale (§7.8.4): its order and the order lists, the customer's
+ * totals and timeline, the money ledger, and the pages that sum them. Stock does not move.
+ */
+export async function invalidateAfterPayment(
+  queryClient: QueryClient,
+  order: Pick<OrderDetailDto, 'id' | 'customer'>,
+): Promise<void> {
+  await Promise.all(
+    [
+      qk.orders.detail(order.id),
+      ['orders', 'list'],
+      qk.customers.detail(order.customer.id),
+      ['customers', 'history', order.customer.id],
+      ['customers', 'list'],
+      qk.ledger.all(),
+      qk.dashboard(),
+      qk.reports.all(),
+    ].map((queryKey) => queryClient.invalidateQueries({ queryKey })),
+  );
+}

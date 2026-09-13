@@ -11,12 +11,15 @@ import { Sheet, SheetContent, SheetTitle } from '@/components/ui/sheet';
 export function SummaryPanel({
   title,
   keyFigure,
+  keyLabel,
   submit,
   children,
 }: {
   title: string;
   /** The one number the bar shows: the deposit total, the refund due. */
   keyFigure: React.ReactNode;
+  /** What that number is; the panel's title when the title already says it. */
+  keyLabel?: string;
   submit: React.ReactNode;
   children: React.ReactNode;
 }) {
@@ -39,7 +42,7 @@ export function SummaryPanel({
           className="flex min-w-0 flex-1 flex-col items-start text-start"
           onClick={() => setOpen(true)}
         >
-          <span className="text-muted-foreground text-xs">{title}</span>
+          <span className="text-muted-foreground text-xs">{keyLabel ?? title}</span>
           <span className="truncate text-lg font-semibold">{keyFigure}</span>
         </button>
         {submit}
