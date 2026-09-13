@@ -55,7 +55,7 @@ export function ListFilters({
     // The sheet is gone from this layout; left open, it would pop up again when the phone turns back.
     if (open) setOpen(false);
     return (
-      <div className="flex flex-wrap items-end gap-3">
+      <div className="flex w-full flex-wrap items-end gap-3">
         {search}
         {children}
       </div>
@@ -63,7 +63,7 @@ export function ListFilters({
   }
 
   return (
-    <div className="flex flex-col gap-2">
+    <div className="flex w-full flex-col gap-2">
       <div className="flex items-center gap-2">
         {search ? <div className="min-w-0 flex-1">{search}</div> : null}
         <Sheet open={open} onOpenChange={setOpen}>

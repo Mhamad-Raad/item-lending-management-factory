@@ -187,7 +187,9 @@
     "list": {
       "title": "Users",
       "new": "New user",
-      "empty": "No users match this search"
+      "empty": "No users match this search",
+      "anyRole": "All roles",
+      "anyStatus": "Any status"
     },
     "new": {
       "title": "New user",
