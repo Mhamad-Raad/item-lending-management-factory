@@ -850,7 +850,19 @@
       "refundDue": "المبلغ المستحق للإرجاع",
       "cashRefund": "أُعيد نقداً",
       "money": "المال",
-      "noMoney": "لا توجد مبالغ مسجلة على هذا الطلب"
+      "noMoney": "لا توجد مبالغ مسجلة على هذا الطلب",
+      "recordReturn": "تسجيل إرجاع",
+      "recordPayment": "تسجيل دفعة",
+      "editReturn": "تعديل الإرجاع",
+      "deleteReturn": "حذف الإرجاع",
+      "deleteReturnTitle": "حذف هذا الإرجاع؟",
+      "deleteReturnBody": "تعود طبلياته المقبولة إلى العميل ويُعكس أي استرداد نقدي. يبقى الإرجاع في السجل موسوماً بأنه محذوف.",
+      "returnDeleted": "حُذف الإرجاع",
+      "deletePayment": "حذف الدفعة",
+      "deletePaymentTitle": "حذف هذه الدفعة؟",
+      "deletePaymentBody": "يعود مبلغها مستحقاً. تبقى الدفعة في السجل مع عكسها.",
+      "deletePaymentNote": "السبب (اختياري)",
+      "paymentDeleted": "حُذفت الدفعة"
     },
     "money": {
       "date": "التاريخ",

@@ -1,5 +1,5 @@
 import type { LedgerEntryDto, OrderDetailDto, ReturnDto } from '@pallet/shared';
-import { ArrowDownLeft, ArrowUpRight, Ban, Undo2 } from 'lucide-react';
+import { ArrowDownLeft, ArrowUpRight, Ban, Trash2, Undo2 } from 'lucide-react';
 import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { DataTable, type DataColumn } from '@/components/app/data-table';
@@ -10,6 +10,7 @@ import { QuantityText } from '@/components/app/quantity-text';
 import { EmptyState } from '@/components/app/states';
 import { Thumbnail } from '@/components/app/thumbnail';
 import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 
 type Line = OrderDetailDto['lines'][number];
@@ -82,8 +83,17 @@ export function OrderLinesTable({ order }: { order: OrderDetailDto }) {
   );
 }
 
-/** One card per return, newest first; reversed ones only when asked for (§7.3.6). */
-export function OrderReturns({ returns }: { returns: ReturnDto[] }) {
+/**
+ * One card per return, newest first; reversed ones only when asked for (§7.3.6). A standing return
+ * offers its edit and delete when `actions` allows them.
+ */
+export function OrderReturns({
+  returns,
+  actions,
+}: {
+  returns: ReturnDto[];
+  actions?: { edit?: (pr: ReturnDto) => React.ReactNode; onDelete?: (pr: ReturnDto) => void };
+}) {
   const { t } = useTranslation();
   const [showReversed, setShowReversed] = useState(false);
   const visible = [...returns].reverse().filter((pr) => showReversed || !pr.reversed);
@@ -153,6 +163,17 @@ export function OrderReturns({ returns }: { returns: ReturnDto[] }) {
               <p className="text-muted-foreground text-xs">
                 {pr.createdBy.displayName} · <DateText value={pr.createdAt} withTime />
               </p>
+              {!pr.reversed && (actions?.edit || actions?.onDelete) ? (
+                <div className="flex flex-wrap gap-2">
+                  {actions.edit?.(pr)}
+                  {actions.onDelete ? (
+                    <Button variant="outline" size="sm" onClick={() => actions.onDelete?.(pr)}>
+                      <Trash2 aria-hidden />
+                      {t('orders.detail.deleteReturn')}
+                    </Button>
+                  ) : null}
+                </div>
+              ) : null}
             </CardContent>
           </Card>
         ))
@@ -161,8 +182,17 @@ export function OrderReturns({ returns }: { returns: ReturnDto[] }) {
   );
 }
 
-/** The order's money rows in recording order; reversals are rows of their own (§7.3.6). */
-export function OrderMoney({ entries }: { entries: LedgerEntryDto[] }) {
+/**
+ * The order's money rows in recording order; reversals are rows of their own (§7.3.6). A manual payment
+ * that stands offers its deletion when `onDeletePayment` is given.
+ */
+export function OrderMoney({
+  entries,
+  onDeletePayment,
+}: {
+  entries: LedgerEntryDto[];
+  onDeletePayment?: (entry: LedgerEntryDto) => void;
+}) {
   const { t } = useTranslation();
   const columns: DataColumn<LedgerEntryDto>[] = [
     { id: 'effectiveDate', header: 'orders.money.date', cell: (entry) => <DateText value={entry.effectiveDate} /> },
@@ -192,12 +222,15 @@ export function OrderMoney({ entries }: { entries: LedgerEntryDto[] }) {
     {
       id: 'note',
       header: 'orders.money.note',
-      cell: (entry) =>
-        entry.reversesEntryId ? (
-          <span className="text-muted-foreground">{t('orders.money.reverses', { id: entry.reversesEntryId })}</span>
-        ) : (
-          (entry.note ?? '—')
-        ),
+      // A reversal names the row it reverses and keeps the note it was given.
+      cell: (entry) => (
+        <span className="flex flex-col">
+          {entry.reversesEntryId ? (
+            <span className="text-muted-foreground">{t('orders.money.reverses', { id: entry.reversesEntryId })}</span>
+          ) : null}
+          {entry.note ?? (entry.reversesEntryId ? null : '—')}
+        </span>
+      ),
       hideBelow: 'md',
     },
     {
@@ -206,6 +239,22 @@ export function OrderMoney({ entries }: { entries: LedgerEntryDto[] }) {
       cell: (entry) => entry.createdBy.displayName,
       hideBelow: 'lg',
     },
+    ...(onDeletePayment
+      ? [
+          {
+            id: 'actions',
+            header: 'common.actions.title',
+            align: 'end' as const,
+            cell: (entry: LedgerEntryDto) =>
+              entry.canReverse ? (
+                <Button variant="outline" size="sm" onClick={() => onDeletePayment(entry)}>
+                  <Trash2 aria-hidden />
+                  {t('orders.detail.deletePayment')}
+                </Button>
+              ) : null,
+          },
+        ]
+      : []),
   ];
 
   return (

@@ -1,12 +1,14 @@
+import type { LedgerEntryDto, PaymentResultDto, ReturnDto, ReturnResultDto } from '@pallet/shared';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Link, createFileRoute, useNavigate } from '@tanstack/react-router';
-import { Ban, Pencil, Printer, ShieldAlert } from 'lucide-react';
+import { Ban, HandCoins, Pencil, Printer, ShieldAlert, Undo2 } from 'lucide-react';
 import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { toast } from 'sonner';
 import { z } from 'zod';
 import { ConfirmDialog } from '@/components/app/confirm-dialog';
 import { DateText } from '@/components/app/date-text';
+import { Field, FieldLabel } from '@/components/app/field';
 import { MoneyText } from '@/components/app/money-text';
 import { PageHeader } from '@/components/app/page-header';
 import { QuantityText } from '@/components/app/quantity-text';
@@ -16,7 +18,8 @@ import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
-import { invalidateAfterOrderChange, orderQuery } from '@/features/orders/api';
+import { Textarea } from '@/components/ui/textarea';
+import { invalidateAfterOrderChange, invalidateAfterPayment, orderQuery } from '@/features/orders/api';
 import { OrderLinesTable, OrderMoney, OrderReturns } from '@/features/orders/order-sections';
 import { orderLabel } from '@/features/orders/order-text';
 import { usePageTitle } from '@/hooks/use-page-title';
@@ -37,8 +40,8 @@ export const Route = createFileRoute('/_app/orders/$orderId/')({
 });
 
 /**
- * One order in full (§7.3.6). Recording a return or a payment, and undoing either, arrive with the
- * pages that do them (M4); until then the order shows what it has and offers edit, cancel and print.
+ * One order in full (§7.3.6), with what can be done to it next: record a return or a payment on their
+ * own pages, edit or delete a return, delete a manual payment, edit, cancel and print.
  */
 function OrderDetailPage() {
   const { t } = useTranslation();
@@ -49,7 +52,51 @@ function OrderDetailPage() {
   const order = useQuery(orderQuery(Number(orderId)));
   const canEdit = useCan('orders.edit');
   const canCancel = useCan('orders.cancel');
+  const can = {
+    createReturn: useCan('returns.create'),
+    editReturn: useCan('returns.edit'),
+    deleteReturn: useCan('returns.delete'),
+    createPayment: useCan('payments.create'),
+    deletePayment: useCan('payments.delete'),
+  };
   const [confirmingCancel, setConfirmingCancel] = useState(false);
+  const [deletingReturn, setDeletingReturn] = useState<ReturnDto | null>(null);
+  const [deletingPayment, setDeletingPayment] = useState<LedgerEntryDto | null>(null);
+  const [paymentNote, setPaymentNote] = useState('');
+  const reloadOrder = () => void queryClient.invalidateQueries({ queryKey: qk.orders.detail(Number(orderId)) });
+
+  const deleteReturn = useMutation({
+    mutationFn: (pr: ReturnDto) => apiFetch<ReturnResultDto>(`/returns/${pr.id}`, { method: 'DELETE' }),
+    onSuccess: async () => {
+      await invalidateAfterOrderChange(queryClient);
+      toast.success(t('orders.detail.returnDeleted'));
+      setDeletingReturn(null);
+    },
+    onError: (error) => {
+      setDeletingReturn(null);
+      // Already reversed elsewhere, or its pallets have gone out again: show the order as it stands.
+      handleApiError(error);
+      reloadOrder();
+    },
+  });
+
+  const deletePayment = useMutation({
+    mutationFn: ({ entry, note }: { entry: LedgerEntryDto; note: string }) =>
+      apiFetch<PaymentResultDto>(`/ledger-entries/${entry.id}/reverse`, {
+        method: 'POST',
+        body: { note: note.trim() === '' ? null : note.trim() },
+      }),
+    onSuccess: async (result) => {
+      await invalidateAfterPayment(queryClient, result.order);
+      toast.success(t('orders.detail.paymentDeleted'));
+      setDeletingPayment(null);
+    },
+    onError: (error) => {
+      setDeletingPayment(null);
+      handleApiError(error);
+      reloadOrder();
+    },
+  });
   usePageTitle('orders.detail.title');
 
   const cancel = useMutation({
@@ -113,6 +160,22 @@ function OrderDetailPage() {
         actions={
           cancelled ? null : (
             <div className="flex flex-wrap gap-2">
+              {can.createReturn && data.status === 'OPEN' && data.outQuantityTotal > 0 ? (
+                <Button asChild>
+                  <Link to="/returns/new" search={{ orderId: data.id }}>
+                    <Undo2 aria-hidden />
+                    {t('orders.detail.recordReturn')}
+                  </Link>
+                </Button>
+              ) : null}
+              {can.createPayment && data.paymentType === 'LENT' && data.owed > 0 ? (
+                <Button asChild variant={data.outQuantityTotal > 0 ? 'outline' : 'default'}>
+                  <Link to="/payments/new" search={{ orderId: data.id }}>
+                    <HandCoins aria-hidden />
+                    {t('orders.detail.recordPayment')}
+                  </Link>
+                </Button>
+              ) : null}
               <Button variant="outline" onClick={printReceipt}>
                 <Printer aria-hidden />
                 {t('orders.detail.printReceipt')}
@@ -200,8 +263,67 @@ function OrderDetailPage() {
         <h2 className="text-lg font-semibold">{t('orders.lines.title')}</h2>
         <OrderLinesTable order={data} />
       </section>
-      <OrderReturns returns={data.returns} />
-      <OrderMoney entries={data.ledgerEntries} />
+      <OrderReturns
+        returns={data.returns}
+        actions={
+          cancelled
+            ? undefined
+            : {
+                edit: can.editReturn
+                  ? (pr) => (
+                      <Button asChild variant="outline" size="sm">
+                        <Link to="/returns/new" search={{ orderId: data.id, replaceReturnId: pr.id }}>
+                          <Pencil aria-hidden />
+                          {t('orders.detail.editReturn')}
+                        </Link>
+                      </Button>
+                    )
+                  : undefined,
+                onDelete: can.deleteReturn ? setDeletingReturn : undefined,
+              }
+        }
+      />
+      <OrderMoney
+        entries={data.ledgerEntries}
+        onDeletePayment={
+          can.deletePayment && !cancelled
+            ? (entry) => {
+                setPaymentNote('');
+                setDeletingPayment(entry);
+              }
+            : undefined
+        }
+      />
+
+      <ConfirmDialog
+        open={deletingReturn !== null}
+        onOpenChange={(open) => !open && setDeletingReturn(null)}
+        title={t('orders.detail.deleteReturnTitle')}
+        description={t('orders.detail.deleteReturnBody')}
+        confirmLabel={t('orders.detail.deleteReturn')}
+        pending={deleteReturn.isPending}
+        onConfirm={() => deletingReturn && deleteReturn.mutate(deletingReturn)}
+      />
+      <ConfirmDialog
+        open={deletingPayment !== null}
+        onOpenChange={(open) => !open && setDeletingPayment(null)}
+        title={t('orders.detail.deletePaymentTitle')}
+        description={t('orders.detail.deletePaymentBody')}
+        confirmLabel={t('orders.detail.deletePayment')}
+        pending={deletePayment.isPending}
+        onConfirm={() => deletingPayment && deletePayment.mutate({ entry: deletingPayment, note: paymentNote })}
+      >
+        <Field>
+          <FieldLabel htmlFor="payment-delete-note">{t('orders.detail.deletePaymentNote')}</FieldLabel>
+          <Textarea
+            id="payment-delete-note"
+            rows={2}
+            maxLength={500}
+            value={paymentNote}
+            onChange={(event) => setPaymentNote(event.target.value)}
+          />
+        </Field>
+      </ConfirmDialog>
 
       <ConfirmDialog
         open={confirmingCancel}

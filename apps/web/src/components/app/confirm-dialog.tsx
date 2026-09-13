@@ -19,6 +19,7 @@ export function ConfirmDialog({
   destructive = true,
   pending = false,
   onConfirm,
+  children,
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
@@ -28,6 +29,8 @@ export function ConfirmDialog({
   destructive?: boolean;
   pending?: boolean;
   onConfirm: () => void;
+  /** Extra fields the confirmation takes, such as a note (§7.5). */
+  children?: React.ReactNode;
 }) {
   const { t } = useTranslation();
 
@@ -38,6 +41,7 @@ export function ConfirmDialog({
           <DialogTitle>{title}</DialogTitle>
           <DialogDescription>{description}</DialogDescription>
         </DialogHeader>
+        {children}
         <DialogFooter>
           <Button variant="outline" onClick={() => onOpenChange(false)} disabled={pending}>
             {t('common.actions.cancel')}

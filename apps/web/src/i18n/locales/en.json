@@ -850,7 +850,19 @@
       "refundDue": "Refund due",
       "cashRefund": "Paid back in cash",
       "money": "Money",
-      "noMoney": "No money recorded on this order"
+      "noMoney": "No money recorded on this order",
+      "recordReturn": "Record return",
+      "recordPayment": "Record payment",
+      "editReturn": "Edit return",
+      "deleteReturn": "Delete return",
+      "deleteReturnTitle": "Delete this return?",
+      "deleteReturnBody": "Its accepted pallets go back out to the customer and any cash refund is reversed. The return stays in the history, marked deleted.",
+      "returnDeleted": "Return deleted",
+      "deletePayment": "Delete payment",
+      "deletePaymentTitle": "Delete this payment?",
+      "deletePaymentBody": "Its amount is owed again. The payment stays in the history with its reversal.",
+      "deletePaymentNote": "Why (optional)",
+      "paymentDeleted": "Payment deleted"
     },
     "money": {
       "date": "Date",
