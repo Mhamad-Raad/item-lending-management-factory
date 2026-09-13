@@ -25,6 +25,11 @@ import { Route as AppItemsNewRouteImport } from './routes/_app/items/new'
 import { Route as AppOrdersIndexRouteImport } from './routes/_app/orders/index'
 import { Route as AppOrdersNewRouteImport } from './routes/_app/orders/new'
 import { Route as AppPaymentsNewRouteImport } from './routes/_app/payments/new'
+import { Route as AppReportsIndexRouteImport } from './routes/_app/reports/index'
+import { Route as AppReportsActivityRouteImport } from './routes/_app/reports/activity'
+import { Route as AppReportsPositionsRouteImport } from './routes/_app/reports/positions'
+import { Route as AppReportsPurchasesRouteImport } from './routes/_app/reports/purchases'
+import { Route as AppReportsStockRouteImport } from './routes/_app/reports/stock'
 import { Route as AppReturnsNewRouteImport } from './routes/_app/returns/new'
 import { Route as AppUsersIndexRouteImport } from './routes/_app/users/index'
 import { Route as AppUsersUserIdRouteImport } from './routes/_app/users/$userId'
@@ -115,6 +120,31 @@ const AppPaymentsNewRoute = AppPaymentsNewRouteImport.update({
   path: '/payments/new',
   getParentRoute: () => AppRoute,
 } as any)
+const AppReportsIndexRoute = AppReportsIndexRouteImport.update({
+  id: '/reports/',
+  path: '/reports/',
+  getParentRoute: () => AppRoute,
+} as any)
+const AppReportsActivityRoute = AppReportsActivityRouteImport.update({
+  id: '/reports/activity',
+  path: '/reports/activity',
+  getParentRoute: () => AppRoute,
+} as any)
+const AppReportsPositionsRoute = AppReportsPositionsRouteImport.update({
+  id: '/reports/positions',
+  path: '/reports/positions',
+  getParentRoute: () => AppRoute,
+} as any)
+const AppReportsPurchasesRoute = AppReportsPurchasesRouteImport.update({
+  id: '/reports/purchases',
+  path: '/reports/purchases',
+  getParentRoute: () => AppRoute,
+} as any)
+const AppReportsStockRoute = AppReportsStockRouteImport.update({
+  id: '/reports/stock',
+  path: '/reports/stock',
+  getParentRoute: () => AppRoute,
+} as any)
 const AppReturnsNewRoute = AppReturnsNewRouteImport.update({
   id: '/returns/new',
   path: '/returns/new',
@@ -184,6 +214,10 @@ export interface FileRoutesByFullPath {
   '/items/new': typeof AppItemsNewRoute
   '/orders/new': typeof AppOrdersNewRoute
   '/payments/new': typeof AppPaymentsNewRoute
+  '/reports/activity': typeof AppReportsActivityRoute
+  '/reports/positions': typeof AppReportsPositionsRoute
+  '/reports/purchases': typeof AppReportsPurchasesRoute
+  '/reports/stock': typeof AppReportsStockRoute
   '/returns/new': typeof AppReturnsNewRoute
   '/users/$userId': typeof AppUsersUserIdRoute
   '/users/new': typeof AppUsersNewRoute
@@ -191,6 +225,7 @@ export interface FileRoutesByFullPath {
   '/drivers/': typeof AppDriversIndexRoute
   '/items/': typeof AppItemsIndexRoute
   '/orders/': typeof AppOrdersIndexRoute
+  '/reports/': typeof AppReportsIndexRoute
   '/users/': typeof AppUsersIndexRoute
   '/customers/$customerId/edit': typeof AppCustomersCustomerIdEditRoute
   '/items/$itemId/edit': typeof AppItemsItemIdEditRoute
@@ -211,6 +246,10 @@ export interface FileRoutesByTo {
   '/items/new': typeof AppItemsNewRoute
   '/orders/new': typeof AppOrdersNewRoute
   '/payments/new': typeof AppPaymentsNewRoute
+  '/reports/activity': typeof AppReportsActivityRoute
+  '/reports/positions': typeof AppReportsPositionsRoute
+  '/reports/purchases': typeof AppReportsPurchasesRoute
+  '/reports/stock': typeof AppReportsStockRoute
   '/returns/new': typeof AppReturnsNewRoute
   '/users/$userId': typeof AppUsersUserIdRoute
   '/users/new': typeof AppUsersNewRoute
@@ -218,6 +257,7 @@ export interface FileRoutesByTo {
   '/drivers': typeof AppDriversIndexRoute
   '/items': typeof AppItemsIndexRoute
   '/orders': typeof AppOrdersIndexRoute
+  '/reports': typeof AppReportsIndexRoute
   '/users': typeof AppUsersIndexRoute
   '/customers/$customerId/edit': typeof AppCustomersCustomerIdEditRoute
   '/items/$itemId/edit': typeof AppItemsItemIdEditRoute
@@ -241,6 +281,10 @@ export interface FileRoutesById {
   '/_app/items/new': typeof AppItemsNewRoute
   '/_app/orders/new': typeof AppOrdersNewRoute
   '/_app/payments/new': typeof AppPaymentsNewRoute
+  '/_app/reports/activity': typeof AppReportsActivityRoute
+  '/_app/reports/positions': typeof AppReportsPositionsRoute
+  '/_app/reports/purchases': typeof AppReportsPurchasesRoute
+  '/_app/reports/stock': typeof AppReportsStockRoute
   '/_app/returns/new': typeof AppReturnsNewRoute
   '/_app/users/$userId': typeof AppUsersUserIdRoute
   '/_app/users/new': typeof AppUsersNewRoute
@@ -248,6 +292,7 @@ export interface FileRoutesById {
   '/_app/drivers/': typeof AppDriversIndexRoute
   '/_app/items/': typeof AppItemsIndexRoute
   '/_app/orders/': typeof AppOrdersIndexRoute
+  '/_app/reports/': typeof AppReportsIndexRoute
   '/_app/users/': typeof AppUsersIndexRoute
   '/_app/customers/$customerId/edit': typeof AppCustomersCustomerIdEditRoute
   '/_app/items/$itemId/edit': typeof AppItemsItemIdEditRoute
@@ -270,6 +315,10 @@ export interface FileRouteTypes {
     | '/items/new'
     | '/orders/new'
     | '/payments/new'
+    | '/reports/activity'
+    | '/reports/positions'
+    | '/reports/purchases'
+    | '/reports/stock'
     | '/returns/new'
     | '/users/$userId'
     | '/users/new'
@@ -277,6 +326,7 @@ export interface FileRouteTypes {
     | '/drivers/'
     | '/items/'
     | '/orders/'
+    | '/reports/'
     | '/users/'
     | '/customers/$customerId/edit'
     | '/items/$itemId/edit'
@@ -297,6 +347,10 @@ export interface FileRouteTypes {
     | '/items/new'
     | '/orders/new'
     | '/payments/new'
+    | '/reports/activity'
+    | '/reports/positions'
+    | '/reports/purchases'
+    | '/reports/stock'
     | '/returns/new'
     | '/users/$userId'
     | '/users/new'
@@ -304,6 +358,7 @@ export interface FileRouteTypes {
     | '/drivers'
     | '/items'
     | '/orders'
+    | '/reports'
     | '/users'
     | '/customers/$customerId/edit'
     | '/items/$itemId/edit'
@@ -326,6 +381,10 @@ export interface FileRouteTypes {
     | '/_app/items/new'
     | '/_app/orders/new'
     | '/_app/payments/new'
+    | '/_app/reports/activity'
+    | '/_app/reports/positions'
+    | '/_app/reports/purchases'
+    | '/_app/reports/stock'
     | '/_app/returns/new'
     | '/_app/users/$userId'
     | '/_app/users/new'
@@ -333,6 +392,7 @@ export interface FileRouteTypes {
     | '/_app/drivers/'
     | '/_app/items/'
     | '/_app/orders/'
+    | '/_app/reports/'
     | '/_app/users/'
     | '/_app/customers/$customerId/edit'
     | '/_app/items/$itemId/edit'
@@ -464,6 +524,41 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AppPaymentsNewRouteImport
       parentRoute: typeof AppRoute
     }
+    '/_app/reports/': {
+      id: '/_app/reports/'
+      path: '/reports'
+      fullPath: '/reports/'
+      preLoaderRoute: typeof AppReportsIndexRouteImport
+      parentRoute: typeof AppRoute
+    }
+    '/_app/reports/activity': {
+      id: '/_app/reports/activity'
+      path: '/reports/activity'
+      fullPath: '/reports/activity'
+      preLoaderRoute: typeof AppReportsActivityRouteImport
+      parentRoute: typeof AppRoute
+    }
+    '/_app/reports/positions': {
+      id: '/_app/reports/positions'
+      path: '/reports/positions'
+      fullPath: '/reports/positions'
+      preLoaderRoute: typeof AppReportsPositionsRouteImport
+      parentRoute: typeof AppRoute
+    }
+    '/_app/reports/purchases': {
+      id: '/_app/reports/purchases'
+      path: '/reports/purchases'
+      fullPath: '/reports/purchases'
+      preLoaderRoute: typeof AppReportsPurchasesRouteImport
+      parentRoute: typeof AppRoute
+    }
+    '/_app/reports/stock': {
+      id: '/_app/reports/stock'
+      path: '/reports/stock'
+      fullPath: '/reports/stock'
+      preLoaderRoute: typeof AppReportsStockRouteImport
+      parentRoute: typeof AppRoute
+    }
     '/_app/returns/new': {
       id: '/_app/returns/new'
       path: '/returns/new'
@@ -553,6 +648,10 @@ interface AppRouteChildren {
   AppItemsNewRoute: typeof AppItemsNewRoute
   AppOrdersNewRoute: typeof AppOrdersNewRoute
   AppPaymentsNewRoute: typeof AppPaymentsNewRoute
+  AppReportsActivityRoute: typeof AppReportsActivityRoute
+  AppReportsPositionsRoute: typeof AppReportsPositionsRoute
+  AppReportsPurchasesRoute: typeof AppReportsPurchasesRoute
+  AppReportsStockRoute: typeof AppReportsStockRoute
   AppReturnsNewRoute: typeof AppReturnsNewRoute
   AppUsersUserIdRoute: typeof AppUsersUserIdRoute
   AppUsersNewRoute: typeof AppUsersNewRoute
@@ -560,6 +659,7 @@ interface AppRouteChildren {
   AppDriversIndexRoute: typeof AppDriversIndexRoute
   AppItemsIndexRoute: typeof AppItemsIndexRoute
   AppOrdersIndexRoute: typeof AppOrdersIndexRoute
+  AppReportsIndexRoute: typeof AppReportsIndexRoute
   AppUsersIndexRoute: typeof AppUsersIndexRoute
   AppCustomersCustomerIdEditRoute: typeof AppCustomersCustomerIdEditRoute
   AppItemsItemIdEditRoute: typeof AppItemsItemIdEditRoute
@@ -578,6 +678,10 @@ const AppRouteChildren: AppRouteChildren = {
   AppItemsNewRoute: AppItemsNewRoute,
   AppOrdersNewRoute: AppOrdersNewRoute,
   AppPaymentsNewRoute: AppPaymentsNewRoute,
+  AppReportsActivityRoute: AppReportsActivityRoute,
+  AppReportsPositionsRoute: AppReportsPositionsRoute,
+  AppReportsPurchasesRoute: AppReportsPurchasesRoute,
+  AppReportsStockRoute: AppReportsStockRoute,
   AppReturnsNewRoute: AppReturnsNewRoute,
   AppUsersUserIdRoute: AppUsersUserIdRoute,
   AppUsersNewRoute: AppUsersNewRoute,
@@ -585,6 +689,7 @@ const AppRouteChildren: AppRouteChildren = {
   AppDriversIndexRoute: AppDriversIndexRoute,
   AppItemsIndexRoute: AppItemsIndexRoute,
   AppOrdersIndexRoute: AppOrdersIndexRoute,
+  AppReportsIndexRoute: AppReportsIndexRoute,
   AppUsersIndexRoute: AppUsersIndexRoute,
   AppCustomersCustomerIdEditRoute: AppCustomersCustomerIdEditRoute,
   AppItemsItemIdEditRoute: AppItemsItemIdEditRoute,

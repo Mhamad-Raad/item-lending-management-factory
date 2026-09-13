@@ -1,4 +1,5 @@
 import {
+  ACTIVITY_EVENT_KINDS,
   AUDIT_ACTIONS,
   AUDIT_SUMMARY_KEYS,
   AUDIT_ENTITY_TYPES,
@@ -59,6 +60,7 @@ describe('translation files', () => {
       ...STOCK_MOVEMENT_REASONS.map((reason) => `enums.stockMovementReason.${reason}`),
       ...PAYMENT_TYPES.map((type) => `enums.paymentType.${type}`),
       ...ORDER_STATUSES.map((status) => `enums.orderStatus.${status}`),
+      ...ACTIVITY_EVENT_KINDS.map((kind) => `enums.activityEventKind.${kind}`),
       ...LEDGER_ENTRY_TYPES.map((type) => `enums.ledgerEntryType.${type}`),
       ...LEDGER_ENTRY_SOURCES.map((source) => `enums.ledgerEntrySource.${source}`),
       ...PERMISSION_KEYS.map((key) => `permissions.${key.replace(/\./g, '_')}`),

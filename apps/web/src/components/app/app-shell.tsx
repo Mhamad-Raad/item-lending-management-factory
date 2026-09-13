@@ -2,6 +2,7 @@ import type { PermissionKey } from '@pallet/shared';
 import { Link, useRouterState } from '@tanstack/react-router';
 import {
   Building2,
+  BarChart3,
   ClipboardList,
   History,
   LayoutDashboard,
@@ -36,6 +37,8 @@ interface NavItem {
   icon: LucideIcon;
   /** Omitted for pages every signed-in user may open. */
   permission?: PermissionKey;
+  /** Shown when the user holds any of these, as for the reports entry point (§7.2). */
+  anyPermission?: readonly PermissionKey[];
   adminOnly?: boolean;
 }
 
@@ -49,6 +52,12 @@ const NAV_ITEMS: NavItem[] = [
   { to: '/customers', labelKey: 'nav.customers', icon: Building2, permission: 'customers.view' },
   { to: '/items', labelKey: 'nav.items', icon: Package, permission: 'items.view' },
   { to: '/drivers', labelKey: 'nav.drivers', icon: Truck, permission: 'drivers.view' },
+  {
+    to: '/reports',
+    labelKey: 'nav.reports',
+    icon: BarChart3,
+    anyPermission: ['reports.viewPositions', 'reports.viewPurchases', 'reports.viewActivity', 'reports.viewStock'],
+  },
   { to: '/history', labelKey: 'nav.history', icon: History, permission: 'audit.view' },
   { to: '/users', labelKey: 'nav.users', icon: Users, adminOnly: true },
   { to: '/settings', labelKey: 'nav.settings', icon: Settings, adminOnly: true },
@@ -57,6 +66,7 @@ const NAV_ITEMS: NavItem[] = [
 function visibleItems(isAdmin: boolean): NavItem[] {
   return NAV_ITEMS.filter((item) => {
     if (item.adminOnly) return isAdmin;
+    if (item.anyPermission) return item.anyPermission.some((key) => authStore.can(key));
     return !item.permission || authStore.can(item.permission);
   });
 }
@@ -164,7 +174,7 @@ export function AppShell({ children, onLogout }: { children: React.ReactNode; on
         {t('nav.skipToContent')}
       </a>
 
-      <aside className="bg-card fixed inset-y-0 start-0 z-30 hidden w-64 flex-col border-e lg:flex">
+      <aside data-print="hide" className="bg-card fixed inset-y-0 start-0 z-30 hidden w-64 flex-col border-e lg:flex">
         <div className="flex h-14 shrink-0 items-center px-5 text-lg font-semibold">{t('common.appName')}</div>
         <div className="flex min-h-0 flex-1 flex-col overflow-y-auto">
           <NavLinks />
@@ -174,8 +184,11 @@ export function AppShell({ children, onLogout }: { children: React.ReactNode; on
         </div>
       </aside>
 
-      <div className="flex min-h-dvh flex-col lg:ps-64">
-        <header className="bg-card sticky top-0 z-30 flex h-14 items-center gap-1 border-b px-2 lg:hidden">
+      <div className="flex min-h-dvh flex-col lg:ps-64 print:ps-0">
+        <header
+          data-print="hide"
+          className="bg-card sticky top-0 z-30 flex h-14 items-center gap-1 border-b px-2 lg:hidden"
+        >
           <Sheet open={menuOpen} onOpenChange={setMenuOpen}>
             <SheetTrigger asChild>
               <Button variant="ghost" size="icon" aria-label={t('nav.openMenu')}>

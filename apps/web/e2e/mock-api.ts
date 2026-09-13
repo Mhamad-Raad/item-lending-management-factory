@@ -1,5 +1,10 @@
 import type {
+  ActivityReportDto,
   AuditLogDto,
+  DashboardDto,
+  PositionsReportDto,
+  PurchasesReportDto,
+  StockReportDto,
   CustomerDetailDto,
   CustomerHistoryItemDto,
   DriverDto,
@@ -273,6 +278,139 @@ const HISTORY: CustomerHistoryItemDto[] = [
   },
 ];
 
+const CUSTOMER_REF = { id: CUSTOMER.id, name: CUSTOMER.name, phone: CUSTOMER.phone, archived: false };
+const ITEM_REF_MOCK = { id: ITEM.id, name: ITEM.name, imageUrl: null, archived: false };
+
+const DASHBOARD: DashboardDto = {
+  positions: {
+    palletsOut: 48_250,
+    outValue: 603_125_000,
+    owed: 603_125_000,
+    held: 120_000_000,
+    openOrderCount: 12,
+    customersWithOpenOrders: 7,
+  },
+  lowStock: {
+    count: 1,
+    items: [{ id: ITEM.id, name: ITEM.name, imageUrl: null, quantityOnHand: 900, minStock: 1_000 }],
+  },
+  recentActivity: [
+    {
+      kind: 'HANDOVER',
+      at: AT,
+      date: ORDER.date,
+      orderId: ORDER.id,
+      orderNumber: ORDER.orderNumber,
+      customer: CUSTOMER_REF,
+      quantity: 48_250,
+      amount: 603_125_000,
+      reversed: false,
+    },
+  ],
+};
+
+const POSITIONS: PositionsReportDto = {
+  generatedAt: AT,
+  columns: [ITEM_REF_MOCK],
+  rows: [
+    {
+      customer: CUSTOMER_REF,
+      palletsOutByItem: [{ itemId: ITEM.id, quantityOut: 48_250 }],
+      palletsOut: 48_250,
+      outValue: 603_125_000,
+      owed: 603_125_000,
+      held: 120_000_000,
+    },
+  ],
+  totals: {
+    palletsOutByItem: [{ itemId: ITEM.id, quantityOut: 48_250 }],
+    palletsOut: 48_250,
+    outValue: 603_125_000,
+    owed: 603_125_000,
+    held: 120_000_000,
+  },
+};
+
+const PURCHASES: PurchasesReportDto = {
+  generatedAt: AT,
+  dateFrom: '2026-09-01',
+  dateTo: '2026-09-11',
+  rows: [
+    {
+      batchId: BATCH.id,
+      item: ITEM_REF_MOCK,
+      date: BATCH.date,
+      quantity: BATCH.quantity,
+      unitCost: 9_750,
+      totalCost: 1_689_187_500,
+      note: BATCH.note,
+    },
+  ],
+  perItem: [{ item: ITEM_REF_MOCK, batchCount: 1, quantity: BATCH.quantity, totalCost: 1_689_187_500 }],
+  totals: { batchCount: 1, quantity: BATCH.quantity, totalCost: 1_689_187_500 },
+  truncated: false,
+};
+
+const ACTIVITY: ActivityReportDto = {
+  generatedAt: AT,
+  dateFrom: '2026-09-01',
+  dateTo: '2026-09-11',
+  filters: { customerId: null, itemId: null, driverId: null },
+  moneyOmitted: false,
+  handovers: [
+    {
+      orderId: ORDER.id,
+      orderNumber: ORDER.orderNumber,
+      date: ORDER.date,
+      customer: CUSTOMER_REF,
+      driver: ORDER.driver,
+      paymentType: ORDER.paymentType,
+      lines: [{ item: ITEM_REF_MOCK, quantity: 48_250, unitDeposit: 12_500, lineTotal: 603_125_000 }],
+      quantity: 48_250,
+      depositTotal: 603_125_000,
+    },
+  ],
+  returns: [],
+  payments: [LEDGER_ENTRY],
+  refunds: [],
+  compensation: [],
+  totals: {
+    handoverQuantity: 48_250,
+    handoverDepositTotal: 603_125_000,
+    returnedAccepted: 0,
+    returnedDamaged: 0,
+    refundDueTotal: 0,
+    paymentsGross: LEDGER_ENTRY.amount,
+    paymentReversals: 0,
+    paymentsNet: LEDGER_ENTRY.amount,
+    refundsGross: 0,
+    refundReversals: 0,
+    refundsNet: 0,
+    compensationAssessed: 0,
+  },
+  truncated: false,
+};
+
+const STOCK: StockReportDto = {
+  generatedAt: AT,
+  rows: [
+    {
+      item: ITEM_REF_MOCK,
+      quantityOnHand: ITEM.quantityOnHand,
+      quantityOut: ITEM.quantityOut,
+      damagedTotal: ITEM.damagedTotal,
+      minStock: ITEM.minStock,
+      isLowStock: false,
+    },
+  ],
+  totals: {
+    quantityOnHand: ITEM.quantityOnHand,
+    quantityOut: ITEM.quantityOut,
+    damagedTotal: ITEM.damagedTotal,
+    lowStockCount: 0,
+  },
+};
+
 const page1 = <T>(items: T[]): PageDto<T> => ({ items, page: 1, pageSize: 25, total: items.length * 40 });
 
 /** Signs `user` in and answers every read the built pages make; writes are not needed here. */
@@ -310,6 +448,11 @@ export async function mockApi(
     [/\/api\/users\/\d+$/, EMPLOYEE],
     [/\/api\/audit-logs(\?.*)?$/, page1([AUDIT_ROW])],
     [/\/api\/settings$/, SETTINGS],
+    [/\/api\/dashboard$/, DASHBOARD],
+    [/\/api\/reports\/positions(\?.*)?$/, POSITIONS],
+    [/\/api\/reports\/purchases(\?.*)?$/, PURCHASES],
+    [/\/api\/reports\/activity(\?.*)?$/, ACTIVITY],
+    [/\/api\/reports\/stock(\?.*)?$/, STOCK],
   ];
   for (const [pattern, json] of routes) {
     await page.route(pattern, (route) => route.fulfill({ json }));

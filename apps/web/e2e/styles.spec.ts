@@ -78,13 +78,16 @@ test.describe('typography and theme tokens (§7.12, §7.13)', () => {
       await expect(page.getByRole('heading', { level: 1 })).toBeVisible();
       return page;
     };
-    const light = await backgroundIn('light', 'screen');
-    const lightBackground = await light.evaluate(() => getComputedStyle(document.body).backgroundColor);
+    // Compared with the same page printed from the light theme: paper has its own colours (§12.1's
+    // white page), and the theme a user chose on screen must not change them.
+    const light = await backgroundIn('light', 'print');
+    // Text colour, not the background: print forces the page white whatever the theme.
+    const lightText = await light.evaluate(() => getComputedStyle(document.body).color);
     const page = await backgroundIn('dark', 'print');
     // The theme writes its scheme inline on <html>; the print rule must still win over it.
     expect(await page.evaluate(() => document.documentElement.style.colorScheme)).toBe('dark');
 
-    expect(await page.evaluate(() => getComputedStyle(document.body).backgroundColor)).toBe(lightBackground);
+    expect(await page.evaluate(() => getComputedStyle(document.body).color)).toBe(lightText);
     expect(await page.evaluate(() => getComputedStyle(document.documentElement).colorScheme)).toBe('light');
     await Promise.all([light.close(), page.close()]);
   });

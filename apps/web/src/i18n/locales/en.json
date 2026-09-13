@@ -118,7 +118,8 @@
     "drivers": "Drivers",
     "orders": "Orders",
     "openMenu": "Open menu",
-    "skipToContent": "Skip to content"
+    "skipToContent": "Skip to content",
+    "reports": "Reports"
   },
   "auth": {
     "login": {
@@ -147,7 +148,23 @@
   "dashboard": {
     "title": "Dashboard",
     "welcome": "Welcome, {{name}}",
-    "pending": "Summary cards and recent activity appear here once orders and returns are available."
+    "cards": {
+      "title": "Figures",
+      "palletsOut": "Pallets out",
+      "owed": "Total owed",
+      "held": "Total held",
+      "lowStock": "Low stock items"
+    },
+    "lowStock": {
+      "attention": "Needs restocking"
+    },
+    "quick": {
+      "title": "Quick actions"
+    },
+    "recent": {
+      "title": "Recent activity",
+      "empty": "Nothing recorded yet"
+    }
   },
   "account": {
     "title": "My account",
@@ -353,6 +370,13 @@
       "RETURN_CREATE": "Return",
       "RETURN_EDIT": "Return corrected",
       "RETURN_DELETE": "Return deleted"
+    },
+    "activityEventKind": {
+      "HANDOVER": "Hand-over",
+      "CANCELLATION": "Cancellation",
+      "RETURN": "Return",
+      "PAYMENT": "Payment",
+      "REFUND": "Refund"
     }
   },
   "audit": {
@@ -964,6 +988,76 @@
       "notReplaceable": "This return can no longer be corrected",
       "backToOrder": "Back to the order",
       "nothingOut": "Nothing is out on this order"
+    }
+  },
+  "reports": {
+    "tabs": "Reports",
+    "print": "Print",
+    "total": "Total",
+    "empty": "Nothing to show for these filters",
+    "truncated": "Showing the first 5,000 rows only. Narrow the date range to see the rest.",
+    "generatedAt": "Generated {{at}}",
+    "printedFilters": "Filters: {{filters}}",
+    "period": "From {{from}} to {{to}}",
+    "allCustomers": "All customers",
+    "allItems": "All items",
+    "allDrivers": "All drivers",
+    "positions": {
+      "title": "Pallets out & money",
+      "customer": "Customer",
+      "palletsOut": "Pallets out",
+      "outValue": "Value out",
+      "owed": "Owed",
+      "held": "Held",
+      "perItem": "Pallets per item for {{name}}",
+      "totalPerItem": "Pallets out per item"
+    },
+    "purchases": {
+      "title": "Purchases",
+      "date": "Date",
+      "item": "Item",
+      "quantity": "Quantity",
+      "unitCost": "Unit cost",
+      "totalCost": "Total cost",
+      "note": "Note",
+      "subtotal": "Subtotal: {{name}}"
+    },
+    "activity": {
+      "title": "Activity",
+      "date": "Date",
+      "order": "Order",
+      "customer": "Customer",
+      "driver": "Driver",
+      "item": "Item",
+      "pallets": "Pallets",
+      "quantity": "Quantity",
+      "deposit": "Deposit",
+      "handovers": "Hand-overs",
+      "returns": "Returns",
+      "accepted": "Accepted",
+      "damaged": "Damaged",
+      "refundDue": "Refund due",
+      "payments": "Payments",
+      "refunds": "Refunds",
+      "type": "Type",
+      "amount": "Amount",
+      "reversal": "Reversal",
+      "grossReversals": "{{gross}} less {{reversals}} reversed",
+      "moneyOmitted": "Payments and refunds are recorded per order, not per item, so they are left out when an item is chosen.",
+      "compensationAssessed": "Damage compensation assessed",
+      "compensationNote": "Assessed on damaged pallets. On credit orders it may still be part of what the customer owes.",
+      "damagedRefund": "Damage refund",
+      "compensation": "Compensation"
+    },
+    "stock": {
+      "title": "Stock levels",
+      "item": "Item",
+      "onHand": "On hand",
+      "out": "Out with customers",
+      "damaged": "Damaged",
+      "minStock": "Minimum",
+      "lowStockOnly": "Only low stock",
+      "lowStockCount": "Low: {{value}}"
     }
   }
 }

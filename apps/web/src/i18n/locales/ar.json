@@ -118,7 +118,8 @@
     "drivers": "السائقون",
     "orders": "الطلبات",
     "openMenu": "فتح القائمة",
-    "skipToContent": "انتقل إلى المحتوى"
+    "skipToContent": "انتقل إلى المحتوى",
+    "reports": "التقارير"
   },
   "auth": {
     "login": {
@@ -147,7 +148,23 @@
   "dashboard": {
     "title": "لوحة المعلومات",
     "welcome": "أهلاً، {{name}}",
-    "pending": "تظهر هنا بطاقات الملخص والنشاط الأخير عند توفر الطلبات والإرجاعات."
+    "cards": {
+      "title": "الأرقام",
+      "palletsOut": "الطبليات لدى العملاء",
+      "owed": "إجمالي المستحق",
+      "held": "إجمالي المحتجز",
+      "lowStock": "أصناف منخفضة المخزون"
+    },
+    "lowStock": {
+      "attention": "تحتاج إلى إعادة التزويد"
+    },
+    "quick": {
+      "title": "إجراءات سريعة"
+    },
+    "recent": {
+      "title": "آخر النشاطات",
+      "empty": "لم يُسجَّل شيء بعد"
+    }
   },
   "account": {
     "title": "حسابي",
@@ -353,6 +370,13 @@
       "RETURN_CREATE": "إرجاع",
       "RETURN_EDIT": "تصحيح إرجاع",
       "RETURN_DELETE": "حذف إرجاع"
+    },
+    "activityEventKind": {
+      "HANDOVER": "تسليم",
+      "CANCELLATION": "إلغاء",
+      "RETURN": "إرجاع",
+      "PAYMENT": "دفعة",
+      "REFUND": "استرداد"
     }
   },
   "audit": {
@@ -964,6 +988,76 @@
       "notReplaceable": "لم يعد بالإمكان تصحيح هذا الإرجاع",
       "backToOrder": "العودة إلى الطلب",
       "nothingOut": "لا شيء لدى العميل من هذا الطلب"
+    }
+  },
+  "reports": {
+    "tabs": "التقارير",
+    "print": "طباعة",
+    "total": "الإجمالي",
+    "empty": "لا شيء لعرضه بهذه التصفية",
+    "truncated": "تُعرض أول 5,000 صف فقط. ضيّق نطاق التاريخ لرؤية الباقي.",
+    "generatedAt": "أُنشئ {{at}}",
+    "printedFilters": "عوامل التصفية: {{filters}}",
+    "period": "من {{from}} إلى {{to}}",
+    "allCustomers": "كل العملاء",
+    "allItems": "كل الأصناف",
+    "allDrivers": "كل السائقين",
+    "positions": {
+      "title": "الطبليات لدى العملاء والأموال",
+      "customer": "العميل",
+      "palletsOut": "الطبليات لدى العميل",
+      "outValue": "قيمة الطبليات",
+      "owed": "المستحق",
+      "held": "المحتجز",
+      "perItem": "الطبليات حسب الصنف لـ {{name}}",
+      "totalPerItem": "الطبليات لدى العملاء حسب الصنف"
+    },
+    "purchases": {
+      "title": "المشتريات",
+      "date": "التاريخ",
+      "item": "الصنف",
+      "quantity": "الكمية",
+      "unitCost": "تكلفة الوحدة",
+      "totalCost": "التكلفة الإجمالية",
+      "note": "ملاحظة",
+      "subtotal": "المجموع الفرعي: {{name}}"
+    },
+    "activity": {
+      "title": "النشاط",
+      "date": "التاريخ",
+      "order": "الطلب",
+      "customer": "العميل",
+      "driver": "السائق",
+      "item": "الصنف",
+      "pallets": "الطبليات",
+      "quantity": "الكمية",
+      "deposit": "التأمين",
+      "handovers": "التسليمات",
+      "returns": "الإرجاعات",
+      "accepted": "مقبولة",
+      "damaged": "تالفة",
+      "refundDue": "الرصيد المستحق",
+      "payments": "الدفعات",
+      "refunds": "الاستردادات",
+      "type": "النوع",
+      "amount": "المبلغ",
+      "reversal": "عكس",
+      "grossReversals": "{{gross}} ناقص {{reversals}} معكوس",
+      "moneyOmitted": "تُسجَّل الدفعات والاستردادات لكل طلب لا لكل صنف، لذا تُحذف عند اختيار صنف.",
+      "compensationAssessed": "تعويض التلف المقدَّر",
+      "compensationNote": "يُقدَّر على الطبليات التالفة. في الطلبات الآجلة قد يبقى جزءاً مما على العميل.",
+      "damagedRefund": "استرداد التالف",
+      "compensation": "التعويض"
+    },
+    "stock": {
+      "title": "مستويات المخزون",
+      "item": "الصنف",
+      "onHand": "في المخزن",
+      "out": "لدى العملاء",
+      "damaged": "تالفة",
+      "minStock": "الحد الأدنى",
+      "lowStockOnly": "المنخفض فقط",
+      "lowStockCount": "منخفض: {{value}}"
     }
   }
 }

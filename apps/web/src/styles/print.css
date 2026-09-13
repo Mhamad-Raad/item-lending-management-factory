@@ -1,0 +1,56 @@
+/*
+ * Printed reports (§12.1): A4, the app's chrome and controls left out, a header that names the report,
+ * table headers repeated on every page, rows never split, light colours, no motion.
+ */
+@page {
+  size: A4 portrait;
+  margin: 12mm;
+}
+
+@page landscape {
+  size: A4 landscape;
+  margin: 12mm;
+}
+
+@media print {
+  .print-landscape {
+    page: landscape;
+  }
+
+  [data-print='hide'] {
+    display: none !important;
+  }
+
+  [data-print='only'] {
+    display: flex !important;
+  }
+
+  thead {
+    display: table-header-group;
+  }
+
+  /* Once, after the last row: repeated on every page, the grand total would read as a page subtotal. */
+  tfoot {
+    display: table-row-group;
+  }
+
+  tr {
+    break-inside: avoid;
+  }
+
+  thead,
+  tfoot {
+    position: static !important;
+  }
+
+  :root {
+    --background: #fff;
+  }
+
+  *,
+  *::before,
+  *::after {
+    animation: none !important;
+    transition: none !important;
+  }
+}
