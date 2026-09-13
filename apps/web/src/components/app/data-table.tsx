@@ -3,6 +3,7 @@ import { useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Pagination } from '@/components/app/pagination';
 import { TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
+import { nextSort, sortStateOf } from '@/lib/sort-cycle';
 import { cn } from '@/lib/utils';
 
 export interface DataColumn<T> {
@@ -43,20 +44,6 @@ interface DataTableProps<T> {
 }
 
 const HIDE_BELOW = { md: 'hidden md:table-cell', lg: 'hidden lg:table-cell' } as const;
-
-type SortState = 'ascending' | 'descending' | 'none';
-
-function sortStateOf(column: { sortKey?: string }, sort: string | undefined): SortState {
-  if (!column.sortKey || !sort) return 'none';
-  if (sort === column.sortKey) return 'ascending';
-  return sort === `-${column.sortKey}` ? 'descending' : 'none';
-}
-
-/** Ascending, then descending, then back to the list's default order (§7.5). */
-function nextSort(sortKey: string, state: SortState): string | undefined {
-  if (state === 'none') return sortKey;
-  return state === 'ascending' ? `-${sortKey}` : undefined;
-}
 
 /** A click on a row opens its link, unless the click was on something interactive of its own. */
 function openRowLink(event: React.MouseEvent<HTMLElement>): void {
@@ -120,7 +107,7 @@ export function DataTable<T>({
               <TableHeader className="bg-background sticky top-0 z-10">
                 <TableRow className="hover:bg-transparent">
                   {columns.map((column) => {
-                    const state = sortStateOf(column, activeSort);
+                    const state = sortStateOf(column.sortKey, activeSort);
                     const Icon = state === 'ascending' ? ArrowUp : state === 'descending' ? ArrowDown : ArrowUpDown;
                     return (
                       <TableHead
@@ -136,7 +123,7 @@ export function DataTable<T>({
                           <button
                             type="button"
                             className="hover:text-foreground focus-visible:ring-ring/50 inline-flex items-center gap-1 rounded-sm outline-none focus-visible:ring-[3px]"
-                            onClick={() => onSortChange(nextSort(column.sortKey as string, state))}
+                            onClick={() => onSortChange(nextSort(column.sortKey as string, activeSort, defaultSort))}
                           >
                             {t(column.header)}
                             <Icon className={cn('size-3.5', state === 'none' && 'opacity-40')} aria-hidden />
