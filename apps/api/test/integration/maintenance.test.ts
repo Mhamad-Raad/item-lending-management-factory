@@ -55,6 +55,9 @@ describe('maintenance purges', () => {
         requestHash: '0'.repeat(64),
         responseStatus: 201,
         responseBody: {},
+        // Both ends from the test's clock: the database's now() would put creation after this expiry
+        // once the wall clock passes it, and the table refuses a key that expires before it exists.
+        createdAt: START,
         expiresAt: new Date(START.getTime() + DAY_MS),
       },
     });
