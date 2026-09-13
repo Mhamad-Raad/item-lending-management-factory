@@ -228,3 +228,30 @@ test('a customer profile opens on their history: hand-overs, returns and money, 
   await expect(entries.nth(2).getByRole('link', { name: '#000042' })).toHaveAttribute('href', '/orders/9');
   expect(asked[0]).toContain('page=1');
 });
+
+test('each order a holding came out on links to that order', async ({ page }) => {
+  await signIn(page);
+  const item = { id: 5, name: 'Euro pallet', imageUrl: null, archived: false };
+  await page.route(/\/api\/customers\/7$/, (route) =>
+    route.fulfill({
+      json: {
+        ...CUSTOMER,
+        holdings: [
+          {
+            item,
+            quantityOut: 20,
+            outValue: 20_000,
+            sources: [{ orderId: 9, orderNumber: 42, orderDate: '2026-09-11', quantityOut: 20, unitDeposit: 1_000 }],
+          },
+        ],
+      },
+    }),
+  );
+  await page.route(/\/api\/customers\/7\/history/, (route) =>
+    route.fulfill({ json: { items: [], page: 1, pageSize: 25, total: 0 } }),
+  );
+
+  await page.goto('/customers/7');
+
+  await expect(page.getByRole('link', { name: /#000042/ }).first()).toHaveAttribute('href', '/orders/9');
+});

@@ -116,7 +116,8 @@ function ChosenOrder({
   }
   return (
     <div className="flex flex-col gap-6">
-      {replaceReturnId === undefined ? <OrderHeaderCompact order={order.data} onChange={onChange} /> : null}
+      {/* A correction belongs to its return's order: the order shows, with no way to choose another. */}
+      <OrderHeaderCompact order={order.data} onChange={replaceReturnId === undefined ? onChange : undefined} />
       {/* Not keyed by version: a reload after a refusal keeps the typed rows and their errors. */}
       <ReturnForm key={replaceReturnId ?? 'new'} order={order.data} replaceReturnId={replaceReturnId} />
     </div>

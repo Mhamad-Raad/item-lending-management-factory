@@ -137,3 +137,14 @@ test('a settled cash order has nothing to return or pay', async ({ page }) => {
   await expect(page.getByRole('link', { name: 'Record return' })).toHaveCount(0);
   await expect(page.getByRole('link', { name: 'Record payment' })).toHaveCount(0);
 });
+
+test('a corrected return names its replacement as a link to it', async ({ page }) => {
+  const replacement: ReturnDto = { ...RETURN, id: 6, replacesReturnId: 5 };
+  const old: ReturnDto = { ...RETURN, reversed: true, reversalKind: 'EDIT', replacedByReturnId: 6, canReverse: false };
+  await openOrder(page, { ...ACTIVE, returns: [old, replacement] });
+
+  await page.getByRole('switch', { name: 'Show reversed' }).click();
+  await page.getByRole('link', { name: 'Replaced by return #6' }).click();
+
+  await expect(page.locator('#return-6')).toBeInViewport();
+});

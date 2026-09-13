@@ -41,8 +41,11 @@ interface RowValues {
 interface ReturnValues {
   date: string | null;
   notes: string;
-  rows: RowValues[];
+  /** Keyed `l<orderLineId>`: a reloaded order with lines added or removed keeps each row on its line. */
+  rows: Record<string, RowValues>;
 }
+
+const rowKey = (orderLineId: number): `l${number}` => `l${orderLineId}`;
 
 const count = (value: number | null): number => value ?? 0;
 
@@ -58,35 +61,48 @@ export function ReturnForm({ order, replaceReturnId }: { order: OrderDetailDto; 
   const idempotency = useIdempotencyKey();
   const replaced = order.returns.find((pr) => pr.id === replaceReturnId);
   const base = returnBaseline(order, replaced?.id);
-  // One form row per order line, in the order's line order, so a reloaded order (another return
-  // recorded meanwhile) keeps every typed row in its place; only rows that can take a return show.
-  const out = order.lines.map((_, index) => base.lines[index]?.outQuantity ?? 0);
+  // One form row per order line, found by the line's id: a reloaded order (another return recorded,
+  // a line taken off meanwhile) keeps every typed row on its own line; only rows that can take a
+  // return, or already hold one, show.
+  const outOf = (orderLineId: number): number => base.lines.find((line) => line.id === orderLineId)?.outQuantity ?? 0;
 
   const form = useForm<ReturnValues>({
     defaultValues: {
       date: replaced?.date ?? businessToday(),
       notes: replaced?.notes ?? '',
-      rows: order.lines.map((line) => {
-        const previous = replaced?.lines.find((entry) => entry.orderLineId === line.id);
-        return {
-          orderLineId: line.id,
-          accepted: previous?.acceptedQuantity ?? 0,
-          damaged: previous?.damagedQuantity ?? 0,
-          damagedRefund: previous?.damagedRefund ?? 0,
-        };
-      }),
+      rows: Object.fromEntries(
+        order.lines.map((line) => {
+          const previous = replaced?.lines.find((entry) => entry.orderLineId === line.id);
+          return [
+            rowKey(line.id),
+            {
+              orderLineId: line.id,
+              accepted: previous?.acceptedQuantity ?? 0,
+              damaged: previous?.damagedQuantity ?? 0,
+              damagedRefund: previous?.damagedRefund ?? 0,
+            },
+          ];
+        }),
+      ),
     },
   });
   const rows = useWatch({ control: form.control, name: 'rows' });
-  const typed = (index: number): number => count(rows[index]?.accepted ?? null) + count(rows[index]?.damaged ?? null);
+  const rowOf = (orderLineId: number) => {
+    const row = rows[rowKey(orderLineId)];
+    return {
+      accepted: count(row?.accepted ?? null),
+      damaged: count(row?.damaged ?? null),
+      damagedRefund: count(row?.damagedRefund ?? null),
+    };
+  };
   const lines = order.lines
-    .map((line, index) => ({ line, index, out: out[index] ?? 0 }))
-    .filter(({ index, out: lineOut }) => lineOut > 0 || typed(index) > 0);
+    .map((line) => ({ line, key: rowKey(line.id), out: outOf(line.id) }))
+    .filter(({ line, out }) => out > 0 || rowOf(line.id).accepted + rowOf(line.id).damaged > 0);
   const errors = form.formState.errors;
-  const priced = lines.map(({ line, index }) => ({
-    acceptedQuantity: count(rows[index]?.accepted ?? null),
-    damagedQuantity: count(rows[index]?.damaged ?? null),
-    damagedRefund: count(rows[index]?.damagedRefund ?? null),
+  const priced = lines.map(({ line }) => ({
+    acceptedQuantity: rowOf(line.id).accepted,
+    damagedQuantity: rowOf(line.id).damaged,
+    damagedRefund: rowOf(line.id).damagedRefund,
     unitDeposit: line.unitDeposit,
   }));
   const summary = returnSummary(base, priced);
@@ -94,7 +110,7 @@ export function ReturnForm({ order, replaceReturnId }: { order: OrderDetailDto; 
   const exceedsOut = (limit: number) => encodeValidationMessage('returnExceedsOut', { out: limit });
   const refundTooHigh = (maximum: number) =>
     encodeValidationMessage('damagedRefundTooHigh', { maximum: formatMoney(maximum) });
-  const rowIndex = (orderLineId: number): number => order.lines.findIndex((line) => line.id === orderLineId);
+  const hasLine = (orderLineId: number): boolean => order.lines.some((line) => line.id === orderLineId);
 
   const record = useMutation({
     mutationFn: (body: ReturnCreateBody) =>
@@ -109,8 +125,10 @@ export function ReturnForm({ order, replaceReturnId }: { order: OrderDetailDto; 
       idempotency.reset();
       const orderNumber = formatOrderNumber(result.order.orderNumber);
       toast.success(t(replaced ? 'returns.new.replaced' : 'returns.new.created', { orderNumber }));
-      await invalidateAfterOrderChange(queryClient);
+      // Leave first: refreshed here, the order would show this page's "cannot be corrected" or
+      // "nothing out" state for a moment before the navigation.
       await navigate({ to: '/orders/$orderId', params: { orderId: String(order.id) } });
+      void invalidateAfterOrderChange(queryClient);
     },
     onError: async (error) => {
       if (error instanceof ApiError && error.code === 'RETURN_ALREADY_REVERSED') {
@@ -123,16 +141,19 @@ export function ReturnForm({ order, replaceReturnId }: { order: OrderDetailDto; 
       if (error instanceof ApiError && error.code === 'RETURN_EXCEEDS_OUT') {
         const over = (error.details?.lines as { orderLineId: number; outQuantity: number }[] | undefined) ?? [];
         for (const line of over) {
-          const index = rowIndex(line.orderLineId);
-          if (index >= 0) form.setError(`rows.${index}.accepted`, { message: exceedsOut(line.outQuantity) });
+          if (hasLine(line.orderLineId)) {
+            form.setError(`rows.${rowKey(line.orderLineId)}.accepted`, { message: exceedsOut(line.outQuantity) });
+          }
         }
         void queryClient.invalidateQueries({ queryKey: qk.orders.detail(order.id) });
         return;
       }
       if (error instanceof ApiError && error.code === 'DAMAGED_REFUND_TOO_HIGH') {
-        const index = rowIndex(Number(error.details?.orderLineId));
-        if (index >= 0) {
-          form.setError(`rows.${index}.damagedRefund`, { message: refundTooHigh(Number(error.details?.maximum ?? 0)) });
+        const orderLineId = Number(error.details?.orderLineId);
+        if (hasLine(orderLineId)) {
+          form.setError(`rows.${rowKey(orderLineId)}.damagedRefund`, {
+            message: refundTooHigh(Number(error.details?.maximum ?? 0)),
+          });
           return;
         }
       }
@@ -151,21 +172,25 @@ export function ReturnForm({ order, replaceReturnId }: { order: OrderDetailDto; 
       form.setError('date', { message: encodeValidationMessage('required') });
       valid = false;
     }
-    values.rows.forEach((row, index) => {
-      const line = order.lines[index];
-      if (!line) return;
-      const lineOut = out[index] ?? 0;
-      if (count(row.accepted) + count(row.damaged) > lineOut) {
-        form.setError(`rows.${index}.accepted`, { message: exceedsOut(lineOut) });
+    for (const line of order.lines) {
+      const row = values.rows[rowKey(line.id)];
+      const accepted = count(row?.accepted ?? null);
+      const damaged = count(row?.damaged ?? null);
+      const lineOut = outOf(line.id);
+      if (accepted + damaged > lineOut) {
+        form.setError(`rows.${rowKey(line.id)}.accepted`, { message: exceedsOut(lineOut) });
         valid = false;
       }
-      const maximum = count(row.damaged) * line.unitDeposit;
-      if (count(row.damagedRefund) > maximum) {
-        form.setError(`rows.${index}.damagedRefund`, { message: refundTooHigh(maximum) });
+      const maximum = damaged * line.unitDeposit;
+      if (count(row?.damagedRefund ?? null) > maximum) {
+        form.setError(`rows.${rowKey(line.id)}.damagedRefund`, { message: refundTooHigh(maximum) });
         valid = false;
       }
-    });
-    const returned = values.rows.filter((row) => count(row.accepted) + count(row.damaged) > 0);
+    }
+    // Only the order's current lines: a row left from a line removed meanwhile is not sent.
+    const returned = order.lines
+      .map((line) => values.rows[rowKey(line.id)])
+      .filter((row): row is RowValues => row !== undefined && count(row.accepted) + count(row.damaged) > 0);
     if (valid && returned.length === 0) {
       form.setError('root', { message: encodeValidationMessage('returnEmpty') });
       valid = false;
@@ -184,12 +209,10 @@ export function ReturnForm({ order, replaceReturnId }: { order: OrderDetailDto; 
     });
   });
 
-  const allAccepted = (index: number): void => {
-    const lineOut = out[index] ?? 0;
-    form.setValue(`rows.${index}.accepted`, lineOut);
-    form.setValue(`rows.${index}.damaged`, 0);
-    form.setValue(`rows.${index}.damagedRefund`, 0);
-    form.clearErrors(`rows.${index}`);
+  const allAccepted = (orderLineId: number): void => {
+    const key = rowKey(orderLineId);
+    form.setValue(`rows.${key}`, { orderLineId, accepted: outOf(orderLineId), damaged: 0, damagedRefund: 0 });
+    form.clearErrors(`rows.${key}`);
   };
 
   const submitButton = (
@@ -210,14 +233,14 @@ export function ReturnForm({ order, replaceReturnId }: { order: OrderDetailDto; 
                 type="button"
                 variant="outline"
                 size="sm"
-                onClick={() => lines.forEach(({ index }) => allAccepted(index))}
+                onClick={() => lines.forEach(({ line }) => allAccepted(line.id))}
               >
                 {t('returns.new.everythingAccepted')}
               </Button>
             </div>
-            {lines.map(({ line, index, out: lineOut }) => {
-              const damaged = count(rows[index]?.damaged ?? null);
-              const rowErrors = errors.rows?.[index];
+            {lines.map(({ line, key, out: lineOut }) => {
+              const damaged = rowOf(line.id).damaged;
+              const rowErrors = errors.rows?.[key];
               return (
                 <fieldset key={line.id} className="flex flex-col gap-3 rounded-md border p-3">
                   <legend className="sr-only">{line.item.name}</legend>
@@ -233,7 +256,7 @@ export function ReturnForm({ order, replaceReturnId }: { order: OrderDetailDto; 
                         {t('returns.new.out')}: <QuantityText value={lineOut} /> ·{' '}
                         <MoneyText value={line.unitDeposit} />
                       </span>
-                      <Button type="button" variant="ghost" size="sm" onClick={() => allAccepted(index)}>
+                      <Button type="button" variant="ghost" size="sm" onClick={() => allAccepted(line.id)}>
                         {t('returns.new.allAccepted')}
                       </Button>
                     </div>
@@ -243,7 +266,7 @@ export function ReturnForm({ order, replaceReturnId }: { order: OrderDetailDto; 
                       <FieldLabel htmlFor={`accepted-${line.id}`}>{t('returns.fields.accepted')}</FieldLabel>
                       <Controller
                         control={form.control}
-                        name={`rows.${index}.accepted`}
+                        name={`rows.${key}.accepted`}
                         render={({ field }) => (
                           <QuantityInput
                             id={`accepted-${line.id}`}
@@ -260,7 +283,7 @@ export function ReturnForm({ order, replaceReturnId }: { order: OrderDetailDto; 
                       <FieldLabel htmlFor={`damaged-${line.id}`}>{t('returns.fields.damaged')}</FieldLabel>
                       <Controller
                         control={form.control}
-                        name={`rows.${index}.damaged`}
+                        name={`rows.${key}.damaged`}
                         render={({ field }) => (
                           <QuantityInput
                             id={`damaged-${line.id}`}
@@ -268,7 +291,7 @@ export function ReturnForm({ order, replaceReturnId }: { order: OrderDetailDto; 
                             onChange={(next) => {
                               field.onChange(next);
                               // No damaged pallets, nothing to refund for them.
-                              if (!next) form.setValue(`rows.${index}.damagedRefund`, 0);
+                              if (!next) form.setValue(`rows.${key}.damagedRefund`, 0);
                             }}
                           />
                         )}
@@ -278,7 +301,7 @@ export function ReturnForm({ order, replaceReturnId }: { order: OrderDetailDto; 
                       <FieldLabel htmlFor={`refund-${line.id}`}>{t('returns.fields.damagedRefund')}</FieldLabel>
                       <Controller
                         control={form.control}
-                        name={`rows.${index}.damagedRefund`}
+                        name={`rows.${key}.damagedRefund`}
                         render={({ field }) => (
                           <MoneyInput
                             id={`refund-${line.id}`}

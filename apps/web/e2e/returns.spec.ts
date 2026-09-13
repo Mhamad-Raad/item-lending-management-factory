@@ -286,3 +286,67 @@ test('an order with nothing out offers no return form, only the way back to it',
   await expect(page.getByText('Nothing is out on this order')).toBeVisible();
   await expect(page.getByRole('link', { name: 'Back to the order' })).toHaveAttribute('href', '/orders/9');
 });
+
+test('a reloaded order with a line removed keeps each typed row on its own line', async ({ page }) => {
+  const other = { ...LINE, id: 22, item: { ...ITEM_REF, id: 6, name: 'Half pallet' } };
+  const twoLines: OrderDetailDto = { ...LENT, lines: [LINE, other] };
+  await mockReturns(page, twoLines);
+  let refused = false;
+  // Meanwhile the first line was taken off the order; the reload has only the second.
+  await page.route(/\/api\/orders\/9$/, (route) =>
+    route.fulfill({
+      json: refused
+        ? { ...twoLines, version: twoLines.version + 1, lines: [{ ...other, returnedAccepted: 60, outQuantity: 40 }] }
+        : twoLines,
+    }),
+  );
+  await page.route(/\/api\/orders\/9\/returns$/, (route) => {
+    refused = true;
+    return route.fulfill({
+      status: 409,
+      json: {
+        error: {
+          code: 'RETURN_EXCEEDS_OUT',
+          details: { lines: [{ orderLineId: 22, requested: 50, outQuantity: 40 }] },
+        },
+      },
+    });
+  });
+
+  await page.goto('/returns/new?orderId=9');
+  const half = page.getByRole('group', { name: 'Half pallet' });
+  await half.getByLabel('Accepted').fill('50');
+  await summary(page).getByRole('button', { name: 'Record return' }).click();
+
+  await expect(page.locator('fieldset')).toHaveCount(1);
+  await expect(half.getByLabel('Accepted')).toHaveValue('50');
+  await expect(half.getByRole('alert').filter({ hasText: '40' })).toBeVisible();
+  await expect(summary(page).getByText('Refund due').locator('..')).toContainText('50,000');
+});
+
+test('a saved correction goes to its order without first saying the return cannot be corrected', async ({ page }) => {
+  await mockReturns(page, CASH_RETURNED);
+  // After the save the order reloads with return #5 reversed, as the server leaves it.
+  let saved = false;
+  await page.route(/\/api\/orders\/9$/, (route) =>
+    route.fulfill({ json: saved ? { ...CASH_RETURNED, returns: [{ ...RETURNED, reversed: true }] } : CASH_RETURNED }),
+  );
+  await page.route(/\/api\/returns\/5\/replace$/, async (route) => {
+    saved = true;
+    await route.fulfill({ status: 201, json: { returnId: 6, order: CASH_RETURNED } });
+  });
+
+  await page.goto('/returns/new?orderId=9&replaceReturnId=5');
+  await expect(page.getByRole('link', { name: /#123456/ })).toBeVisible();
+  await page.evaluate(() => {
+    new MutationObserver(() => {
+      if (document.body.textContent?.includes('This return can no longer be corrected'))
+        document.body.dataset.flashed = 'yes';
+    }).observe(document.body, { childList: true, subtree: true, characterData: true });
+  });
+  await summary(page).getByRole('button', { name: 'Save the corrected return' }).click();
+
+  await expect(page).toHaveURL(/\/orders\/9$/);
+  await expect(page.getByRole('heading', { level: 1 })).toBeVisible();
+  expect(await page.evaluate(() => document.body.dataset.flashed)).toBeUndefined();
+});

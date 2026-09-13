@@ -12,6 +12,7 @@ import { Thumbnail } from '@/components/app/thumbnail';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { cn } from '@/lib/utils';
 
 type Line = OrderDetailDto['lines'][number];
 
@@ -115,9 +116,12 @@ export function OrderReturns({
         <EmptyState icon={Undo2} title={t('orders.detail.noReturns')} />
       ) : (
         visible.map((pr) => (
-          <Card key={pr.id} className={pr.reversed ? 'opacity-60' : undefined}>
+          <Card key={pr.id} id={`return-${pr.id}`} className={cn('scroll-mt-20', pr.reversed && 'opacity-60')}>
             <CardHeader className="flex flex-row flex-wrap items-center gap-2">
-              <CardTitle className="text-base">
+              <CardTitle className="flex items-center gap-2 text-base">
+                <span dir="ltr" className="text-muted-foreground font-normal">
+                  #{pr.id}
+                </span>
                 <DateText value={pr.date} />
               </CardTitle>
               {pr.reversed ? (
@@ -127,9 +131,17 @@ export function OrderReturns({
                 </Badge>
               ) : null}
               {pr.replacedByReturnId ? (
-                <span className="text-muted-foreground text-sm">
+                <a
+                  href={`#return-${pr.replacedByReturnId}`}
+                  className="text-primary text-sm underline-offset-4 hover:underline"
+                  onClick={(event) => {
+                    // Scroll to the replacement without handing the router a hash it would keep.
+                    event.preventDefault();
+                    document.getElementById(`return-${pr.replacedByReturnId}`)?.scrollIntoView({ block: 'start' });
+                  }}
+                >
                   {t('orders.detail.replacedBy', { id: pr.replacedByReturnId })}
-                </span>
+                </a>
               ) : null}
             </CardHeader>
             <CardContent className="flex flex-col gap-2 text-sm">

@@ -59,8 +59,9 @@ export function PaymentForm({ order }: { order: OrderDetailDto }) {
     onSuccess: async (result) => {
       idempotency.reset();
       toast.success(t('payments.new.created', { orderNumber: formatOrderNumber(result.order.orderNumber) }));
-      await invalidateAfterPayment(queryClient, result.order);
+      // Leave first: refreshed here, a paid-off order would show "nothing owed" before the navigation.
       await navigate({ to: '/orders/$orderId', params: { orderId: String(order.id) } });
+      void invalidateAfterPayment(queryClient, result.order);
     },
     onError: (error) => {
       if (error instanceof ApiError && error.code === 'PAYMENT_EXCEEDS_OWED') {

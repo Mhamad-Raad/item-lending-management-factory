@@ -64,10 +64,17 @@ const HOLDING_COLUMNS: DataColumn<CustomerHoldingDto>[] = [
     cell: (holding) => (
       <span className="flex flex-wrap gap-1">
         {holding.sources.map((source) => (
-          <Badge key={source.orderId} variant="outline" className="gap-1.5">
-            <span dir="ltr">#{formatOrderNumber(source.orderNumber)}</span>·<DateText value={source.orderDate} />·
-            <QuantityText value={source.quantityOut} />
-          </Badge>
+          <Link
+            key={source.orderId}
+            to="/orders/$orderId"
+            params={{ orderId: String(source.orderId) }}
+            className="focus-visible:ring-ring rounded-md focus-visible:ring-2 focus-visible:outline-none"
+          >
+            <Badge variant="outline" className="hover:bg-accent gap-1.5">
+              <span dir="ltr">#{formatOrderNumber(source.orderNumber)}</span>·<DateText value={source.orderDate} />·
+              <QuantityText value={source.quantityOut} />
+            </Badge>
+          </Link>
         ))}
       </span>
     ),

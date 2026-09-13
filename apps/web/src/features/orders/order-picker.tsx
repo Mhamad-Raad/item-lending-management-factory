@@ -123,8 +123,8 @@ export function OrderPicker({
   );
 }
 
-/** The chosen order, compactly, with the way back to choosing another (§7.4.2 step 2). */
-export function OrderHeaderCompact({ order, onChange }: { order: OrderDetailDto; onChange: () => void }) {
+/** The chosen order, compactly (§7.4.2 step 2), with the way back to choosing another when `onChange` is given. */
+export function OrderHeaderCompact({ order, onChange }: { order: OrderDetailDto; onChange?: () => void }) {
   const { t } = useTranslation();
   return (
     <Card>
@@ -138,13 +138,15 @@ export function OrderHeaderCompact({ order, onChange }: { order: OrderDetailDto;
           >
             {orderLabel(order.orderNumber)}
           </Link>
-          <button
-            type="button"
-            onClick={onChange}
-            className="text-primary min-h-10 text-sm underline-offset-4 hover:underline md:min-h-0"
-          >
-            {t('orders.picker.change')}
-          </button>
+          {onChange ? (
+            <button
+              type="button"
+              onClick={onChange}
+              className="text-primary min-h-10 text-sm underline-offset-4 hover:underline md:min-h-0"
+            >
+              {t('orders.picker.change')}
+            </button>
+          ) : null}
         </div>
         <dl className="text-muted-foreground grid grid-cols-2 gap-x-4 gap-y-1 text-sm sm:grid-cols-3">
           <div className="col-span-2 sm:col-span-3">
