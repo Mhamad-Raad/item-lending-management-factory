@@ -205,6 +205,7 @@ Every item below is an ambiguity, contradiction or gap in the brief. The builder
 | Q39 | A cancelled order's lines show `outQuantity` 0 (§4.2), but the `order_lines` check required `out_quantity = quantity − returned_accepted − returned_damaged`. Which wins? | §4.2: nothing is out on a cancelled order, and the order page and every aggregate must say so. The check (migration `20260912000000_cancelled_order_lines`) now also accepts the zeroed state — `out_quantity`, `returned_accepted` and `returned_damaged` all 0 — which only a cancelled order's recompute produces. Reconciliation R2 still compares every line with `computeOrderTotals`, so a live line zeroed by mistake is still reported. |
 | Q40 | May a line edit remove a line that a reversed return was recorded on? | No. The activity gate counts only returns that are not reversed, but `return_lines` are append-only and reference their order line, so the line cannot be deleted without losing that history. The edit is refused with `ORDER_LINE_HAS_RETURNS { itemId }`; the line may still be lowered (its quantity stays > 0). |
 | Q41 | What happens to a return entry with nothing on it (0 accepted, 0 damaged)? | It is dropped, not refused: `ReturnCreateBody` filters out every entry with `acceptedQuantity + damagedQuantity = 0` and `damagedRefund = 0`, and a return left with no entries is refused with `RETURN_EMPTY` (§4.8.4 step 1, I13). An entry with a damaged refund but no damaged pallets is kept and refused with `DAMAGED_REFUND_TOO_HIGH`. §6.20 once described a `too_small` refine for such an entry; that would have answered `VALIDATION_FAILED` where §4.8.4 and I13 expect `RETURN_EMPTY`. |
+| Q42 | §6.9, §6.23 and §12 describe the report responses and queries differently (`columns`/`palletsOutByItem` vs `items`/`perItem`, `includeZero` vs `includeSettled`, grouped hand-overs vs flat lines). Which is the contract? | §6.9's DTOs and §6.23's query schemas, which `packages/shared` mirrors and the §7.3.17 pages read. §12 remains the source for the SQL strategy and the common rules, of which two are carried into the DTOs: every report has `generatedAt`, and the period reports (purchases, activity) have `truncated` for the 5,000-row cap. Positions keeps customers with pallets out, owed or held unless `includeZero`; both snapshot reports accept `sort`. |
 
 ## 3. Actors, roles and permissions
 
@@ -2737,14 +2738,16 @@ interface PositionsReportDto {
             palletsOut: number; outValue: number; owed: number; held: number };
 }
 interface PurchasesReportDto {      // every money field here is cost data; the endpoint refuses without items.viewCost
-  dateFrom: string; dateTo: string;
+  generatedAt: string; dateFrom: string; dateTo: string;
+  truncated: boolean;               // over 5,000 rows (§12.1); totals stay complete
   rows: { batchId: number; item: ItemRefDto; date: string; quantity: number; unitCost: number;
           totalCost: number; note: string | null }[];                    // date asc, id asc
   perItem: { item: ItemRefDto; batchCount: number; quantity: number; totalCost: number }[];   // item name asc
   totals: { batchCount: number; quantity: number; totalCost: number };
 }
 interface ActivityReportDto {
-  dateFrom: string; dateTo: string;
+  generatedAt: string; dateFrom: string; dateTo: string;
+  truncated: boolean;               // a section over 5,000 rows (§12.1); totals stay complete
   filters: { customerId: number | null; itemId: number | null; driverId: number | null };
   moneyOmitted: boolean;            // true when itemId is set (payments/refunds are per order, not per item)
   handovers: { orderId: number; orderNumber: number; date: string; customer: CustomerRefDto;
@@ -4828,7 +4831,7 @@ The list lives in `AUDIT_READ_REDACTIONS` (`apps/api/src/modules/audit/audit-red
 
 ### 12.2 Report 1 — Pallets out & money position (snapshot) — `GET /api/reports/positions`
 
-Permission `reports.viewPositions`. Query params: `customerId?` (int), `includeSettled?` (boolean, default `false`: customers with `palletsOut = 0 AND owed = 0` are omitted).
+Permission `reports.viewPositions`. Query and response: `PositionsReportQuery` (§6.23) and `PositionsReportDto` (§6.9), Q42 — the SQL below shows the aggregation; customers with nothing out, owed or held are omitted unless `includeZero`. (The SQL's `includeSettled` parameter is that `includeZero`.)
 
 ```sql
 WITH per_customer AS (
@@ -4861,7 +4864,7 @@ SELECT c.id, c.name, c.credit_limit,
  ORDER BY COALESCE(pc.out_value, 0) DESC, c.name ASC;
 ```
 
-Response: `{ generatedAt, filters, items: [{ id, name }], rows: [{ customerId, customerName, creditLimit|null, headroom|null, palletsOut, perItem: [{ itemId, quantity }], outValue, owed, held }], totals: { palletsOut, perItem: [{ itemId, quantity }], outValue, owed, held }, truncated }`. `items` = every item that appears in any `perItem` (id + name, archived included) to build the per-item columns. `headroom = creditLimit − outValue` (null when no limit). Totals are Σ over rows (overall `held` = Σ per-order `held`, never recomputed; §4.5). Columns sortable client-side: customer, pallets out, each item, out value, owed, held.
+Response shape superseded by the §6.9 DTO (Q42): the API sends that DTO, and fields below that it lacks (such as `filters`, `creditLimit`, `headroom`, `totalsByItem`, `totalOwned`) are not sent. Response: `{ generatedAt, filters, items: [{ id, name }], rows: [{ customerId, customerName, creditLimit|null, headroom|null, palletsOut, perItem: [{ itemId, quantity }], outValue, owed, held }], totals: { palletsOut, perItem: [{ itemId, quantity }], outValue, owed, held }, truncated }`. `items` = every item that appears in any `perItem` (id + name, archived included) to build the per-item columns. `headroom = creditLimit − outValue` (null when no limit). Totals are Σ over rows (overall `held` = Σ per-order `held`, never recomputed; §4.5). Columns sortable client-side: customer, pallets out, each item, out value, owed, held.
 
 ### 12.3 Report 2 — Purchases by period — `GET /api/reports/purchases`
 
@@ -4883,7 +4886,7 @@ SELECT pb.item_id, i.name, SUM(pb.quantity)::bigint AS quantity, SUM(pb.total_co
  GROUP BY GROUPING SETS ((pb.item_id, i.name), ());
 ```
 
-Response: `{ generatedAt, filters, rows: [{ batchId, itemId, itemName, date, quantity, unitCost, totalCost }], totalsByItem: [{ itemId, itemName, quantity, totalCost }], totals: { quantity, totalCost }, truncated }`. **No average cost column, anywhere** (client requirement: batches are never averaged).
+Response shape superseded by the §6.9 DTO (Q42): the API sends that DTO, and fields below that it lacks (such as `filters`, `creditLimit`, `headroom`, `totalsByItem`, `totalOwned`) are not sent. Response: `{ generatedAt, filters, rows: [{ batchId, itemId, itemName, date, quantity, unitCost, totalCost }], totalsByItem: [{ itemId, itemName, quantity, totalCost }], totals: { quantity, totalCost }, truncated }`. **No average cost column, anywhere** (client requirement: batches are never averaged).
 
 ### 12.4 Report 3 — Activity by period — `GET /api/reports/activity`
 
@@ -4911,7 +4914,7 @@ SELECT COALESCE(SUM(le.amount) FILTER (WHERE le.type = 'PAYMENT'), 0)::bigint   
    AND COALESCE(le.date, o.date) BETWEEN ${dateFrom}::date AND ${dateTo}::date;
 ```
 
-Response: `{ generatedAt, filters, moneyOmitted, handOvers: { rows, totalsByItem, totals, truncated }, returns: { rows, totalsByItem, totals, truncated }, payments?: { rows, totals, truncated }, refunds?: { rows, totals, truncated } }`. The UI labels `compensationAssessed` as "damage compensation assessed" (i18n `reports.activity.compensationAssessed`), never "income", because on LENT orders it may still be inside `owed`.
+Response shape superseded by the §6.9 DTO (Q42): the API sends that DTO, and fields below that it lacks (such as `filters`, `creditLimit`, `headroom`, `totalsByItem`, `totalOwned`) are not sent. Response: `{ generatedAt, filters, moneyOmitted, handOvers: { rows, totalsByItem, totals, truncated }, returns: { rows, totalsByItem, totals, truncated }, payments?: { rows, totals, truncated }, refunds?: { rows, totals, truncated } }`. The UI labels `compensationAssessed` as "damage compensation assessed" (i18n `reports.activity.compensationAssessed`), never "income", because on LENT orders it may still be inside `owed`.
 
 Worked example: LENT order #7 (2026-09-01, 100 × 1,000), manual payment 40,000 on 2026-09-03, return 50 accepted on 2026-09-05; report 2026-09-01..2026-09-05 → handOvers quantity 100, depositTotal 100,000; returns accepted 50, damaged 0, compensationAssessed 0; payments 40,000 / reversals 0 / net 40,000; refunds 0. The same order CASH instead: payments contains the automatic 100,000 row dated 2026-09-01 and refunds contains the 50,000 cash refund dated 2026-09-05.
 
@@ -4942,7 +4945,7 @@ SELECT i.id, i.name, i.quantity_on_hand, i.min_stock, i.archived_at,
  ORDER BY i.name ASC, i.id ASC;
 ```
 
-Response: `{ generatedAt, filters, rows: [{ itemId, name, archived, quantityOnHand, quantityOut, totalOwned, damagedTotal, minStock|null, isLowStock }], totals: { quantityOnHand, quantityOut, totalOwned, damagedTotal, lowStockCount } }` with `totalOwned = quantityOnHand + quantityOut` and `isLowStock = minStock !== null && quantityOnHand <= minStock` (never true for archived items). The low-stock flag is shown as a badge with icon **and** text (not colour alone).
+Response shape superseded by the §6.9 DTO (Q42): the API sends that DTO, and fields below that it lacks (such as `filters`, `creditLimit`, `headroom`, `totalsByItem`, `totalOwned`) are not sent. Response: `{ generatedAt, filters, rows: [{ itemId, name, archived, quantityOnHand, quantityOut, totalOwned, damagedTotal, minStock|null, isLowStock }], totals: { quantityOnHand, quantityOut, totalOwned, damagedTotal, lowStockCount } }` with `totalOwned = quantityOnHand + quantityOut` and `isLowStock = minStock !== null && quantityOnHand <= minStock` (never true for archived items). The low-stock flag is shown as a badge with icon **and** text (not colour alone).
 
 
 ## 13. Deployment and operations

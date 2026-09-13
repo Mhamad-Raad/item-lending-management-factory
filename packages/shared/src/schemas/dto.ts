@@ -1,5 +1,6 @@
 import type { GrantablePermissionKey, PermissionKey } from '../permissions.js';
 import type {
+  ActivityEventKind,
   AuditAction,
   AuditEntityType,
   LedgerEntrySource,
@@ -433,4 +434,169 @@ export interface ReceiptDto {
   linesPerHalf: number;
   /** One per `chunkReceiptLines` chunk; each A4 sheet prints its chunk twice. */
   sheets: ReceiptSheetDto[];
+}
+
+// ── dashboard (§6.9, §6.22) ──
+
+export interface ActivityEventDto {
+  kind: ActivityEventKind;
+  /** When it was recorded: `createdAt`, or `cancelledAt` for a cancellation. */
+  at: string;
+  /** Its business date. */
+  date: string;
+  orderId: number;
+  orderNumber: number;
+  customer: CustomerRefDto;
+  /** HANDOVER: Σ line quantity; RETURN: accepted + damaged; otherwise null. */
+  quantity: number | null;
+  /** HANDOVER: deposit total; RETURN: refund due; PAYMENT / REFUND: amount; CANCELLATION: null. */
+  amount: number | null;
+  /** RETURN: the return is reversed; PAYMENT / REFUND: the row is reversed; otherwise false. */
+  reversed: boolean;
+}
+
+/** Each section is present only for a viewer allowed to see it (§6.22, Q12). */
+export interface DashboardDto {
+  positions?: {
+    palletsOut: number;
+    outValue: number;
+    owed: number;
+    held: number;
+    openOrderCount: number;
+    customersWithOpenOrders: number;
+  };
+  lowStock?: {
+    count: number;
+    items: { id: number; name: string; imageUrl: string | null; quantityOnHand: number; minStock: number }[];
+  };
+  recentActivity?: ActivityEventDto[];
+}
+
+// ── reports (§6.9, §6.23, Q42) ──
+
+export interface PositionsReportDto {
+  generatedAt: string;
+  /** Items with pallets out across the included rows, by name. */
+  columns: ItemRefDto[];
+  rows: {
+    customer: CustomerRefDto;
+    /** One entry per column, 0 allowed. */
+    palletsOutByItem: { itemId: number; quantityOut: number }[];
+    palletsOut: number;
+    outValue: number;
+    owed: number;
+    held: number;
+  }[];
+  totals: {
+    palletsOutByItem: { itemId: number; quantityOut: number }[];
+    palletsOut: number;
+    outValue: number;
+    owed: number;
+    held: number;
+  };
+}
+
+/** Every money field is cost data: the endpoint refuses a viewer without `items.viewCost`. */
+export interface PurchasesReportDto {
+  generatedAt: string;
+  dateFrom: string;
+  dateTo: string;
+  /** Date, then id. */
+  rows: {
+    batchId: number;
+    item: ItemRefDto;
+    date: string;
+    quantity: number;
+    unitCost: number;
+    totalCost: number;
+    note: string | null;
+  }[];
+  /** Item name. Never an average: batches are not averaged (§12.3). */
+  perItem: { item: ItemRefDto; batchCount: number; quantity: number; totalCost: number }[];
+  totals: { batchCount: number; quantity: number; totalCost: number };
+  /** More than 5,000 rows matched; totals are still complete (§12.1). */
+  truncated: boolean;
+}
+
+export interface ActivityReportDto {
+  generatedAt: string;
+  dateFrom: string;
+  dateTo: string;
+  filters: { customerId: number | null; itemId: number | null; driverId: number | null };
+  /** True when `itemId` is set: money is recorded per order, not per item. */
+  moneyOmitted: boolean;
+  handovers: {
+    orderId: number;
+    orderNumber: number;
+    date: string;
+    customer: CustomerRefDto;
+    driver: DriverRefDto;
+    paymentType: PaymentType;
+    lines: { item: ItemRefDto; quantity: number; unitDeposit: number; lineTotal: number }[];
+    quantity: number;
+    depositTotal: number;
+  }[];
+  returns: {
+    returnId: number;
+    orderId: number;
+    orderNumber: number;
+    date: string;
+    customer: CustomerRefDto;
+    lines: {
+      item: ItemRefDto;
+      acceptedQuantity: number;
+      damagedQuantity: number;
+      damagedRefund: number;
+      compensation: number;
+    }[];
+    acceptedQuantity: number;
+    damagedQuantity: number;
+    refundDue: number;
+    cashRefund: number;
+  }[];
+  /** PAYMENT and PAYMENT_REVERSAL rows, reversals as their own rows; [] when money is omitted. */
+  payments: LedgerEntryDto[];
+  /** REFUND and REFUND_REVERSAL rows; [] when money is omitted. */
+  refunds: LedgerEntryDto[];
+  compensation: {
+    returnId: number;
+    orderNumber: number;
+    date: string;
+    customer: CustomerRefDto;
+    item: ItemRefDto;
+    damagedQuantity: number;
+    unitDeposit: number;
+    damagedRefund: number;
+    compensation: number;
+  }[];
+  totals: {
+    handoverQuantity: number;
+    handoverDepositTotal: number;
+    returnedAccepted: number;
+    returnedDamaged: number;
+    refundDueTotal: number;
+    /** The money totals are 0 when money is omitted. */
+    paymentsGross: number;
+    paymentReversals: number;
+    paymentsNet: number;
+    refundsGross: number;
+    refundReversals: number;
+    refundsNet: number;
+    compensationAssessed: number;
+  };
+  /** A section passed 5,000 rows; totals are still complete (§12.1). */
+  truncated: boolean;
+}
+
+export interface StockReportDto {
+  generatedAt: string;
+  rows: {
+    item: ItemRefDto;
+    quantityOnHand: number;
+    quantityOut: number;
+    damagedTotal: number;
+    minStock: number | null;
+    isLowStock: boolean;
+  }[];
+  totals: { quantityOnHand: number; quantityOut: number; damagedTotal: number; lowStockCount: number };
 }

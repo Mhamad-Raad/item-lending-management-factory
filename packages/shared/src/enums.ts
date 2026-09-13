@@ -104,6 +104,10 @@ export const AUDIT_ENTITY_TYPES = [
 export const AuditEntityType = enumOf(AUDIT_ENTITY_TYPES);
 export type AuditEntityType = (typeof AUDIT_ENTITY_TYPES)[number];
 
+/** The dashboard's recent activity events (§6.9 `ActivityEventDto`); a reversal is flagged, not a kind. */
+export const ACTIVITY_EVENT_KINDS = ['HANDOVER', 'CANCELLATION', 'RETURN', 'PAYMENT', 'REFUND'] as const;
+export type ActivityEventKind = (typeof ACTIVITY_EVENT_KINDS)[number];
+
 /** The entries of a customer's history timeline (§6.9 `CustomerHistoryItemDto`), and its `kinds` filter. */
 export const CUSTOMER_HISTORY_KINDS = ['HANDOVER', 'RETURN', 'LEDGER'] as const;
 export type CustomerHistoryKind = (typeof CUSTOMER_HISTORY_KINDS)[number];
