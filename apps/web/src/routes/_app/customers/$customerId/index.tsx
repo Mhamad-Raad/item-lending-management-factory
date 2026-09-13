@@ -20,7 +20,7 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { customerQuery, invalidateCustomers } from '@/features/customers/api';
-import { CustomerLedgerTab, CustomerOrdersTab } from '@/features/customers/customer-tabs';
+import { CustomerHistoryTab, CustomerLedgerTab, CustomerOrdersTab } from '@/features/customers/customer-tabs';
 import { usePageTitle } from '@/hooks/use-page-title';
 import { apiFetch } from '@/lib/api-client';
 import { useCan } from '@/lib/auth';
@@ -31,7 +31,7 @@ import { cn } from '@/lib/utils';
 import { z } from 'zod';
 import { prefetch } from '@/lib/prefetch';
 
-const TABS = ['orders', 'payments', 'refunds'] as const;
+const TABS = ['history', 'orders', 'payments', 'refunds'] as const;
 const SearchSchema = z.object({ tab: z.enum(TABS).optional().catch(undefined) });
 
 export const Route = createFileRoute('/_app/customers/$customerId/')({
@@ -75,8 +75,8 @@ const HOLDING_COLUMNS: DataColumn<CustomerHoldingDto>[] = [
 ];
 
 /**
- * A customer's position (§7.3.12): what they hold and owe, their orders and their money. The history
- * tab, a timeline of hand-overs, returns and money, arrives with returns in M4.
+ * A customer's position (§7.3.12): what they hold and owe, then tabs for their history timeline,
+ * their orders and their money.
  */
 function CustomerProfilePage() {
   const { t } = useTranslation();
@@ -88,7 +88,7 @@ function CustomerProfilePage() {
   const canViewOrders = useCan('orders.view');
   const canCreateOrder = useCan('orders.create');
   const navigate = Route.useNavigate();
-  const tab = Route.useSearch().tab ?? 'orders';
+  const tab = Route.useSearch().tab ?? 'history';
   const [confirming, setConfirming] = useState(false);
   usePageTitle('customers.detail.title');
 
@@ -254,10 +254,14 @@ function CustomerProfilePage() {
           onValueChange={(next) => void navigate({ search: { tab: next as (typeof TABS)[number] }, replace: true })}
         >
           <TabsList>
+            <TabsTrigger value="history">{t('customers.tabs.history')}</TabsTrigger>
             <TabsTrigger value="orders">{t('customers.tabs.orders')}</TabsTrigger>
             <TabsTrigger value="payments">{t('customers.tabs.payments')}</TabsTrigger>
             <TabsTrigger value="refunds">{t('customers.tabs.refunds')}</TabsTrigger>
           </TabsList>
+          <TabsContent value="history">
+            <CustomerHistoryTab customerId={data.id} />
+          </TabsContent>
           <TabsContent value="orders">
             <CustomerOrdersTab customerId={data.id} />
           </TabsContent>

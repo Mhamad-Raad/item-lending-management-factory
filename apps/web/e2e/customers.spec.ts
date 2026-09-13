@@ -158,3 +158,73 @@ test('a customer profile offers a new order for them and lists their orders and 
   await expect.poll(() => ledgerQueries.some((query) => query.includes('type=PAYMENT,PAYMENT_REVERSAL'))).toBe(true);
   expect(ledgerQueries.every((query) => query.includes('customerId=7'))).toBe(true);
 });
+
+test('a customer profile opens on their history: hand-overs, returns and money, newest first', async ({ page }) => {
+  await signIn(page);
+  await page.route(/\/api\/customers\/7$/, (route) => route.fulfill({ json: CUSTOMER }));
+  const item = { id: 5, name: 'Euro pallet', imageUrl: null, archived: false };
+  const history = [
+    {
+      kind: 'LEDGER',
+      date: '2026-09-12',
+      createdAt: '2026-09-12T08:00:00.000Z',
+      ledgerEntryId: 11,
+      orderId: 9,
+      orderNumber: 42,
+      type: 'PAYMENT',
+      source: 'MANUAL',
+      amount: 40_000,
+      isAutomatic: false,
+      reversesEntryId: null,
+      note: null,
+    },
+    {
+      kind: 'RETURN',
+      date: '2026-09-11',
+      createdAt: '2026-09-11T09:00:00.000Z',
+      returnId: 5,
+      orderId: 9,
+      orderNumber: 42,
+      reversed: true,
+      reversalKind: 'DELETE',
+      replacedByReturnId: null,
+      lines: [{ item, acceptedQuantity: 20, damagedQuantity: 2, damagedRefund: 0 }],
+      acceptedTotal: 20,
+      damagedTotal: 2,
+      refundDue: 20_000,
+      cashRefund: 0,
+    },
+    {
+      kind: 'HANDOVER',
+      date: '2026-09-10',
+      createdAt: '2026-09-10T08:00:00.000Z',
+      orderId: 9,
+      orderNumber: 42,
+      paymentType: 'LENT',
+      status: 'OPEN',
+      cancelled: false,
+      driver: ORDER_ROW.driver,
+      lines: [{ item, quantity: 100, unitDeposit: 1_000, lineTotal: 100_000 }],
+      quantityTotal: 100,
+      depositTotal: 100_000,
+    },
+  ];
+  const asked: string[] = [];
+  await page.route(/\/api\/customers\/7\/history/, (route) => {
+    asked.push(new URL(route.request().url()).search);
+    return route.fulfill({ json: { items: history, page: 1, pageSize: 25, total: 3 } });
+  });
+
+  await page.goto('/customers/7');
+
+  const timeline = page.getByRole('list', { name: 'History' });
+  const entries = timeline.getByRole('listitem');
+  await expect(entries).toHaveCount(3);
+  await expect(entries.nth(0)).toContainText('Payment');
+  await expect(entries.nth(0)).toContainText('40,000');
+  await expect(entries.nth(1)).toContainText('Deleted');
+  await expect(entries.nth(1)).toContainText('20');
+  await expect(entries.nth(2)).toContainText('100');
+  await expect(entries.nth(2).getByRole('link', { name: '#000042' })).toHaveAttribute('href', '/orders/9');
+  expect(asked[0]).toContain('page=1');
+});

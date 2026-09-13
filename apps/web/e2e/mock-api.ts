@@ -1,6 +1,7 @@
 import type {
   AuditLogDto,
   CustomerDetailDto,
+  CustomerHistoryItemDto,
   DriverDto,
   ItemDto,
   LedgerEntryDto,
@@ -236,6 +237,42 @@ const SETTINGS: SettingsDto = {
   updatedAt: AT,
 };
 
+const HISTORY: CustomerHistoryItemDto[] = [
+  {
+    kind: 'LEDGER',
+    date: '2026-09-11',
+    createdAt: AT,
+    ledgerEntryId: LEDGER_ENTRY.id,
+    orderId: ORDER.id,
+    orderNumber: ORDER.orderNumber,
+    type: 'PAYMENT',
+    source: 'MANUAL',
+    amount: LEDGER_ENTRY.amount,
+    isAutomatic: false,
+    reversesEntryId: null,
+    note: LEDGER_ENTRY.note,
+  },
+  {
+    kind: 'HANDOVER',
+    date: ORDER.date,
+    createdAt: AT,
+    orderId: ORDER.id,
+    orderNumber: ORDER.orderNumber,
+    paymentType: ORDER.paymentType,
+    status: ORDER.status,
+    cancelled: false,
+    driver: ORDER.driver,
+    lines: ORDER.lines.map((line) => ({
+      item: line.item,
+      quantity: line.quantity,
+      unitDeposit: line.unitDeposit,
+      lineTotal: line.lineTotal,
+    })),
+    quantityTotal: ORDER.outQuantityTotal,
+    depositTotal: ORDER.depositTotal,
+  },
+];
+
 const page1 = <T>(items: T[]): PageDto<T> => ({ items, page: 1, pageSize: 25, total: items.length * 40 });
 
 /** Signs `user` in and answers every read the built pages make; writes are not needed here. */
@@ -261,6 +298,7 @@ export async function mockApi(
     [/\/api\/orders\/\d+$/, ORDER],
     [/\/api\/customers(\?.*)?$/, page1([CUSTOMER])],
     [/\/api\/customers\/\d+$/, CUSTOMER],
+    [/\/api\/customers\/\d+\/history(\?.*)?$/, page1(HISTORY)],
     [/\/api\/drivers(\?.*)?$/, page1([DRIVER])],
     [/\/api\/drivers\/\d+$/, DRIVER],
     [/\/api\/items(\?.*)?$/, page1([ITEM])],

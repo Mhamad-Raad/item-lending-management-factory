@@ -725,7 +725,16 @@
       "orders": "Orders",
       "payments": "Payments",
       "refunds": "Refunds",
-      "money": "Money"
+      "money": "Money",
+      "history": "History"
+    },
+    "history": {
+      "empty": "Nothing recorded for this customer yet",
+      "handover": "Hand-over",
+      "return": "Return",
+      "deleted": "Deleted",
+      "corrected": "Corrected",
+      "pallets": "Pallets"
     }
   },
   "drivers": {

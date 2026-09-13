@@ -725,7 +725,16 @@
       "orders": "الطلبات",
       "payments": "الدفعات",
       "refunds": "المبالغ المستردة",
-      "money": "المال"
+      "money": "المال",
+      "history": "السجل"
+    },
+    "history": {
+      "empty": "لم يُسجَّل شيء لهذا العميل بعد",
+      "handover": "تسليم",
+      "return": "إرجاع",
+      "deleted": "محذوف",
+      "corrected": "مصحّح",
+      "pallets": "الطبليات"
     }
   },
   "drivers": {

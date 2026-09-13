@@ -28,6 +28,7 @@ export const qk = {
     all: () => ['customers'] as const,
     list: (params: Record<string, unknown>) => ['customers', 'list', params] as const,
     detail: (id: number) => ['customers', 'detail', id] as const,
+    history: (id: number, params: Record<string, unknown>) => ['customers', 'history', id, params] as const,
     phoneCheck: (phone: string, excludeId: number | undefined) =>
       ['customers', 'phoneCheck', phone, excludeId ?? null] as const,
   },
