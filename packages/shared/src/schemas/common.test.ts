@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import type { z } from 'zod';
 import { MONEY_INPUT_MAX } from '../domain/ledger-math.js';
-import { BoolQuery, BusinessDate, Money, Quantity, optionalText } from './common.js';
+import { BoolQuery, BusinessDate, Money, Quantity, SearchQuery, optionalText } from './common.js';
 import { ItemUpdateBody } from './items.js';
 import { PurchaseBatchCreateBody } from './purchases.js';
 import { mapZodError } from './zod-issues.js';
@@ -53,5 +53,12 @@ describe('U9: shared schemas', () => {
   it('refuse a PATCH body that changes nothing', () => {
     expect(fieldErrors(ItemUpdateBody, { version: 3 })).toEqual([{ path: '', code: 'required' }]);
     expect(fieldErrors(ItemUpdateBody, { version: 3, minStock: null })).toEqual([]);
+  });
+
+  it('search without the invisible direction marks a name copied from the page carries', () => {
+    // The web app isolates typed names with U+2068…U+2069; pasted into a search box they would match nothing.
+    expect(SearchQuery.parse('\u2068Euro pallet\u2069')).toBe('Euro pallet');
+    expect(SearchQuery.parse(' \u2067\u200fAshti\u200e\u202c ')).toBe('Ashti');
+    expect(SearchQuery.parse('\u2068\u2069')).toBeUndefined();
   });
 });

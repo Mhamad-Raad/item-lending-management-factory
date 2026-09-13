@@ -58,11 +58,17 @@ export const PageQuery = {
   pageSize: z.coerce.number().int().min(1).max(100).default(25),
 } as const;
 
-/** Free-text search box: trimmed, and an empty box means "no filter" rather than "matches empty". */
+/** Invisible direction controls (LRM, RLM, embeddings, isolates): never part of what was searched for. */
+const DIRECTION_MARKS = /[\u200e\u200f\u202a-\u202e\u2066-\u2069]/g;
+
+/**
+ * Free-text search box: trimmed, and an empty box means "no filter" rather than "matches empty". A name
+ * copied from the page carries the isolate marks the UI puts around it (Q43); they are dropped.
+ */
 export const SearchQuery = z
   .string()
-  .trim()
-  .max(SEARCH_MAX_LENGTH)
+  .transform((value) => value.replace(DIRECTION_MARKS, ''))
+  .pipe(z.string().trim().max(SEARCH_MAX_LENGTH))
   .optional()
   .transform((value) => (value ? value : undefined));
 
