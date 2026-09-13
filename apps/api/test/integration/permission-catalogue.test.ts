@@ -21,7 +21,6 @@ const any = (...keys: GrantablePermissionKey[]): Rule => ({ kind: 'any', keys })
 /**
  * §6.26, for the routes built so far. A route added later fails the comparison until it is written
  * here, which is the point: its access is then checked against the table, not against itself.
- * `GET /api/customers/:id/history` arrives with M4.
  */
 const ROUTE_ACCESS: Record<string, Rule> = {
   'POST /api/auth/login': PUBLIC,
@@ -55,6 +54,7 @@ const ROUTE_ACCESS: Record<string, Rule> = {
   'GET /api/customers': all('customers.view'),
   'GET /api/customers/phone-check': all('customers.view'),
   'GET /api/customers/:id': all('customers.view'),
+  'GET /api/customers/:id/history': all('customers.view', 'orders.view'),
   'POST /api/customers': all('customers.create'),
   'PATCH /api/customers/:id': all('customers.edit'),
   'DELETE /api/customers/:id': all('customers.delete'),

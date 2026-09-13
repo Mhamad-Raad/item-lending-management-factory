@@ -208,6 +208,54 @@ export interface CustomerPhoneCheckDto {
   matches: CustomerPhoneMatchDto[];
 }
 
+/** One entry of a customer's timeline (§6.9): a hand-over, a return, or a money ledger row. */
+export type CustomerHistoryItemDto =
+  | {
+      kind: 'HANDOVER';
+      date: string;
+      createdAt: string;
+      orderId: number;
+      orderNumber: number;
+      paymentType: PaymentType;
+      status: OrderStatus;
+      cancelled: boolean;
+      driver: DriverRefDto;
+      lines: { item: ItemRefDto; quantity: number; unitDeposit: number; lineTotal: number }[];
+      quantityTotal: number;
+      depositTotal: number;
+    }
+  | {
+      kind: 'RETURN';
+      date: string;
+      createdAt: string;
+      returnId: number;
+      orderId: number;
+      orderNumber: number;
+      reversed: boolean;
+      reversalKind: ReturnReversalKind | null;
+      replacedByReturnId: number | null;
+      lines: { item: ItemRefDto; acceptedQuantity: number; damagedQuantity: number; damagedRefund: number }[];
+      acceptedTotal: number;
+      damagedTotal: number;
+      refundDue: number;
+      cashRefund: number;
+    }
+  | {
+      kind: 'LEDGER';
+      /** The effective date: the row's own, or its order's for the automatic payment. */
+      date: string;
+      createdAt: string;
+      ledgerEntryId: number;
+      orderId: number;
+      orderNumber: number;
+      type: LedgerEntryType;
+      source: LedgerEntrySource;
+      amount: number;
+      isAutomatic: boolean;
+      reversesEntryId: number | null;
+      note: string | null;
+    };
+
 export interface DriverDto {
   id: number;
   name: string;

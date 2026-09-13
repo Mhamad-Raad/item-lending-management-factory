@@ -7,14 +7,15 @@ import { PrismaService } from '../../src/prisma/prisma.service';
 import { createTestApp } from '../helpers/app';
 import { asUser, login, type Session } from '../helpers/auth';
 import { disconnectDatabase, resetDatabase } from '../helpers/db';
-import { skipReconciliation } from '../helpers/reconciliation';
 import {
   EMPLOYEE_PASSWORD,
   createCustomer,
   createDriver,
   createEmployee,
   createItem,
-  insertOrder,
+  createOrder,
+  recordPayment,
+  recordReturn,
 } from '../helpers/factories';
 
 const NOW = new Date('2026-09-12T09:00:00Z');
@@ -25,10 +26,6 @@ const BODY = {
   address: 'Erbil, 100 m road',
   creditLimit: 5_000_000,
 };
-
-// Built with insertOrder (returned pallets, owed and held set by hand) until M4 brings returns and
-// payments to record them for real; those rows do not reconcile.
-skipReconciliation('orders inserted directly, without stock movements or ledger rows');
 
 describe('customers', () => {
   let app: INestApplication;
@@ -155,19 +152,19 @@ describe('customers', () => {
     const zagros = await createCustomer(app, admin, { name: 'Zagros Trading', phone: '07504444444' });
     await archive(zagros.id, 1).expect(200);
     const driver = await createDriver(app, admin);
-    const item = await createItem(app, admin);
-    await insertOrder(app, {
+    const item = await createItem(app, admin, { stock: 10 });
+    await createOrder(app, admin, {
       customerId: baban.id,
       driverId: driver.id,
-      lines: [{ itemId: item.id, quantity: 5, unitDeposit: 1_000 }],
+      lines: [{ itemId: item.id, quantity: 5 }],
     });
     // A cancelled order is no order at all for the summary.
-    await insertOrder(app, {
+    const cancelled = await createOrder(app, admin, {
       customerId: ashti.id,
       driverId: driver.id,
-      cancelled: true,
-      lines: [{ itemId: item.id, quantity: 5, unitDeposit: 1_000 }],
+      lines: [{ itemId: item.id, quantity: 5 }],
     });
+    await http().post(`/api/orders/${cancelled.id}/cancel`).set(asUser(admin)).send({ version: 1 }).expect(200);
 
     expect(await names('')).toEqual(['Ashti Blocks', 'Baban Cement']);
     expect(await names('?includeArchived=true')).toEqual(['Ashti Blocks', 'Baban Cement', 'Zagros Trading']);
@@ -178,7 +175,7 @@ describe('customers', () => {
   });
 
   it('sums the orders that are not cancelled, shows what is held per item, and sorts by the sums', async () => {
-    const item = await createItem(app, admin, { depositPrice: 5_000 });
+    const item = await createItem(app, admin, { depositPrice: 5_000, stock: 80 });
     const driver = await createDriver(app, admin);
     const ashti = await createCustomer(app, admin, {
       name: 'Ashti Blocks',
@@ -186,23 +183,28 @@ describe('customers', () => {
       creditLimit: 100_000,
     });
     const baban = await createCustomer(app, admin, { name: 'Baban Cement', phone: '07502222222' });
-    const order = await insertOrder(app, {
+    // 10 × 5,000 lent; 4 come back (credit 20,000) and 10,000 is paid: 20,000 owed against 30,000 out.
+    const order = await createOrder(app, admin, {
       customerId: ashti.id,
       driverId: driver.id,
-      owed: 20_000,
-      held: 10_000,
-      lines: [{ itemId: item.id, quantity: 10, unitDeposit: 5_000, returned: 4 }],
+      lines: [{ itemId: item.id, quantity: 10 }],
     });
-    await insertOrder(app, {
+    await recordReturn(app, admin, {
+      orderId: order.id,
+      date: '2026-09-10',
+      lines: [{ orderLineId: order.lines[0]?.id ?? 0, acceptedQuantity: 4 }],
+    });
+    await recordPayment(app, admin, { orderId: order.id, amount: 10_000, date: '2026-09-11' });
+    const cancelled = await createOrder(app, admin, {
       customerId: ashti.id,
       driverId: driver.id,
-      cancelled: true,
-      lines: [{ itemId: item.id, quantity: 50, unitDeposit: 5_000 }],
+      lines: [{ itemId: item.id, quantity: 10 }],
     });
-    await insertOrder(app, {
+    await http().post(`/api/orders/${cancelled.id}/cancel`).set(asUser(admin)).send({ version: 1 }).expect(200);
+    await createOrder(app, admin, {
       customerId: baban.id,
       driverId: driver.id,
-      lines: [{ itemId: item.id, quantity: 20, unitDeposit: 5_000 }],
+      lines: [{ itemId: item.id, quantity: 20 }],
     });
 
     const detail = (await http().get(`/api/customers/${ashti.id}`).set(asUser(admin)).expect(200))
@@ -272,17 +274,22 @@ describe('customers', () => {
   it('archives only a customer with nothing open, and an archived one takes no edits', async () => {
     const customer = await createCustomer(app, admin);
     const driver = await createDriver(app, admin);
-    const item = await createItem(app, admin);
-    const order = await insertOrder(app, {
+    const item = await createItem(app, admin, { stock: 5 });
+    const order = await createOrder(app, admin, {
       customerId: customer.id,
       driverId: driver.id,
-      lines: [{ itemId: item.id, quantity: 5, unitDeposit: 1_000 }],
+      lines: [{ itemId: item.id, quantity: 5 }],
     });
 
     const refused = await archive(customer.id, 1).expect(409);
     expect(refused.body).toMatchObject({ error: { code: 'CUSTOMER_HAS_OPEN_ORDERS', details: { openOrderCount: 1 } } });
 
-    await prisma.order.update({ where: { id: order.id }, data: { status: 'SETTLED' } });
+    // Every pallet back, nothing owed: the order settles and the customer may go.
+    await recordReturn(app, admin, {
+      orderId: order.id,
+      date: '2026-09-12',
+      lines: [{ orderLineId: order.lines[0]?.id ?? 0, acceptedQuantity: 5 }],
+    });
     const archived = await archive(customer.id, 1).expect(200);
     expect(archived.body).toMatchObject({ archivedAt: NOW.toISOString(), version: 2 });
     const audit = await prisma.auditLog.findFirstOrThrow({ where: { entityType: 'CUSTOMER', action: 'DELETE' } });

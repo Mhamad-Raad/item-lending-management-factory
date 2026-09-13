@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { CUSTOMER_HISTORY_KINDS, type CustomerHistoryKind } from '../enums.js';
 import {
   AT_LEAST_ONE_FIELD_ERROR,
   BoolQuery,
@@ -9,6 +10,7 @@ import {
   Phone,
   SearchQuery,
   Version,
+  dateRange,
   hasFieldBesidesVersion,
   sortParam,
 } from './common.js';
@@ -65,3 +67,20 @@ export const CustomerUpdateBody = z
     DIFFERENT_PHONES_ERROR,
   );
 export type CustomerUpdateBody = z.infer<typeof CustomerUpdateBody>;
+
+/**
+ * A customer's timeline (§6.17): `kinds` is a comma list of HANDOVER, RETURN, LEDGER (absent = all);
+ * the dates filter on each entry's own date — a ledger row's effective date.
+ */
+export const CustomerHistoryQuery = z.strictObject({
+  ...PageQuery,
+  kinds: z
+    .string()
+    .transform((value) => value.split(',').map((part) => part.trim()))
+    .pipe(z.array(z.enum(CUSTOMER_HISTORY_KINDS)).min(1))
+    .transform((kinds) => [...new Set(kinds)] as CustomerHistoryKind[])
+    .optional(),
+  includeCancelled: BoolQuery.default(false),
+  ...dateRange,
+});
+export type CustomerHistoryQuery = z.infer<typeof CustomerHistoryQuery>;

@@ -104,6 +104,10 @@ export const AUDIT_ENTITY_TYPES = [
 export const AuditEntityType = enumOf(AUDIT_ENTITY_TYPES);
 export type AuditEntityType = (typeof AUDIT_ENTITY_TYPES)[number];
 
+/** The entries of a customer's history timeline (§6.9 `CustomerHistoryItemDto`), and its `kinds` filter. */
+export const CUSTOMER_HISTORY_KINDS = ['HANDOVER', 'RETURN', 'LEDGER'] as const;
+export type CustomerHistoryKind = (typeof CUSTOMER_HISTORY_KINDS)[number];
+
 // Browser preferences (localStorage only)
 export const LANGUAGES = ['ckb', 'ar', 'en'] as const;
 export type Language = (typeof LANGUAGES)[number];

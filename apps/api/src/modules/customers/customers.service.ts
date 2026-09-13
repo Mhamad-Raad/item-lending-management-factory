@@ -3,6 +3,8 @@ import type {
   CustomerCreateBody,
   CustomerDetailDto,
   CustomerDto,
+  CustomerHistoryItemDto,
+  CustomerHistoryQuery,
   CustomerListQuery,
   CustomerPhoneCheckDto,
   CustomerPhoneCheckQuery,
@@ -13,12 +15,14 @@ import type {
 import type { AuthContext } from '../../common/auth-context';
 import { Clock } from '../../common/clock';
 import { ApiError } from '../../common/errors/api-error';
+import { assertDateRange } from '../../common/utils/dates';
 import { toDbMoney, toSafeMoney } from '../../common/utils/money';
 import type { Customer, Prisma } from '../../generated/prisma/client';
 import { lockCustomer } from '../../prisma/locks';
 import { PrismaService } from '../../prisma/prisma.service';
 import { pickSnapshot, toAuditSnapshot } from '../audit/audit-snapshot';
 import { AuditService } from '../audit/audit.service';
+import { queryCustomerHistory } from './customer-history';
 import { NO_ORDERS, toCustomerDto } from './customers.mapper';
 import { queryCustomerHoldings, queryCustomerPage, queryCustomerTotals } from './customers.queries';
 import { runInTransaction } from '../../prisma/transaction';
@@ -64,6 +68,14 @@ export class CustomersService {
         matchedField,
       })),
     };
+  }
+
+  /** The customer's timeline (§6.17); a missing customer is refused rather than shown as empty. */
+  async history(customerId: number, query: CustomerHistoryQuery): Promise<PageDto<CustomerHistoryItemDto>> {
+    assertDateRange(query.dateFrom, query.dateTo);
+    const customer = await this.prisma.customer.findUnique({ where: { id: customerId }, select: { id: true } });
+    if (!customer) throw new ApiError('CUSTOMER_NOT_FOUND', { customerId });
+    return queryCustomerHistory(this.prisma, customerId, query);
   }
 
   /** Archived customers are returned too: their orders still name them. */

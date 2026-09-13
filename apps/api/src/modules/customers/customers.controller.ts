@@ -1,6 +1,7 @@
 import { Body, Controller, Delete, Get, Param, Patch, Post, Query } from '@nestjs/common';
 import {
   CustomerCreateBody,
+  CustomerHistoryQuery,
   CustomerListQuery,
   CustomerPhoneCheckQuery,
   CustomerUpdateBody,
@@ -8,6 +9,7 @@ import {
   VersionQuery,
   type CustomerDetailDto,
   type CustomerDto,
+  type CustomerHistoryItemDto,
   type CustomerPhoneCheckDto,
   type PageDto,
 } from '@pallet/shared';
@@ -40,6 +42,16 @@ export class CustomersController {
   @RequirePermission('customers.view')
   get(@Param('id', new ZodValidationPipe(IdParam)) id: number): Promise<CustomerDetailDto> {
     return this.customers.get(id);
+  }
+
+  /** A timeline of orders, returns and money needs both customers and orders access (§6.26). */
+  @Get(':id/history')
+  @RequirePermission('customers.view', 'orders.view')
+  history(
+    @Param('id', new ZodValidationPipe(IdParam)) id: number,
+    @Query(new ZodValidationPipe(CustomerHistoryQuery)) query: CustomerHistoryQuery,
+  ): Promise<PageDto<CustomerHistoryItemDto>> {
+    return this.customers.history(id, query);
   }
 
   @Post()

@@ -1,7 +1,6 @@
 import { randomUUID } from 'node:crypto';
 import type { INestApplication } from '@nestjs/common';
 import {
-  businessDateToDb,
   type CustomerDto,
   type DriverDto,
   type ItemDto,
@@ -131,64 +130,6 @@ export async function createDriver(
     })
     .expect(201);
   return response.body as DriverDto;
-}
-
-/**
- * Writes an order and its lines straight into the database, with the maintained totals a real order
- * would carry — including returned pallets and amounts owed, which `createOrder` cannot produce
- * until returns and payments exist (M4). It writes no stock movements, so the database does not
- * reconcile: a file that uses it calls `skipReconciliation`. Everything else uses `createOrder`.
- */
-export async function insertOrder(
-  app: INestApplication,
-  options: {
-    customerId: number;
-    driverId: number;
-    date?: string;
-    status?: 'OPEN' | 'SETTLED';
-    cancelled?: boolean;
-    owed?: number;
-    held?: number;
-    lines: { itemId: number; quantity: number; unitDeposit: number; returned?: number }[];
-  },
-): Promise<{ id: number; orderNumber: number }> {
-  const prisma = app.get(PrismaService);
-  const admin = await prisma.user.findFirstOrThrow({ where: { role: 'ADMIN' }, orderBy: { id: 'asc' } });
-  const last = await prisma.order.aggregate({ _max: { orderNumber: true } });
-  const lines = options.lines.map((line) => {
-    const outQuantity = line.quantity - (line.returned ?? 0);
-    return { ...line, outQuantity, returnedAccepted: line.returned ?? 0 };
-  });
-  const sum = (values: number[]): number => values.reduce((total, value) => total + value, 0);
-
-  const order = await prisma.order.create({
-    data: {
-      orderNumber: (last._max.orderNumber ?? 0) + 1,
-      customerId: options.customerId,
-      driverId: options.driverId,
-      date: businessDateToDb(options.date ?? '2026-09-10'),
-      paymentType: 'LENT',
-      status: options.cancelled ? 'CANCELLED' : (options.status ?? 'OPEN'),
-      depositTotal: BigInt(sum(lines.map((line) => line.quantity * line.unitDeposit))),
-      owed: BigInt(options.owed ?? 0),
-      held: BigInt(options.held ?? 0),
-      outQuantityTotal: sum(lines.map((line) => line.outQuantity)),
-      outValue: BigInt(sum(lines.map((line) => line.outQuantity * line.unitDeposit))),
-      ...(options.cancelled ? { cancelledAt: new Date(), cancelledByUserId: admin.id } : {}),
-      createdByUserId: admin.id,
-      lines: {
-        create: lines.map((line) => ({
-          itemId: line.itemId,
-          quantity: line.quantity,
-          unitDeposit: BigInt(line.unitDeposit),
-          lineTotal: BigInt(line.quantity * line.unitDeposit),
-          returnedAccepted: line.returnedAccepted,
-          outQuantity: line.outQuantity,
-        })),
-      },
-    },
-  });
-  return { id: order.id, orderNumber: order.orderNumber };
 }
 
 /** Creates an order through `POST /api/orders`, as the web app does: LENT and dated 2026-09-10 unless told otherwise. */
