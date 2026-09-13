@@ -204,6 +204,7 @@ Every item below is an ambiguity, contradiction or gap in the brief. The builder
 | Q38 | How is an item repeated in an order's lines reported? | By the shared schema, as `VALIDATION_FAILED` with the field error `duplicate` on the repeated line's `itemId` (§8.5): the API validates with the same schema before its own checks, so a separate `ORDER_DUPLICATE_ITEM` could never be reached, and the field error points the form at the line to fix. The code is retired from the catalogue. The database's unique `(order_id, item_id)` stays as the backstop. |
 | Q39 | A cancelled order's lines show `outQuantity` 0 (§4.2), but the `order_lines` check required `out_quantity = quantity − returned_accepted − returned_damaged`. Which wins? | §4.2: nothing is out on a cancelled order, and the order page and every aggregate must say so. The check (migration `20260912000000_cancelled_order_lines`) now also accepts the zeroed state — `out_quantity`, `returned_accepted` and `returned_damaged` all 0 — which only a cancelled order's recompute produces. Reconciliation R2 still compares every line with `computeOrderTotals`, so a live line zeroed by mistake is still reported. |
 | Q40 | May a line edit remove a line that a reversed return was recorded on? | No. The activity gate counts only returns that are not reversed, but `return_lines` are append-only and reference their order line, so the line cannot be deleted without losing that history. The edit is refused with `ORDER_LINE_HAS_RETURNS { itemId }`; the line may still be lowered (its quantity stays > 0). |
+| Q41 | What happens to a return entry with nothing on it (0 accepted, 0 damaged)? | It is dropped, not refused: `ReturnCreateBody` filters out every entry with `acceptedQuantity + damagedQuantity = 0` and `damagedRefund = 0`, and a return left with no entries is refused with `RETURN_EMPTY` (§4.8.4 step 1, I13). An entry with a damaged refund but no damaged pallets is kept and refused with `DAMAGED_REFUND_TOO_HIGH`. §6.20 once described a `too_small` refine for such an entry; that would have answered `VALIDATION_FAILED` where §4.8.4 and I13 expect `RETURN_EMPTY`. |
 
 ## 3. Actors, roles and permissions
 
@@ -481,15 +482,15 @@ lockOrderCounter(tx)   // SELECT last_number FROM order_counter WHERE id = 1 FOR
 
 #### 4.8.4 Create return — `POST /api/orders/:orderId/returns` (returns.create; locks: order, items)
 
-1. Validate body; resolve idempotency key. Entries with `acceptedQuantity = 0 AND damagedQuantity = 0` are dropped; if none remain → `RETURN_EMPTY`. Duplicate `orderLineId` → `RETURN_DUPLICATE_LINE`.
+1. Validate body; resolve idempotency key. Entries with `acceptedQuantity = 0 AND damagedQuantity = 0` (and no `damagedRefund`) are dropped by the schema (Q41); if none remain → `RETURN_EMPTY`. Duplicate `orderLineId` → `RETURN_DUPLICATE_LINE`.
 2. `lockOrder`; reload with lines. Missing → `ORDER_NOT_FOUND`; cancelled → `ORDER_CANCELLED`. Each `orderLineId` must belong to the order → `RETURN_LINE_NOT_IN_ORDER`. `date ≤ today` and `date ≥ order.date` (`RETURN_DATE_BEFORE_ORDER_DATE`).
 3. `lockItems(item ids of the involved lines)`.
-4. Per entry: `accepted + damaged ≤ line.out_quantity` else `RETURN_EXCEEDS_OUT` (`details.lines = [{ orderLineId, requested, outQuantity }]`); `damagedRefund ≤ damagedQuantity × line.unitDeposit` else `DAMAGED_REFUND_TOO_HIGH` (`details.lines = [{ orderLineId, max }]`).
+4. Per entry: `accepted + damaged ≤ line.out_quantity` else `RETURN_EXCEEDS_OUT` (`details.lines = [{ orderLineId, requested, outQuantity }]`); `damagedRefund ≤ damagedQuantity × line.unitDeposit` else `DAMAGED_REFUND_TOO_HIGH` (`details = { orderLineId, maximum }`, as the error table).
 5. `owedBefore = order.owed` (maintained value, consistent under the order lock); `refundDue = returnRefundDue(entries)`; `{ cashRefund } = returnMoney(owedBefore, refundDue)`.
 6. Insert `returns` (`refund_due`, `owed_before`, `cash_refund`) and `return_lines` (with `unit_deposit` copied from the line).
 7. `StockLedger.apply`: `RETURN_ACCEPTED +accepted` per entry with accepted > 0.
 8. If `cashRefund > 0`: insert `REFUND / RETURN_CREATE / date = return date / return_id / amount cashRefund`.
-9. `recomputeOrder({ bumpVersion: true })`. Audit `RETURN RETURN_CREATE` (+ `LEDGER_ENTRY REFUND_CREATE`). Idempotency key row. Respond 201 `{ return: ReturnDto, order: OrderDetailDto }`.
+9. `recomputeOrder({ bumpVersion: true })`. Audit `RETURN RETURN_CREATE` (+ `LEDGER_ENTRY REFUND_CREATE`). Idempotency key row. Respond 201 `ReturnResultDto` (`{ returnId, order }`, §6.20).
 
 #### 4.8.5 Edit return — `POST /api/returns/:id/replace` (returns.edit; locks: order, items)
 
@@ -498,7 +499,7 @@ lockOrderCounter(tx)   // SELECT last_number FROM order_counter WHERE id = 1 FOR
 3. `lockItems(union of item ids of the old return's lines and the new entries)`.
 4. Compute the **state without the old return**: `computeOrderTotals` with the old return marked reversed and the old return's REFUND (if any, non-reversed) netted by its reversal. Validate new entries against those `outQuantity` values (`RETURN_EXCEEDS_OUT`) and damaged refund caps. `owedBefore` = that state's `owed`.
 5. Writes, in this order: (a) movements `RETURN_EDIT −oldAccepted` (return_id = old) and, after step (c), `RETURN_ACCEPTED +newAccepted` (return_id = new) — both passed to one `StockLedger.apply` call so the negativity check uses the per-item net (Q20); (b) if the old return has a non-reversed REFUND: `REFUND_REVERSAL / RETURN_EDIT / date today / return_id = old / reverses it`; (c) insert the new `returns` row + `return_lines` with `refundDue`, `owedBefore`, `cashRefund = max(0, refundDue − owedBefore)`; (d) if new `cashRefund > 0`: `REFUND / RETURN_EDIT / date = new return date / return_id = new`; (e) one statement `UPDATE returns SET reversed_at = now(), reversed_by_user_id = :userId, reversal_kind = 'EDIT', replaced_by_return_id = :newId WHERE id = :oldId`.
-6. `recomputeOrder({ bumpVersion: true })`. Audit `RETURN RETURN_EDIT` (entityId = old id; before = old return, after = new return) + `REFUND_REVERSE` / `REFUND_CREATE` as applicable. Respond 201 `{ return: ReturnDto (new), order: OrderDetailDto }`. No idempotency key (a retried replace fails safely with `RETURN_ALREADY_REVERSED`).
+6. `recomputeOrder({ bumpVersion: true })`. Audit `RETURN RETURN_EDIT` (entityId = old id; before = old return, after = new return) + `REFUND_REVERSE` / `REFUND_CREATE` as applicable. Respond 201 `ReturnResultDto` (`returnId` = the new return). No idempotency key (a retried replace fails safely with `RETURN_ALREADY_REVERSED`).
 
 #### 4.8.6 Delete return — `DELETE /api/returns/:id` (returns.delete; locks: order, items)
 
@@ -506,7 +507,7 @@ lockOrderCounter(tx)   // SELECT last_number FROM order_counter WHERE id = 1 FOR
 2. `lockItems(item ids of its lines)`; `StockLedger.apply`: `RETURN_DELETE −accepted` per entry with accepted > 0 (may fail with `STOCK_INSUFFICIENT` if those pallets were lent out again).
 3. If it has a non-reversed REFUND: `REFUND_REVERSAL / RETURN_DELETE / date today / return_id / reverses it`.
 4. `UPDATE returns SET reversed_at, reversed_by_user_id, reversal_kind = 'DELETE'`.
-5. `recomputeOrder({ bumpVersion: true })`. Audit `RETURN RETURN_DELETE` (+ `REFUND_REVERSE`). Respond 200 `OrderDetailDto`.
+5. `recomputeOrder({ bumpVersion: true })`. Audit `RETURN RETURN_DELETE` (+ `REFUND_REVERSE`). Respond 200 `ReturnResultDto` (`returnId` = the deleted return).
 
 #### 4.8.7 Create payment — `POST /api/orders/:orderId/payments` (payments.create; locks: order)
 
@@ -3210,11 +3211,12 @@ ReturnLineInput = z.strictObject({
   acceptedQuantity: NonNegQuantity,
   damagedQuantity: NonNegQuantity,
   damagedRefund: Money.default(0),
-})   // refine: acceptedQuantity + damagedQuantity ≥ 1 → else { path: '', code: 'too_small', params: { minimum: 1 } }
+})
 ReturnCreateBody = z.strictObject({
   date: BusinessDate,
   notes: optionalText(1000),
-  lines: z.array(ReturnLineInput).max(50),         // [] → RETURN_EMPTY (service)
+  lines: z.array(ReturnLineInput).max(50)          // entries returning nothing are dropped (Q41); [] → RETURN_EMPTY (service)
+    .transform((lines) => lines.filter((l) => l.acceptedQuantity + l.damagedQuantity > 0 || l.damagedRefund > 0)),
 })
 ReturnReplaceBody = ReturnCreateBody
 ```
@@ -3235,7 +3237,7 @@ The web app sends only order lines where the user entered a non-zero accepted or
 - **Access:** `@RequirePermission('returns.create')`; idempotent (scope `RETURN_CREATE`).
 - **Body:** `ReturnCreateBody`.
 - **Steps:** idempotency; `lockOrder(orderId)` (missing → `ORDER_NOT_FOUND`); cancelled → `ORDER_CANCELLED`; `lockItems(item ids of lines with acceptedQuantity > 0)`; `validateReturnAgainstOrder`; compute money; insert `returns` (`refund_due`, `owed_before`, `cash_refund`) and `return_lines` (copy `unit_deposit`); `RETURN_ACCEPTED` movement per line with `acceptedQuantity > 0` (`+accepted`, `order_id`, `return_id`), update items; `cashRefund > 0` → ledger `REFUND` (source `RETURN_CREATE`, `date` = return date, `return_id`, `amount = cashRefund`); `recomputeOrder`; audit; idempotency row.
-- **Writes:** movements `RETURN_ACCEPTED`; ledger `REFUND`; audit `RETURN_CREATE` (entity `RETURN`, after = lines + money, params `{ orderNumber, customerName, accepted, damaged, refundDue }`), `REFUND_CREATE` (entity `LEDGER_ENTRY`, params `{ orderNumber, amount }`).
+- **Writes:** movements `RETURN_ACCEPTED`; ledger `REFUND`; audit `RETURN_CREATE` (entity `RETURN`, after = the return snapshot with `lines[]`, params `{ orderNumber, accepted, damaged, refundDue, cashRefund }` as §11.3), `REFUND_CREATE` (entity `LEDGER_ENTRY`, params `{ orderNumber, amount }`).
 - **Response:** 201 `ReturnResultDto`.
 - **Errors:** idempotency codes, `ORDER_NOT_FOUND`, `ORDER_CANCELLED`, `RETURN_EMPTY`, `RETURN_DUPLICATE_LINE`, `RETURN_LINE_NOT_IN_ORDER`, `BUSINESS_DATE_IN_FUTURE`, `RETURN_DATE_BEFORE_ORDER_DATE`, `DAMAGED_REFUND_TOO_HIGH`, `RETURN_EXCEEDS_OUT`.
 
@@ -3257,7 +3259,7 @@ The web app sends only order lines where the user entered a non-zero accepted or
 #### `DELETE /api/returns/:id`
 - **Access:** `@RequirePermission('returns.delete')`. Meaning: this return never happened.
 - **Steps:** read R; `lockOrder`; re-read; reversed → `RETURN_ALREADY_REVERSED`; `lockItems(item ids with accepted > 0 in R)`; stock check (`quantity_on_hand − accepted ≥ 0`, else `STOCK_INSUFFICIENT`); `RETURN_DELETE` movements (`−accepted`); `REFUND_REVERSAL` (source `RETURN_DELETE`, date today) if R has a refund; `UPDATE returns SET reversed_at, reversed_by_user_id, reversal_kind = 'DELETE'`; `recomputeOrder`.
-- **Writes:** movements `RETURN_DELETE`; ledger `REFUND_REVERSAL`; audit `RETURN_DELETE` (entity `RETURN`, before = R, params `{ orderNumber }`), `REFUND_REVERSE`.
+- **Writes:** movements `RETURN_DELETE`; ledger `REFUND_REVERSAL`; audit `RETURN_DELETE` (entity `RETURN`, before = R, after = `{ reversedAt, reversalKind: 'DELETE' }` as §11.2, params `{ orderNumber }`), `REFUND_REVERSE`.
 - **Response:** 200 `ReturnResultDto` (`returnId` = R.id).
 - **Errors:** `RETURN_NOT_FOUND`, `RETURN_ALREADY_REVERSED`, `STOCK_INSUFFICIENT`.
 

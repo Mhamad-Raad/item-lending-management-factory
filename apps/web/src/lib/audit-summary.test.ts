@@ -35,4 +35,10 @@ describe('audit summary params', () => {
       name: 'Euro pallet',
     });
   });
+
+  it('formats a return: its counts, its credit and its cash refund (§11.3)', () => {
+    expect(
+      translateSummaryParams(t, { orderNumber: 42, accepted: 1_500, damaged: 10, refundDue: 1_504_000, cashRefund: 0 }),
+    ).toEqual({ orderNumber: '000042', accepted: '1,500', damaged: '10', refundDue: '1,504,000', cashRefund: '0' });
+  });
 });

@@ -295,6 +295,12 @@ export interface ReturnDto {
   createdBy: UserRefDto;
 }
 
+/** A return written, replaced or deleted (§6.20): the return's id and the order as it now stands. */
+export interface ReturnResultDto {
+  returnId: number;
+  order: OrderDetailDto;
+}
+
 export interface LedgerEntryDto {
   id: number;
   orderId: number;

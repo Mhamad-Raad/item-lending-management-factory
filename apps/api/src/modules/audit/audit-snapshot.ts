@@ -57,6 +57,22 @@ export const SNAPSHOT_SPECS: Partial<Record<AuditEntityType, SnapshotSpec>> = {
     ],
     businessDates: ['date'],
   },
+  RETURN: {
+    fields: [
+      'id',
+      'orderId',
+      'date',
+      'notes',
+      'refundDue',
+      'owedBefore',
+      'cashRefund',
+      'reversedAt',
+      'reversalKind',
+      'replacedByReturnId',
+      'createdAt',
+    ],
+    businessDates: ['date'],
+  },
   LEDGER_ENTRY: {
     fields: ['id', 'orderId', 'type', 'source', 'amount', 'date', 'isAutomatic', 'returnId', 'reversesEntryId', 'note'],
     businessDates: ['date'],

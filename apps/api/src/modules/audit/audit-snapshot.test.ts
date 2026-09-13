@@ -36,8 +36,8 @@ describe('toAuditSnapshot', () => {
   });
 
   it('refuses to snapshot an entity type that has no allow-list', () => {
-    // RETURN gets its allow-list with the returns of M4; until then a snapshot of one is a bug.
-    expect(() => toAuditSnapshot('RETURN', { id: 1 })).toThrow(/allow-list/);
+    // Session rows carry no snapshot (§11.2): asking for one is a bug, not a reason to store the row.
+    expect(() => toAuditSnapshot('SESSION', { id: 1 })).toThrow(/allow-list/);
   });
 });
 
