@@ -13,7 +13,9 @@
 }
 
 @media print {
-  .print-landscape {
+  /* On the root: a named page on a nested element breaks onto new pages around it, leaving the content
+     before and after it on portrait pages of their own. */
+  :root:has(.print-landscape) {
     page: landscape;
   }
 

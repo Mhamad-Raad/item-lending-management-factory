@@ -370,3 +370,33 @@ test('report counts are grouped like every other number', async ({ page }) => {
   await page.goto('/reports/stock');
   await expect(page.getByRole('table').locator('tfoot')).toContainText('Low: 1,200');
 });
+
+test('every report prints on A4, activity in landscape throughout, with column headers on each page', async ({
+  page,
+}) => {
+  await mockReports(page);
+  const PORTRAIT = '0 0 594.95996 841.91998';
+  const LANDSCAPE = '0 0 841.91998 594.95996';
+  for (const [path, size] of [
+    ['/reports/positions', PORTRAIT],
+    ['/reports/purchases', PORTRAIT],
+    ['/reports/activity?dateFrom=2026-09-01&dateTo=2026-09-12', LANDSCAPE],
+    ['/reports/stock', PORTRAIT],
+  ] as const) {
+    await page.emulateMedia({ media: 'screen' });
+    await page.goto(path);
+    await expect(page.getByRole('table').first()).toBeVisible();
+    await page.emulateMedia({ media: 'print' });
+
+    // The page boxes Chromium actually printed: none of another size, such as a portrait page around
+    // the landscape content.
+    const pdf = (await page.pdf({ preferCSSPageSize: true })).toString('latin1');
+    const pages = [...pdf.matchAll(/\/MediaBox\s*\[([^\]]+)\]/g)].map((match) => match[1]?.trim());
+    expect(pages.length, path).toBeGreaterThan(0);
+    expect(new Set(pages), path).toEqual(new Set([size]));
+
+    const headers = await page.locator('thead').evaluateAll((all) => all.map((el) => getComputedStyle(el).display));
+    expect(headers.length, path).toBeGreaterThan(0);
+    expect(new Set(headers), path).toEqual(new Set(['table-header-group']));
+  }
+});
