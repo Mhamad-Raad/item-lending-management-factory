@@ -93,8 +93,10 @@ export class ReportsService {
       ]);
       const columns = items.map(toItemRef).sort(byName);
       const customerById = new Map(customers.map((customer) => [customer.id, customer]));
+      // Keyed once: a lookup per customer × item column stays constant-time on a large customer list.
+      const perItemQuantity = new Map(perItem.map((row) => [`${row.customer_id}:${row.item_id}`, n(row.quantity)]));
       const quantityOf = (customerId: number, itemId: number): number =>
-        n(perItem.find((row) => row.customer_id === customerId && row.item_id === itemId)?.quantity ?? 0);
+        perItemQuantity.get(`${customerId}:${itemId}`) ?? 0;
 
       const result = rows.flatMap((row) => {
         const customer = customerById.get(row.id);
