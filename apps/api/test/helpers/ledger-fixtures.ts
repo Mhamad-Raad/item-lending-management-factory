@@ -1,13 +1,16 @@
 import type { INestApplication } from '@nestjs/common';
-import { toSafeMoney } from '../../src/common/utils/money';
 import { MoneyLedger } from '../../src/modules/ledger/money-ledger';
 import { recomputeOrder } from '../../src/modules/orders/order-state';
 import { PrismaService } from '../../src/prisma/prisma.service';
 import { runInTransaction } from '../../src/prisma/transaction';
 
 /**
- * A manual payment written through the same ledger writer and recompute an operation uses, standing in
- * for `POST /api/orders/:orderId/payments` until M4 builds it. Returns the ledger row's id.
+ * Rows written around the services, for tests that break an invariant on purpose (reconciliation).
+ * Everything else records payments and returns through their endpoints (`recordPayment`,
+ * `recordReturn` in factories.ts).
+ *
+ * A manual payment written through the ledger writer and recompute, without the endpoint's checks —
+ * so it can land where the endpoint refuses one, such as a cancelled order. Returns the row's id.
  */
 export async function recordManualPayment(
   app: INestApplication,
@@ -28,32 +31,9 @@ export async function recordManualPayment(
   });
 }
 
-/** Reverses a manual payment, standing in for `POST /api/ledger-entries/:id/reverse` until M4. */
-export async function reverseManualPayment(app: INestApplication, entryId: number, date: string): Promise<void> {
-  const prisma = app.get(PrismaService);
-  const admin = await prisma.user.findFirstOrThrow({ where: { role: 'ADMIN' }, orderBy: { id: 'asc' } });
-  await runInTransaction(prisma, async (tx) => {
-    const payment = await tx.ledgerEntry.findUniqueOrThrow({ where: { id: entryId } });
-    await app.get(MoneyLedger).record(
-      tx,
-      {
-        orderId: payment.orderId,
-        type: 'PAYMENT_REVERSAL',
-        source: 'PAYMENT_DELETE',
-        amount: toSafeMoney(payment.amount),
-        date,
-        reversesEntryId: payment.id,
-      },
-      admin.id,
-    );
-    await recomputeOrder(tx, payment.orderId, { bumpVersion: true });
-  });
-}
-
 /**
- * A return of accepted pallets on one order line that was later deleted (reversed), standing in for
- * M4's return endpoints. It writes only the return rows — no refund, no stock — which is all a test of
- * what a reversed return leaves behind needs.
+ * A reversed return of accepted pallets on one order line, written as bare rows — no refund, no stock —
+ * so reconciliation has a return whose cash refund has no REFUND row to find.
  */
 export async function recordReversedReturn(
   app: INestApplication,

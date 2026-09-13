@@ -17,5 +17,6 @@ export * from './schemas/customers.js';
 export * from './schemas/drivers.js';
 export * from './schemas/orders.js';
 export * from './schemas/returns.js';
+export * from './schemas/payments.js';
 export * from './schemas/dto.js';
 export * from './schemas/zod-issues.js';

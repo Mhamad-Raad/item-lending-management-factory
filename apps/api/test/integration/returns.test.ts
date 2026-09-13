@@ -15,8 +15,8 @@ import {
   createEmployee,
   createItem,
   createOrder,
+  recordPayment,
 } from '../helpers/factories';
-import { recordManualPayment } from '../helpers/ledger-fixtures';
 
 /** "today = 2026-09-11" of the worked examples (§4.10), midday in Baghdad. */
 const NOW = new Date('2026-09-11T09:00:00Z');
@@ -184,7 +184,7 @@ describe('returns (§4.8.4–§4.8.6, §6.20)', () => {
 
   it('E5, E6 — the second return refunds what was paid beyond the pallets still out', async () => {
     const order = await order100('LENT');
-    await recordManualPayment(app, { orderId: order.id, amount: 40_000, date: TODAY });
+    await recordPayment(app, admin, { orderId: order.id, amount: 40_000, date: TODAY });
 
     const r1 = await returnOf(order, [{ acceptedQuantity: 50, damagedQuantity: 0 }]);
     expect(money(r1.order)).toMatchObject({

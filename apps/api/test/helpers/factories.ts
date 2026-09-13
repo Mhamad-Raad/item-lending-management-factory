@@ -1,6 +1,14 @@
 import { randomUUID } from 'node:crypto';
 import type { INestApplication } from '@nestjs/common';
-import { businessDateToDb, type CustomerDto, type DriverDto, type ItemDto, type OrderDetailDto } from '@pallet/shared';
+import {
+  businessDateToDb,
+  type CustomerDto,
+  type DriverDto,
+  type ItemDto,
+  type OrderDetailDto,
+  type PaymentResultDto,
+  type ReturnResultDto,
+} from '@pallet/shared';
 import request from 'supertest';
 import argon2 from 'argon2';
 import type { GrantablePermissionKey } from '@pallet/shared';
@@ -202,4 +210,38 @@ export async function createOrder(
     .send({ paymentType: 'LENT', date: '2026-09-10', ...body })
     .expect(201);
   return response.body as OrderDetailDto;
+}
+
+/** Records a manual payment through `POST /api/orders/:orderId/payments`; returns the ledger row id. */
+export async function recordPayment(
+  app: INestApplication,
+  session: Session,
+  body: { orderId: number; amount: number; date: string },
+): Promise<number> {
+  const response = await request(app.getHttpServer())
+    .post(`/api/orders/${body.orderId}/payments`)
+    .set(asUser(session))
+    .set('Idempotency-Key', randomUUID())
+    .send({ amount: body.amount, date: body.date })
+    .expect(201);
+  return (response.body as PaymentResultDto).ledgerEntryId;
+}
+
+/** Records a return through `POST /api/orders/:orderId/returns`; returns the return's id. */
+export async function recordReturn(
+  app: INestApplication,
+  session: Session,
+  body: {
+    orderId: number;
+    date: string;
+    lines: { orderLineId: number; acceptedQuantity: number; damagedQuantity?: number }[];
+  },
+): Promise<number> {
+  const response = await request(app.getHttpServer())
+    .post(`/api/orders/${body.orderId}/returns`)
+    .set(asUser(session))
+    .set('Idempotency-Key', randomUUID())
+    .send({ date: body.date, lines: body.lines.map((line) => ({ damagedQuantity: 0, ...line })) })
+    .expect(201);
+  return (response.body as ReturnResultDto).returnId;
 }

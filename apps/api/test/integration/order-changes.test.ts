@@ -25,8 +25,9 @@ import {
   createEmployee,
   createItem,
   createOrder,
+  recordPayment,
+  recordReturn,
 } from '../helpers/factories';
-import { recordManualPayment, recordReversedReturn, reverseManualPayment } from '../helpers/ledger-fixtures';
 
 /** "today = 2026-09-11" of the worked examples (§4.10), midday in Baghdad. */
 const NOW = new Date('2026-09-11T09:00:00Z');
@@ -197,13 +198,13 @@ describe('order changes: edit, cancel, receipt, ledger (§4.8.2, §4.8.3, §6.19
     expect(receipt.body).toMatchObject({ error: { code: 'ORDER_CANCELLED' } });
 
     const lent = await order100('LENT');
-    const paymentId = await recordManualPayment(app, { orderId: lent.id, amount: 40_000, date: TODAY });
+    const paymentId = await recordPayment(app, admin, { orderId: lent.id, amount: 40_000, date: TODAY });
     const blocked = await cancel(admin, lent.id, 2).expect(409);
     expect(blocked.body).toMatchObject({
       error: { code: 'ORDER_HAS_ACTIVITY', details: { nonReversedReturnCount: 0, nonReversedManualPaymentCount: 1 } },
     });
 
-    await reverseManualPayment(app, paymentId, TODAY);
+    await http().post(`/api/ledger-entries/${paymentId}/reverse`).set(asUser(admin)).send({}).expect(200);
     const allowed = await cancel(admin, lent.id, 3).expect(200);
     expect((allowed.body as OrderDetailDto).orderNumber).toBe(2);
     expect(await findLedgerDiscrepancies(prisma)).toEqual([]);
@@ -269,14 +270,20 @@ describe('order changes: edit, cancel, receipt, ledger (§4.8.2, §4.8.3, §6.19
       ],
     });
     const halfLine = created.lines.find((line) => line.item.id === half.id);
-    await recordReversedReturn(app, { orderId: created.id, orderLineId: halfLine?.id ?? 0, accepted: 4, date: TODAY });
+    const returnId = await recordReturn(app, admin, {
+      orderId: created.id,
+      date: TODAY,
+      lines: [{ orderLineId: halfLine?.id ?? 0, acceptedQuantity: 4 }],
+    });
+    await http().delete(`/api/returns/${returnId}`).set(asUser(admin)).expect(200);
 
-    const removed = await patch(admin, created.id, { version: 1, lines: [{ itemId: item.id, quantity: 100 }] });
+    // The return and its deletion each moved the order on a version.
+    const removed = await patch(admin, created.id, { version: 3, lines: [{ itemId: item.id, quantity: 100 }] });
     expect(removed.status).toBe(409);
     expect(removed.body).toMatchObject({ error: { code: 'ORDER_LINE_HAS_RETURNS', details: { itemId: half.id } } });
 
     await patch(admin, created.id, {
-      version: 1,
+      version: 3,
       lines: [
         { itemId: item.id, quantity: 100 },
         { itemId: half.id, quantity: 5 },
@@ -362,7 +369,7 @@ describe('order changes: edit, cancel, receipt, ledger (§4.8.2, §4.8.3, §6.19
     const stale = await patch(admin, created.id, { version: 1, notes: 'late' }).expect(409);
     expect(stale.body).toMatchObject({ error: { code: 'VERSION_CONFLICT', details: { currentVersion: 2 } } });
 
-    await recordManualPayment(app, { orderId: created.id, amount: 10_000, date: '2026-09-10' });
+    await recordPayment(app, admin, { orderId: created.id, amount: 10_000, date: '2026-09-10' });
     const afterPayment = await patch(admin, created.id, { version: 3, date: TODAY });
     expect(afterPayment.body).toMatchObject({
       error: { code: 'ORDER_DATE_AFTER_ACTIVITY', details: { earliestActivityDate: '2026-09-10' } },
@@ -429,7 +436,7 @@ describe('order changes: edit, cancel, receipt, ledger (§4.8.2, §4.8.3, §6.19
       date: '2026-09-06',
       lines: [{ itemId: item.id, quantity: 20 }],
     });
-    await recordManualPayment(app, { orderId: lent.id, amount: 5_000, date: '2026-09-08' });
+    await recordPayment(app, admin, { orderId: lent.id, amount: 5_000, date: '2026-09-08' });
     const gone = await createOrder(app, admin, {
       customerId: customer.id,
       driverId: driver.id,

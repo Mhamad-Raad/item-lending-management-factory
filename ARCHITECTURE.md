@@ -514,13 +514,13 @@ lockOrderCounter(tx)   // SELECT last_number FROM order_counter WHERE id = 1 FOR
 1. Validate body (`date`, `amount` 1..MONEY_INPUT_MAX, `note?`); resolve idempotency key.
 2. `lockOrder`; reload. Cancelled → `ORDER_CANCELLED`; `paymentType ≠ LENT` → `PAYMENT_ORDER_NOT_LENT`; `date ≤ today` and `≥ order.date` (`PAYMENT_DATE_BEFORE_ORDER_DATE`); `amount ≤ order.owed` else `PAYMENT_EXCEEDS_OWED` (`details.owed`).
 3. Insert `PAYMENT / MANUAL / date / amount / note`. `recomputeOrder({ bumpVersion: true })`.
-4. Audit `LEDGER_ENTRY PAYMENT_CREATE`. Idempotency key row. Respond 201 `{ entry: LedgerEntryDto, order: OrderDetailDto }`.
+4. Audit `LEDGER_ENTRY PAYMENT_CREATE`. Idempotency key row. Respond 201 `PaymentResultDto` (`{ ledgerEntryId, order }`, §6.21).
 
 #### 4.8.8 Reverse (delete) payment — `POST /api/ledger-entries/:id/reverse` (payments.delete; locks: order)
 
 1. Read `ledger_entries.order_id`; `lockOrder`; reload the entry. Not `type = PAYMENT AND source = MANUAL` → `LEDGER_ENTRY_NOT_REVERSIBLE`; already reversed → `LEDGER_ENTRY_ALREADY_REVERSED`.
 2. Insert `PAYMENT_REVERSAL / PAYMENT_DELETE / date today / reverses_entry_id / amount / note`. `recomputeOrder({ bumpVersion: true })`.
-3. Audit `LEDGER_ENTRY PAYMENT_REVERSE`. Respond 200 `OrderDetailDto`.
+3. Audit `LEDGER_ENTRY PAYMENT_REVERSE`. Respond 200 `PaymentResultDto` (`ledgerEntryId` = the reversal row).
 
 #### 4.8.9 Batches and stock adjustment (locks: item)
 
@@ -3271,7 +3271,7 @@ Worked example (4.3 example 8): CASH order 100 × 1,000; return of 50 accepted r
 - **Access:** `@RequirePermission('payments.create')`; idempotent (scope `PAYMENT_CREATE`).
 - **Body:** `PaymentCreateBody = z.strictObject({ date: BusinessDate, amount: PositiveMoney, note: optionalText(500) })`.
 - **Steps:** idempotency; `date` ≤ today; `lockOrder`; missing → `ORDER_NOT_FOUND`; cancelled → `ORDER_CANCELLED`; `paymentType ≠ 'LENT'` → `PAYMENT_ORDER_NOT_LENT`; `date < order.date` → `PAYMENT_DATE_BEFORE_ORDER_DATE`; current `owed` (from `computeOrderTotals` under the lock) `< amount` → `PAYMENT_EXCEEDS_OWED { owed, amount }`; insert ledger `PAYMENT` (source `MANUAL`, `is_automatic = false`, `date`, `note`); `recomputeOrder`.
-- **Writes:** ledger `PAYMENT`; audit `PAYMENT_CREATE` (entity `LEDGER_ENTRY`, params `{ orderNumber, customerName, amount }`).
+- **Writes:** ledger `PAYMENT`; audit `PAYMENT_CREATE` (entity `LEDGER_ENTRY`, params `{ orderNumber, amount, automatic: false }` as §11.3).
 - **Response:** 201 `PaymentResultDto`.
 - **Errors:** idempotency codes, `BUSINESS_DATE_IN_FUTURE`, `ORDER_NOT_FOUND`, `ORDER_CANCELLED`, `PAYMENT_ORDER_NOT_LENT`, `PAYMENT_DATE_BEFORE_ORDER_DATE`, `PAYMENT_EXCEEDS_OWED`.
 
@@ -3279,7 +3279,7 @@ Worked example (4.3 example 8): CASH order 100 × 1,000; return of 50 accepted r
 - **Access:** `@RequirePermission('payments.delete')`.
 - **Body:** `LedgerEntryReverseBody = z.strictObject({ note: optionalText(500) })`.
 - **Steps:** read entry E (missing → `LEDGER_ENTRY_NOT_FOUND`); `lockOrder(E.orderId)`; `E.type ≠ 'PAYMENT'` or `E.source ≠ 'MANUAL'` → `LEDGER_ENTRY_NOT_REVERSIBLE { type, source }`; a row with `reverses_entry_id = E.id` exists → `LEDGER_ENTRY_ALREADY_REVERSED`; insert `PAYMENT_REVERSAL` (source `PAYMENT_DELETE`, `date` = today, `amount = E.amount`, `reverses_entry_id = E.id`, `note`); `recomputeOrder` (owed increases by `E.amount`).
-- **Writes:** ledger `PAYMENT_REVERSAL`; audit `PAYMENT_REVERSE` (entity `LEDGER_ENTRY`, entityId E.id, params `{ orderNumber, amount }`).
+- **Writes:** ledger `PAYMENT_REVERSAL`; audit `PAYMENT_REVERSE` (entity `LEDGER_ENTRY`, entityId = the reversal row's id as §11.3, params `{ orderNumber, amount }`).
 - **Response:** 200 `PaymentResultDto` (`ledgerEntryId` = the reversal row id).
 - **Errors:** `LEDGER_ENTRY_NOT_FOUND`, `LEDGER_ENTRY_NOT_REVERSIBLE`, `LEDGER_ENTRY_ALREADY_REVERSED`.
 

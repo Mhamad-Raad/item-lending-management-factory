@@ -301,6 +301,12 @@ export interface ReturnResultDto {
   order: OrderDetailDto;
 }
 
+/** A payment recorded or reversed (§6.21): the ledger row written and the order as it now stands. */
+export interface PaymentResultDto {
+  ledgerEntryId: number;
+  order: OrderDetailDto;
+}
+
 export interface LedgerEntryDto {
   id: number;
   orderId: number;
