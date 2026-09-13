@@ -226,22 +226,26 @@ test('a record that does not exist still shows its not-found state after the loa
   await expect(page.getByText('This record does not exist')).toBeVisible();
 });
 
-test('a failing record opens at once instead of holding the list through retries', async ({ page }) => {
+test('a failing record is fetched without the loader retrying, then reported by its page', async ({ page }) => {
   await page.setViewportSize({ width: 1280, height: 800 });
   await mockApi(page, ADMIN, 'en');
-  await page.route(/\/api\/items\/5$/, (route) =>
-    route.fulfill({ status: 502, json: { error: { code: 'UNKNOWN_ERROR', details: {} } } }),
-  );
+  let attempts = 0;
+  await page.route(/\/api\/items\/5$/, (route) => {
+    attempts += 1;
+    return route.fulfill({ status: 502, json: { error: { code: 'UNKNOWN_ERROR', details: {} } } });
+  });
   await page.goto('/items');
 
   await page.getByRole('link', { name: ITEM.name }).click();
 
-  // The loader does not sit through the client's 1 s + 2 s retry backoff with the list still up:
-  // the record's page takes over at once and reports the failure itself. (The address changes at
-  // once either way, so the rendered page is what is measured.)
-  await expect(page.getByRole('heading', { level: 1, name: 'Items' })).toBeHidden({ timeout: 1_000 });
-  // The page's own query retries once and again (1 s + 2 s); a loader retrying first would double it.
-  await expect(page.getByRole('button', { name: 'Retry' })).toBeVisible({ timeout: 4_500 });
+  // The list gives way at once — to the pending skeleton, then the record's page — rather than
+  // standing still while the loader waits (the address changes at once either way).
+  await expect(page.getByRole('heading', { level: 1, name: 'Items' })).toBeHidden({ timeout: 3_000 });
+  await expect(page.getByRole('button', { name: 'Retry' })).toBeVisible({ timeout: 15_000 });
+  // Counted, not timed, so a slow machine cannot fail it: the page's own query makes three attempts
+  // (one and two retries); the loader, and the hover that preloaded it, add one each at most. A loader
+  // inheriting the client's retries would add three of its own.
+  expect(attempts).toBeLessThanOrEqual(5);
 });
 
 test('a slow record shows its skeleton while the list is left behind', async ({ page }) => {
