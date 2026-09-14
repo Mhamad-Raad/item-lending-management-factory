@@ -10,3 +10,12 @@ onlyBuiltDependencies:
   - esbuild
   - prisma
   - sharp
+
+# Security patches for transitive dependencies pinned to vulnerable versions (§10.6 D7: CI fails on
+# high advisories). multer: the copy @nestjs/platform-express's FileInterceptor loads. mysql2 and
+# deepmerge-ts: the Prisma CLI's (mysql2 is never loaded here, PostgreSQL only; deepmerge-ts merges
+# prisma.config.ts). Drop each override once the parent ships the patched version.
+overrides:
+  multer: 2.3.0
+  mysql2: 3.24.4
+  deepmerge-ts: 8.0.2
