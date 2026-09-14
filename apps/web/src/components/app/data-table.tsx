@@ -1,6 +1,6 @@
 import { ArrowDown, ArrowUp, ArrowUpDown } from 'lucide-react';
 import { AnimatePresence, motion } from 'motion/react';
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import type { TranslationKey } from '@/i18n/keys';
 import { Pagination } from '@/components/app/pagination';
@@ -62,6 +62,20 @@ function openRowLink(event: React.MouseEvent<HTMLElement>): void {
 }
 
 /**
+ * Counts the times a list was replaced outright — a new page, sort or filter, no row carried over. Keyed on it,
+ * the rows' `AnimatePresence` starts afresh instead of fading the old rows out: motion puts leaving rows
+ * ahead of the arriving ones, so a whole old page would sit on top of the new one, still taking clicks.
+ */
+function useReplacements(keys: readonly React.Key[]): number {
+  const [state, setState] = useState({ keys, count: 0 });
+  if (keys !== state.keys && keys.join() !== state.keys.join()) {
+    const replaced = state.keys.length > 0 && !keys.some((key) => state.keys.includes(key));
+    setState({ keys, count: replaced ? state.count + 1 : state.count });
+  }
+  return state.count;
+}
+
+/**
  * Every list in the app (§7.5): sortable headers, pagination with a page size, a sticky header,
  * and below `md` one card per row instead of a table that would scroll sideways.
  */
@@ -96,6 +110,7 @@ export function DataTable<T>({
   // Rows and cards that arrive fade in and those that leave fade out (§7.14), on lists short enough for
   // it to stay smooth; a longer page renders plainly.
   const animated = rows.length <= ROW_ANIMATION_LIMIT;
+  const replacements = useReplacements(rows.map(rowKey));
   const Row = animated ? MotionTableRow : TableRow;
   const Card = animated ? motion.li : 'li';
   const rowMotion = animated
@@ -161,7 +176,8 @@ export function DataTable<T>({
                 </TableRow>
               </TableHeader>
               <TableBody>
-                <AnimatePresence initial={false}>
+                {/* The first list fades nothing in; a replacing one does. */}
+                <AnimatePresence key={replacements} initial={replacements > 0}>
                   {rows.map((row) => (
                     <Row
                       key={rowKey(row)}
@@ -188,7 +204,7 @@ export function DataTable<T>({
           </div>
 
           <ul aria-label={label} className="flex flex-col gap-2 md:hidden">
-            <AnimatePresence initial={false}>
+            <AnimatePresence key={replacements} initial={replacements > 0}>
               {rows.map((row) => (
                 <Card
                   key={rowKey(row)}

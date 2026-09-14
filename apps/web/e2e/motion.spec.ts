@@ -264,3 +264,38 @@ test('a form dialog mounted only while open still fades out when it closes', asy
   // Before it is gone, it is seen partway through fading.
   expect(samples.some((sample) => sample !== 'gone' && Number(sample) > 0 && Number(sample) < 1)).toBe(true);
 });
+
+test('a new page of rows replaces the old one: the leaving rows never stack above it or take a click', async ({
+  page,
+}) => {
+  await mockApi(page, ADMIN, 'en');
+  await page.setViewportSize({ width: 1280, height: 800 });
+  const drivers = (from: number) =>
+    Array.from({ length: 3 }, (_, index) => ({ ...DRIVER, id: from + index, name: `Driver ${from + index}` }));
+  await page.route(/\/api\/drivers(\?.*)?$/, (route) => {
+    const second = new URL(route.request().url()).searchParams.get('page') === '2';
+    return route.fulfill({
+      json: { items: drivers(second ? 200 : 100), page: second ? 2 : 1, pageSize: 3, total: 6 },
+    });
+  });
+  await page.goto('/drivers?pageSize=25');
+  await expect(page.getByRole('row', { name: /Driver 102/ })).toBeVisible();
+  await page.evaluate(() => {
+    const seen: string[] = [];
+    (window as unknown as { __rows: string[] }).__rows = seen;
+    const id = setInterval(() => {
+      const rows = [...document.querySelectorAll<HTMLElement>('tbody tr')];
+      if (rows.length > 3) seen.push(`${rows.length} rows`);
+      // A leaving row that still answers a click would open a record from the page just left.
+      const first = rows[0];
+      if (first?.textContent?.includes('Driver 1') && rows.some((row) => row.textContent?.includes('Driver 2'))) {
+        if (getComputedStyle(first).pointerEvents !== 'none') seen.push('old row clickable');
+      }
+    }, 5);
+    setTimeout(() => clearInterval(id), 800);
+  });
+  await page.getByRole('button', { name: 'Next' }).click();
+  await expect(page.getByRole('row', { name: /Driver 202/ })).toBeVisible();
+  await page.waitForTimeout(850);
+  expect(await page.evaluate(() => (window as unknown as { __rows: string[] }).__rows)).toEqual([]);
+});
