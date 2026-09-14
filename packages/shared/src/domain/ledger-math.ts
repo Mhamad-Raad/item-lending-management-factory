@@ -77,6 +77,13 @@ function assertSafe(n: number, label: string): number {
 
 const sum = (values: readonly number[]): number => values.reduce((a, b) => a + b, 0);
 
+/** A return line's unit deposit, from the order line it belongs to; a line the order does not have is corrupt data. */
+function depositOf(unitDepositByLine: ReadonlyMap<number, number>, orderLineId: number): number {
+  const unitDeposit = unitDepositByLine.get(orderLineId);
+  if (unitDeposit === undefined) throw new LedgerInvariantError(`return line of an unknown order line ${orderLineId}`);
+  return unitDeposit;
+}
+
 /** refundDue = Σ (acceptedQuantity × unitDeposit + damagedRefund) over the return's entries. */
 export function returnRefundDue(
   lines: readonly { acceptedQuantity: number; unitDeposit: number; damagedRefund: number }[],
@@ -147,7 +154,7 @@ export function computeOrderTotals(order: OrderState): OrderTotals {
         r.lines.map((rl) => ({
           acceptedQuantity: rl.acceptedQuantity,
           damagedRefund: rl.damagedRefund,
-          unitDeposit: unitDepositByLine.get(rl.orderLineId) ?? 0,
+          unitDeposit: depositOf(unitDepositByLine, rl.orderLineId),
         })),
       ),
     ),
@@ -161,7 +168,7 @@ export function computeOrderTotals(order: OrderState): OrderTotals {
   const compensation = assertSafe(
     sum(
       activeReturnLines.map(
-        (rl) => rl.damagedQuantity * (unitDepositByLine.get(rl.orderLineId) ?? 0) - rl.damagedRefund,
+        (rl) => rl.damagedQuantity * depositOf(unitDepositByLine, rl.orderLineId) - rl.damagedRefund,
       ),
     ),
     'compensation',

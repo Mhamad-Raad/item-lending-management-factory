@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import {
   checkCreditLimit,
   chunkReceiptLines,
+  LedgerInvariantError,
   computeOrderTotals,
   returnMoney,
   returnRefundDue,
@@ -190,6 +191,37 @@ describe('ordering rule: deleting an earlier return never recomputes a later cas
     const replacement = o.recordReturn([[1, 50, 5, 2_000]]);
     expect(replacement).toMatchObject({ refundDue: 52_000, owedBefore: 100_000, cashRefund: 0, owedAfter: 48_000 });
     expect(o.totals()).toMatchObject({ owed: 48_000, outValue: 45_000, held: 0, compensation: 3_000 });
+  });
+});
+
+describe('ledger invariants: corrupt stored data is refused, never priced', () => {
+  const base = (overrides: Partial<OrderState> = {}): OrderState => ({
+    cancelled: false,
+    lines: [{ id: 1, quantity: 10, unitDeposit: 1_000 }],
+    returns: [],
+    ledger: [],
+    ...overrides,
+  });
+  const returned = (orderLineId: number, acceptedQuantity: number, damagedQuantity = 0): ReturnState => ({
+    reversed: false,
+    lines: [{ orderLineId, acceptedQuantity, damagedQuantity, damagedRefund: 0 }],
+  });
+
+  it('refuses more pallets returned than went out', () => {
+    expect(() => computeOrderTotals(base({ returns: [returned(1, 8, 3)] }))).toThrow(LedgerInvariantError);
+  });
+
+  it('refuses a return line of a line the order does not have', () => {
+    expect(() => computeOrderTotals(base({ returns: [returned(2, 1)] }))).toThrow(/unknown order line 2/);
+  });
+
+  it('refuses refunds that leave a negative amount owed', () => {
+    expect(() => computeOrderTotals(base({ ledger: [{ type: 'REFUND', amount: -20_000 }] }))).toThrow(/owed < 0/);
+  });
+
+  it('refuses totals past the safe integer range', () => {
+    const huge = base({ lines: [{ id: 1, quantity: 2, unitDeposit: Number.MAX_SAFE_INTEGER }] });
+    expect(() => computeOrderTotals(huge)).toThrow(/not a safe integer/);
   });
 });
 
