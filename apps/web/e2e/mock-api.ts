@@ -15,6 +15,7 @@ import type {
   OrderListItemDto,
   PageDto,
   PurchaseBatchDto,
+  ReceiptDto,
   SettingsDto,
   StockMovementDto,
   UserDto,
@@ -411,6 +412,28 @@ const STOCK: StockReportDto = {
   },
 };
 
+/** A one-sheet receipt for order 9 (§7.16). */
+export const RECEIPT: ReceiptDto = {
+  orderId: 9,
+  orderNumber: 42,
+  orderNumberDisplay: '000042',
+  date: '2026-09-11',
+  paymentType: 'LENT',
+  depositTotal: 10_000,
+  factory: { name: 'Pallet Factory', phone: '07500000000', address: 'Erbil', logoUrl: null },
+  customer: { name: CUSTOMER.name, phone: '07501234567', altPhone: null, address: 'Erbil' },
+  driver: { name: DRIVER.name, phone: '07701112233', carNumber: 'Erbil 12 A 34567' },
+  linesPerHalf: 6,
+  sheets: [
+    {
+      sheetNumber: 1,
+      sheetCount: 1,
+      lines: [{ itemName: ITEM.name, quantity: 10, unitDeposit: 1_000, lineTotal: 10_000 }],
+      showTotal: true,
+    },
+  ],
+};
+
 const page1 = <T>(items: T[]): PageDto<T> => ({ items, page: 1, pageSize: 25, total: items.length * 40 });
 
 /** Signs `user` in and answers every read the built pages make; writes are not needed here. */
@@ -434,6 +457,7 @@ export async function mockApi(
     [/\/api\/auth\/me$/, user],
     [/\/api\/orders(\?.*)?$/, page1([ORDER_ROW])],
     [/\/api\/orders\/\d+$/, ORDER],
+    [/\/api\/orders\/\d+\/receipt$/, RECEIPT],
     [/\/api\/customers(\?.*)?$/, page1([CUSTOMER])],
     [/\/api\/customers\/\d+$/, CUSTOMER],
     [/\/api\/customers\/\d+\/history(\?.*)?$/, page1(HISTORY)],
