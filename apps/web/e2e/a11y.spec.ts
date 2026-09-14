@@ -39,36 +39,33 @@ async function seriousViolationsNow(page: Page): Promise<string[]> {
 test.describe('accessibility of the daily flows (§15 M6: axe, 0 serious or critical)', () => {
   for (const theme of ['light', 'dark'] as const) {
     for (const language of ['ckb', 'en'] as const) {
-      test(`${language}, ${theme} theme`, async ({ page }) => {
-        // Axe reads colours once the page has settled: no transitions or entry animations halfway.
-        await page.emulateMedia({ reducedMotion: 'reduce' });
-        await mockApi(page, ADMIN, language, theme);
-        const problems: string[] = [];
-        for (const flow of FLOWS) {
+      for (const flow of FLOWS) {
+        test(`${flow}, ${language}, ${theme} theme`, async ({ page }) => {
+          // Axe reads colours once the page has settled: no transitions or entry animations halfway.
+          await page.emulateMedia({ reducedMotion: 'reduce' });
+          await mockApi(page, ADMIN, language, theme);
           await page.goto(flow);
           await expect(page.locator('main h1').first()).toBeVisible();
           await page.addStyleTag({
             content: '*, *::before, *::after { transition: none !important; animation: none !important; }',
           });
-          problems.push(...(await seriousViolations(page)).map((problem) => `${flow} ${problem}`));
+          const problems = await seriousViolations(page);
           // And with the form's own errors showing, as after a submit with fields left empty.
           const submit = page.locator('main form button[type="submit"]').first();
           if ((await submit.count()) > 0 && (await submit.isEnabled())) {
             await submit.click();
-            problems.push(...(await seriousViolations(page)).map((problem) => `${flow} (errors) ${problem}`));
+            problems.push(...(await seriousViolations(page)).map((problem) => `(errors) ${problem}`));
           }
-        }
-        expect(problems).toEqual([]);
-      });
+          expect(problems).toEqual([]);
+        });
+      }
     }
   }
 });
 
-test('text keeps its contrast across the pages with badges, notices and tables, in both themes', async ({ page }) => {
-  await page.emulateMedia({ reducedMotion: 'reduce' });
-  const problems: string[] = [];
+// One test per page and theme: the whole sweep took longer than a test's 30 s on the CI runner.
+test.describe('text keeps its contrast across the pages with badges, notices and tables', () => {
   for (const theme of ['light', 'dark'] as const) {
-    await mockApi(page, ADMIN, 'en', theme);
     for (const route of [
       '/',
       '/orders',
@@ -80,21 +77,24 @@ test('text keeps its contrast across the pages with badges, notices and tables, 
       '/history',
       '/users',
     ]) {
-      await page.goto(route);
-      await expect(page.locator('main h1').first()).toBeVisible();
-      await page.addStyleTag({
-        content: '*, *::before, *::after { transition: none !important; animation: none !important; }',
+      test(`${route}, ${theme} theme`, async ({ page }) => {
+        await page.emulateMedia({ reducedMotion: 'reduce' });
+        await mockApi(page, ADMIN, 'en', theme);
+        await page.goto(route);
+        await expect(page.locator('main h1').first()).toBeVisible();
+        await page.addStyleTag({
+          content: '*, *::before, *::after { transition: none !important; animation: none !important; }',
+        });
+        const findings = await settledFindings(page, async () => {
+          const results = await new AxeBuilder({ page }).withRules(['color-contrast']).analyze();
+          return results.violations.flatMap((violation) =>
+            violation.nodes.map((node) => `${node.target.join(' ')}: ${node.any[0]?.message ?? ''}`),
+          );
+        });
+        expect(findings).toEqual([]);
       });
-      const findings = await settledFindings(page, async () => {
-        const results = await new AxeBuilder({ page }).withRules(['color-contrast']).analyze();
-        return results.violations.flatMap((violation) =>
-          violation.nodes.map((node) => `${node.target.join(' ')}: ${node.any[0]?.message ?? ''}`),
-        );
-      });
-      problems.push(...findings.map((finding) => `${theme} ${route} ${finding}`));
     }
   }
-  expect(problems).toEqual([]);
 });
 
 test('every table header names its column for screen readers (§7.15)', async ({ page }) => {
