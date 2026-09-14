@@ -360,6 +360,9 @@ describe('orders: creation, credit and idempotency (§4.8.1, §6.7, §6.19)', ()
     expect(await numbers('?paymentType=CASH')).toEqual([1]);
     expect(await numbers(`?itemId=${half.id}`)).toEqual([2]);
     expect(await numbers('?q=1')).toEqual([1]);
+    // As the app shows the number, and as a Sorani or Arabic keyboard types it.
+    expect(await numbers(`?q=${encodeURIComponent('#000001')}`)).toEqual([1]);
+    expect(await numbers(`?q=${encodeURIComponent('٠٠٢')}`)).toEqual([2]);
     expect(await numbers('?q=baban')).toEqual([2]);
     expect(await numbers('?status=SETTLED')).toEqual([]);
     expect(await numbers('?sort=orderNumber')).toEqual([1, 2]);

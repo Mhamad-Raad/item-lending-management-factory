@@ -5,6 +5,7 @@ import {
   chunkReceiptLines,
   dbDateToBusiness,
   formatOrderNumber,
+  toWesternDigits,
   type OrderCreateBody,
   type OrderDetailDto,
   type OrderListItemDto,
@@ -47,6 +48,15 @@ const SORT_FIELDS = { orderNumber: 'orderNumber', date: 'date', owed: 'owed', ou
 /** An order number is at most nine digits here; a longer run of digits can only be a name. */
 const ORDER_NUMBER_QUERY = /^\d{1,9}$/;
 
+/**
+ * The order number a search means, if it is one: as the app shows it (`#000123`), or typed in Eastern digits on a
+ * Sorani or Arabic keyboard.
+ */
+function orderNumberOf(q: string): number | null {
+  const digits = toWesternDigits(q).replace(/^#/, '');
+  return ORDER_NUMBER_QUERY.test(digits) ? Number(digits) : null;
+}
+
 @Injectable()
 export class OrdersService {
   constructor(
@@ -63,6 +73,7 @@ export class OrdersService {
     const byCustomerName: Prisma.OrderWhereInput = query.q
       ? { customer: { name: { contains: escapeLikePattern(query.q), mode: 'insensitive' } } }
       : {};
+    const orderNumber = query.q ? orderNumberOf(query.q) : null;
     const where: Prisma.OrderWhereInput = {
       ...(query.status === 'ALL' ? {} : { status: query.status }),
       ...(query.customerId ? { customerId: query.customerId } : {}),
@@ -70,11 +81,7 @@ export class OrdersService {
       ...(query.paymentType ? { paymentType: query.paymentType } : {}),
       ...(query.itemId ? { lines: { some: { itemId: query.itemId } } } : {}),
       date: businessDateFilter(query.dateFrom, query.dateTo),
-      ...(query.q
-        ? ORDER_NUMBER_QUERY.test(query.q)
-          ? { OR: [{ orderNumber: Number(query.q) }, byCustomerName] }
-          : byCustomerName
-        : {}),
+      ...(query.q ? (orderNumber === null ? byCustomerName : { OR: [{ orderNumber }, byCustomerName] }) : {}),
     };
     const { field, direction } = parseSort<keyof typeof SORT_FIELDS>(query.sort);
 
