@@ -52,13 +52,7 @@ export class OrdersController {
     @Req() req: Request,
     @Res({ passthrough: true }) res: Response,
   ): Promise<OrderDetailDto> {
-    const request = {
-      userId: actor.userId,
-      key: this.idempotency.keyFrom(key),
-      scope: 'ORDER_CREATE' as const,
-      // The concrete path and the validated body: the same order sent again hashes the same.
-      requestHash: this.idempotency.requestHash(req.method, req.originalUrl.split('?')[0] ?? '', body),
-    };
+    const request = this.idempotency.requestFor(req, key, 'ORDER_CREATE', actor.userId, body);
     const result = await this.orders.create(body, actor, request);
     if (result.replayed) res.setHeader(IDEMPOTENCY_REPLAYED_HEADER, 'true');
     return result.body;

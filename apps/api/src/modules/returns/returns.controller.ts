@@ -35,12 +35,7 @@ export class ReturnsController {
     @Req() req: Request,
     @Res({ passthrough: true }) res: Response,
   ): Promise<ReturnResultDto> {
-    const request = {
-      userId: actor.userId,
-      key: this.idempotency.keyFrom(key),
-      scope: 'RETURN_CREATE' as const,
-      requestHash: this.idempotency.requestHash(req.method, req.originalUrl.split('?')[0] ?? '', body),
-    };
+    const request = this.idempotency.requestFor(req, key, 'RETURN_CREATE', actor.userId, body);
     const result = await this.returns.create(orderId, body, actor, request);
     if (result.replayed) res.setHeader(IDEMPOTENCY_REPLAYED_HEADER, 'true');
     return result.body;

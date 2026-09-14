@@ -288,6 +288,14 @@ describe('orders: creation, credit and idempotency (§4.8.1, §6.7, §6.19)', ()
     expect(await prisma.order.count()).toBe(1);
     expect(await onHand(item.id)).toBe(400);
 
+    // The same request written with a trailing slash is the same request.
+    const slashed = await http()
+      .post('/api/orders/')
+      .set(asUser(admin))
+      .set('Idempotency-Key', key)
+      .send(orderBody())
+      .expect(201);
+    expect(slashed.headers['idempotency-replayed']).toBe('true');
     const reused = await post(admin, orderBody({ lines: [{ itemId: item.id, quantity: 5 }] }), key).expect(409);
     expect(reused.body).toMatchObject({ error: { code: 'IDEMPOTENCY_KEY_REUSED' } });
   });

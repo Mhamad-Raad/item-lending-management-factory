@@ -1,9 +1,11 @@
 import { createHash } from 'node:crypto';
 import { Injectable } from '@nestjs/common';
 import { IDEMPOTENCY_KEY_PATTERN, IDEMPOTENCY_TTL_HOURS, canonicalJson } from '@pallet/shared';
+import type { Request } from 'express';
 import { Clock } from '../../common/clock';
 import { ApiError } from '../../common/errors/api-error';
 import { isUniqueViolation } from '../../common/errors/prisma-errors';
+import { requestPath } from '../../common/http/request-path';
 import type { IdempotencyScope, Prisma } from '../../generated/prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
 
@@ -58,6 +60,25 @@ export class IdempotencyService {
     if (header === undefined || header === '') throw new ApiError('IDEMPOTENCY_KEY_REQUIRED');
     if (!IDEMPOTENCY_KEY_PATTERN.test(header)) throw new ApiError('IDEMPOTENCY_KEY_INVALID');
     return header;
+  }
+
+  /**
+   * The key row a creation request is answered by: its user, its key (§6.7 step 1) and the hash of the request. The
+   * path is normalised like every other path check, so a retry sent with a trailing slash is the same request.
+   */
+  requestFor(
+    req: Pick<Request, 'method' | 'baseUrl' | 'path'>,
+    header: string | undefined,
+    scope: IdempotencyScope,
+    userId: number,
+    body: unknown,
+  ): IdempotentRequest {
+    return {
+      userId,
+      key: this.keyFrom(header),
+      scope,
+      requestHash: this.requestHash(req.method, requestPath(req), body),
+    };
   }
 
   /** sha256 of the method, the concrete path and the validated body as canonical JSON (§6.7 step 2). */

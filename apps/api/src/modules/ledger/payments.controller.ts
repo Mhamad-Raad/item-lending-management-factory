@@ -35,12 +35,7 @@ export class PaymentsController {
     @Req() req: Request,
     @Res({ passthrough: true }) res: Response,
   ): Promise<PaymentResultDto> {
-    const request = {
-      userId: actor.userId,
-      key: this.idempotency.keyFrom(key),
-      scope: 'PAYMENT_CREATE' as const,
-      requestHash: this.idempotency.requestHash(req.method, req.originalUrl.split('?')[0] ?? '', body),
-    };
+    const request = this.idempotency.requestFor(req, key, 'PAYMENT_CREATE', actor.userId, body);
     const result = await this.payments.create(orderId, body, actor, request);
     if (result.replayed) res.setHeader(IDEMPOTENCY_REPLAYED_HEADER, 'true');
     return result.body;
