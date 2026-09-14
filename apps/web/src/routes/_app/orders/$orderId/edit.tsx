@@ -9,6 +9,7 @@ import { EditOrderForm } from '@/features/orders/edit-order-form';
 import { usePageTitle } from '@/hooks/use-page-title';
 import { requirePermission } from '@/lib/route-guards';
 import { prefetch } from '@/lib/prefetch';
+import { WHILE_EDITING } from '@/lib/query-client';
 
 export const Route = createFileRoute('/_app/orders/$orderId/edit')({
   beforeLoad: () => requirePermission('orders.edit'),
@@ -19,7 +20,7 @@ export const Route = createFileRoute('/_app/orders/$orderId/edit')({
 function EditOrderPage() {
   const { t } = useTranslation();
   const { orderId } = Route.useParams();
-  const order = useQuery(orderQuery(Number(orderId)));
+  const order = useQuery({ ...orderQuery(Number(orderId)), ...WHILE_EDITING });
   usePageTitle('orders.edit.title');
 
   if (order.isPending) return <PageSkeleton />;

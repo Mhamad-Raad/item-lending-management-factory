@@ -20,6 +20,7 @@ import { handleApiError } from '@/lib/errors';
 import { qk } from '@/lib/query-keys';
 import { prefetch } from '@/lib/prefetch';
 import { requireAdmin } from '@/lib/route-guards';
+import { WHILE_EDITING } from '@/lib/query-client';
 
 export const Route = createFileRoute('/_app/settings')({
   beforeLoad: () => requireAdmin(),
@@ -42,7 +43,7 @@ function SettingsPage() {
   const { t } = useTranslation();
   usePageTitle('settings.title');
 
-  const settings = useQuery(settingsQuery());
+  const settings = useQuery({ ...settingsQuery(), ...WHILE_EDITING });
 
   if (settings.isPending) return <PageSkeleton rows={4} />;
   if (settings.isError) return <QueryErrorState error={settings.error} onRetry={() => void settings.refetch()} />;

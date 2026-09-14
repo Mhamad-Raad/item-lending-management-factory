@@ -9,6 +9,7 @@ import { ItemForm } from '@/features/items/item-form';
 import { usePageTitle } from '@/hooks/use-page-title';
 import { requirePermission } from '@/lib/route-guards';
 import { prefetch } from '@/lib/prefetch';
+import { WHILE_EDITING } from '@/lib/query-client';
 
 export const Route = createFileRoute('/_app/items/$itemId/edit')({
   beforeLoad: () => requirePermission('items.edit'),
@@ -19,7 +20,7 @@ export const Route = createFileRoute('/_app/items/$itemId/edit')({
 function EditItemPage() {
   const { t } = useTranslation();
   const { itemId } = Route.useParams();
-  const item = useQuery(itemQuery(Number(itemId)));
+  const item = useQuery({ ...itemQuery(Number(itemId)), ...WHILE_EDITING });
   usePageTitle('items.edit.title');
 
   if (item.isPending) return <PageSkeleton />;

@@ -9,6 +9,7 @@ import { CustomerForm } from '@/features/customers/customer-form';
 import { usePageTitle } from '@/hooks/use-page-title';
 import { requirePermission } from '@/lib/route-guards';
 import { prefetch } from '@/lib/prefetch';
+import { WHILE_EDITING } from '@/lib/query-client';
 
 export const Route = createFileRoute('/_app/customers/$customerId/edit')({
   beforeLoad: () => requirePermission('customers.edit'),
@@ -19,7 +20,7 @@ export const Route = createFileRoute('/_app/customers/$customerId/edit')({
 function EditCustomerPage() {
   const { t } = useTranslation();
   const { customerId } = Route.useParams();
-  const customer = useQuery(customerQuery(Number(customerId)));
+  const customer = useQuery({ ...customerQuery(Number(customerId)), ...WHILE_EDITING });
   usePageTitle('customers.edit.title');
 
   if (customer.isPending) return <PageSkeleton />;

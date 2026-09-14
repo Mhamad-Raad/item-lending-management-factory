@@ -27,3 +27,10 @@ export function clearCacheOnSignOut(queryClient: QueryClient): () => void {
     if (authStore.getSnapshot().status === 'anonymous') queryClient.clear();
   });
 }
+
+/**
+ * For the record behind an edit form, which is keyed by the record's version: a refetch when the tab regains focus or
+ * the network returns would remount the form and wipe what the user is typing. The record is read when the page opens
+ * and after the user's own save; a save on a version someone else has moved meets the version-conflict dialog.
+ */
+export const WHILE_EDITING = { refetchOnWindowFocus: false, refetchOnReconnect: false } as const;

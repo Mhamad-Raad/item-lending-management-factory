@@ -41,6 +41,7 @@ import { generatePassword } from '@/lib/generate-password';
 import { qk } from '@/lib/query-keys';
 import { prefetch } from '@/lib/prefetch';
 import { requireAdmin } from '@/lib/route-guards';
+import { WHILE_EDITING } from '@/lib/query-client';
 
 export const Route = createFileRoute('/_app/users/$userId')({
   beforeLoad: () => requireAdmin(),
@@ -60,7 +61,7 @@ function UserDetailPage() {
   const { user: self } = useAuth();
   usePageTitle('users.detail.title');
 
-  const user = useQuery(userQuery(id));
+  const user = useQuery({ ...userQuery(id), ...WHILE_EDITING });
 
   const invalidate = async (): Promise<void> => {
     await queryClient.invalidateQueries({ queryKey: qk.users.all() });
