@@ -1,6 +1,7 @@
 /**
  * `pnpm db:seed:demo` — development only (§9): two months of believable activity for a pallet factory in
- * Erbil, recorded through the domain services, so stock, ledgers, order totals and the history are exactly
+ * Erbil, kept small enough to read through — ten items, customers and drivers, and about ten orders with their
+ * returns and payments — recorded through the domain services, so stock, ledgers, order totals and the history are exactly
  * what the app itself would have written. The services' clock is walked forward day by day, which dates the
  * business dates and the timestamps the services set (cancellations, reversals, overrides, archiving); the
  * `created_at` columns the database fills with now() are moved to the same times afterwards (`backdate`).
@@ -49,6 +50,10 @@ import { findLedgerDiscrepancies } from '../prisma/reconciliation';
 
 const SEED = 20260911;
 const DAYS = 62;
+/** The days an order goes out on, one each: ten orders spread over the two months, the last ones still out. */
+const ORDER_DAYS = [0, 6, 12, 19, 25, 32, 38, 45, 51, 57] as const;
+/** Which order the customer calls off the same morning (its index in `ORDER_DAYS`). */
+const CANCELLED_ORDER = 6;
 const MINUTE = 60_000;
 
 /** mulberry32, as in the I14 sequence test: small, deterministic, good enough for demo data. */
@@ -89,7 +94,18 @@ const ITEMS = [
   },
   { name: 'پالێتی قورس 120×120', depositPrice: 22_000, minStock: 40, stock: 220, unitCost: 16_000, order: [10, 60] },
   { name: 'نیوە پالێت 80×60', depositPrice: 7_000, minStock: 50, stock: 350, unitCost: 4_500, order: [20, 100] },
-  { name: 'پالێتی پلاستیکی 120×80', depositPrice: 35_000, minStock: 120, stock: 150, unitCost: 26_000, order: [5, 25] },
+  { name: 'پالێتی پلاستیکی 120×80', depositPrice: 35_000, minStock: 120, stock: 110, unitCost: 26_000, order: [5, 25] },
+  { name: 'پالێتی سووک 100×80', depositPrice: 9_000, minStock: 60, stock: 300, unitCost: 6_000, order: [10, 60] },
+  {
+    name: 'پالێتی دوو ڕوو 120×100',
+    depositPrice: 18_000,
+    minStock: 40,
+    stock: 200,
+    unitCost: 12_500,
+    order: [10, 50],
+  },
+  { name: 'پالێتی کیمیایی 114×114', depositPrice: 25_000, minStock: 30, stock: 120, unitCost: 18_000, order: [5, 30] },
+  { name: 'سندوقی پالێت 120×80', depositPrice: 45_000, minStock: 20, stock: 60, unitCost: 33_000, order: [2, 10] },
 ] as const;
 
 /** `weight` is how often the customer orders. A credit limit caps the deposit value of the pallets a customer holds (§4.4). */
@@ -158,6 +174,22 @@ const CUSTOMERS = [
     creditLimit: 2_500_000,
     weight: 1,
   },
+  {
+    name: 'کۆمپانیای گواستنەوەی ڕوانگە',
+    phone: '07501110009',
+    altPhone: null,
+    address: 'هەولێر، ڕێگای کەرکووک',
+    creditLimit: 8_000_000,
+    weight: 2,
+  },
+  {
+    name: 'Darin Beverages',
+    phone: '07701110010',
+    altPhone: null,
+    address: 'Duhok, Semel road',
+    creditLimit: null,
+    weight: 1,
+  },
 ] as const;
 
 const DRIVERS = [
@@ -165,6 +197,12 @@ const DRIVERS = [
   { name: 'هێمن مەحمود', phone: '07501230002', carNumber: '22 B 60218' },
   { name: 'Ahmed Salih', phone: '07701230003', carNumber: '21 A 11946' },
   { name: 'ڕێبوار قادر', phone: '07511230004', carNumber: '24 C 30785' },
+  { name: 'سەردار ئەحمەد', phone: '07501230005', carNumber: '22 D 51234' },
+  { name: 'Omar Khalid', phone: '07701230006', carNumber: '23 A 77410' },
+  { name: 'بەختیار حەسەن', phone: '07511230007', carNumber: '22 A 90312' },
+  { name: 'دڵشاد عومەر', phone: '07501230008', carNumber: '24 B 18865' },
+  { name: 'Yousif Jamal', phone: '07701230009', carNumber: '21 C 43027' },
+  { name: 'ئاراس ڕەشید', phone: '07501230010', carNumber: '22 C 66591' },
 ] as const;
 
 const ORDER_NOTES = ['بۆ کۆگای نوێ', 'گەیاندن پێش نیوەڕۆ', null, null, null, null] as const;
@@ -410,7 +448,7 @@ async function main(): Promise<void> {
     }
     const fleet: number[] = [];
     for (const spec of DRIVERS) fleet.push((await as(() => drivers.create(DriverCreateBody.parse(spec), actor))).id);
-    // One old model, sold out and taken off the list.
+    // One old model, sold out and taken off the list: the tenth item.
     const retired = await as(() =>
       itemsService.create(ItemCreateBody.parse({ name: 'پالێتی کۆن 100×100', depositPrice: 9_000 }), actor),
     );
@@ -440,17 +478,19 @@ async function main(): Promise<void> {
       }
     };
 
-    const createOrder = async (date: string): Promise<void> => {
+    const createOrder = async (date: string, index: number): Promise<void> => {
       const customer = weighted[Math.floor(random() * weighted.length)] ?? weighted[0];
       if (!customer) return;
-      const chosen = catalogue.filter(() => chance(0.45));
-      const fallback = catalogue[between(0, 1)];
-      if (chosen.length === 0 && fallback) chosen.push(fallback);
-      const lines = chosen.slice(0, 3).map((item) => ({
+      // One to three different items, any of the nine on the list.
+      const pool = [...catalogue];
+      const chosen = Array.from({ length: between(1, 3) }, () => pool.splice(between(0, pool.length - 1), 1)[0]).filter(
+        (item) => item !== undefined,
+      );
+      const lines = chosen.map((item) => ({
         itemId: item.id,
         quantity: roundTo(between(item.order[0], item.order[1]), 5),
       }));
-      const paymentType = chance(0.3) ? 'CASH' : 'LENT';
+      const paymentType = chance(0.25) ? 'CASH' : 'LENT';
       const note = ORDER_NOTES[between(0, ORDER_NOTES.length - 1)] ?? null;
 
       let order: OrderDetailDto | undefined;
@@ -493,15 +533,15 @@ async function main(): Promise<void> {
       tally.orders += 1;
       tally[paymentType === 'CASH' ? 'cash' : 'lent'] += 1;
 
-      // Now and then the customer rings back the same morning and calls it off.
-      if (chance(0.04)) {
+      // One customer rings back the same morning and calls it off.
+      if (index === CANCELLED_ORDER) {
         const placed = order;
         await as(() => changes.cancel(placed.id, placed.version, actor));
         tally.cancelled += 1;
         return;
       }
-      if (chance(0.88)) plan(addDays(date, between(3, 16)), { kind: 'return', orderId: order.id });
-      if (paymentType === 'LENT' && chance(0.8))
+      if (chance(0.7)) plan(addDays(date, between(3, 16)), { kind: 'return', orderId: order.id });
+      if (paymentType === 'LENT' && chance(0.9))
         plan(addDays(date, between(2, 20)), { kind: 'payment', orderId: order.id });
     };
 
@@ -543,7 +583,7 @@ async function main(): Promise<void> {
       tally.payments += 1;
       paymentsSoFar += 1;
       // One payment keyed against the wrong order, taken back the same day.
-      if (paymentsSoFar === 6) {
+      if (paymentsSoFar === 3) {
         await as(() =>
           payments.reverse(
             result.body.ledgerEntryId,
@@ -554,6 +594,16 @@ async function main(): Promise<void> {
         tally.reversed += 1;
       }
     };
+
+    // Planned days are counted from the start; one that falls on a Friday moves to the Saturday.
+    const workingDay = (day: number): string => {
+      const planned = addDays(start, day);
+      return isFriday(planned) ? addDays(planned, 1) : planned;
+    };
+    const orderOn = new Map(ORDER_DAYS.map((day, index) => [workingDay(day), index] as const));
+    const deliveryDay = workingDay(28);
+    const countFoundDay = workingDay(34);
+    const breakageDay = workingDay(50);
 
     // ── Two months of working days ──
     for (let offset = 0; offset <= DAYS; offset += 1) {
@@ -571,16 +621,16 @@ async function main(): Promise<void> {
         }
       }
 
-      if (offset === 21 || offset === 46) {
-        // The plastic pallets come from a supplier abroad and miss the second delivery: they end the period low.
-        const due = catalogue.filter((item) => offset === 21 || item.depositPrice < 30_000);
+      if (date === deliveryDay) {
+        // One delivery from the carpenter for the three wooden pallets that go out most; the plastic pallets come
+        // from a supplier abroad and miss it, so they end the period low.
         await restock(
           date,
-          due.map((item) => item.id),
+          catalogue.slice(0, 3).map((item) => item.id),
           'بارێکی نوێ لە دارتاش',
         );
       }
-      if (offset === 30) {
+      if (date === countFoundDay) {
         const [euro] = catalogue;
         if (euro) {
           await as(() =>
@@ -592,7 +642,7 @@ async function main(): Promise<void> {
           );
         }
       }
-      if (offset === 50) {
+      if (date === breakageDay) {
         const standard = catalogue[1];
         // Only when there are eight in the yard to write off; the adjustment would be refused otherwise.
         if (standard && (await itemsService.get(standard.id)).quantityOnHand >= 8) {
@@ -606,9 +656,9 @@ async function main(): Promise<void> {
         }
       }
 
-      // The rest of the day: new orders go out.
-      const count = offset === 0 ? 1 : between(0, 3);
-      for (let index = 0; index < count; index += 1) await createOrder(date);
+      // The rest of the day: an order goes out on the order days.
+      const index = orderOn.get(date);
+      if (index !== undefined) await createOrder(date, index);
     }
 
     await backdate(owner, baseline, stamps);

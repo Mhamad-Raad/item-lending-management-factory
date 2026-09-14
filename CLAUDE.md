@@ -65,7 +65,7 @@ pnpm comes from corepack (`corepack enable --install-directory ~/.local/bin` was
 | `pnpm db:migrate`                                                           | `migrate dev` + grants (development only)                     |
 | `pnpm db:deploy`                                                            | `migrate deploy` + grants (CI / non-interactive)              |
 | `pnpm --filter @pallet/api build && pnpm db:seed`                           | First admin + default settings                                |
-| `pnpm db:seed:demo` (after the build, API stopped)                          | Two months of demo data via the services (empty DB only)      |
+| `pnpm db:seed:demo` (after the build, API stopped)                          | Two months, ~10 of each, via the services (empty DB only)     |
 | `pnpm dev`                                                                  | Shared watch + API (:3000) + web (:5175, proxies `/api`)      |
 | `pnpm lint` · `pnpm typecheck` · `pnpm test` · `pnpm build` · `pnpm format` | Quality gates (all must pass)                                 |
 | `pnpm test:integration`                                                     | API integration tests against real Postgres (+ coverage gate) |

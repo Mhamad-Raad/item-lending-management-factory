@@ -4965,7 +4965,7 @@ Response shape superseded by the §6.9 DTO (Q42): the API sends that DTO, and fi
 
 There is no staging server; the quarterly restore test (§13.7) doubles as a rehearsal on a throw-away VPS.
 
-Local quick start: `corepack enable` → `pnpm install` → create `.env` at the repository root from the LOCAL DEVELOPMENT block of `.env.example` → `pnpm db:up` → `pnpm db:migrate` (applies the migrations and re-applies `grants.sql`, so the runtime role can read its tables) → `pnpm --filter @pallet/api build` → `pnpm db:seed` (first admin + settings) → optionally, with the API stopped, `pnpm db:seed:demo` (two months of demo activity through the domain services, dated day by day; only on a database with no items, customers or orders yet; refused in production) → `pnpm dev` → open `http://localhost:5175`.
+Local quick start: `corepack enable` → `pnpm install` → create `.env` at the repository root from the LOCAL DEVELOPMENT block of `.env.example` → `pnpm db:up` → `pnpm db:migrate` (applies the migrations and re-applies `grants.sql`, so the runtime role can read its tables) → `pnpm --filter @pallet/api build` → `pnpm db:seed` (first admin + settings) → optionally, with the API stopped, `pnpm db:seed:demo` (two months of demo activity through the domain services, dated day by day — ten items, customers and drivers and ten orders with their returns and payments; only on a database with no items, customers or orders yet; refused in production) → `pnpm dev` → open `http://localhost:5175`.
 
 ### 13.2 Environment variables
 
