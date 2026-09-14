@@ -64,3 +64,24 @@ test('a page that fails to load shows its reference unscrambled, even in Kurdish
   await expect(alert).toBeVisible(AFTER_RETRIES);
   expect(await alert.textContent()).toContain(`\u2068${reference}\u2069`);
 });
+
+test('an old or hand-edited link with values a list does not know opens that list with its defaults', async ({
+  page,
+}) => {
+  await mockApi(page, ADMIN, 'en');
+  const broken: string[] = [];
+  for (const route of [
+    '/orders?page=abc&status=FOO&sort=nope',
+    '/customers?page=0&pageSize=7&sort=nope',
+    '/items?page=-1&lowStockOnly=maybe',
+    '/drivers?pageSize=huge',
+    '/users?role=OWNER&isActive=perhaps',
+    '/history?action=FOO&entityType=BAR&page=abc&userId=x',
+  ]) {
+    await page.goto(route);
+    await expect(page.locator('main h1').first()).toBeVisible();
+    const heading = await page.locator('main h1').first().textContent();
+    if (heading?.includes('Something went wrong')) broken.push(route);
+  }
+  expect(broken).toEqual([]);
+});

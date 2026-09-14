@@ -1,4 +1,5 @@
 import { expect, test, type Page } from './fixtures';
+import { ADMIN as SIGNED_IN, mockApi } from './mock-api';
 
 const ADMIN = {
   id: 1,
@@ -252,4 +253,12 @@ test('changed values read left to right in Kurdish, quotes and all', async ({ pa
     return { opening: at(text.indexOf('"')), closing: at(text.lastIndexOf('"')) };
   });
   expect(quotes.opening).toBeLessThan(quotes.closing);
+});
+
+test('a history link with a filter or page it does not know opens the plain history', async ({ page }) => {
+  await mockApi(page, SIGNED_IN, 'en');
+  await page.goto('/history?action=FOO&entityType=BAR&page=abc');
+
+  await expect(page.getByRole('heading', { level: 1 })).toBeVisible();
+  await expect(page.getByRole('table').or(page.getByRole('list')).first()).toBeVisible();
 });

@@ -34,12 +34,13 @@ import { requirePermission } from '@/lib/route-guards';
 const ALL = 'all';
 
 const SearchSchema = z.object({
-  action: z.enum(AUDIT_ACTIONS).optional(),
-  entityType: z.enum(AUDIT_ENTITY_TYPES).optional(),
+  // An old or hand-edited link falls back to the unfiltered history instead of failing the page, as every list does.
+  action: z.enum(AUDIT_ACTIONS).optional().catch(undefined),
+  entityType: z.enum(AUDIT_ENTITY_TYPES).optional().catch(undefined),
   userId: z.coerce.number().int().min(1).optional().catch(undefined),
   dateFrom: BusinessDate.optional().catch(undefined),
   dateTo: BusinessDate.optional().catch(undefined),
-  page: z.coerce.number().int().min(1).default(1),
+  page: z.coerce.number().int().min(1).default(1).catch(1),
 });
 
 export const Route = createFileRoute('/_app/history')({

@@ -6,7 +6,8 @@ import type { ApiFieldError, ValidationCode } from '../error-codes.js';
  * `validation.<code>` with `params` interpolated, so the mapping lives here and not in the API.
  */
 export function mapZodIssue(issue: z.core.$ZodIssue): ApiFieldError[] {
-  const path = issue.path.join('.');
+  // An issue built under `.catch()` reaches `z.config({ customError })` without its path yet; it maps all the same.
+  const path = (issue.path ?? []).join('.');
 
   switch (issue.code) {
     case 'invalid_type':
