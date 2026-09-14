@@ -13,7 +13,8 @@ export class ZodValidationPipe<T> implements PipeTransform<unknown, T> {
 
   transform(value: unknown): T {
     try {
-      return this.schema.parse(value);
+      // The issues must carry the input: without it the mapper cannot tell a missing field from a wrong one.
+      return this.schema.parse(value, { reportInput: true });
     } catch (error) {
       if (error instanceof ZodError) throw new ApiError('VALIDATION_FAILED', undefined, mapZodError(error));
       throw error;

@@ -55,7 +55,11 @@ export function mapZodIssue(issue: z.core.$ZodIssue): ApiFieldError[] {
   }
 }
 
-/** Every field error of a failed parse, flattened in issue order. */
+/**
+ * Every field error of a failed parse, flattened in issue order. The parse must pass `{ reportInput: true }`:
+ * zod 4 leaves `input` off finished issues otherwise, and every value of the wrong type would read as `required`.
+ * (Issues handed to `z.config({ customError })` carry it already.)
+ */
 export function mapZodError(error: z.ZodError): ApiFieldError[] {
   return error.issues.flatMap(mapZodIssue);
 }

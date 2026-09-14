@@ -8,7 +8,7 @@ import { mapZodError } from './zod-issues.js';
 
 /** The field errors the API would send back for this input, as the web app receives them. */
 function fieldErrors(schema: z.ZodType, input: unknown): { path: string; code: string }[] {
-  const result = schema.safeParse(input);
+  const result = schema.safeParse(input, { reportInput: true });
   if (result.success) return [];
   return mapZodError(result.error).map(({ path, code }) => ({ path, code }));
 }
