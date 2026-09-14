@@ -63,6 +63,19 @@ export default defineConfig(
     },
   },
   {
+    // Security requirement (§10.1 S7): tokens live in memory only; the preferences are the one thing kept in storage.
+    files: ['apps/web/src/**/*.{ts,tsx}'],
+    ignores: ['apps/web/src/lib/preferences.ts'],
+    rules: {
+      'no-restricted-properties': [
+        'error',
+        { object: 'localStorage', property: 'setItem', message: 'Only lib/preferences.ts writes to localStorage.' },
+        { object: 'sessionStorage', property: 'setItem', message: 'Nothing is kept in sessionStorage.' },
+      ],
+      'no-restricted-globals': ['error', { name: 'indexedDB', message: 'Nothing is kept in IndexedDB.' }],
+    },
+  },
+  {
     // TanStack Router route files export `Route` next to components; the router plugin handles HMR.
     files: ['apps/web/src/routes/**/*.tsx'],
     rules: { 'react-refresh/only-export-components': 'off' },
