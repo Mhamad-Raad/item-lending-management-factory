@@ -32,12 +32,14 @@ function Half({
             />
           ) : null}
           <div>
-            <div style={{ fontSize: '13pt', fontWeight: 700 }}>{factory.name}</div>
+            <div style={{ fontSize: '13pt', fontWeight: 700 }}>
+              <bdi>{factory.name}</bdi>
+            </div>
             <div style={{ fontSize: '8.5pt' }}>
               {tr('receipt.factoryPhone')}: <bdi className="num">{factory.phone}</bdi>
             </div>
             <div style={{ fontSize: '8.5pt' }} className="clamp">
-              {tr('receipt.factoryAddress')}: {factory.address}
+              {tr('receipt.factoryAddress')}: <bdi>{factory.address}</bdi>
             </div>
           </div>
         </div>
@@ -56,19 +58,19 @@ function Half({
         <div>
           <div style={{ fontSize: '9pt', fontWeight: 600 }}>{tr('receipt.customer')}</div>
           <div className="clamp">
-            {tr('receipt.name')}: {customer.name}
+            {tr('receipt.name')}: <bdi>{customer.name}</bdi>
           </div>
           <div>
             {tr('receipt.phone')}: <bdi className="num">{customer.phone}</bdi>
           </div>
           <div className="clamp">
-            {tr('receipt.address')}: {customer.address}
+            {tr('receipt.address')}: <bdi>{customer.address}</bdi>
           </div>
         </div>
         <div>
           <div style={{ fontSize: '9pt', fontWeight: 600 }}>{tr('receipt.driver')}</div>
           <div className="clamp">
-            {tr('receipt.name')}: {driver.name}
+            {tr('receipt.name')}: <bdi>{driver.name}</bdi>
           </div>
           <div>
             {tr('receipt.phone')}: <bdi className="num">{driver.phone}</bdi>
@@ -104,7 +106,9 @@ function Half({
             {rows.map((line, index) => (
               <tr key={index}>
                 <td className="num num-cell">{line ? firstNumber + index : ''}</td>
-                <td className="col-item">{line?.itemName ?? ''}</td>
+                <td className="col-item">
+                  <bdi>{line?.itemName ?? ''}</bdi>
+                </td>
                 <td className="num num-cell">{line ? formatNumber(line.quantity) : ''}</td>
                 <td className="num num-cell">{line ? formatMoney(line.unitDeposit) : ''}</td>
                 <td className="num num-cell">{line ? formatMoney(line.lineTotal) : ''}</td>

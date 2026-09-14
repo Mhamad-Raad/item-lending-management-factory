@@ -1,5 +1,5 @@
 import { expect, test, type Page } from './fixtures';
-import { ADMIN, CUSTOMER, DRIVER, ITEM, ORDER, mockApi } from './mock-api';
+import { ADMIN, CUSTOMER, DRIVER, ITEM, ORDER, RECEIPT, mockApi } from './mock-api';
 
 const EMPLOYEE_NAME = 'Shilan Omer Rasul';
 const NAMES = [ITEM.name, CUSTOMER.name, DRIVER.name, ADMIN.displayName, EMPLOYEE_NAME];
@@ -10,7 +10,7 @@ const NAMES = [ITEM.name, CUSTOMER.name, DRIVER.name, ADMIN.displayName, EMPLOYE
  * unless it sits in `<bdi>`, in an element that sets its own `dir="auto"`/`"ltr"`, or between the Unicode
  * isolate marks. An ancestor that merely repeats the page's `rtl` isolates nothing.
  */
-async function namesOnPage(page: Page): Promise<{ found: number; loose: string[] }> {
+async function namesOnPage(page: Page, names: readonly string[] = NAMES): Promise<{ found: number; loose: string[] }> {
   return page.evaluate((names) => {
     const loose: string[] = [];
     let found = 0;
@@ -27,7 +27,7 @@ async function namesOnPage(page: Page): Promise<{ found: number; loose: string[]
       if (!isolated) loose.push(`${node.parentElement?.tagName}: ${text.slice(0, 50)}`);
     }
     return { found, loose };
-  }, NAMES);
+  }, names);
 }
 
 test('the Kurdish app runs right to left, and mirrors the icons that point a way', async ({ page }) => {
@@ -161,4 +161,64 @@ test('in the Kurdish menu and sidebar, a short Latin display name lines up with 
   expect(await rightEdges(trigger)).toBeLessThan(2);
   await trigger.click();
   expect(await rightEdges(page.getByRole('menu').locator('.flex-col').first())).toBeLessThan(2);
+});
+
+test('typed text keeps its direction on the receipt, in notes and addresses, and in the duplicate-phone warning', async ({
+  page,
+}) => {
+  await mockApi(page, ADMIN, 'ckb');
+  await page.addInitScript(() => {
+    window.print = () => undefined;
+  });
+  const problems: string[] = [];
+  const check = async (where: string, names: readonly string[]) => {
+    const { found, loose } = await namesOnPage(page, names);
+    if (found === 0) problems.push(`${where}: no name found to check`);
+    problems.push(...loose.map((entry) => `${where} ${entry}`));
+  };
+
+  // The printed receipt is right to left: a Latin customer, driver, item or factory name must not reorder on paper.
+  await page.goto('/print/orders/9');
+  await expect(page.locator('.sheet')).toHaveCount(1);
+  await check('receipt', [RECEIPT.factory.name, CUSTOMER.name, DRIVER.name, ITEM.name, RECEIPT.customer.address]);
+
+  await page.goto('/orders/9');
+  await expect(page.locator('main h1').first()).toBeVisible();
+  await check('order notes', [ORDER.notes ?? '']);
+
+  await page.goto('/customers/3');
+  await expect(page.locator('main h1').first()).toBeVisible();
+  await check('customer address', [CUSTOMER.address]);
+
+  await page.route(/\/api\/customers\/phone-check\?/, (route) =>
+    route.fulfill({
+      json: { normalizedPhone: CUSTOMER.phone, matches: [{ id: CUSTOMER.id, name: CUSTOMER.name, archived: false }] },
+    }),
+  );
+  await page.route(/\/api\/customers$/, (route) =>
+    route.request().method() === 'POST'
+      ? route.fulfill({
+          status: 409,
+          json: {
+            error: {
+              code: 'CUSTOMER_PHONE_DUPLICATE',
+              details: {
+                matches: [{ id: CUSTOMER.id, name: CUSTOMER.name, archived: false, matchedValue: CUSTOMER.phone }],
+              },
+            },
+          },
+        })
+      : route.fallback(),
+  );
+  await page.goto('/customers/new');
+  await page.locator('#name').fill('کارگەی نوێ');
+  await page.locator('#phone').fill(CUSTOMER.phone);
+  await page.locator('#address').fill('هەولێر');
+  await expect(page.getByRole('status').filter({ hasText: CUSTOMER.name })).toBeVisible();
+  await check('duplicate-phone hint', [CUSTOMER.name]);
+  await page.locator('main form button[type="submit"]').click();
+  await expect(page.getByRole('dialog')).toBeVisible();
+  await check('duplicate-phone dialog', [CUSTOMER.name]);
+
+  expect(problems).toEqual([]);
 });

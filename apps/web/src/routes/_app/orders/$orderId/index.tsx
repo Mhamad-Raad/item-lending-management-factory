@@ -257,7 +257,11 @@ function OrderDetailPage() {
               </div>
             ))}
           </dl>
-          {data.notes ? <p className="text-muted-foreground whitespace-pre-line">{data.notes}</p> : null}
+          {data.notes ? (
+            <p className="text-muted-foreground whitespace-pre-line">
+              <bdi>{data.notes}</bdi>
+            </p>
+          ) : null}
         </CardContent>
       </Card>
 

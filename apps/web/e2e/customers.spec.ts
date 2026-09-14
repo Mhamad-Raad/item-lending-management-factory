@@ -88,7 +88,8 @@ test('a phone another customer holds is warned about, then saved once confirmed'
   await page.getByRole('button', { name: 'Save' }).click();
 
   const dialog = page.getByRole('dialog');
-  await expect(dialog).toContainText('It belongs to Old Blocks');
+  // The name sits between isolate marks inside the sentence (Q43).
+  await expect(dialog).toContainText(/It belongs to \u2068Old Blocks\u2069/);
   await dialog.getByRole('button', { name: 'Save anyway' }).click();
 
   await expect(page.getByRole('heading', { name: 'Kurdistan Cement' })).toBeVisible();

@@ -219,7 +219,7 @@ function CustomerProfilePage() {
       <p className="text-muted-foreground flex flex-wrap gap-x-3 gap-y-1 text-sm">
         <span dir="ltr">{data.phone}</span>
         {data.altPhone ? <span dir="ltr">{data.altPhone}</span> : null}
-        <span>{data.address}</span>
+        <bdi>{data.address}</bdi>
       </p>
 
       {/* Two to a row on a phone, so the summary fits one screen: a card with a breakdown takes the

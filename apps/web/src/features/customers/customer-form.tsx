@@ -27,6 +27,7 @@ import { ApiError } from '@/lib/api-error';
 import { handleApiError } from '@/lib/errors';
 import { qk } from '@/lib/query-keys';
 import { invalidateCustomers } from './api';
+import { isolate } from '@/lib/bidi';
 
 type CustomerFormValues = CustomerCreateBody;
 const FIELDS = ['name', 'phone', 'altPhone', 'address', 'creditLimit'] as const;
@@ -237,7 +238,7 @@ export function CustomerForm({ customer }: { customer?: CustomerDto }) {
         destructive={false}
         title={t('customers.form.duplicateTitle')}
         description={t('customers.form.duplicateBody', {
-          names: duplicates?.matches.map((match) => match.name).join(t('common.listSeparator')) ?? '',
+          names: duplicates?.matches.map((match) => isolate(match.name)).join(t('common.listSeparator')) ?? '',
         })}
         confirmLabel={t('customers.form.saveAnyway')}
         pending={save.isPending}
