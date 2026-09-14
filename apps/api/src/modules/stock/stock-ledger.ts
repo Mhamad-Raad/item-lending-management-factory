@@ -34,8 +34,11 @@ export class StockLedger {
 
     const net = await this.assertAvailable(tx, movements);
 
+    // Additions before removals: the item history shows a running balance by row id, and taken in this order it never
+    // dips below the lower of the stock before and after, both of which the check above keeps at zero or more.
+    const ordered = [...movements.filter((m) => m.quantity > 0), ...movements.filter((m) => m.quantity < 0)];
     await tx.stockMovement.createMany({
-      data: movements.map((movement) => ({
+      data: ordered.map((movement) => ({
         itemId: movement.itemId,
         quantity: movement.quantity,
         reason: movement.reason,

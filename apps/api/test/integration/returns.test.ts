@@ -303,8 +303,9 @@ describe('returns (§4.8.4–§4.8.6, §6.20)', () => {
     expect([replacement.refundDue, replacement.owedBefore, replacement.cashRefund]).toEqual([40_000n, 0n, 40_000n]);
     expect(await returnMovements(order.id)).toEqual([
       { reason: 'RETURN_ACCEPTED', quantity: 50, returnId: first.returnId },
-      { reason: 'RETURN_EDIT', quantity: -50, returnId: first.returnId },
+      // Within one change the pallets coming in are written before those going out (Q48).
       { reason: 'RETURN_ACCEPTED', quantity: 40, returnId: edited.returnId },
+      { reason: 'RETURN_EDIT', quantity: -50, returnId: first.returnId },
     ]);
     expect((await ledger(order.id)).slice(1)).toEqual([
       expect.objectContaining({ type: 'REFUND', source: 'RETURN_CREATE', amount: 50_000n, returnId: first.returnId }),
@@ -335,6 +336,44 @@ describe('returns (§4.8.4–§4.8.6, §6.20)', () => {
 
     const again = await replace(first.returnId, order, [{ acceptedQuantity: 30, damagedQuantity: 0 }]).expect(409);
     expect(again.body).toMatchObject({ error: { code: 'RETURN_ALREADY_REVERSED' } });
+  });
+
+  it('an edit never shows the stock history below zero, even when the returned pallets went out again', async () => {
+    const scarce = await createItem(app, admin, { name: 'Scarce', depositPrice: 1_000, stock: 5 });
+    const lent = (quantity: number) =>
+      createOrder(app, admin, {
+        customerId: customer.id,
+        driverId: driver.id,
+        date: TODAY,
+        paymentType: 'LENT',
+        lines: [{ itemId: scarce.id, quantity }],
+      });
+    const first = await lent(5);
+    const line = first.lines[0]?.id ?? 0;
+    const returned = (
+      await http()
+        .post(`/api/orders/${first.id}/returns`)
+        .set(asUser(admin))
+        .set('Idempotency-Key', randomUUID())
+        .send({ date: TODAY, lines: [{ orderLineId: line, acceptedQuantity: 5, damagedQuantity: 0 }] })
+        .expect(201)
+    ).body as ReturnResultDto;
+    await lent(5); // the same five pallets go out again: nothing on hand
+
+    await http()
+      .post(`/api/returns/${returned.returnId}/replace`)
+      .set(asUser(admin))
+      .send({
+        date: TODAY,
+        notes: 'Counted again',
+        lines: [{ orderLineId: line, acceptedQuantity: 5, damagedQuantity: 0 }],
+      })
+      .expect(201);
+
+    const page = (
+      await http().get(`/api/items/${scarce.id}/stock-movements?pageSize=100`).set(asUser(admin)).expect(200)
+    ).body as { items: { balanceAfter: number }[] };
+    expect(Math.min(...page.items.map((row) => row.balanceAfter))).toBe(0);
   });
 
   it('E10 — an edit that adds damage with a refund nets its stock and money', async () => {
