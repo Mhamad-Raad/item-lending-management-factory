@@ -6,7 +6,7 @@
 # migration has run — which makes the automatic image rollback below safe.
 set -Eeuo pipefail
 
-APP_DIR=/opt/pallet
+APP_DIR="${APP_DIR:-/opt/pallet}"
 NEW_SHA="${1:?usage: deploy.sh <git-sha>}"
 HEALTH_TIMEOUT_SECONDS=60
 
@@ -19,12 +19,8 @@ set_version() { sed -i -E "s/^APP_VERSION=.*/APP_VERSION=$1/" .env; }
 PREV_SHA="$(current_version)"
 echo "deploy: ${PREV_SHA:-<none>} -> $NEW_SHA"
 
-# Compose file, Caddy/Postgres init files and scripts must match the image version.
-git fetch --quiet origin --tags
-git checkout --quiet --detach "$NEW_SHA"
-set_version "$NEW_SHA"
-
 rollback() {
+  trap - ERR
   echo "deploy: FAILED — rolling back to $PREV_SHA" >&2
   if [[ -n "$PREV_SHA" ]]; then
     git checkout --quiet --detach "$PREV_SHA"
@@ -34,9 +30,18 @@ rollback() {
   exit 1
 }
 
+# Compose file, Caddy/Postgres init files and scripts must match the image version.
+git fetch --quiet origin --tags
+git checkout --quiet --detach "$NEW_SHA"
+set_version "$NEW_SHA"
+# From here on any failure — a pull, the migration, `up` — puts the previous version back: otherwise .env
+# would name a version that never passed the health check, and the next deploy would take it as the one
+# to roll back to.
+trap rollback ERR
+
 docker compose pull caddy api
 docker compose --profile migrate pull migrate
-docker compose --profile migrate run --rm migrate || rollback
+docker compose --profile migrate run --rm migrate
 docker compose up -d --remove-orphans
 
 deadline=$((SECONDS + HEALTH_TIMEOUT_SECONDS))
@@ -45,6 +50,7 @@ until docker compose exec -T api node dist/scripts/healthcheck.js >/dev/null 2>&
   sleep 3
 done
 
+trap - ERR
 echo "$PREV_SHA" > .previous_version
 docker image prune -f --filter "until=720h" >/dev/null
 echo "deploy: OK ($NEW_SHA)"
