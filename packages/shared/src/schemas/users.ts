@@ -1,14 +1,6 @@
 import { z } from 'zod';
-import { AUDIT_ACTIONS, AUDIT_ENTITY_TYPES, ROLES } from '../enums.js';
-import {
-  AT_LEAST_ONE_FIELD_ERROR,
-  IdParam,
-  PageQuery,
-  SearchQuery,
-  dateRange,
-  hasFieldBesidesVersion,
-  sortParam,
-} from './common.js';
+import { ROLES } from '../enums.js';
+import { AT_LEAST_ONE_FIELD_ERROR, PageQuery, SearchQuery, hasFieldBesidesVersion, sortParam } from './common.js';
 
 /** Usernames are lower-cased on the way in; the pattern is what `POST /api/users` enforces. */
 export const Username = z
@@ -59,14 +51,3 @@ export type UserPermissionsBody = z.infer<typeof UserPermissionsBody>;
 
 export const UserResetPasswordBody = z.strictObject({ newPassword: z.string().min(1).max(1024) });
 export type UserResetPasswordBody = z.infer<typeof UserResetPasswordBody>;
-
-export const AuditLogListQuery = z.strictObject({
-  page: z.coerce.number().int().min(1).default(1),
-  pageSize: z.coerce.number().int().min(1).max(100).default(50),
-  userId: IdParam.optional(),
-  entityType: z.enum(AUDIT_ENTITY_TYPES).optional(),
-  entityId: z.string().max(64).optional(),
-  action: z.enum(AUDIT_ACTIONS).optional(),
-  ...dateRange,
-});
-export type AuditLogListQuery = z.infer<typeof AuditLogListQuery>;

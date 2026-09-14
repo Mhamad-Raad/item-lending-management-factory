@@ -19,5 +19,6 @@ export * from './schemas/orders.js';
 export * from './schemas/returns.js';
 export * from './schemas/payments.js';
 export * from './schemas/reports.js';
+export * from './schemas/audit.js';
 export * from './schemas/dto.js';
 export * from './schemas/zod-issues.js';

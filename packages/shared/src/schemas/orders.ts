@@ -1,9 +1,8 @@
 import { z } from 'zod';
-import { LEDGER_ENTRY_TYPES, PAYMENT_TYPES, type LedgerEntryType } from '../enums.js';
+import { PAYMENT_TYPES } from '../enums.js';
 import {
   BusinessDate,
   Id,
-  BoolQuery,
   IdParam,
   Money,
   PageQuery,
@@ -85,22 +84,3 @@ export type OrderUpdateBody = z.infer<typeof OrderUpdateBody>;
 
 export const OrderCancelBody = z.strictObject({ version: Version });
 export type OrderCancelBody = z.infer<typeof OrderCancelBody>;
-
-/** A comma list of ledger entry types (`PAYMENT,PAYMENT_REVERSAL`); absent means every type. */
-const LedgerTypeList = z
-  .string()
-  .transform((value) => value.split(',').map((part) => part.trim()))
-  .pipe(z.array(z.enum(LEDGER_ENTRY_TYPES)).min(1))
-  .transform((types) => [...new Set(types)] as LedgerEntryType[]);
-
-export const LedgerEntryListQuery = z.strictObject({
-  ...PageQuery,
-  customerId: IdParam.optional(),
-  orderId: IdParam.optional(),
-  type: LedgerTypeList.optional(),
-  /** On the effective date: the row's own, or its order's for the automatic payment. */
-  ...dateRange,
-  includeCancelledOrders: BoolQuery.default(false),
-  sort: sortParam(['effectiveDate', 'createdAt', 'amount'], '-effectiveDate'),
-});
-export type LedgerEntryListQuery = z.infer<typeof LedgerEntryListQuery>;
