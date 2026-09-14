@@ -12,7 +12,7 @@ import { HandCoins, Loader2 } from 'lucide-react';
 import { Controller, useForm, useWatch } from 'react-hook-form';
 import { useTranslation } from 'react-i18next';
 import { toast } from 'sonner';
-import { DatePicker } from '@/components/app/date-picker';
+import { DateField } from '@/components/app/date-field';
 import { Field, FieldError, FieldLabel } from '@/components/app/field';
 import { MoneyText } from '@/components/app/money-text';
 import { MoneyInput, QuantityInput } from '@/components/app/numeric-input';
@@ -325,26 +325,7 @@ export function ReturnForm({ order, replaceReturnId }: { order: OrderDetailDto; 
 
         <Card>
           <CardContent className="grid grid-cols-1 gap-4 md:grid-cols-2">
-            <Field>
-              <FieldLabel htmlFor="date">{t('returns.fields.date')}</FieldLabel>
-              <Controller
-                control={form.control}
-                name="date"
-                render={({ field }) => (
-                  <DatePicker
-                    id="date"
-                    value={field.value}
-                    onChange={field.onChange}
-                    onBlur={field.onBlur}
-                    min={order.date}
-                    max={businessToday()}
-                    invalid={Boolean(errors.date)}
-                    describedBy="date-error"
-                  />
-                )}
-              />
-              <FieldError id="date-error" message={errors.date?.message} />
-            </Field>
+            <DateField control={form.control} name="date" id="date" label={t('returns.fields.date')} min={order.date} />
             <Field className="md:col-span-2">
               <FieldLabel htmlFor="notes">{t('returns.fields.notes')}</FieldLabel>
               <Textarea id="notes" rows={2} maxLength={1000} {...form.register('notes')} />

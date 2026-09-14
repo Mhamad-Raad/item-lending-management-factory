@@ -14,7 +14,7 @@ import { Controller, useForm } from 'react-hook-form';
 import { useTranslation } from 'react-i18next';
 import { toast } from 'sonner';
 import { z } from 'zod';
-import { DatePicker } from '@/components/app/date-picker';
+import { DateField } from '@/components/app/date-field';
 import { Field, FieldError, FieldLabel } from '@/components/app/field';
 import { MoneyInput, QuantityInput } from '@/components/app/numeric-input';
 import { Button } from '@/components/ui/button';
@@ -124,25 +124,13 @@ export function BatchDialog({
           <DialogTitle>{t(batch ? 'purchases.editTitle' : 'purchases.newTitle')}</DialogTitle>
         </DialogHeader>
         <form onSubmit={form.handleSubmit((values) => save.mutate(values))} className="flex flex-col gap-4" noValidate>
-          <Field>
-            <FieldLabel htmlFor="batch-date">{t('purchases.fields.date')}</FieldLabel>
-            <Controller
-              control={form.control}
-              name="date"
-              render={({ field }) => (
-                <DatePicker
-                  id="batch-date"
-                  value={field.value}
-                  onChange={(value) => field.onChange(value ?? undefined)}
-                  onBlur={field.onBlur}
-                  max={businessToday()}
-                  invalid={Boolean(errors.date)}
-                  describedBy="batch-date-error"
-                />
-              )}
-            />
-            <FieldError id="batch-date-error" message={errors.date?.message} />
-          </Field>
+          <DateField
+            control={form.control}
+            name="date"
+            id="batch-date"
+            label={t('purchases.fields.date')}
+            clearsToUndefined
+          />
           <Field>
             <FieldLabel htmlFor="batch-quantity">{t('purchases.fields.quantity')}</FieldLabel>
             <Controller

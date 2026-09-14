@@ -1,4 +1,5 @@
 import type { OrderListItemDto } from '@pallet/shared';
+import { Link } from '@tanstack/react-router';
 import type { DataColumn } from '@/components/app/data-table';
 import { DateText } from '@/components/app/date-text';
 import { MoneyText } from '@/components/app/money-text';
@@ -61,3 +62,12 @@ export const ORDER_COLUMNS: DataColumn<OrderListItemDto>[] = [
   },
   { id: 'status', header: 'orders.fields.status', cell: (order) => <StatusBadge status={order.status} /> },
 ];
+
+/** The first cell of an order row: a link to the order, the row's tab stop (§7.15). */
+export function orderRowLink(order: OrderListItemDto, children: React.ReactNode) {
+  return (
+    <Link to="/orders/$orderId" params={{ orderId: String(order.id) }} className="underline-offset-4 hover:underline">
+      {children}
+    </Link>
+  );
+}

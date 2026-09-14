@@ -1,28 +1,19 @@
 import { zodResolver } from '@hookform/resolvers/zod';
-import {
-  businessToday,
-  checkCreditLimit,
-  MIN_BUSINESS_DATE,
-  type OrderDetailDto,
-  type OrderUpdateBody,
-} from '@pallet/shared';
+import { checkCreditLimit, type OrderDetailDto, type OrderUpdateBody } from '@pallet/shared';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useNavigate } from '@tanstack/react-router';
 import { Loader2 } from 'lucide-react';
 import { useState } from 'react';
-import { Controller, useForm, useWatch } from 'react-hook-form';
+import { useForm, useWatch } from 'react-hook-form';
 import { useTranslation } from 'react-i18next';
 import { toast } from 'sonner';
 import { ConfirmDialog } from '@/components/app/confirm-dialog';
-import { DatePicker } from '@/components/app/date-picker';
-import { EntityCombobox } from '@/components/app/entity-combobox';
-import { Field, FieldDescription, FieldError, FieldLabel } from '@/components/app/field';
+import { FieldDescription } from '@/components/app/field';
 import { MoneyText } from '@/components/app/money-text';
 import { SummaryPanel } from '@/components/app/summary-panel';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
-import { Textarea } from '@/components/ui/textarea';
 import { customerQuery } from '@/features/customers/api';
 import { useUnsavedChangesGuard } from '@/hooks/use-unsaved-changes-guard';
 import { apiFetch } from '@/lib/api-client';
@@ -37,6 +28,7 @@ import { OrderFormSchema, useOrderItems, type OrderFormValues } from './order-fo
 import { OrderLinesEditor } from './order-lines-editor';
 import { asOrderLines, depositTotalOf, toRequestLines, type LineRow } from './order-lines';
 import { OrderLinesTable } from './order-sections';
+import { OrderDateField, OrderDriverField, OrderNotesField } from './order-fields';
 
 /** A line set as the server compares it: by item, with each line's deposit. */
 function lineKey(
@@ -80,7 +72,6 @@ export function EditOrderForm({ order }: { order: OrderDetailDto }) {
     control: form.control,
     name: ['driverId', 'date', 'notes', 'lines'],
   });
-  const errors = form.formState.errors;
   const guard = useUnsavedChangesGuard(form.formState.isDirty);
 
   const items = useOrderItems(rows.map((row) => row.itemId));
@@ -213,49 +204,9 @@ export function EditOrderForm({ order }: { order: OrderDetailDto }) {
               </span>
               <FieldDescription>{t('orders.edit.immutableHint')}</FieldDescription>
             </div>
-            <Field>
-              <FieldLabel htmlFor="driverId">{t('orders.fields.driver')}</FieldLabel>
-              <Controller
-                control={form.control}
-                name="driverId"
-                render={({ field }) => (
-                  <EntityCombobox
-                    id="driverId"
-                    kind="driver"
-                    value={field.value}
-                    onChange={field.onChange}
-                    invalid={Boolean(errors.driverId)}
-                    placeholder={t('orders.fields.chooseDriver')}
-                  />
-                )}
-              />
-              <FieldError id="driverId-error" message={errors.driverId?.message} />
-            </Field>
-            <Field>
-              <FieldLabel htmlFor="date">{t('orders.fields.date')}</FieldLabel>
-              <Controller
-                control={form.control}
-                name="date"
-                render={({ field }) => (
-                  <DatePicker
-                    id="date"
-                    value={field.value}
-                    onChange={field.onChange}
-                    onBlur={field.onBlur}
-                    min={MIN_BUSINESS_DATE}
-                    max={businessToday()}
-                    invalid={Boolean(errors.date)}
-                    describedBy="date-error"
-                  />
-                )}
-              />
-              <FieldError id="date-error" message={errors.date?.message} />
-            </Field>
-            <Field className="md:col-span-2">
-              <FieldLabel htmlFor="notes">{t('orders.fields.notes')}</FieldLabel>
-              <Textarea id="notes" rows={3} aria-describedby="notes-error" {...form.register('notes')} />
-              <FieldError id="notes-error" message={errors.notes?.message} />
-            </Field>
+            <OrderDriverField form={form} />
+            <OrderDateField form={form} />
+            <OrderNotesField form={form} className="md:col-span-2" />
           </CardContent>
         </Card>
 

@@ -21,7 +21,7 @@ import { EmptyState, PageSkeleton, QueryErrorState } from '@/components/app/stat
 import { StatusBadge } from '@/components/app/status-badge';
 import { Badge } from '@/components/ui/badge';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { ORDER_COLUMNS } from '@/features/orders/order-columns';
+import { ORDER_COLUMNS, orderRowLink } from '@/features/orders/order-columns';
 import { orderLabel } from '@/features/orders/order-text';
 import { PaymentTypeText } from '@/features/orders/payment-type-text';
 import { apiFetch } from '@/lib/api-client';
@@ -72,15 +72,7 @@ export function CustomerOrdersTab({ customerId }: { customerId: number }) {
           columns={ORDER_COLUMNS.filter((column) => column.id !== 'customer')}
           rows={orders.data.items}
           rowKey={(order) => order.id}
-          rowLink={(order, children) => (
-            <Link
-              to="/orders/$orderId"
-              params={{ orderId: String(order.id) }}
-              className="underline-offset-4 hover:underline"
-            >
-              {children}
-            </Link>
-          )}
+          rowLink={orderRowLink}
           total={orders.data.total}
           page={orders.data.page}
           pageSize={orders.data.pageSize}

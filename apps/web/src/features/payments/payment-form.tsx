@@ -12,7 +12,7 @@ import { Loader2 } from 'lucide-react';
 import { Controller, useForm, useWatch } from 'react-hook-form';
 import { useTranslation } from 'react-i18next';
 import { toast } from 'sonner';
-import { DatePicker } from '@/components/app/date-picker';
+import { DateField } from '@/components/app/date-field';
 import { Field, FieldError, FieldLabel } from '@/components/app/field';
 import { MoneyText } from '@/components/app/money-text';
 import { MoneyInput } from '@/components/app/numeric-input';
@@ -144,26 +144,13 @@ export function PaymentForm({ order }: { order: OrderDetailDto }) {
               </div>
               <FieldError id="amount-error" message={errors.amount?.message} />
             </Field>
-            <Field>
-              <FieldLabel htmlFor="date">{t('payments.fields.date')}</FieldLabel>
-              <Controller
-                control={form.control}
-                name="date"
-                render={({ field }) => (
-                  <DatePicker
-                    id="date"
-                    value={field.value}
-                    onChange={field.onChange}
-                    onBlur={field.onBlur}
-                    min={order.date}
-                    max={businessToday()}
-                    invalid={Boolean(errors.date)}
-                    describedBy="date-error"
-                  />
-                )}
-              />
-              <FieldError id="date-error" message={errors.date?.message} />
-            </Field>
+            <DateField
+              control={form.control}
+              name="date"
+              id="date"
+              label={t('payments.fields.date')}
+              min={order.date}
+            />
             <Field>
               <FieldLabel htmlFor="note">{t('payments.fields.note')}</FieldLabel>
               <Input id="note" maxLength={500} aria-describedby="note-error" {...form.register('note')} />

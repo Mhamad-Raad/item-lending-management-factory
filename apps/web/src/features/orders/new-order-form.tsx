@@ -3,7 +3,6 @@ import {
   businessToday,
   checkCreditLimit,
   formatOrderNumber,
-  MIN_BUSINESS_DATE,
   type OrderCreateBody,
   type OrderDetailDto,
 } from '@pallet/shared';
@@ -15,7 +14,6 @@ import { Controller, useForm, useWatch } from 'react-hook-form';
 import { useTranslation } from 'react-i18next';
 import { toast } from 'sonner';
 import { ConfirmDialog } from '@/components/app/confirm-dialog';
-import { DatePicker } from '@/components/app/date-picker';
 import { EntityCombobox } from '@/components/app/entity-combobox';
 import { Field, FieldError, FieldLabel } from '@/components/app/field';
 import { MoneyText } from '@/components/app/money-text';
@@ -23,7 +21,6 @@ import { SegmentedRadio } from '@/components/app/segmented-radio';
 import { SummaryPanel } from '@/components/app/summary-panel';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
-import { Textarea } from '@/components/ui/textarea';
 import { customerQuery } from '@/features/customers/api';
 import { useUnsavedChangesGuard } from '@/hooks/use-unsaved-changes-guard';
 import { apiFetch } from '@/lib/api-client';
@@ -39,6 +36,7 @@ import { creditMessageParams, type CreditExcess } from './order-text';
 import { OrderFormSchema, useOrderItems, type OrderFormValues } from './order-form';
 import { OrderLinesEditor } from './order-lines-editor';
 import { EMPTY_LINE, asOrderLines, depositTotalOf, toRequestLines } from './order-lines';
+import { OrderDateField, OrderDriverField, OrderNotesField } from './order-fields';
 
 /** Daily flow 1 (§7.4.1): a hand-over on one screen, with its totals and the credit rule live. */
 export function NewOrderForm({ initialCustomerId }: { initialCustomerId?: number }) {
@@ -206,44 +204,8 @@ export function NewOrderForm({ initialCustomerId }: { initialCustomerId?: number
               />
               <FieldError id="customerId-error" message={errors.customerId?.message} />
             </Field>
-            <Field>
-              <FieldLabel htmlFor="driverId">{t('orders.fields.driver')}</FieldLabel>
-              <Controller
-                control={form.control}
-                name="driverId"
-                render={({ field }) => (
-                  <EntityCombobox
-                    id="driverId"
-                    kind="driver"
-                    value={field.value}
-                    onChange={field.onChange}
-                    invalid={Boolean(errors.driverId)}
-                    placeholder={t('orders.fields.chooseDriver')}
-                  />
-                )}
-              />
-              <FieldError id="driverId-error" message={errors.driverId?.message} />
-            </Field>
-            <Field>
-              <FieldLabel htmlFor="date">{t('orders.fields.date')}</FieldLabel>
-              <Controller
-                control={form.control}
-                name="date"
-                render={({ field }) => (
-                  <DatePicker
-                    id="date"
-                    value={field.value}
-                    onChange={field.onChange}
-                    onBlur={field.onBlur}
-                    min={MIN_BUSINESS_DATE}
-                    max={businessToday()}
-                    invalid={Boolean(errors.date)}
-                    describedBy="date-error"
-                  />
-                )}
-              />
-              <FieldError id="date-error" message={errors.date?.message} />
-            </Field>
+            <OrderDriverField form={form} />
+            <OrderDateField form={form} />
             <Field className="md:col-span-2">
               <FieldLabel htmlFor="paymentType">{t('orders.fields.paymentType')}</FieldLabel>
               <Controller
@@ -278,11 +240,7 @@ export function NewOrderForm({ initialCustomerId }: { initialCustomerId?: number
 
         <Card>
           <CardContent>
-            <Field>
-              <FieldLabel htmlFor="notes">{t('orders.fields.notes')}</FieldLabel>
-              <Textarea id="notes" rows={3} aria-describedby="notes-error" {...form.register('notes')} />
-              <FieldError id="notes-error" message={errors.notes?.message} />
-            </Field>
+            <OrderNotesField form={form} />
           </CardContent>
         </Card>
       </form>

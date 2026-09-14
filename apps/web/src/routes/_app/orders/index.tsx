@@ -14,7 +14,7 @@ import { PageSkeleton, QueryErrorState } from '@/components/app/states';
 import { Button } from '@/components/ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { ORDER_COLUMNS } from '@/features/orders/order-columns';
+import { ORDER_COLUMNS, orderRowLink } from '@/features/orders/order-columns';
 import { usePageTitle } from '@/hooks/use-page-title';
 import { useSearchInput } from '@/hooks/use-search-input';
 import { apiFetch } from '@/lib/api-client';
@@ -201,15 +201,7 @@ function OrdersPage() {
           columns={ORDER_COLUMNS}
           rows={orders.data.items}
           rowKey={(order) => order.id}
-          rowLink={(order, children) => (
-            <Link
-              to="/orders/$orderId"
-              params={{ orderId: String(order.id) }}
-              className="underline-offset-4 hover:underline"
-            >
-              {children}
-            </Link>
-          )}
+          rowLink={orderRowLink}
           total={orders.data.total}
           page={orders.data.page}
           pageSize={orders.data.pageSize}
