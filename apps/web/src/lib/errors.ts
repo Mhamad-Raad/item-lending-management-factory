@@ -1,7 +1,9 @@
+import { formatNumber } from '@pallet/shared';
 import type { FieldValues, UseFormSetError, Path } from 'react-hook-form';
 import { toast } from 'sonner';
 import i18n from '@/i18n';
 import { ApiError } from './api-error';
+import { isolate } from './bidi';
 import { refreshMe } from './auth';
 import { fieldErrorMessage } from './validation-message';
 import { versionConflictStore } from './version-conflict';
@@ -63,5 +65,23 @@ export function handleApiError<T extends FieldValues>(error: unknown, context: E
     void refreshMe().catch(() => undefined);
   }
 
-  toast.error(i18n.t(`errors.${error.code}`, { ...error.details }));
+  const message = i18n.t(`errors.${error.code}`, formatDetails(error.details));
+  // A failure the user cannot fix gets the request's reference, which is what makes it traceable in the logs.
+  if (SERVER_FAILURES.has(error.code) && error.requestId) {
+    toast.error(message, { description: i18n.t('common.errorReference', { id: isolate(error.requestId) }) });
+  } else {
+    toast.error(message);
+  }
+}
+
+const SERVER_FAILURES = new Set<string>(['INTERNAL_ERROR', 'SERVICE_UNAVAILABLE', 'UNKNOWN_ERROR']);
+
+/** Numbers in an error's details are written as the app writes numbers (§7.10): Western digits, grouped. */
+function formatDetails(details: Record<string, unknown> | undefined): Record<string, unknown> {
+  return Object.fromEntries(
+    Object.entries(details ?? {}).map(([key, value]) => [
+      key,
+      typeof value === 'number' && Number.isFinite(value) ? formatNumber(value) : value,
+    ]),
+  );
 }

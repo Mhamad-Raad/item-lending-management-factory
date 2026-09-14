@@ -57,7 +57,8 @@
       "search": "اكتب للبحث",
       "empty": "لا توجد نتائج",
       "loading": "جارٍ التحميل…",
-      "itemDetail": "في المخزن {{onHand}} · التأمين {{deposit}}"
+      "itemDetail": "في المخزن {{onHand}} · التأمين {{deposit}}",
+      "failed": "فشل البحث."
     },
     "datePicker": {
       "open": "فتح التقويم",
@@ -104,7 +105,9 @@
     "filters": {
       "title": "عوامل التصفية"
     },
-    "notifications": "الإشعارات"
+    "notifications": "الإشعارات",
+    "errorReference": "المرجع: {{id}}",
+    "loading": "جارٍ التحميل…"
   },
   "nav": {
     "primary": "التنقل الرئيسي",
@@ -527,8 +530,8 @@
     "VERSION_CONFLICT": "غيّر شخص آخر هذا السجل. أعد التحميل لرؤية أحدث نسخة.",
     "PAYLOAD_TOO_LARGE": "البيانات المرسلة كبيرة جداً",
     "RATE_LIMITED": "محاولات كثيرة. حاول بعد {{retryAfterSeconds}} ثانية.",
-    "INTERNAL_ERROR": "حدث خطأ في الخادم",
-    "SERVICE_UNAVAILABLE": "الخدمة غير متاحة",
+    "INTERNAL_ERROR": "حدث خطأ في الخادم. حاول مرة أخرى، وإذا تكرر فأبلغ المسؤول.",
+    "SERVICE_UNAVAILABLE": "الخدمة غير متاحة الآن. حاول مرة أخرى بعد قليل.",
     "BUSINESS_DATE_IN_FUTURE": "لا يمكن أن يكون التاريخ في المستقبل",
     "DATE_RANGE_INVALID": "تاريخ البداية بعد تاريخ النهاية",
     "AUTH_REQUIRED": "يرجى تسجيل الدخول",
@@ -576,18 +579,18 @@
     "ORDER_CANCELLED": "هذا الطلب ملغى",
     "ORDER_HAS_ACTIVITY": "لهذا الطلب إرجاعات أو دفعات",
     "ORDER_DATE_AFTER_ACTIVITY": "التاريخ بعد إرجاع أو دفعة على هذا الطلب",
-    "CREDIT_LIMIT_EXCEEDED": "هذا يتجاوز حد الائتمان بمقدار {{excess}}",
+    "CREDIT_LIMIT_EXCEEDED": "هذا يتجاوز حد الائتمان بمقدار {{excess}} دينار.",
     "UNIT_DEPOSIT_NOT_PERMITTED": "لا يُسمح لك بتغيير التأمين لكل منصة",
     "RETURN_NOT_FOUND": "الإرجاع غير موجود",
     "RETURN_EMPTY": "أدخل منصة واحدة على الأقل",
     "RETURN_LINE_NOT_IN_ORDER": "هذا الصنف ليس في الطلب",
     "RETURN_DUPLICATE_LINE": "الصنف نفسه مكرر",
-    "RETURN_EXCEEDS_OUT": "منصات أكثر مما هو خارج",
+    "RETURN_EXCEEDS_OUT": "هذا الإرجاع يتضمن منصات أكثر مما بقي خارجًا من الطلب.",
     "DAMAGED_REFUND_TOO_HIGH": "استرداد التالف أعلى من التأمين",
     "RETURN_ALREADY_REVERSED": "هذا الإرجاع عُكس بالفعل",
     "RETURN_DATE_BEFORE_ORDER_DATE": "تاريخ الإرجاع قبل الطلب",
     "PAYMENT_ORDER_NOT_LENT": "هذا الطلب مدفوع نقداً",
-    "PAYMENT_EXCEEDS_OWED": "أكثر من المبلغ المستحق",
+    "PAYMENT_EXCEEDS_OWED": "هذه الدفعة أكبر من المبلغ المستحق المتبقي.",
     "PAYMENT_DATE_BEFORE_ORDER_DATE": "تاريخ الدفعة قبل الطلب",
     "LEDGER_ENTRY_NOT_FOUND": "القيد المالي غير موجود",
     "LEDGER_ENTRY_NOT_REVERSIBLE": "لا يمكن عكس هذا القيد",
@@ -595,8 +598,8 @@
     "IDEMPOTENCY_KEY_REQUIRED": "الطلب ينقصه مفتاح الأمان",
     "IDEMPOTENCY_KEY_INVALID": "مفتاح أمان الطلب غير صالح",
     "IDEMPOTENCY_KEY_REUSED": "استُخدم هذا المفتاح لطلب مختلف",
-    "NETWORK_ERROR": "لا يوجد اتصال بالخادم",
-    "UNKNOWN_ERROR": "حدث خطأ ما",
+    "NETWORK_ERROR": "لا يوجد اتصال بالخادم. تحقق من الاتصال وحاول مرة أخرى.",
+    "UNKNOWN_ERROR": "حدث خطأ ما. حاول مرة أخرى.",
     "ORDER_LINE_HAS_RETURNS": "لهذا السطر مرتجعات في سجله ولا يمكن حذفه؛ خفّض كميته بدلاً من ذلك"
   },
   "settings": {
@@ -865,7 +868,8 @@
         "paysNow": "يدفع الزبون هذا الآن",
         "willOwe": "سيبقى هذا ديناً على الزبون",
         "headroomAfter": "الائتمان المتبقي بعده"
-      }
+      },
+      "creditUnavailable": "تعذر التحقق من حد ائتمان الزبون هنا؛ ويبقى يُتحقق منه عند الحفظ."
     },
     "detail": {
       "title": "الطلب",

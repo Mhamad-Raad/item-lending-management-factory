@@ -3,6 +3,7 @@ import { useTranslation } from 'react-i18next';
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
 import { ApiError } from '@/lib/api-error';
+import { isolate } from '@/lib/bidi';
 
 /** Shown until the first successful response; a background refetch never replaces content. */
 export function PageSkeleton({ rows = 5 }: { rows?: number }) {
@@ -58,7 +59,9 @@ export function QueryErrorState({
   return (
     <div role="alert" className="flex flex-col items-start gap-3 rounded-lg border p-6">
       <p className="font-medium">{t(`errors.${code}`)}</p>
-      {requestId ? <p className="text-muted-foreground font-mono text-xs">{requestId}</p> : null}
+      {requestId ? (
+        <p className="text-muted-foreground text-xs">{t('common.errorReference', { id: isolate(requestId) })}</p>
+      ) : null}
       <Button variant="outline" onClick={onRetry}>
         {t('common.actions.retry')}
       </Button>

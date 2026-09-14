@@ -57,7 +57,8 @@
       "search": "Type to search",
       "empty": "Nothing found",
       "loading": "Loading…",
-      "itemDetail": "On hand {{onHand}} · deposit {{deposit}}"
+      "itemDetail": "On hand {{onHand}} · deposit {{deposit}}",
+      "failed": "The search failed."
     },
     "datePicker": {
       "open": "Open calendar",
@@ -104,7 +105,9 @@
     "filters": {
       "title": "Filters"
     },
-    "notifications": "Notifications"
+    "notifications": "Notifications",
+    "errorReference": "Reference: {{id}}",
+    "loading": "Loading…"
   },
   "nav": {
     "primary": "Main navigation",
@@ -527,8 +530,8 @@
     "VERSION_CONFLICT": "Someone else changed this record. Reload to see the latest version.",
     "PAYLOAD_TOO_LARGE": "The data sent is too large",
     "RATE_LIMITED": "Too many attempts. Try again in {{retryAfterSeconds}} seconds.",
-    "INTERNAL_ERROR": "Something went wrong on the server",
-    "SERVICE_UNAVAILABLE": "The service is unavailable",
+    "INTERNAL_ERROR": "Something went wrong on the server. Try again; if it keeps happening, tell your administrator.",
+    "SERVICE_UNAVAILABLE": "The service is unavailable right now. Try again in a moment.",
     "BUSINESS_DATE_IN_FUTURE": "The date cannot be in the future",
     "DATE_RANGE_INVALID": "The start date is after the end date",
     "AUTH_REQUIRED": "Please sign in",
@@ -576,18 +579,18 @@
     "ORDER_CANCELLED": "This order is cancelled",
     "ORDER_HAS_ACTIVITY": "This order already has returns or payments",
     "ORDER_DATE_AFTER_ACTIVITY": "The date is after a return or payment on this order",
-    "CREDIT_LIMIT_EXCEEDED": "This exceeds the credit limit by {{excess}}",
+    "CREDIT_LIMIT_EXCEEDED": "This exceeds the credit limit by {{excess}} IQD.",
     "UNIT_DEPOSIT_NOT_PERMITTED": "You may not change the deposit per pallet",
     "RETURN_NOT_FOUND": "Return not found",
     "RETURN_EMPTY": "Enter at least one pallet",
     "RETURN_LINE_NOT_IN_ORDER": "This item is not on the order",
     "RETURN_DUPLICATE_LINE": "The same item appears twice",
-    "RETURN_EXCEEDS_OUT": "More pallets than are still out",
+    "RETURN_EXCEEDS_OUT": "This return lists more pallets than are still out on the order.",
     "DAMAGED_REFUND_TOO_HIGH": "The damaged refund is higher than the deposit",
     "RETURN_ALREADY_REVERSED": "This return was already reversed",
     "RETURN_DATE_BEFORE_ORDER_DATE": "The return is dated before the order",
     "PAYMENT_ORDER_NOT_LENT": "This order was paid in cash",
-    "PAYMENT_EXCEEDS_OWED": "More than the amount owed",
+    "PAYMENT_EXCEEDS_OWED": "This payment is more than the amount still owed.",
     "PAYMENT_DATE_BEFORE_ORDER_DATE": "The payment is dated before the order",
     "LEDGER_ENTRY_NOT_FOUND": "Money entry not found",
     "LEDGER_ENTRY_NOT_REVERSIBLE": "This entry cannot be reversed",
@@ -595,8 +598,8 @@
     "IDEMPOTENCY_KEY_REQUIRED": "The request is missing its safety key",
     "IDEMPOTENCY_KEY_INVALID": "The safety key of the request is not valid",
     "IDEMPOTENCY_KEY_REUSED": "This key was used for a different request",
-    "NETWORK_ERROR": "No connection to the server",
-    "UNKNOWN_ERROR": "Something went wrong",
+    "NETWORK_ERROR": "No connection to the server. Check the connection and try again.",
+    "UNKNOWN_ERROR": "Something went wrong. Try again.",
     "ORDER_LINE_HAS_RETURNS": "This line has returns in its history and cannot be removed; lower its quantity instead"
   },
   "settings": {
@@ -865,7 +868,8 @@
         "paysNow": "The customer pays this now",
         "willOwe": "The customer will owe this",
         "headroomAfter": "Credit left after"
-      }
+      },
+      "creditUnavailable": "The customer's credit limit could not be checked here; it is still checked when you save."
     },
     "detail": {
       "title": "Order",

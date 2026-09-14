@@ -36,7 +36,7 @@ import { creditMessageParams, type CreditExcess } from './order-text';
 import { OrderFormSchema, useOrderItems, type OrderFormValues } from './order-form';
 import { OrderLinesEditor } from './order-lines-editor';
 import { EMPTY_LINE, asOrderLines, depositTotalOf, toRequestLines } from './order-lines';
-import { OrderDateField, OrderDriverField, OrderNotesField } from './order-fields';
+import { CreditCheckUnavailable, OrderDateField, OrderDriverField, OrderNotesField } from './order-fields';
 
 /** Daily flow 1 (§7.4.1): a hand-over on one screen, with its totals and the credit rule live. */
 export function NewOrderForm({ initialCustomerId }: { initialCustomerId?: number }) {
@@ -204,6 +204,7 @@ export function NewOrderForm({ initialCustomerId }: { initialCustomerId?: number
               />
               <FieldError id="customerId-error" message={errors.customerId?.message} />
             </Field>
+            <CreditCheckUnavailable failed={customerId !== null && customer.isError} />
             <OrderDriverField form={form} />
             <OrderDateField form={form} />
             <Field className="md:col-span-2">

@@ -77,7 +77,13 @@ function ReceiptPage() {
           stylesheet, the build folds them into the app's CSS and every page wears them. */}
       <style>{receiptStyles}</style>
       {toolbar}
-      {receipt.data ? <Receipt receipt={receipt.data} onLogoSettled={settleLogo} /> : null}
+      {receipt.data ? (
+        <Receipt receipt={receipt.data} onLogoSettled={settleLogo} />
+      ) : (
+        <p role="status" className="text-muted-foreground p-8 text-center print:hidden">
+          {t('common.loading')}
+        </p>
+      )}
     </>
   );
 }

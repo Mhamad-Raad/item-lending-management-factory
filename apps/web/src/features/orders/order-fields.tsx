@@ -4,6 +4,7 @@ import { useTranslation } from 'react-i18next';
 import { DateField } from '@/components/app/date-field';
 import { EntityCombobox } from '@/components/app/entity-combobox';
 import { Field, FieldError, FieldLabel } from '@/components/app/field';
+import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Textarea } from '@/components/ui/textarea';
 import type { OrderFormValues } from './order-form';
 
@@ -48,5 +49,19 @@ export function OrderNotesField({ form, className }: { form: UseFormReturn<Order
       <Textarea id="notes" rows={3} aria-describedby="notes-error" {...form.register('notes')} />
       <FieldError id="notes-error" message={form.formState.errors.notes?.message} />
     </Field>
+  );
+}
+
+/**
+ * Shown when the customer could not be loaded: the live credit check has nothing to go on, so it says so rather than
+ * letting an order look within the limit. The server still checks the limit on save (§4.4).
+ */
+export function CreditCheckUnavailable({ failed }: { failed: boolean }) {
+  const { t } = useTranslation();
+  if (!failed) return null;
+  return (
+    <Alert className="md:col-span-2">
+      <AlertDescription>{t('orders.new.creditUnavailable')}</AlertDescription>
+    </Alert>
   );
 }

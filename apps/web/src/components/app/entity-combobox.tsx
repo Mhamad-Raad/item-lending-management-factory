@@ -116,7 +116,8 @@ export function EntityCombobox({
     staleTime: 60_000,
   });
 
-  const options = (matches.data?.items ?? [])
+  // A failed refetch hides the cached results rather than showing them under its error.
+  const options = (matches.isError ? [] : (matches.data?.items ?? []))
     .map((row) => toOption(kind, row, t))
     .filter((option) => !excludeIds.includes(option.id));
   const chosen = value !== null && selected.data ? toOption(kind, selected.data, t) : null;
@@ -160,10 +161,19 @@ export function EntityCombobox({
       <PopoverContent className="w-(--radix-popover-trigger-width) min-w-64 p-0">
         <Command shouldFilter={false}>
           <CommandInput value={search} onValueChange={setSearch} placeholder={t('common.combobox.search')} />
+          {matches.isError ? (
+            // A failed search is not an empty one: said outside the listbox, which may hold options only, with a retry.
+            <div role="alert" className="flex flex-col items-center gap-2 border-b py-4 text-sm">
+              <p>{t('common.combobox.failed')}</p>
+              <Button type="button" variant="outline" size="sm" onClick={() => void matches.refetch()}>
+                {t('common.actions.retry')}
+              </Button>
+            </div>
+          ) : null}
           <CommandList>
             {matches.isPending ? (
               <p className="text-muted-foreground py-6 text-center text-sm">{t('common.combobox.loading')}</p>
-            ) : (
+            ) : matches.isError ? null : (
               <CommandEmpty>{t('common.combobox.empty')}</CommandEmpty>
             )}
             {options.map((option) => (

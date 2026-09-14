@@ -28,7 +28,7 @@ import { OrderFormSchema, useOrderItems, type OrderFormValues } from './order-fo
 import { OrderLinesEditor } from './order-lines-editor';
 import { asOrderLines, depositTotalOf, toRequestLines, type LineRow } from './order-lines';
 import { OrderLinesTable } from './order-sections';
-import { OrderDateField, OrderDriverField, OrderNotesField } from './order-fields';
+import { CreditCheckUnavailable, OrderDateField, OrderDriverField, OrderNotesField } from './order-fields';
 
 /** A line set as the server compares it: by item, with each line's deposit. */
 function lineKey(
@@ -204,6 +204,7 @@ export function EditOrderForm({ order }: { order: OrderDetailDto }) {
               </span>
               <FieldDescription>{t('orders.edit.immutableHint')}</FieldDescription>
             </div>
+            <CreditCheckUnavailable failed={customer.isError} />
             <OrderDriverField form={form} />
             <OrderDateField form={form} />
             <OrderNotesField form={form} className="md:col-span-2" />
