@@ -4486,7 +4486,7 @@ apps/api/
 │   │   └── maintenance/          # hourly/daily cleanup jobs on plain unref'd timers, each also run once at startup so a restart never resets the countdown (login throttles, expired session families; idempotency keys from M3) — one API instance, so no scheduler library
 │   └── scripts/
 │       ├── migrate.ts            # prisma migrate deploy → grants.sql → first-run seed (idempotent); `--seed-only` for `pnpm db:seed`
-│       ├── seed-demo.ts          # dev-only realistic demo data through the domain services (added in M2)
+│       ├── seed-demo.ts          # dev-only realistic demo data through the domain services (`pnpm db:seed:demo`)
 │       ├── healthcheck.ts        # Docker HEALTHCHECK: GET http://127.0.0.1:3000/api/health, exit 0/1
 │       └── reconcile.ts          # recompute every order and every item stock from the ledgers; print differences; exit 1 on mismatch
 └── test/
@@ -4964,7 +4964,7 @@ Response shape superseded by the §6.9 DTO (Q42): the API sends that DTO, and fi
 
 There is no staging server; the quarterly restore test (§13.7) doubles as a rehearsal on a throw-away VPS.
 
-Local quick start: `corepack enable` → `pnpm install` → create `.env` at the repository root from the LOCAL DEVELOPMENT block of `.env.example` → `pnpm db:up` → `pnpm db:migrate` (applies the migrations and re-applies `grants.sql`, so the runtime role can read its tables) → `pnpm --filter @pallet/api build` → `pnpm db:seed` (first admin + settings; the `db:seed:demo` script that adds demo data is added in M2) → `pnpm dev` → open `http://localhost:5175`.
+Local quick start: `corepack enable` → `pnpm install` → create `.env` at the repository root from the LOCAL DEVELOPMENT block of `.env.example` → `pnpm db:up` → `pnpm db:migrate` (applies the migrations and re-applies `grants.sql`, so the runtime role can read its tables) → `pnpm --filter @pallet/api build` → `pnpm db:seed` (first admin + settings) → optionally, with the API stopped, `pnpm db:seed:demo` (two months of demo activity through the domain services, dated day by day; only on a database with no items, customers or orders yet; refused in production) → `pnpm dev` → open `http://localhost:5175`.
 
 ### 13.2 Environment variables
 

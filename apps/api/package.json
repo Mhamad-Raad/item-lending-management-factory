@@ -20,6 +20,7 @@
     "db:migrate": "prisma migrate dev && prisma db execute --file prisma/sql/grants.sql",
     "db:deploy": "prisma migrate deploy && prisma db execute --file prisma/sql/grants.sql",
     "db:seed": "node --enable-source-maps --env-file-if-exists=../../.env dist/scripts/migrate.js --seed-only",
+    "db:seed:demo": "node --enable-source-maps --env-file-if-exists=../../.env dist/scripts/seed-demo.js",
     "db:studio": "prisma studio",
     "reconcile": "node --enable-source-maps --env-file-if-exists=../../.env dist/scripts/reconcile.js"
   },

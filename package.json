@@ -22,6 +22,7 @@
     "db:migrate": "pnpm --filter @pallet/api db:migrate",
     "db:deploy": "pnpm --filter @pallet/api db:deploy",
     "db:seed": "pnpm --filter @pallet/api db:seed",
+    "db:seed:demo": "pnpm --filter @pallet/api db:seed:demo",
     "prepare": "husky"
   },
   "devDependencies": {
