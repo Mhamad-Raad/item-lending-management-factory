@@ -117,8 +117,19 @@ export const LANGUAGES = ['ckb', 'ar', 'en'] as const;
 export type Language = (typeof LANGUAGES)[number];
 export const RTL_LANGUAGES: readonly Language[] = ['ckb', 'ar'];
 
-export const THEMES = ['light', 'dark'] as const;
+/** How the screen is lit: a fixed choice, or whatever the device is set to (Q50). */
+export const THEMES = ['light', 'dark', 'system'] as const;
 export type Theme = (typeof THEMES)[number];
+/** What `system` resolves to on this device. */
+export type ResolvedTheme = Exclude<Theme, 'system'>;
+
+/** Colour themes (Q50): each derives the whole palette, light and dark, from a hue; every one keeps WCAG AA. */
+export const PALETTES = ['harbor', 'lagoon', 'forest', 'timber', 'clay', 'plum', 'graphite'] as const;
+export type Palette = (typeof PALETTES)[number];
+
+/** Typefaces (Q50), each verified to carry every Sorani letter and Latin with Western digits. */
+export const FONT_FAMILIES = ['inter', 'vazirmatn', 'plex', 'kufi', 'naskh'] as const;
+export type FontFamily = (typeof FONT_FAMILIES)[number];
 
 export const FONT_SIZES = ['sm', 'md', 'lg', 'xl'] as const;
 export type FontSize = (typeof FONT_SIZES)[number];

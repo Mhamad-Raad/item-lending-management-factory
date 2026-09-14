@@ -445,6 +445,10 @@ export async function mockApi(
 ): Promise<void> {
   await page.addInitScript(
     ([lang, colours]) => {
+      // Once per tab, so what a test picks on the page survives its reloads; a later mockApi call still wins.
+      const marker = `mock-prefs:${lang}:${colours}`;
+      if (window.sessionStorage.getItem(marker)) return;
+      window.sessionStorage.setItem(marker, '1');
       window.localStorage.setItem('pallet.prefs.v1', JSON.stringify({ language: lang, theme: colours }));
     },
     [language, theme] as const,

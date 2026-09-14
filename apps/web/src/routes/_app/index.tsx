@@ -15,7 +15,7 @@ import {
   XCircle,
   type LucideIcon,
 } from 'lucide-react';
-import { Undo2 } from '@/components/app/dir-icon';
+import { ChevronRight, Undo2 } from '@/components/app/dir-icon';
 import { useTranslation } from 'react-i18next';
 import { CountUp } from '@/components/app/count-up';
 import { DateText } from '@/components/app/date-text';
@@ -25,7 +25,6 @@ import { QuantityText } from '@/components/app/quantity-text';
 import { StatCard } from '@/components/app/stat-card';
 import { EmptyState, PageSkeleton, QueryErrorState } from '@/components/app/states';
 import { Badge } from '@/components/ui/badge';
-import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { orderLabel } from '@/features/orders/order-text';
 import { usePageTitle } from '@/hooks/use-page-title';
@@ -33,16 +32,17 @@ import { apiFetch } from '@/lib/api-client';
 import { useAuth, useCan } from '@/lib/auth';
 import { isolate } from '@/lib/bidi';
 import { qk } from '@/lib/query-keys';
+import { TONE_CHIP, type Tone } from '@/lib/tones';
 import { cn } from '@/lib/utils';
 
 export const Route = createFileRoute('/_app/')({ component: DashboardPage });
 
-const EVENT_ICONS: Record<ActivityEventKind, LucideIcon> = {
-  HANDOVER: PackageOpen,
-  CANCELLATION: XCircle,
-  RETURN: Undo2,
-  PAYMENT: Wallet,
-  REFUND: HandCoins,
+const EVENT_ICONS: Record<ActivityEventKind, { icon: LucideIcon; tone: Tone }> = {
+  HANDOVER: { icon: PackageOpen, tone: 'primary' },
+  CANCELLATION: { icon: XCircle, tone: 'destructive' },
+  RETURN: { icon: Undo2, tone: 'info' },
+  PAYMENT: { icon: Wallet, tone: 'success' },
+  REFUND: { icon: HandCoins, tone: 'warning' },
 };
 
 /**
@@ -62,9 +62,11 @@ function DashboardPage() {
   const can = { order: useCan('orders.create'), return: useCan('returns.create'), payment: useCan('payments.create') };
 
   const quickActions = [
-    can.order ? { to: '/orders/new', icon: Plus, label: t('orders.list.new') } : null,
-    can.return ? { to: '/returns/new', icon: Undo2, label: t('returns.new.title') } : null,
-    can.payment ? { to: '/payments/new', icon: Banknote, label: t('payments.new.title') } : null,
+    can.order ? { to: '/orders/new', icon: Plus, label: t('orders.list.new'), tone: 'primary' as const } : null,
+    can.return ? { to: '/returns/new', icon: Undo2, label: t('returns.new.title'), tone: 'info' as const } : null,
+    can.payment
+      ? { to: '/payments/new', icon: Banknote, label: t('payments.new.title'), tone: 'success' as const }
+      : null,
   ].filter((action) => action !== null);
 
   return (
@@ -77,12 +79,26 @@ function DashboardPage() {
       {quickActions.length > 0 ? (
         <section aria-label={t('dashboard.quick.title')} className="grid grid-cols-1 gap-3 sm:grid-cols-3">
           {quickActions.map((action) => (
-            <Button key={action.to} asChild size="lg" variant="outline" className="h-14 justify-start text-base">
-              <Link to={action.to}>
-                <action.icon aria-hidden />
-                {action.label}
-              </Link>
-            </Button>
+            <Link
+              key={action.to}
+              to={action.to}
+              className={cn(
+                // Presses in like a button (§7.14).
+                'group bg-card flex min-h-16 items-center gap-3 rounded-xl border p-3 text-base font-medium shadow-sm transition-[box-shadow,border-color,scale] active:scale-[0.98]',
+                'hover:border-primary/40 hover:shadow-md',
+                'focus-visible:ring-ring focus-visible:ring-offset-background focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:outline-none',
+              )}
+            >
+              <span
+                aria-hidden
+                className={cn('flex size-10 shrink-0 items-center justify-center rounded-lg', TONE_CHIP[action.tone])}
+              >
+                <action.icon className="size-5" />
+              </span>
+              {action.label}
+              {/* Points the reading direction: mirrored in Kurdish and Arabic. */}
+              <ChevronRight aria-hidden className="text-muted-foreground group-hover:text-foreground ms-auto size-4" />
+            </Link>
           ))}
         </section>
       ) : null}
@@ -110,18 +126,21 @@ function Figures({ data }: { data: DashboardDto }) {
         <>
           <StatCard
             icon={Package}
+            tone="info"
             label={t('dashboard.cards.palletsOut')}
             value={<CountUp value={data.positions.palletsOut} format="number" />}
             link={{ to: '/reports/positions' }}
           />
           <StatCard
             icon={ClipboardList}
+            tone="primary"
             label={t('dashboard.cards.owed')}
             value={<CountUp value={data.positions.owed} format="money" />}
             link={{ to: '/reports/positions', search: { sort: '-owed' } }}
           />
           <StatCard
             icon={Wallet}
+            tone="success"
             label={t('dashboard.cards.held')}
             value={<CountUp value={data.positions.held} format="money" />}
             link={{ to: '/reports/positions', search: { sort: '-held' } }}
@@ -131,6 +150,7 @@ function Figures({ data }: { data: DashboardDto }) {
       {data.lowStock ? (
         <StatCard
           icon={data.lowStock.count > 0 ? TriangleAlert : Package}
+          tone={data.lowStock.count > 0 ? 'warning' : 'success'}
           label={t('dashboard.cards.lowStock')}
           value={<CountUp value={data.lowStock.count} format="number" />}
           link={{ to: '/items', search: { lowStockOnly: true } }}
@@ -177,7 +197,7 @@ function RecentActivity({ events }: { events: ActivityEventDto[] }) {
         ) : (
           <ul aria-label={t('dashboard.recent.title')} className="flex flex-col divide-y">
             {events.map((event) => {
-              const Icon = EVENT_ICONS[event.kind];
+              const { icon: Icon, tone } = EVENT_ICONS[event.kind];
               return (
                 <li
                   key={`${event.kind}-${event.at}-${event.orderId}`}
@@ -185,8 +205,13 @@ function RecentActivity({ events }: { events: ActivityEventDto[] }) {
                   onClick={openOrderLink}
                   className={cn('cursor-pointer', event.reversed && 'opacity-60')}
                 >
-                  <div className="flex flex-wrap items-center gap-x-3 gap-y-1 py-2">
-                    <Icon className="text-muted-foreground size-4 shrink-0" aria-hidden />
+                  <div className="hover:bg-accent/50 -mx-2 flex flex-wrap items-center gap-x-3 gap-y-1 rounded-md px-2 py-2.5 transition-colors">
+                    <span
+                      aria-hidden
+                      className={cn('flex size-8 shrink-0 items-center justify-center rounded-md', TONE_CHIP[tone])}
+                    >
+                      <Icon className="size-4" />
+                    </span>
                     <span className="font-medium">{t(`enums.activityEventKind.${event.kind}`)}</span>
                     {event.reversed ? (
                       <Badge variant="secondary">

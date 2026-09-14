@@ -154,6 +154,8 @@ async function fillExampleOrder(page: Page): Promise<void> {
   // Enter in the last row's quantity adds a row instead of submitting.
   await page.locator('#lines-0-quantity').press('Enter');
   await expect(page.locator('#lines-1-item')).toBeFocused();
+  // The first row's list may still be fading out; its options would match the second row's too.
+  await expect(page.getByRole('listbox')).toHaveCount(0);
   await page.locator('#lines-1-item').click();
   await page.getByRole('option', { name: /Pallet B/ }).click();
   await page.locator('#lines-1-quantity').fill('10');

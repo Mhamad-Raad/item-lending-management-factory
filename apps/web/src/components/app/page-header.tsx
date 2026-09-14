@@ -15,7 +15,7 @@ export function PageHeader({
     <header className={cn('flex flex-wrap items-start justify-between gap-4', className)}>
       <div className="flex flex-col gap-1">
         {/* Titles are often a name someone typed: it keeps its own direction (§7.11). */}
-        <h1 className="text-2xl font-semibold">
+        <h1 className="text-2xl font-bold tracking-tight">
           <bdi>{title}</bdi>
         </h1>
         {description ? (

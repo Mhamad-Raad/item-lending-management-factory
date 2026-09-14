@@ -55,7 +55,8 @@ export function ListFilters({
     // The sheet is gone from this layout; left open, it would pop up again when the phone turns back.
     if (open) setOpen(false);
     return (
-      <div className="flex w-full flex-wrap items-end gap-3">
+      // A toolbar card of its own, so the filters read as one control set above the list.
+      <div className="bg-card flex w-full flex-wrap items-end gap-3 rounded-xl border p-3 shadow-sm">
         {search}
         {children}
       </div>

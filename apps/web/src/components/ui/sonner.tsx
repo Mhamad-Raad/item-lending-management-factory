@@ -1,7 +1,7 @@
 import type { CSSProperties } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Toaster as Sonner } from 'sonner';
-import { usePreferences } from '@/lib/preferences';
+import { usePreferences, useResolvedTheme } from '@/lib/preferences';
 
 /**
  * Sonner's rich colours drawn from the §7.12 tokens: its own palette misses AA (4.3 : 1 for success in
@@ -23,7 +23,8 @@ const RICH_COLOURS = Object.fromEntries([
 /** Top-centre in both directions, so the toast never covers the primary action (§7.11). */
 export function Toaster() {
   const { t } = useTranslation();
-  const { language, theme } = usePreferences();
+  const { language } = usePreferences();
+  const theme = useResolvedTheme();
 
   return (
     <Sonner

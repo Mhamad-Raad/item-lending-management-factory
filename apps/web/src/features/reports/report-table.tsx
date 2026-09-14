@@ -64,9 +64,9 @@ export function ReportTable<T>({
   return (
     // A scroll box of its own on screen, so the header and totals can stick to it; on paper the table
     // runs its full length.
-    <div className="max-h-[calc(100dvh-14rem)] max-w-full overflow-auto rounded-md border print:max-h-none print:overflow-visible">
+    <div className="bg-card max-h-[calc(100dvh-14rem)] max-w-full overflow-auto rounded-xl border shadow-sm print:max-h-none print:overflow-visible print:shadow-none">
       <table aria-label={label} className="w-full text-sm">
-        <thead className="bg-background sticky top-0 z-10">
+        <thead className="bg-table-header sticky top-0 z-10">
           <tr className="border-b">
             {columns.map((col) => {
               const state = sortStateOf(col.sortValue ? col.id : undefined, active);
@@ -76,7 +76,7 @@ export function ReportTable<T>({
                   scope="col"
                   aria-sort={col.sortValue ? state : undefined}
                   className={cn(
-                    'h-10 px-3 font-medium whitespace-nowrap',
+                    'text-muted-foreground h-11 px-3 text-xs font-semibold tracking-wide whitespace-nowrap',
                     col.align === 'end' ? 'text-end' : 'text-start',
                   )}
                 >
@@ -116,7 +116,9 @@ export function ReportTable<T>({
           ) : (
             ordered.map((row) => (
               <Fragment key={rowKey(row)}>
-                <tr className={cn('border-b last:border-b-0', rowClassName?.(row))}>
+                <tr
+                  className={cn('hover:bg-accent/70 border-b transition-colors last:border-b-0', rowClassName?.(row))}
+                >
                   {columns.map((col) => (
                     <td
                       key={col.id}

@@ -27,6 +27,7 @@ const LINE_COLUMNS: DataColumn<Line>[] = [
         <bdi>{line.item.name}</bdi>
       </span>
     ),
+    wrap: true,
   },
   {
     id: 'quantity',
@@ -249,12 +250,14 @@ export function OrderMoney({
         </span>
       ),
       hideBelow: 'md',
+      wrap: true,
     },
     {
       id: 'createdBy',
       header: 'orders.money.createdBy',
       cell: (entry) => entry.createdBy.displayName,
       hideBelow: 'lg',
+      wrap: true,
     },
     ...(onDeletePayment
       ? [

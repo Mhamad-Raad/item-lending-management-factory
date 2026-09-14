@@ -45,7 +45,7 @@ function CreditLimit({ value }: { value: number | null }) {
 }
 
 const COLUMNS: DataColumn<CustomerDto>[] = [
-  { id: 'name', header: 'customers.fields.name', cell: (customer) => customer.name, sortKey: 'name' },
+  { id: 'name', header: 'customers.fields.name', cell: (customer) => customer.name, sortKey: 'name', wrap: true },
   {
     id: 'phone',
     header: 'customers.fields.phone',

@@ -82,8 +82,20 @@ export function MovementsTab({ itemId }: { itemId: number }) {
           '—'
         ),
     },
-    { id: 'note', header: 'items.movements.note', cell: (movement) => movement.note ?? '—', hideBelow: 'lg' },
-    { id: 'user', header: 'items.movements.user', cell: (movement) => movement.createdBy.displayName, hideBelow: 'md' },
+    {
+      id: 'note',
+      header: 'items.movements.note',
+      cell: (movement) => movement.note ?? '—',
+      hideBelow: 'lg',
+      wrap: true,
+    },
+    {
+      id: 'user',
+      header: 'items.movements.user',
+      cell: (movement) => movement.createdBy.displayName,
+      hideBelow: 'md',
+      wrap: true,
+    },
   ];
 
   return (

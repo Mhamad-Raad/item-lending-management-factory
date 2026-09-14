@@ -48,6 +48,7 @@ const COLUMNS: DataColumn<ItemDto>[] = [
       </span>
     ),
     sortKey: 'name',
+    wrap: true,
   },
   {
     id: 'depositPrice',

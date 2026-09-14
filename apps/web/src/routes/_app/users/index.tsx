@@ -44,6 +44,7 @@ const COLUMNS: DataColumn<UserListItemDto>[] = [
     header: 'users.fields.displayName',
     cell: (user) => user.displayName,
     sortKey: 'displayName',
+    wrap: true,
     mobile: 'subtitle',
   },
   { id: 'role', header: 'users.fields.role', cell: (user) => <RoleText role={user.role} /> },

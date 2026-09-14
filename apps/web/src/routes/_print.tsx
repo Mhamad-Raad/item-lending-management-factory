@@ -1,5 +1,6 @@
 import { Outlet, createFileRoute } from '@tanstack/react-router';
 import { useEffect } from 'react';
+import { applyPreferences, getPreferences } from '@/lib/preferences';
 import { requireAuthenticated } from '@/lib/route-guards';
 
 export const Route = createFileRoute('/_print')({
@@ -11,13 +12,12 @@ export const Route = createFileRoute('/_print')({
 function PrintLayout() {
   useEffect(() => {
     const root = document.documentElement;
-    const wasDark = root.classList.contains('dark');
-    const scheme = root.style.colorScheme;
-    root.classList.remove('dark');
-    root.style.colorScheme = 'light';
+    // Marked, so a theme set to follow the device cannot turn the page dark again while it is open.
+    root.dataset.forceLight = 'true';
+    applyPreferences(getPreferences());
     return () => {
-      if (wasDark) root.classList.add('dark');
-      root.style.colorScheme = scheme;
+      delete root.dataset.forceLight;
+      applyPreferences(getPreferences());
     };
   }, []);
 

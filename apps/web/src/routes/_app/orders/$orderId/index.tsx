@@ -15,6 +15,7 @@ import { PageHeader } from '@/components/app/page-header';
 import { QuantityText } from '@/components/app/quantity-text';
 import { PageSkeleton, QueryErrorState } from '@/components/app/states';
 import { StatusBadge } from '@/components/app/status-badge';
+import { PaymentTypeBadge } from '@/features/orders/payment-type-text';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -214,7 +215,7 @@ function OrderDetailPage() {
         <CardContent className="flex flex-col gap-4">
           <div className="flex flex-wrap items-center gap-2">
             <StatusBadge status={data.status} />
-            <Badge variant="outline">{t(`enums.paymentType.${data.paymentType}`)}</Badge>
+            <PaymentTypeBadge type={data.paymentType} />
             {data.creditOverride ? (
               <Badge variant="outline">
                 <ShieldAlert aria-hidden />

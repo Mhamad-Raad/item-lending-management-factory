@@ -10,18 +10,26 @@ export function Table({ className, ...props }: React.ComponentProps<'table'>) {
 }
 
 export function TableHeader({ className, ...props }: React.ComponentProps<'thead'>) {
-  return <thead data-slot="table-header" className={cn('[&_tr]:border-b', className)} {...props} />;
+  // A tinted band, so the column names read apart from the rows under them (Q50).
+  return <thead data-slot="table-header" className={cn('bg-table-header [&_tr]:border-b', className)} {...props} />;
 }
 
 export function TableBody({ className, ...props }: React.ComponentProps<'tbody'>) {
-  return <tbody data-slot="table-body" className={cn('[&_tr:last-child]:border-0', className)} {...props} />;
+  return (
+    <tbody
+      data-slot="table-body"
+      // Every other row striped, so a long row stays on its line across the table; hover outranks the stripe.
+      className={cn('[&_tr:last-child]:border-0 [&>tr:nth-child(even):not(:hover)]:bg-table-stripe', className)}
+      {...props}
+    />
+  );
 }
 
 export function TableRow({ className, ...props }: React.ComponentProps<'tr'>) {
   return (
     <tr
       data-slot="table-row"
-      className={cn('hover:bg-muted/50 data-[state=selected]:bg-muted border-b transition-colors', className)}
+      className={cn('hover:bg-accent/70 data-[state=selected]:bg-muted border-b transition-colors', className)}
       {...props}
     />
   );
@@ -33,7 +41,10 @@ export function TableHead({ className, scope = 'col', ...props }: React.Componen
     <th
       scope={scope}
       data-slot="table-head"
-      className={cn('text-muted-foreground h-10 px-3 text-start align-middle font-medium whitespace-nowrap', className)}
+      className={cn(
+        'text-muted-foreground h-11 px-3 text-start align-middle text-xs font-semibold tracking-wide whitespace-nowrap',
+        className,
+      )}
       {...props}
     />
   );

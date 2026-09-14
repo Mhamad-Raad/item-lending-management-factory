@@ -5,7 +5,7 @@ import { mockApi } from './mock-api';
 test.describe('E7: language and theme switch', () => {
   test('switching to English flips the direction without a reload, and dark sets html.dark', async ({ page }) => {
     await mockApi(page, undefined, 'ckb', 'light');
-    await page.goto('/account');
+    await page.goto('/settings');
     await expect(page.locator('html')).toHaveAttribute('dir', 'rtl');
     // A reload would wipe this marker.
     await page.evaluate(() => ((window as unknown as { sameDocument: boolean }).sameDocument = true));
@@ -14,9 +14,9 @@ test.describe('E7: language and theme switch', () => {
     await expect(page.locator('html')).toHaveAttribute('dir', 'ltr');
     await expect(page.locator('html')).toHaveAttribute('lang', 'en');
 
-    await page.getByRole('button', { name: 'Dark' }).click();
+    await page.getByRole('radio', { name: 'Dark', exact: true }).check();
     await expect(page.locator('html')).toHaveClass(/(^|\s)dark(\s|$)/);
-    await page.getByRole('button', { name: 'Light' }).click();
+    await page.getByRole('radio', { name: 'Light', exact: true }).check();
     await expect(page.locator('html')).not.toHaveClass(/(^|\s)dark(\s|$)/);
 
     expect(await page.evaluate(() => (window as unknown as { sameDocument?: boolean }).sameDocument)).toBe(true);

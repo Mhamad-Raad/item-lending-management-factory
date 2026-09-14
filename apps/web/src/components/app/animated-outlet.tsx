@@ -16,6 +16,9 @@ export function AnimatedOutlet() {
       key={routeId}
       data-slot="page-transition"
       data-route-id={routeId}
+      // The page's sections are this wrapper's children, so the space between them lives here. Margins, not a flex
+      // column: a flex item's width and stacking would change how every page's own layout behaves.
+      className="[&>*+*]:mt-6"
       initial={{ opacity: 0, x: dirX(dir, 8) }}
       animate={{ opacity: 1, x: 0 }}
       transition={{ duration: DURATION.base, ease: EASE_OUT }}

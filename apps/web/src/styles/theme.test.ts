@@ -1,48 +1,44 @@
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
+import { PALETTES } from '@pallet/shared';
 import { describe, expect, it } from 'vitest';
 
 const CSS = readFileSync(join(__dirname, 'globals.css'), 'utf8');
 
-/** §7.12's token table, copied here as the outside truth the stylesheet is checked against. */
-const SPEC: Record<string, [light: string, dark: string]> = {
-  background: ['oklch(0.985 0.002 250)', 'oklch(0.17 0.01 250)'],
-  foreground: ['oklch(0.2 0.02 250)', 'oklch(0.96 0.005 250)'],
-  card: ['oklch(1 0 0)', 'oklch(0.21 0.012 250)'],
-  'card-foreground': ['oklch(0.2 0.02 250)', 'oklch(0.96 0.005 250)'],
-  popover: ['oklch(1 0 0)', 'oklch(0.21 0.012 250)'],
-  'popover-foreground': ['oklch(0.2 0.02 250)', 'oklch(0.96 0.005 250)'],
-  primary: ['oklch(0.45 0.13 255)', 'oklch(0.74 0.12 255)'],
-  'primary-foreground': ['oklch(0.99 0 0)', 'oklch(0.18 0.03 255)'],
-  secondary: ['oklch(0.95 0.01 250)', 'oklch(0.27 0.015 250)'],
-  'secondary-foreground': ['oklch(0.25 0.02 250)', 'oklch(0.94 0.005 250)'],
-  muted: ['oklch(0.955 0.006 250)', 'oklch(0.26 0.012 250)'],
-  'muted-foreground': ['oklch(0.47 0.02 250)', 'oklch(0.74 0.015 250)'],
-  accent: ['oklch(0.94 0.02 255)', 'oklch(0.3 0.03 255)'],
-  'accent-foreground': ['oklch(0.25 0.05 255)', 'oklch(0.95 0.01 255)'],
-  destructive: ['oklch(0.53 0.2 27)', 'oklch(0.68 0.19 25)'],
-  'destructive-foreground': ['oklch(0.99 0 0)', 'oklch(0.17 0.02 25)'],
-  success: ['oklch(0.5 0.13 150)', 'oklch(0.75 0.14 150)'],
-  'success-foreground': ['oklch(0.99 0 0)', 'oklch(0.17 0.03 150)'],
-  warning: ['oklch(0.52 0.14 70)', 'oklch(0.8 0.14 80)'],
-  // Q44: §7.12's dark text on the light warning measures 3.5 : 1; white text passes.
-  'warning-foreground': ['oklch(0.99 0 0)', 'oklch(0.17 0.03 80)'],
-  info: ['oklch(0.5 0.13 240)', 'oklch(0.76 0.11 240)'],
-  'info-foreground': ['oklch(0.99 0 0)', 'oklch(0.17 0.03 240)'],
-  border: ['oklch(0.87 0.01 250)', 'oklch(0.34 0.015 250)'],
-  // Q44: a field's outline needs 3 : 1 (WCAG 1.4.11); §7.12's shared border value measures 1.4 : 1.
-  input: ['oklch(0.6 0.02 250)', 'oklch(0.55 0.02 250)'],
-  ring: ['oklch(0.45 0.13 255)', 'oklch(0.74 0.12 255)'],
-};
-
-function tokens(block: string): Record<string, string> {
+function declarations(block: string): Record<string, string> {
   return Object.fromEntries(
-    [...block.matchAll(/--([\w-]+):\s*([^;]+);/g)].map((match) => [match[1], match[2]?.trim()]),
+    [...block.matchAll(/--([\w-]+):\s*([^;]+);/g)].map((match) => [match[1] ?? '', match[2]?.trim() ?? '']),
   );
 }
 
-const light = tokens(/:root\s*\{([^}]*)\}/.exec(CSS)?.[1] ?? '');
-const dark = tokens(/\.dark\s*\{([^}]*)\}/.exec(CSS)?.[1] ?? '');
+/** The body of the first rule whose selector list starts with `selector`. */
+function ruleBody(selector: RegExp): string {
+  const match = selector.exec(CSS);
+  if (!match) throw new Error(`no rule for ${selector}`);
+  const open = CSS.indexOf('{', match.index);
+  return CSS.slice(open + 1, CSS.indexOf('}', open));
+}
+
+const KNOB_DEFAULTS = declarations(ruleBody(/^:root\s*\{/m));
+const LIGHT = declarations(ruleBody(/^:root,\s*\n\.preview-light\s*\{/m));
+const DARK = declarations(ruleBody(/\.dark,\s*\n\s*\.preview-dark\s*\{/));
+
+function knobsOf(palette: string): Record<string, string> {
+  return { ...KNOB_DEFAULTS, ...declarations(ruleBody(new RegExp(`\\[data-palette='${palette}'\\]\\s*\\{`))) };
+}
+
+/** Substitutes the theme's knobs and works out each `calc()`, leaving a plain `oklch(l c h)`. */
+function resolve(value: string, knobs: Record<string, string>): string {
+  const substituted = value.replace(/var\(--([\w-]+)\)/g, (_, name: string) => {
+    const knob = knobs[name];
+    if (knob === undefined) throw new Error(`unknown knob --${name} in ${value}`);
+    return knob;
+  });
+  return substituted.replace(/calc\(([^()]+)\)/g, (_, expression: string) => {
+    if (!/^[\d\s.+*-]+$/.test(expression)) throw new Error(`unexpected calc: ${expression}`);
+    return String(Number(new Function(`return (${expression});`)()));
+  });
+}
 
 /** OKLCH → relative luminance (WCAG), through OKLab and linear sRGB, clamped to the sRGB gamut. */
 function luminance(color: string): number {
@@ -79,10 +75,20 @@ const TEXT_PAIRS: [string, string][] = [
   ['success-foreground', 'success'],
   ['warning-foreground', 'warning'],
   ['info-foreground', 'info'],
-  // Links, status text and the focus ring drawn straight on the page.
+  // Links, status text and the focus ring drawn straight on the page or a card.
   ['primary', 'background'],
+  ['primary', 'card'],
   ['destructive', 'background'],
   ['ring', 'background'],
+  // The sidebar and its current page, table headers and striped rows (Q50).
+  ['sidebar-foreground', 'sidebar'],
+  ['muted-foreground', 'sidebar'],
+  ['sidebar-accent-foreground', 'sidebar-accent'],
+  ['foreground', 'table-header'],
+  ['muted-foreground', 'table-header'],
+  ['foreground', 'table-stripe'],
+  ['muted-foreground', 'table-stripe'],
+  ['primary', 'table-stripe'],
 ];
 
 /** The outline that shows where a field or control is: WCAG AA for non-text contrast. */
@@ -93,34 +99,41 @@ const CONTROL_PAIRS: [string, string][] = [
   ['input', 'muted'],
 ];
 
-describe('theme tokens (§7.12)', () => {
-  it('are the specified palette, light and dark', () => {
-    for (const [name, [lightValue, darkValue]] of Object.entries(SPEC)) {
-      expect(light[name], `light --${name}`).toBe(lightValue);
-      expect(dark[name], `dark --${name}`).toBe(darkValue);
-    }
+describe('theme tokens (§7.12, Q50)', () => {
+  it('define every colour theme the preferences offer, and nothing else', () => {
+    const defined = [...CSS.matchAll(/\[data-palette='([\w-]+)'\]/g)].map((match) => match[1]);
+    expect(defined).toEqual([...PALETTES]);
   });
 
-  it('keep text at 4.5 : 1 and field outlines at 3 : 1 on their surfaces, in both themes', () => {
+  it('keep text at 4.5 : 1 and field outlines at 3 : 1 on their surfaces, in every theme, light and dark', () => {
     const failing: string[] = [];
-    for (const [theme, values] of [
-      ['light', light],
-      ['dark', dark],
-    ] as const) {
-      for (const [text, surface] of TEXT_PAIRS) {
-        const ratio = contrast(values[text] ?? '', values[surface] ?? '');
-        if (ratio < 4.5) failing.push(`${theme} ${text} on ${surface}: ${ratio.toFixed(2)}`);
-      }
-      for (const [outline, surface] of CONTROL_PAIRS) {
-        const ratio = contrast(values[outline] ?? '', values[surface] ?? '');
-        if (ratio < 3) failing.push(`${theme} ${outline} on ${surface}: ${ratio.toFixed(2)}`);
+    for (const palette of PALETTES) {
+      const knobs = knobsOf(palette);
+      for (const [mode, ramp] of [
+        ['light', LIGHT],
+        ['dark', DARK],
+      ] as const) {
+        const token = (name: string) => resolve(ramp[name] ?? '', knobs);
+        for (const [text, surface] of TEXT_PAIRS) {
+          const ratio = contrast(token(text), token(surface));
+          if (ratio < 4.5) failing.push(`${palette} ${mode} ${text} on ${surface}: ${ratio.toFixed(2)}`);
+        }
+        for (const [outline, surface] of CONTROL_PAIRS) {
+          const ratio = contrast(token(outline), token(surface));
+          if (ratio < 3) failing.push(`${palette} ${mode} ${outline} on ${surface}: ${ratio.toFixed(2)}`);
+        }
       }
     }
     expect(failing).toEqual([]);
   });
 
+  it('give the light and the dark ramp the same tokens', () => {
+    expect(Object.keys(DARK).sort()).toEqual(Object.keys(LIGHT).sort());
+  });
+
   it('measures contrast the WCAG way', () => {
     expect(contrast('oklch(1 0 0)', 'oklch(0 0 0)')).toBeCloseTo(21, 1);
     expect(contrast('oklch(0.5 0 0)', 'oklch(0.5 0 0)')).toBeCloseTo(1, 5);
+    expect(resolve('oklch(0.5 calc(0.02 * var(--t)) var(--h))', { t: '0.5', h: '200' })).toBe('oklch(0.5 0.01 200)');
   });
 });

@@ -5,7 +5,7 @@ import { DateText } from '@/components/app/date-text';
 import { MoneyText } from '@/components/app/money-text';
 import { QuantityText } from '@/components/app/quantity-text';
 import { StatusBadge } from '@/components/app/status-badge';
-import { PaymentTypeText } from './payment-type-text';
+import { PaymentTypeBadge } from './payment-type-text';
 import { orderLabel } from './order-text';
 
 /** The columns of an order list (§7.3.4), shared by `/orders` and a customer's orders tab. */
@@ -17,12 +17,18 @@ export const ORDER_COLUMNS: DataColumn<OrderListItemDto>[] = [
     sortKey: 'orderNumber',
   },
   { id: 'date', header: 'orders.fields.date', cell: (order) => <DateText value={order.date} />, sortKey: 'date' },
-  { id: 'customer', header: 'orders.fields.customer', cell: (order) => order.customer.name, mobile: 'subtitle' },
-  { id: 'driver', header: 'orders.fields.driver', cell: (order) => order.driver.name, hideBelow: 'lg' },
+  {
+    id: 'customer',
+    header: 'orders.fields.customer',
+    cell: (order) => order.customer.name,
+    mobile: 'subtitle',
+    wrap: true,
+  },
+  { id: 'driver', header: 'orders.fields.driver', cell: (order) => order.driver.name, hideBelow: 'lg', wrap: true },
   {
     id: 'paymentType',
     header: 'orders.fields.paymentType',
-    cell: (order) => <PaymentTypeText type={order.paymentType} />,
+    cell: (order) => <PaymentTypeBadge type={order.paymentType} />,
     hideBelow: 'lg',
   },
   {
@@ -30,7 +36,7 @@ export const ORDER_COLUMNS: DataColumn<OrderListItemDto>[] = [
     header: 'orders.fields.depositTotal',
     cell: (order) => <MoneyText value={order.depositTotal} />,
     align: 'end',
-    hideBelow: 'lg',
+    hideBelow: '2xl',
   },
   {
     id: 'palletsOut',
@@ -58,7 +64,7 @@ export const ORDER_COLUMNS: DataColumn<OrderListItemDto>[] = [
     header: 'orders.fields.held',
     cell: (order) => <MoneyText value={order.held} />,
     align: 'end',
-    hideBelow: 'lg',
+    hideBelow: '2xl',
   },
   { id: 'status', header: 'orders.fields.status', cell: (order) => <StatusBadge status={order.status} /> },
 ];
@@ -66,7 +72,11 @@ export const ORDER_COLUMNS: DataColumn<OrderListItemDto>[] = [
 /** The first cell of an order row: a link to the order, the row's tab stop (§7.15). */
 export function orderRowLink(order: OrderListItemDto, children: React.ReactNode) {
   return (
-    <Link to="/orders/$orderId" params={{ orderId: String(order.id) }} className="underline-offset-4 hover:underline">
+    <Link
+      to="/orders/$orderId"
+      params={{ orderId: String(order.id) }}
+      className="text-primary font-medium underline-offset-4 hover:underline"
+    >
       {children}
     </Link>
   );

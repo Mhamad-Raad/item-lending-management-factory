@@ -107,7 +107,8 @@
     },
     "notifications": "Notifications",
     "errorReference": "Reference: {{id}}",
-    "loading": "Loading…"
+    "loading": "Loading…",
+    "appTagline": "Pallet lending"
   },
   "nav": {
     "primary": "Main navigation",
@@ -123,7 +124,16 @@
     "orders": "Orders",
     "openMenu": "Open menu",
     "skipToContent": "Skip to content",
-    "reports": "Reports"
+    "reports": "Reports",
+    "language": "Language",
+    "useDark": "Switch to dark",
+    "useLight": "Switch to light",
+    "groups": {
+      "daily": "Daily work",
+      "records": "Records",
+      "insight": "Insight",
+      "admin": "Administration"
+    }
   },
   "auth": {
     "login": {
@@ -180,22 +190,6 @@
       "username": "Username",
       "displayName": "Display name",
       "role": "Role"
-    },
-    "preferences": {
-      "title": "Preferences",
-      "language": "Language",
-      "theme": "Theme",
-      "fontSize": "Font size",
-      "themes": {
-        "light": "Light",
-        "dark": "Dark"
-      },
-      "fontSizes": {
-        "sm": "Small",
-        "md": "Normal",
-        "lg": "Large",
-        "xl": "Extra large"
-      }
     },
     "security": {
       "title": "Security",
@@ -603,7 +597,7 @@
     "ORDER_LINE_HAS_RETURNS": "This line has returns in its history and cannot be removed; lower its quantity instead"
   },
   "settings": {
-    "title": "Factory settings",
+    "title": "Settings",
     "receiptHint": "Shown on every printed receipt.",
     "saved": "Settings saved",
     "fields": {
@@ -611,6 +605,75 @@
       "phone": "Phone",
       "address": "Address",
       "logo": "Logo"
+    },
+    "description": "Your screen, and the factory's details.",
+    "appearance": {
+      "title": "Appearance",
+      "hint": "How the app looks on this computer. Saved in this browser only.",
+      "modeTitle": "Light or dark",
+      "modeHint": "Choose one, or follow the computer's setting.",
+      "modes": {
+        "light": "Light",
+        "dark": "Dark",
+        "system": "Match the computer"
+      },
+      "modeDescriptions": {
+        "light": "Bright surfaces for daytime",
+        "dark": "Easier on the eyes at night",
+        "system": "Switches with the computer"
+      },
+      "paletteTitle": "Colour theme",
+      "paletteHint": "Colours the whole screen: buttons, the sidebar and every surface.",
+      "palettes": {
+        "harbor": "Harbor",
+        "lagoon": "Lagoon",
+        "forest": "Forest",
+        "timber": "Timber",
+        "clay": "Clay",
+        "plum": "Plum",
+        "graphite": "Graphite"
+      },
+      "paletteDescriptions": {
+        "harbor": "Calm deep blue",
+        "lagoon": "Fresh blue-green",
+        "forest": "Steady green",
+        "timber": "Warm wood brown",
+        "clay": "Earthy terracotta",
+        "plum": "Rich purple",
+        "graphite": "Quiet greys"
+      },
+      "fontTitle": "Typeface",
+      "fontHint": "Every one carries all Kurdish letters, Arabic and Latin.",
+      "fonts": {
+        "inter": "Inter and Noto",
+        "vazirmatn": "Vazirmatn",
+        "plex": "IBM Plex",
+        "kufi": "Noto Kufi",
+        "naskh": "Noto Naskh"
+      },
+      "fontDescriptions": {
+        "inter": "Clear and modern",
+        "vazirmatn": "Rounded and friendly",
+        "plex": "Crisp and technical",
+        "kufi": "Geometric and bold",
+        "naskh": "Traditional book style"
+      },
+      "sizeTitle": "Text size",
+      "sizeHint": "Makes everything larger or smaller: text, fields and buttons alike.",
+      "sizes": {
+        "sm": "Small",
+        "md": "Normal",
+        "lg": "Large",
+        "xl": "Extra large"
+      },
+      "sizeSampleLabel": "Sample field",
+      "sizeSample": "Erbil Pallet Factory",
+      "languageTitle": "Language",
+      "languageHint": "The language of the whole app; Kurdish and Arabic read right to left."
+    },
+    "factory": {
+      "title": "Factory details",
+      "hint": "Shown on every printed receipt. Only an administrator can change them."
     }
   },
   "items": {

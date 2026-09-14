@@ -1,7 +1,19 @@
 import { formatOrderNumber, type CustomerHoldingDto } from '@pallet/shared';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Link, createFileRoute } from '@tanstack/react-router';
-import { Archive, Package, Pencil, Plus, TriangleAlert } from 'lucide-react';
+import {
+  Archive,
+  ClipboardList,
+  Coins,
+  Gauge,
+  Package,
+  Pencil,
+  Plus,
+  ShieldCheck,
+  TriangleAlert,
+  Wallet,
+  type LucideIcon,
+} from 'lucide-react';
 import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import type { TranslationKey } from '@/i18n/keys';
@@ -29,6 +41,7 @@ import { useCan } from '@/lib/auth';
 import { handleApiError } from '@/lib/errors';
 import { qk } from '@/lib/query-keys';
 import { requirePermission } from '@/lib/route-guards';
+import { TONE_CHIP, type Tone } from '@/lib/tones';
 import { cn } from '@/lib/utils';
 import { z } from 'zod';
 import { prefetch } from '@/lib/prefetch';
@@ -53,6 +66,7 @@ const HOLDING_COLUMNS: DataColumn<CustomerHoldingDto>[] = [
         <bdi>{holding.item.name}</bdi>
       </span>
     ),
+    wrap: true,
   },
   {
     id: 'quantityOut',
@@ -80,6 +94,7 @@ const HOLDING_COLUMNS: DataColumn<CustomerHoldingDto>[] = [
         ))}
       </span>
     ),
+    wrap: true,
   },
 ];
 
@@ -130,9 +145,17 @@ function CustomerProfilePage() {
   const data = customer.data;
   const { summary } = data;
   const live = data.archivedAt === null;
-  const cards: { label: TranslationKey; value: React.ReactNode; extra?: React.ReactNode }[] = [
+  const cards: {
+    label: TranslationKey;
+    icon: LucideIcon;
+    tone: Tone;
+    value: React.ReactNode;
+    extra?: React.ReactNode;
+  }[] = [
     {
       label: 'customers.fields.palletsOut',
+      icon: Package,
+      tone: 'info',
       value: <QuantityText value={summary.palletsOut} />,
       extra:
         data.palletsOutByItem.length > 0 ? (
@@ -146,15 +169,19 @@ function CustomerProfilePage() {
           </ul>
         ) : null,
     },
-    { label: 'customers.fields.outValue', value: <MoneyText value={summary.outValue} /> },
-    { label: 'customers.fields.owed', value: <MoneyText value={summary.owed} /> },
-    { label: 'customers.fields.held', value: <MoneyText value={summary.held} /> },
+    { label: 'customers.fields.outValue', icon: Coins, tone: 'primary', value: <MoneyText value={summary.outValue} /> },
+    { label: 'customers.fields.owed', icon: ClipboardList, tone: 'warning', value: <MoneyText value={summary.owed} /> },
+    { label: 'customers.fields.held', icon: Wallet, tone: 'success', value: <MoneyText value={summary.held} /> },
     {
       label: 'customers.fields.creditLimit',
+      icon: Gauge,
+      tone: 'primary',
       value: summary.creditLimit === null ? t('customers.noLimit') : <MoneyText value={summary.creditLimit} />,
     },
     {
       label: 'customers.fields.headroom',
+      icon: ShieldCheck,
+      tone: summary.headroom !== null && summary.headroom < 0 ? 'destructive' : 'success',
       value:
         summary.headroom === null ? (
           t('customers.noLimit')
@@ -230,11 +257,19 @@ function CustomerProfilePage() {
           const wide = Boolean(card.extra) || (index === cards.length - 1 && singlesBefore % 2 === 0);
           return (
             <Card key={card.label} className={cn('gap-2 py-4 sm:gap-6 sm:py-6', wide && 'col-span-2 sm:col-span-1')}>
-              <CardHeader className="px-4 sm:px-6">
-                <CardTitle className="text-muted-foreground text-sm font-normal">{t(card.label)}</CardTitle>
+              <CardHeader className="flex-row items-center justify-between gap-2 px-4 sm:px-6">
+                <CardTitle className="text-muted-foreground text-sm font-medium">{t(card.label)}</CardTitle>
+                <span
+                  aria-hidden
+                  className={cn('flex size-8 shrink-0 items-center justify-center rounded-md', TONE_CHIP[card.tone])}
+                >
+                  <card.icon className="size-4" />
+                </span>
               </CardHeader>
               <CardContent className="flex flex-col gap-2 px-4 sm:px-6">
-                <span className="text-lg font-semibold break-words sm:text-xl *:whitespace-normal">{card.value}</span>
+                <span className="text-lg font-bold tracking-tight break-words sm:text-xl *:whitespace-normal">
+                  {card.value}
+                </span>
                 {card.extra}
               </CardContent>
             </Card>

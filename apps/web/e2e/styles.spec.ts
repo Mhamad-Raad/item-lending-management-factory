@@ -230,7 +230,7 @@ test('toasts are coloured by kind, closable, readable in both themes, and labell
 test('the font-size steps scale the whole interface, controls included, without a reload (§7.12)', async ({ page }) => {
   await mockApi(page, undefined, 'en');
   await page.setViewportSize({ width: 1280, height: 800 });
-  await page.goto('/account');
+  await page.goto('/settings');
   const heading = page.locator('main h1');
   await expect(heading).toBeVisible();
   const measure = () =>
@@ -245,7 +245,7 @@ test('the font-size steps scale the whole interface, controls included, without 
     ['Extra large', 'xl'],
     ['Normal', 'md'],
   ] as const) {
-    await page.getByRole('button', { name: label, exact: true }).click();
+    await page.getByRole('radio', { name: label, exact: true }).check();
     steps[key] = await measure();
   }
   expect(steps.sm?.root).toBe('14px');

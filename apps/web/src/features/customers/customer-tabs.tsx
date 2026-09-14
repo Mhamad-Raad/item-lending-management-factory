@@ -119,7 +119,7 @@ export function CustomerLedgerTab({ customerId, types }: { customerId: number; t
       mobile: 'subtitle',
     },
     { id: 'amount', header: 'orders.money.amount', cell: (entry) => <MoneyText value={entry.amount} />, align: 'end' },
-    { id: 'note', header: 'orders.money.note', cell: (entry) => entry.note ?? '—', hideBelow: 'md' },
+    { id: 'note', header: 'orders.money.note', cell: (entry) => entry.note ?? '—', hideBelow: 'md', wrap: true },
   ];
 
   if (entries.isPending) return <PageSkeleton rows={3} />;

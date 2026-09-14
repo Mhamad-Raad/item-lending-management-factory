@@ -86,7 +86,7 @@ function DriversPage() {
   if (drivers.isError) return <QueryErrorState error={drivers.error} onRetry={() => void drivers.refetch()} />;
 
   const columns: DataColumn<DriverDto>[] = [
-    { id: 'name', header: 'drivers.fields.name', cell: (driver) => driver.name, sortKey: 'name' },
+    { id: 'name', header: 'drivers.fields.name', cell: (driver) => driver.name, sortKey: 'name', wrap: true },
     {
       id: 'phone',
       header: 'drivers.fields.phone',

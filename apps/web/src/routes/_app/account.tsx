@@ -1,32 +1,21 @@
-import { FONT_SIZES, THEMES, type FontSize, type Theme } from '@pallet/shared';
 import { createFileRoute, useNavigate } from '@tanstack/react-router';
 import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { ChangePasswordForm } from '@/components/app/change-password-form';
 import { ConfirmDialog } from '@/components/app/confirm-dialog';
-import { LanguageSwitcher } from '@/components/app/language-switcher';
 import { PageHeader } from '@/components/app/page-header';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { usePageTitle } from '@/hooks/use-page-title';
 import { logoutEverywhere, useAuth } from '@/lib/auth';
 import { handleApiError } from '@/lib/errors';
-import { setPreferences, usePreferences } from '@/lib/preferences';
 
 export const Route = createFileRoute('/_app/account')({ component: AccountPage });
-
-const FONT_SAMPLE_CLASS: Record<FontSize, string> = {
-  sm: 'text-sm',
-  md: 'text-base',
-  lg: 'text-lg',
-  xl: 'text-xl',
-};
 
 function AccountPage() {
   const { t } = useTranslation();
   const navigate = useNavigate();
   const { user } = useAuth();
-  const prefs = usePreferences();
   const [confirmLogoutAll, setConfirmLogoutAll] = useState(false);
   const [pending, setPending] = useState(false);
   usePageTitle('account.title');
@@ -69,53 +58,6 @@ function AccountPage() {
               <dd className="font-medium">{user ? t(`enums.role.${user.role}`) : ''}</dd>
             </div>
           </dl>
-        </CardContent>
-      </Card>
-
-      <Card>
-        <CardHeader>
-          <CardTitle>{t('account.preferences.title')}</CardTitle>
-        </CardHeader>
-        <CardContent className="flex flex-col gap-6">
-          <fieldset className="flex flex-col gap-2">
-            <legend className="mb-2 text-sm font-medium">{t('account.preferences.language')}</legend>
-            <LanguageSwitcher />
-          </fieldset>
-
-          <fieldset className="flex flex-col gap-2">
-            <legend className="mb-2 text-sm font-medium">{t('account.preferences.theme')}</legend>
-            <div className="flex flex-wrap gap-2">
-              {THEMES.map((theme: Theme) => (
-                <Button
-                  key={theme}
-                  variant={prefs.theme === theme ? 'default' : 'outline'}
-                  aria-pressed={prefs.theme === theme}
-                  onClick={() => setPreferences({ theme })}
-                >
-                  {t(`account.preferences.themes.${theme}`)}
-                </Button>
-              ))}
-            </div>
-          </fieldset>
-
-          <fieldset className="flex flex-col gap-2">
-            <legend className="mb-2 text-sm font-medium">{t('account.preferences.fontSize')}</legend>
-            <div className="flex flex-wrap gap-2">
-              {FONT_SIZES.map((size: FontSize) => (
-                <Button
-                  key={size}
-                  variant={prefs.fontSize === size ? 'default' : 'outline'}
-                  aria-pressed={prefs.fontSize === size}
-                  onClick={() => setPreferences({ fontSize: size })}
-                >
-                  <span className={FONT_SAMPLE_CLASS[size]} aria-hidden>
-                    Aa
-                  </span>
-                  {t(`account.preferences.fontSizes.${size}`)}
-                </Button>
-              ))}
-            </div>
-          </fieldset>
         </CardContent>
       </Card>
 

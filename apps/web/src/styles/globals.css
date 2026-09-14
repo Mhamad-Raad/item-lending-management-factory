@@ -11,28 +11,103 @@
 }
 
 /*
- * Design tokens (shadcn/ui convention). Light and dark palettes meet WCAG AA for text on
- * background/card/muted. Every size in the UI is rem-based and derives from --app-font-size,
- * which the font-size preference sets on <html>.
+ * Design tokens (shadcn/ui convention), derived from a colour theme (Q50). A theme is four knobs — the hue and
+ * strength of its colour, and the hue and amount of tint its greys carry — and every token below reads them, so a
+ * theme moves the whole screen, surfaces and sidebar included, in light and in dark. Presets set only the knobs:
+ * a preset that set a token itself would outrank `.dark` and break dark mode. `theme.test.ts` recomputes every
+ * pair for every theme against WCAG AA. Every size is rem-based and derives from --app-font-size.
  */
 :root {
   --app-font-size: 16px;
-  --radius: 0.625rem;
+  --radius: 0.75rem;
 
-  --background: oklch(0.985 0.002 250);
-  --foreground: oklch(0.2 0.02 250);
+  --palette-hue: 252;
+  --palette-chroma: 0.12;
+  --neutral-hue: 250;
+  --neutral-tint: 1;
+
+  --app-font: 'Inter Variable', 'Noto Sans Arabic Variable', ui-sans-serif, system-ui, sans-serif;
+}
+
+/* Ordered around the colour wheel, cool to warm, then the neutral one. */
+[data-palette='harbor'] {
+  --palette-hue: 252;
+  --palette-chroma: 0.12;
+  --neutral-hue: 250;
+  --neutral-tint: 1;
+}
+[data-palette='lagoon'] {
+  --palette-hue: 200;
+  --palette-chroma: 0.1;
+  --neutral-hue: 205;
+  --neutral-tint: 1;
+}
+[data-palette='forest'] {
+  --palette-hue: 155;
+  --palette-chroma: 0.11;
+  --neutral-hue: 150;
+  --neutral-tint: 0.9;
+}
+[data-palette='timber'] {
+  --palette-hue: 62;
+  --palette-chroma: 0.11;
+  --neutral-hue: 70;
+  --neutral-tint: 1.2;
+}
+[data-palette='clay'] {
+  --palette-hue: 35;
+  --palette-chroma: 0.13;
+  --neutral-hue: 40;
+  --neutral-tint: 1;
+}
+[data-palette='plum'] {
+  --palette-hue: 318;
+  --palette-chroma: 0.11;
+  --neutral-hue: 315;
+  --neutral-tint: 0.9;
+}
+/* True greys: the tint is dialled almost out, and only the colour itself carries any. */
+[data-palette='graphite'] {
+  --palette-hue: 255;
+  --palette-chroma: 0.06;
+  --neutral-hue: 255;
+  --neutral-tint: 0.3;
+}
+
+/* Typefaces (Q50): each carries Latin and every Sorani letter; Inter stays the fallback for Latin. */
+[data-font='inter'] {
+  --app-font: 'Inter Variable', 'Noto Sans Arabic Variable', ui-sans-serif, system-ui, sans-serif;
+}
+[data-font='vazirmatn'] {
+  --app-font: 'Vazirmatn Variable', 'Inter Variable', ui-sans-serif, system-ui, sans-serif;
+}
+[data-font='plex'] {
+  --app-font: 'IBM Plex Sans Arabic', 'Inter Variable', ui-sans-serif, system-ui, sans-serif;
+}
+[data-font='kufi'] {
+  --app-font: 'Noto Kufi Arabic Variable', 'Inter Variable', ui-sans-serif, system-ui, sans-serif;
+}
+[data-font='naskh'] {
+  --app-font: 'Noto Naskh Arabic Variable', 'Inter Variable', ui-serif, Georgia, serif;
+}
+
+/* The light ramp. `.preview-light` shares it, so a settings card can draw a theme that is not the active one. */
+:root,
+.preview-light {
+  --background: oklch(0.982 calc(0.005 * var(--neutral-tint)) var(--neutral-hue));
+  --foreground: oklch(0.2 calc(0.02 * var(--neutral-tint)) var(--neutral-hue));
   --card: oklch(1 0 0);
-  --card-foreground: oklch(0.2 0.02 250);
+  --card-foreground: oklch(0.2 calc(0.02 * var(--neutral-tint)) var(--neutral-hue));
   --popover: oklch(1 0 0);
-  --popover-foreground: oklch(0.2 0.02 250);
-  --primary: oklch(0.45 0.13 255);
+  --popover-foreground: oklch(0.2 calc(0.02 * var(--neutral-tint)) var(--neutral-hue));
+  --primary: oklch(0.47 var(--palette-chroma) var(--palette-hue));
   --primary-foreground: oklch(0.99 0 0);
-  --secondary: oklch(0.95 0.01 250);
-  --secondary-foreground: oklch(0.25 0.02 250);
-  --muted: oklch(0.955 0.006 250);
-  --muted-foreground: oklch(0.47 0.02 250);
-  --accent: oklch(0.94 0.02 255);
-  --accent-foreground: oklch(0.25 0.05 255);
+  --secondary: oklch(0.95 calc(0.012 * var(--neutral-tint)) var(--neutral-hue));
+  --secondary-foreground: oklch(0.25 calc(0.02 * var(--neutral-tint)) var(--neutral-hue));
+  --muted: oklch(0.955 calc(0.008 * var(--neutral-tint)) var(--neutral-hue));
+  --muted-foreground: oklch(0.47 calc(0.02 * var(--neutral-tint)) var(--neutral-hue));
+  --accent: oklch(0.94 calc(var(--palette-chroma) * 0.3) var(--palette-hue));
+  --accent-foreground: oklch(0.27 calc(var(--palette-chroma) * 0.5) var(--palette-hue));
   --destructive: oklch(0.53 0.2 27);
   --destructive-foreground: oklch(0.99 0 0);
   --success: oklch(0.5 0.13 150);
@@ -41,27 +116,35 @@
   --warning-foreground: oklch(0.99 0 0);
   --info: oklch(0.5 0.13 240);
   --info-foreground: oklch(0.99 0 0);
-  --border: oklch(0.87 0.01 250);
-  --input: oklch(0.6 0.02 250);
-  --ring: oklch(0.45 0.13 255);
+  --border: oklch(0.89 calc(0.012 * var(--neutral-tint)) var(--neutral-hue));
+  --input: oklch(0.6 calc(0.02 * var(--neutral-tint)) var(--neutral-hue));
+  --ring: oklch(0.47 var(--palette-chroma) var(--palette-hue));
+  --sidebar: oklch(0.975 calc(0.01 * var(--neutral-tint)) var(--neutral-hue));
+  --sidebar-foreground: oklch(0.25 calc(0.02 * var(--neutral-tint)) var(--neutral-hue));
+  --sidebar-accent: oklch(0.925 calc(var(--palette-chroma) * 0.45) var(--palette-hue));
+  --sidebar-accent-foreground: oklch(0.36 var(--palette-chroma) var(--palette-hue));
+  --table-header: oklch(0.955 calc(0.014 * var(--neutral-tint)) var(--neutral-hue));
+  --table-stripe: oklch(0.983 calc(0.008 * var(--neutral-tint)) var(--neutral-hue));
 }
 
+/* The dark ramp: after the light one, which it overrides by source order on <html class="dark">. */
 @media screen {
-  .dark {
-    --background: oklch(0.17 0.01 250);
-    --foreground: oklch(0.96 0.005 250);
-    --card: oklch(0.21 0.012 250);
-    --card-foreground: oklch(0.96 0.005 250);
-    --popover: oklch(0.21 0.012 250);
-    --popover-foreground: oklch(0.96 0.005 250);
-    --primary: oklch(0.74 0.12 255);
-    --primary-foreground: oklch(0.18 0.03 255);
-    --secondary: oklch(0.27 0.015 250);
-    --secondary-foreground: oklch(0.94 0.005 250);
-    --muted: oklch(0.26 0.012 250);
-    --muted-foreground: oklch(0.74 0.015 250);
-    --accent: oklch(0.3 0.03 255);
-    --accent-foreground: oklch(0.95 0.01 255);
+  .dark,
+  .preview-dark {
+    --background: oklch(0.17 calc(0.012 * var(--neutral-tint)) var(--neutral-hue));
+    --foreground: oklch(0.96 calc(0.005 * var(--neutral-tint)) var(--neutral-hue));
+    --card: oklch(0.21 calc(0.014 * var(--neutral-tint)) var(--neutral-hue));
+    --card-foreground: oklch(0.96 calc(0.005 * var(--neutral-tint)) var(--neutral-hue));
+    --popover: oklch(0.21 calc(0.014 * var(--neutral-tint)) var(--neutral-hue));
+    --popover-foreground: oklch(0.96 calc(0.005 * var(--neutral-tint)) var(--neutral-hue));
+    --primary: oklch(0.75 var(--palette-chroma) var(--palette-hue));
+    --primary-foreground: oklch(0.18 calc(var(--palette-chroma) * 0.25) var(--palette-hue));
+    --secondary: oklch(0.27 calc(0.015 * var(--neutral-tint)) var(--neutral-hue));
+    --secondary-foreground: oklch(0.94 calc(0.005 * var(--neutral-tint)) var(--neutral-hue));
+    --muted: oklch(0.26 calc(0.012 * var(--neutral-tint)) var(--neutral-hue));
+    --muted-foreground: oklch(0.75 calc(0.015 * var(--neutral-tint)) var(--neutral-hue));
+    --accent: oklch(0.3 calc(var(--palette-chroma) * 0.3) var(--palette-hue));
+    --accent-foreground: oklch(0.95 calc(var(--palette-chroma) * 0.1) var(--palette-hue));
     --destructive: oklch(0.68 0.19 25);
     --destructive-foreground: oklch(0.17 0.02 25);
     --success: oklch(0.75 0.14 150);
@@ -70,9 +153,15 @@
     --warning-foreground: oklch(0.17 0.03 80);
     --info: oklch(0.76 0.11 240);
     --info-foreground: oklch(0.17 0.03 240);
-    --border: oklch(0.34 0.015 250);
-    --input: oklch(0.55 0.02 250);
-    --ring: oklch(0.74 0.12 255);
+    --border: oklch(0.33 calc(0.015 * var(--neutral-tint)) var(--neutral-hue));
+    --input: oklch(0.55 calc(0.02 * var(--neutral-tint)) var(--neutral-hue));
+    --ring: oklch(0.75 var(--palette-chroma) var(--palette-hue));
+    --sidebar: oklch(0.19 calc(0.014 * var(--neutral-tint)) var(--neutral-hue));
+    --sidebar-foreground: oklch(0.9 calc(0.01 * var(--neutral-tint)) var(--neutral-hue));
+    --sidebar-accent: oklch(0.29 calc(var(--palette-chroma) * 0.45) var(--palette-hue));
+    --sidebar-accent-foreground: oklch(0.86 var(--palette-chroma) var(--palette-hue));
+    --table-header: oklch(0.25 calc(0.016 * var(--neutral-tint)) var(--neutral-hue));
+    --table-stripe: oklch(0.225 calc(0.014 * var(--neutral-tint)) var(--neutral-hue));
   }
 }
 
@@ -97,7 +186,7 @@
 }
 
 @theme inline {
-  --font-sans: 'Inter Variable', 'Noto Sans Arabic Variable', ui-sans-serif, system-ui, sans-serif;
+  --font-sans: var(--app-font);
 
   --color-background: var(--background);
   --color-foreground: var(--foreground);
@@ -124,6 +213,12 @@
   --color-border: var(--border);
   --color-input: var(--input);
   --color-ring: var(--ring);
+  --color-sidebar: var(--sidebar);
+  --color-sidebar-foreground: var(--sidebar-foreground);
+  --color-sidebar-accent: var(--sidebar-accent);
+  --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
+  --color-table-header: var(--table-header);
+  --color-table-stripe: var(--table-stripe);
 
   --radius-sm: calc(var(--radius) - 0.25rem);
   --radius-md: calc(var(--radius) - 0.125rem);

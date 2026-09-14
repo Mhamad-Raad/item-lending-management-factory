@@ -18,7 +18,9 @@ export interface DataColumn<T> {
   /** The `sort` value this column orders by; a column without one is not sortable. */
   sortKey?: string;
   align?: 'start' | 'end';
-  hideBelow?: 'md' | 'lg';
+  hideBelow?: 'md' | 'lg' | 'xl' | '2xl';
+  /** Free text such as a name: wraps onto a second line in a bounded width. Every other cell stays on one line. */
+  wrap?: boolean;
   /** Its place on the card that replaces the table below `md`; the first column is the title. */
   mobile?: 'title' | 'subtitle' | 'meta' | 'hidden';
 }
@@ -53,7 +55,12 @@ const MotionTableRow = motion.create(TableRow);
 /** §7.14: row animations only up to this many rows. */
 const ROW_ANIMATION_LIMIT = 50;
 
-const HIDE_BELOW = { md: 'hidden md:table-cell', lg: 'hidden lg:table-cell' } as const;
+const HIDE_BELOW = {
+  md: 'hidden md:table-cell',
+  lg: 'hidden lg:table-cell',
+  xl: 'hidden xl:table-cell',
+  '2xl': 'hidden 2xl:table-cell',
+} as const;
 
 /** A click on a row opens its link, unless the click was on something interactive of its own. */
 function openRowLink(event: React.MouseEvent<HTMLElement>): void {
@@ -142,9 +149,9 @@ export function DataTable<T>({
             {isFetching ? <div className="bg-primary absolute inset-0 animate-pulse" /> : null}
           </div>
 
-          <div className="hidden max-h-[calc(100dvh-14rem)] overflow-auto rounded-md border md:block">
+          <div className="bg-card hidden max-h-[calc(100dvh-14rem)] overflow-auto rounded-xl border shadow-sm md:block">
             <table aria-label={label} aria-busy={isFetching} className="w-full caption-bottom text-sm">
-              <TableHeader className="bg-background sticky top-0 z-10">
+              <TableHeader className="sticky top-0 z-10">
                 <TableRow className="hover:bg-transparent">
                   {columns.map((column) => {
                     const state = sortStateOf(column.sortKey, activeSort);
@@ -189,6 +196,7 @@ export function DataTable<T>({
                         <TableCell
                           key={column.id}
                           className={cn(
+                            column.wrap ? 'max-w-64 min-w-40' : 'whitespace-nowrap',
                             column.align === 'end' && 'text-end tabular-nums',
                             column.hideBelow && HIDE_BELOW[column.hideBelow],
                           )}
@@ -209,7 +217,10 @@ export function DataTable<T>({
                 <Card
                   key={rowKey(row)}
                   {...rowMotion}
-                  className={cn('flex flex-col gap-2 rounded-lg border p-4', rowLink && 'cursor-pointer')}
+                  className={cn(
+                    'bg-card flex flex-col gap-2 rounded-xl border p-4 shadow-sm',
+                    rowLink && 'hover:border-primary/40 cursor-pointer transition-colors',
+                  )}
                   onClick={rowLink ? openRowLink : undefined}
                 >
                   {columns

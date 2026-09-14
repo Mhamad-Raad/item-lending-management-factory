@@ -86,7 +86,7 @@ export function BatchesTab({ itemId }: { itemId: number }) {
           },
         ]
       : []),
-    { id: 'note', header: 'purchases.fields.note', cell: (batch) => batch.note ?? '—', hideBelow: 'md' },
+    { id: 'note', header: 'purchases.fields.note', cell: (batch) => batch.note ?? '—', hideBelow: 'md', wrap: true },
     ...(canEdit || canDelete
       ? [
           {

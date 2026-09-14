@@ -38,6 +38,10 @@ labels people typed are isolated with `<bdi>`, or with U+2068/U+2069 inside a tr
 
 ## Contrast
 
+Since Q50 every token is derived from a colour theme's knobs, and the test runs every pair for all
+seven themes in light and dark (including the sidebar, table header and striped-row tokens). The ratios
+below are the default `harbor` theme's; any theme falling under a threshold fails the build.
+
 §7.12 asks for each token pair's ratio to be recorded here. The ratios below are computed from
 `apps/web/src/styles/globals.css` (OKLCH to sRGB, WCAG relative luminance). `src/styles/theme.test.ts`
 recomputes them on every run: text needs 4.5 : 1 or more and a field's outline 3 : 1 or more, or the
