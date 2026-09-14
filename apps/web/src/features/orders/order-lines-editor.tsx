@@ -1,4 +1,5 @@
 import { Plus, Trash2 } from 'lucide-react';
+import { useState } from 'react';
 import { Controller, useFieldArray, useWatch, type UseFormReturn } from 'react-hook-form';
 import { useTranslation } from 'react-i18next';
 import { EntityCombobox } from '@/components/app/entity-combobox';
@@ -128,9 +129,10 @@ export function OrderLinesEditor({
                   control={form.control}
                   name={`lines.${index}.unitDeposit`}
                   render={({ field: depositField }) => (
-                    <MoneyInput
+                    <UnitDepositInput
                       id={`lines-${index}-unitDeposit`}
-                      value={depositField.value ?? unitDeposit ?? null}
+                      value={depositField.value}
+                      fallback={row.itemId === null ? undefined : defaultDeposit(row.itemId)}
                       onChange={depositField.onChange}
                       onBlur={depositField.onBlur}
                       disabled={disabled}
@@ -187,5 +189,45 @@ export function OrderLinesEditor({
         </div>
       )}
     </div>
+  );
+}
+
+/**
+ * A line's deposit. Null means "the item's deposit", shown as that number until the user edits it. While the box has
+ * focus it shows exactly what is typed, so it can be emptied and typed again; left empty, or set back to the default, it
+ * follows the default once more, and a later change to the item's price is not frozen into the line.
+ */
+function UnitDepositInput({
+  id,
+  value,
+  fallback,
+  onChange,
+  onBlur,
+  disabled,
+}: {
+  id: string;
+  value: number | null;
+  fallback: number | undefined;
+  onChange: (value: number | null) => void;
+  onBlur: () => void;
+  disabled: boolean;
+}) {
+  const [editing, setEditing] = useState(false);
+  return (
+    <MoneyInput
+      id={id}
+      value={editing ? value : (value ?? fallback ?? null)}
+      onFocus={() => {
+        setEditing(true);
+        if (value === null && fallback !== undefined) onChange(fallback);
+      }}
+      onChange={onChange}
+      onBlur={() => {
+        setEditing(false);
+        if (value === null || value === fallback) onChange(null);
+        onBlur();
+      }}
+      disabled={disabled}
+    />
   );
 }

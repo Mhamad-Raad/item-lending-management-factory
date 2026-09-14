@@ -308,6 +308,42 @@ test('a picked item shows its current deposit and is not sent as an override', a
   expect(sent[0]?.lines).toEqual([{ itemId: 1, quantity: 10 }]);
 });
 
+test('the deposit of a line can be cleared and typed again', async ({ page }) => {
+  await page.setViewportSize({ width: 1280, height: 900 });
+  const sent = await mockApi(page, ADMIN);
+  await page.route(/\/api\/customers\/3$/, (route) => route.fulfill({ json: { ...CUSTOMER, creditLimit: null } }));
+
+  await page.goto('/orders/new');
+  await choose(page, 'Customer', 'Kurdistan Cement');
+  await choose(page, 'Driver', 'Karwan Aziz');
+  await page.getByRole('radio', { name: 'Lent' }).click();
+  await page.locator('#lines-0-item').click();
+  await page.getByRole('option', { name: /Pallet A/ }).click();
+  await page.locator('#lines-0-quantity').fill('10');
+
+  const deposit = page.locator('#lines-0-unitDeposit');
+  await deposit.fill('');
+  await expect(deposit).toHaveValue('');
+  await deposit.pressSequentially('900');
+  await expect(deposit).toHaveValue('900');
+  await page.getByRole('complementary', { name: 'Summary' }).getByRole('button', { name: 'Hand over' }).click();
+  await expect.poll(() => sent.length).toBe(1);
+  expect(sent[0]?.lines).toEqual([{ itemId: 1, quantity: 10, unitDeposit: 900 }]);
+});
+
+test('a deposit box left empty goes back to the item deposit', async ({ page }) => {
+  await page.setViewportSize({ width: 1280, height: 900 });
+  await mockApi(page, ADMIN);
+  await page.goto('/orders/new');
+  await page.locator('#lines-0-item').click();
+  await page.getByRole('option', { name: /Pallet A/ }).click();
+
+  const deposit = page.locator('#lines-0-unitDeposit');
+  await deposit.fill('');
+  await deposit.blur();
+  await expect(deposit).toHaveValue('1,000');
+});
+
 test('orders sort by their out value under a column that shows it', async ({ page }) => {
   await mockApi(page, ADMIN);
   await page.route(/\/api\/orders\?/, (route) =>
