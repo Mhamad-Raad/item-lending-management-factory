@@ -34,10 +34,9 @@ export function DriverDialog({
   });
   const errors = form.formState.errors;
 
-  const close = (): void => {
-    form.reset();
-    onOpenChange(false);
-  };
+  // No reset on closing: the page mounts the dialog afresh on every opening, and a reset here would show the
+  // fields snapping back while the dialog fades out.
+  const close = (): void => onOpenChange(false);
 
   const save = useMutation({
     mutationFn: (values: DriverCreateBody) => {

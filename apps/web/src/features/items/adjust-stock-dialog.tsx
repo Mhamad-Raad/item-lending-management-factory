@@ -40,10 +40,9 @@ export function AdjustStockDialog({
   const quantity = useWatch({ control: form.control, name: 'quantity' });
   const errors = form.formState.errors;
 
-  const close = (): void => {
-    form.reset();
-    onOpenChange(false);
-  };
+  // No reset on closing: the page mounts the dialog afresh on every opening, and a reset here would show the
+  // fields snapping back while the dialog fades out.
+  const close = (): void => onOpenChange(false);
 
   const adjust = useMutation({
     mutationFn: (body: StockAdjustmentCreateBody) =>

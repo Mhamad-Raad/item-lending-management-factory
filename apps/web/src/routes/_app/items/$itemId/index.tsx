@@ -59,6 +59,7 @@ function ItemDetailPage() {
   };
   const [dialog, setDialog] = useState<Dialog>(null);
   const batchDialog = useDialogState(dialog === 'batch' ? dialog : null);
+  const adjustDialog = useDialogState(dialog === 'adjust' ? dialog : null);
   usePageTitle('items.detail.title');
 
   const archive = useMutation({
@@ -184,7 +185,7 @@ function ItemDetailPage() {
         ) : null}
       </Tabs>
 
-      {/* Remounted on every opening, so its date defaults to the day it is opened, not the day the page was. */}
+      {/* Both remounted on every opening: fresh fields, and a batch dated the day it is opened. */}
       {batchDialog.value ? (
         <BatchDialog
           key={batchDialog.key}
@@ -193,11 +194,14 @@ function ItemDetailPage() {
           onOpenChange={(open) => setDialog(open ? 'batch' : null)}
         />
       ) : null}
-      <AdjustStockDialog
-        item={data}
-        open={dialog === 'adjust'}
-        onOpenChange={(open) => setDialog(open ? 'adjust' : null)}
-      />
+      {adjustDialog.value ? (
+        <AdjustStockDialog
+          key={adjustDialog.key}
+          item={data}
+          open={adjustDialog.open}
+          onOpenChange={(open) => setDialog(open ? 'adjust' : null)}
+        />
+      ) : null}
       <ConfirmDialog
         open={dialog === 'archive'}
         onOpenChange={(open) => setDialog(open ? 'archive' : null)}

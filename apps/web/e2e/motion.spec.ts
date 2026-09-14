@@ -299,3 +299,42 @@ test('a new page of rows replaces the old one: the leaving rows never stack abov
   await page.waitForTimeout(850);
   expect(await page.evaluate(() => (window as unknown as { __rows: string[] }).__rows)).toEqual([]);
 });
+
+test('a saved form dialog keeps what was typed while it fades, and takes no more input', async ({ page }) => {
+  await mockApi(page, ADMIN, 'en');
+  await page.setViewportSize({ width: 1280, height: 800 });
+  await page.route(/\/api\/drivers\/\d+$/, (route) =>
+    route.request().method() === 'PATCH'
+      ? route.fulfill({ json: { ...DRIVER, name: 'Renamed driver', version: DRIVER.version + 1 } })
+      : route.fallback(),
+  );
+  await page.goto('/drivers');
+  await page
+    .getByRole('row', { name: new RegExp(DRIVER.name) })
+    .getByRole('button', { name: 'Edit' })
+    .click();
+  const dialog = page.getByRole('dialog');
+  await dialog.locator('#driver-name').fill('Renamed driver');
+  await page.waitForTimeout(400);
+  await page.evaluate(() => {
+    const seen: string[] = [];
+    (window as unknown as { __fading: string[] }).__fading = seen;
+    const id = setInterval(() => {
+      const content = document.querySelector<HTMLElement>('[data-slot="dialog-content"]');
+      const input = content?.querySelector<HTMLInputElement>('#driver-name');
+      if (content && input) {
+        seen.push(`${input.value}|${input.closest('[inert]') ? 'inert' : 'live'}|${getComputedStyle(content).opacity}`);
+      }
+    }, 5);
+    setTimeout(() => clearInterval(id), 1500);
+  });
+  await dialog.getByRole('button', { name: 'Save' }).click();
+  await expect(dialog).toHaveCount(0);
+  await page.waitForTimeout(300);
+  const samples = await page.evaluate(() => (window as unknown as { __fading: string[] }).__fading);
+  expect(samples.filter((sample) => !sample.startsWith('Renamed driver|'))).toEqual([]);
+  // Fading out, it is inert: focus and keys no longer reach it. (Its entry finished before sampling began.)
+  const fading = samples.filter((sample) => Number(sample.split('|')[2]) < 1);
+  expect(fading.length).toBeGreaterThan(0);
+  expect(fading.filter((sample) => sample.split('|')[1] !== 'inert')).toEqual([]);
+});

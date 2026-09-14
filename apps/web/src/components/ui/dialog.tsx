@@ -1,6 +1,6 @@
 import { Dialog as DialogPrimitive } from 'radix-ui';
 import { X } from 'lucide-react';
-import { AnimatePresence, motion } from 'motion/react';
+import { AnimatePresence, motion, useIsPresent } from 'motion/react';
 import { createContext, useContext, useRef } from 'react';
 import { DURATION, EASE_OUT } from '@/lib/motion';
 import { cn } from '@/lib/utils';
@@ -20,6 +20,20 @@ export function Dialog({
     <DialogPrimitive.Root open={open} {...props}>
       <DialogOpen.Provider value={open}>{children}</DialogOpen.Provider>
     </DialogPrimitive.Root>
+  );
+}
+
+/**
+ * A panel's contents, which take no more input once `AnimatePresence` has begun to remove the panel: an Enter
+ * during the fade would submit a form a second time. The flag comes from presence, not from `open` — a leaving
+ * child is rendered from the element cached while it was still open.
+ */
+export function InertWhileLeaving({ children }: { children: React.ReactNode }) {
+  const present = useIsPresent();
+  return (
+    <div className="contents" inert={!present}>
+      {children}
+    </div>
   );
 }
 
@@ -77,11 +91,13 @@ export function DialogContent({
               animate={{ opacity: 1, scale: 1, transition: { duration: DURATION.base, ease: EASE_OUT } }}
               exit={{ opacity: 0, scale: 0.98, transition: { duration: DURATION.fast } }}
             >
-              {children}
-              <DialogPrimitive.Close className="absolute end-4 top-4 rounded-xs opacity-70 transition-opacity hover:opacity-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background">
-                <X className="size-4" aria-hidden />
-                <span className="sr-only">{closeLabel}</span>
-              </DialogPrimitive.Close>
+              <InertWhileLeaving>
+                {children}
+                <DialogPrimitive.Close className="absolute end-4 top-4 rounded-xs opacity-70 transition-opacity hover:opacity-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background">
+                  <X className="size-4" aria-hidden />
+                  <span className="sr-only">{closeLabel}</span>
+                </DialogPrimitive.Close>
+              </InertWhileLeaving>
             </motion.div>
           </DialogPrimitive.Content>
         </DialogPrimitive.Portal>

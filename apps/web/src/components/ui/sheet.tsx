@@ -2,6 +2,7 @@ import { Dialog as DialogPrimitive } from 'radix-ui';
 import { X } from 'lucide-react';
 import { AnimatePresence, motion } from 'motion/react';
 import { createContext, useContext, useRef } from 'react';
+import { InertWhileLeaving } from '@/components/ui/dialog';
 import { DURATION, EASE_OUT } from '@/lib/motion';
 import { isRtl, usePreferences } from '@/lib/preferences';
 import { cn } from '@/lib/utils';
@@ -89,11 +90,13 @@ export function SheetContent({
               animate={{ x: 0, y: 0, transition: { duration: DURATION.base, ease: EASE_OUT } }}
               exit={{ ...hidden, transition: { duration: DURATION.fast } }}
             >
-              {children}
-              <DialogPrimitive.Close className="absolute end-4 top-4 flex size-10 items-center justify-center rounded-md opacity-70 outline-none hover:opacity-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background md:size-9">
-                <X className="size-4" aria-hidden />
-                <span className="sr-only">{closeLabel}</span>
-              </DialogPrimitive.Close>
+              <InertWhileLeaving>
+                {children}
+                <DialogPrimitive.Close className="absolute end-4 top-4 flex size-10 items-center justify-center rounded-md opacity-70 outline-none hover:opacity-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background md:size-9">
+                  <X className="size-4" aria-hidden />
+                  <span className="sr-only">{closeLabel}</span>
+                </DialogPrimitive.Close>
+              </InertWhileLeaving>
             </motion.div>
           </DialogPrimitive.Content>
         </DialogPrimitive.Portal>
