@@ -1,6 +1,7 @@
 import type { Locator } from '@playwright/test';
 import { expect, test } from './fixtures';
-import { ITEM, mockApi } from './mock-api';
+import ckb from '../src/i18n/locales/ckb.json' with { type: 'json' };
+import { ITEM, SETTINGS, mockApi } from './mock-api';
 
 const ADMIN = {
   id: 1,
@@ -174,6 +175,55 @@ test('an active user is marked in the success colour, readable in both themes', 
     await page.waitForTimeout(350);
     expect(await tokenColours(badge, '--success')).toMatchObject({ matches: true, defined: true });
     expect(await contrastOf(badge), theme).toBeGreaterThanOrEqual(4.5);
+  }
+});
+
+test('toasts are coloured by kind, closable, readable in both themes, and labelled in the UI language', async ({
+  page,
+}) => {
+  test.setTimeout(60_000);
+  await page.emulateMedia({ reducedMotion: 'reduce' });
+  const check = async (theme: string, kind: 'success' | 'error') => {
+    const toast = page.locator(`[data-sonner-toast][data-type="${kind}"]`);
+    await expect(toast).toBeVisible();
+    // Hovering holds the toast open while it is measured.
+    await toast.hover();
+    await expect(toast).toHaveAttribute('data-rich-colors', 'true');
+    const close = toast.getByRole('button', { name: ckb.common.actions.close, exact: true });
+    await expect(close).toBeVisible();
+    await expect(page.getByRole('region', { name: ckb.common.notifications, exact: true })).toHaveCount(1);
+    await page.waitForTimeout(350);
+    expect(await contrastOf(toast.locator('[data-title]')), `${theme} ${kind} text`).toBeGreaterThanOrEqual(4.5);
+    expect(await contrastOf(close), `${theme} ${kind} close`).toBeGreaterThanOrEqual(4.5);
+  };
+
+  for (const theme of ['light', 'dark'] as const) {
+    await mockApi(page, undefined, 'ckb', theme);
+    await page.route(/\/api\/settings$/, (route) =>
+      route.request().method() === 'PATCH' ? route.fulfill({ json: { ...SETTINGS, version: 2 } }) : route.fallback(),
+    );
+    await page.route(/\/api\/items\/\d+\/stock-adjustments$/, (route) =>
+      route.fulfill({
+        status: 409,
+        json: { error: { code: 'STOCK_INSUFFICIENT', details: { items: [{ requested: 9, available: 1 }] } } },
+      }),
+    );
+
+    await page.goto('/settings');
+    await page.locator('#factoryName').fill('Another name');
+    await page.locator('main form button[type="submit"]').click();
+    await check(theme, 'success');
+
+    await page.goto('/items/5');
+    await page.getByRole('button', { name: ckb.items.detail.adjustStock }).click();
+    await page.locator('#adjust-quantity').fill('-9');
+    await page.locator('#adjust-note').fill('count');
+    await page.getByRole('dialog').locator('button[type="submit"]').click();
+    await expect(page.locator('[data-sonner-toast][data-type="error"]')).toBeVisible();
+    // The dialog's overlay would take the pointer.
+    await page.keyboard.press('Escape');
+    await expect(page.getByRole('dialog')).toHaveCount(0);
+    await check(theme, 'error');
   }
 });
 

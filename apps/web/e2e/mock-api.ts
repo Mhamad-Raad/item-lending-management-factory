@@ -233,7 +233,7 @@ const AUDIT_ROW: AuditLogDto = {
   after: null,
 };
 
-const SETTINGS: SettingsDto = {
+export const SETTINGS: SettingsDto = {
   factoryName: 'Hawler Pallet Manufacturing Factory',
   phone: '+9647501234567',
   address: 'Industrial Area, 100 Metre Road, Erbil',

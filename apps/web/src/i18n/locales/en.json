@@ -103,7 +103,8 @@
     },
     "filters": {
       "title": "Filters"
-    }
+    },
+    "notifications": "Notifications"
   },
   "nav": {
     "primary": "Main navigation",
