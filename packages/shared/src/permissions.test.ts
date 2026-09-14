@@ -28,4 +28,19 @@ describe('permission keys', () => {
     expect(missingPermissionDependencies(['reports.viewPurchases'])).toEqual(['items.view', 'items.viewCost']);
     expect(missingPermissionDependencies(['items.view', 'items.edit'])).toEqual([]);
   });
+
+  it('U6: the cases of §14.2', () => {
+    expect([...closePermissionSet(['reports.viewPurchases'])].sort()).toEqual(
+      ['items.view', 'items.viewCost', 'reports.viewPurchases'].sort(),
+    );
+    expect(missingPermissionDependencies(['orders.create'])).toEqual([
+      'customers.view',
+      'drivers.view',
+      'items.view',
+      'orders.view',
+    ]);
+    const grantable = new Set<string>(GRANTABLE_PERMISSION_KEYS);
+    for (const key of Object.keys(PERMISSION_DEPENDENCIES)) expect(grantable.has(key), key).toBe(true);
+    for (const key of ADMIN_ONLY_PERMISSION_KEYS) expect(grantable.has(key), key).toBe(false);
+  });
 });

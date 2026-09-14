@@ -211,10 +211,42 @@ describe('credit limit (4.4)', () => {
   });
 });
 
+describe('U4: checkCreditLimit, the cases of §14.2', () => {
+  it.each([
+    ['no limit', { creditLimit: null, customerOutValue: 0, depositDelta: 5_000_000 }, { allowed: true, excess: 0 }],
+    ['limit 0, nothing taken', { creditLimit: 0, customerOutValue: 0, depositDelta: 0 }, { allowed: true, excess: 0 }],
+    [
+      'limit 0, 1,000 taken',
+      { creditLimit: 0, customerOutValue: 0, depositDelta: 1_000 },
+      { allowed: false, excess: 1_000 },
+    ],
+    [
+      'over by 10,000',
+      { creditLimit: 150_000, customerOutValue: 100_000, depositDelta: 60_000 },
+      { allowed: false, excess: 10_000 },
+    ],
+    [
+      'exactly at the limit',
+      { creditLimit: 150_000, customerOutValue: 100_000, depositDelta: 50_000 },
+      { allowed: true, excess: 0 },
+    ],
+    [
+      'already over, reducing',
+      { creditLimit: 150_000, customerOutValue: 200_000, depositDelta: -20_000 },
+      { allowed: true, excess: 0 },
+    ],
+  ])('%s', (_name, input, expected) => {
+    expect(checkCreditLimit(input)).toMatchObject(expected.allowed ? { allowed: true } : expected);
+  });
+});
+
 describe('receipt chunking (A15)', () => {
   it('splits into chunks of 6 and keeps one sheet for an empty order', () => {
     expect(chunkReceiptLines([])).toEqual([[]]);
     expect(chunkReceiptLines([1, 2, 3, 4, 5, 6]).length).toBe(1);
     expect(chunkReceiptLines([1, 2, 3, 4, 5, 6, 7]).map((c) => c.length)).toEqual([6, 1]);
+    // U5 (§14.2): full sheets stay whole, one line more starts a new sheet.
+    expect(chunkReceiptLines(Array.from({ length: 12 }, (_, i) => i)).map((c) => c.length)).toEqual([6, 6]);
+    expect(chunkReceiptLines(Array.from({ length: 13 }, (_, i) => i)).map((c) => c.length)).toEqual([6, 6, 1]);
   });
 });
