@@ -137,7 +137,6 @@ export function DataTable<T>({
                     return (
                       <TableHead
                         key={column.id}
-                        scope="col"
                         aria-sort={column.sortKey ? state : undefined}
                         className={cn(
                           column.align === 'end' && 'text-end',

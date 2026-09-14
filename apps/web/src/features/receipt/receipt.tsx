@@ -83,11 +83,21 @@ function Half({
         <table className="lines">
           <thead>
             <tr>
-              <th className="col-no">#</th>
-              <th className="col-item">{tr('receipt.item')}</th>
-              <th className="col-qty">{tr('receipt.quantity')}</th>
-              <th className="col-unit">{tr('receipt.unitDeposit')}</th>
-              <th className="col-total">{tr('receipt.lineTotal')}</th>
+              <th scope="col" className="col-no">
+                #
+              </th>
+              <th scope="col" className="col-item">
+                {tr('receipt.item')}
+              </th>
+              <th scope="col" className="col-qty">
+                {tr('receipt.quantity')}
+              </th>
+              <th scope="col" className="col-unit">
+                {tr('receipt.unitDeposit')}
+              </th>
+              <th scope="col" className="col-total">
+                {tr('receipt.lineTotal')}
+              </th>
             </tr>
           </thead>
           <tbody>

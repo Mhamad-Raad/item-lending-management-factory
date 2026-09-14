@@ -96,3 +96,15 @@ test('text keeps its contrast across the pages with badges, notices and tables, 
   }
   expect(problems).toEqual([]);
 });
+
+test('every table header names its column for screen readers (§7.15)', async ({ page }) => {
+  await mockApi(page, ADMIN, 'en');
+  const unscoped: string[] = [];
+  for (const route of ['/history', '/orders', '/reports/stock', '/users', '/items/5']) {
+    await page.goto(route);
+    await expect(page.locator('main table').first()).toBeVisible();
+    const headers = await page.locator('main th:not([scope="col"])').allTextContents();
+    unscoped.push(...headers.map((text) => `${route}: ${text}`));
+  }
+  expect(unscoped).toEqual([]);
+});

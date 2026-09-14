@@ -27,9 +27,11 @@ export function TableRow({ className, ...props }: React.ComponentProps<'tr'>) {
   );
 }
 
-export function TableHead({ className, ...props }: React.ComponentProps<'th'>) {
+/** A column header unless told otherwise, so every table names its columns (§7.15). */
+export function TableHead({ className, scope = 'col', ...props }: React.ComponentProps<'th'>) {
   return (
     <th
+      scope={scope}
       data-slot="table-head"
       className={cn('text-muted-foreground h-10 px-3 text-start align-middle font-medium whitespace-nowrap', className)}
       {...props}
