@@ -16,7 +16,7 @@
     "build": "tsc -b",
     "dev": "tsc -b --watch --preserveWatchOutput",
     "typecheck": "tsc -b --noEmit false",
-    "test": "vitest run",
+    "test": "vitest run --coverage",
     "clean": "rm -rf dist *.tsbuildinfo"
   },
   "dependencies": {

@@ -29,5 +29,13 @@ export default defineConfig({
     fileParallelism: false,
     testTimeout: 30_000,
     hookTimeout: 60_000,
+    // §14.1: the modules that move stock and money, and sign people in, stay covered by the business flows.
+    coverage: {
+      provider: 'v8',
+      include: ['src/modules/{orders,returns,ledger,purchases,items,auth}/**'],
+      exclude: ['**/*.test.ts'],
+      reporter: ['text-summary'],
+      thresholds: { lines: 85 },
+    },
   },
 });
