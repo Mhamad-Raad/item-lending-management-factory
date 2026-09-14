@@ -39,6 +39,7 @@ Pallet System: a web app for a single pallet factory in Iraq (Kurdistan Region) 
 - **4c done**: `/returns/new`, `/payments/new` (daily flows 2 and 3), order-page actions on returns and payments, the customer history tab. **M4 reviewed as a whole** (`ed85d8c`): I14 (reconcile after a seeded 200-operation sequence), return rows by line, correction header, reference links.
 - **M5 done and reviewed** (`043b8e6`): the four reports and the dashboard (API + web, print layouts; activity prints landscape on every page; dashboard stale time 15 s).
 - **M6 built** — 6a (`0297ec4`): `rtl-classes.test.ts`, typed text isolated (`<bdi>`, `lib/bidi.ts` `isolate()`), typed i18n keys, glossary locale tests, `e2e/rtl.spec.ts`, Q43. 6b (`d831831`): §7.12 palette + `styles/theme.test.ts` (Q44), motion (Dialog/Sheet exits via `AnimatePresence` + `forceMount`, `AnimatedOutlet`, Q45 CSS button press), focus rings, `e2e/a11y.spec.ts` (axe), `motion.spec.ts`, `keyboard.spec.ts`. **M6 review**: E7 (`e2e/preferences.spec.ts`), sonner `richColors`/`closeButton` in the tokens with translated labels (Q46), `TableHead` `scope="col"` by default, rem radii; a list replaced outright remounts its row presence (old rows no longer stack above the new page); leaving dialogs and sheets are inert (`InertWhileLeaving`), and form dialogs remounted per opening no longer reset on close. **Open for M6 acceptance:** the E6/§7.11.2 screenshot baselines (CI runner image) and native-speaker proofreading of ckb/ar (client).
+- **Whole-system review** (2026-09-14, after M6): CI had been red since the baseline — `pnpm audit` (multer, and the Prisma CLI's mysql2/deepmerge-ts: patched through `overrides` in `pnpm-workspace.yaml`) and, lately, an e2e sweep over its 30 s timeout (a11y tests now one per page). Fixed: the API pipe labelled every wrong-type value `required` (zod 4 issues carry no input without `reportInput`); Q47 return edit/delete lock the customer; Q48 a change writes stock additions before removals; idempotency hashes the normalised path (`IdempotencyService.requestFor`); `deploy.sh` rolls back on any failure after switching versions; dialog close button 40 px. Built what the spec named but no slice had: U7 `enums.test.ts`, U8, `zod-issues.test.ts`, S7 storage ESLint rule, D9 Sentry (`src/instrument.ts`, 5xx from `ApiExceptionFilter`), §14.1 coverage gates (shared domain 100 %, API modules 85 % in `test:integration`). DRY: `SessionService.logoutEverywhere`, order `priceLine`/`depositTotalOf`, shared `orderStateWithoutReturn`, `fromAggregate`/`ITEM_REF_INCLUDE`, web `DateField`, `components/ui/panel.tsx` (Dialog/Sheet), order form fields, `orderRowLink`. Spec file references corrected (Q49).
 - Still open from M1: S-12 and S-14 are covered (2c, 2b); `/history` gains its date-range filter with the shared `DatePicker` in 2d.
 - Carried into 1d: `errors.<CODE>` / `validation.<code>` i18n keys (added with the web error rendering), and deleting the `home.*` / `status.*` scaffold keys with the baseline home page.
 
@@ -56,18 +57,18 @@ docs/runbooks/    Operational runbooks
 
 pnpm comes from corepack (`corepack enable --install-directory ~/.local/bin` was run once; `~/.local/bin` is on PATH — the default `/usr/local/bin` needs sudo). Docker runs through colima. Local ports: Postgres 5434, API 3000, Vite 5175 (ARCHITECTURE.md Q33).
 
-| Command                                                                     | Purpose                                                     |
-| --------------------------------------------------------------------------- | ----------------------------------------------------------- |
-| `pnpm install`                                                              | Install (runs `prisma generate` for the API)                |
-| `pnpm db:up` / `pnpm db:down`                                               | Dev Postgres on 127.0.0.1:5434 (also creates `pallet_test`) |
-| `pnpm db:migrate`                                                           | `migrate dev` + grants (development only)                   |
-| `pnpm db:deploy`                                                            | `migrate deploy` + grants (CI / non-interactive)            |
-| `pnpm --filter @pallet/api build && pnpm db:seed`                           | First admin + default settings                              |
-| `pnpm db:seed:demo` (after the build, API stopped)                          | Two months of demo data via the services (empty DB only)    |
-| `pnpm dev`                                                                  | Shared watch + API (:3000) + web (:5175, proxies `/api`)    |
-| `pnpm lint` · `pnpm typecheck` · `pnpm test` · `pnpm build` · `pnpm format` | Quality gates (all must pass)                               |
-| `pnpm test:integration`                                                     | API integration tests against real Postgres                 |
-| `pnpm test:e2e`                                                             | Playwright (Chromium)                                       |
+| Command                                                                     | Purpose                                                       |
+| --------------------------------------------------------------------------- | ------------------------------------------------------------- |
+| `pnpm install`                                                              | Install (runs `prisma generate` for the API)                  |
+| `pnpm db:up` / `pnpm db:down`                                               | Dev Postgres on 127.0.0.1:5434 (also creates `pallet_test`)   |
+| `pnpm db:migrate`                                                           | `migrate dev` + grants (development only)                     |
+| `pnpm db:deploy`                                                            | `migrate deploy` + grants (CI / non-interactive)              |
+| `pnpm --filter @pallet/api build && pnpm db:seed`                           | First admin + default settings                                |
+| `pnpm db:seed:demo` (after the build, API stopped)                          | Two months of demo data via the services (empty DB only)      |
+| `pnpm dev`                                                                  | Shared watch + API (:3000) + web (:5175, proxies `/api`)      |
+| `pnpm lint` · `pnpm typecheck` · `pnpm test` · `pnpm build` · `pnpm format` | Quality gates (all must pass)                                 |
+| `pnpm test:integration`                                                     | API integration tests against real Postgres (+ coverage gate) |
+| `pnpm test:e2e`                                                             | Playwright (Chromium)                                         |
 
 Local `.env` lives at the **repository root** (copy the LOCAL DEVELOPMENT block of `.env.example`).
 

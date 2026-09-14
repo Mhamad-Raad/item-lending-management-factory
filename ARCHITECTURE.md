@@ -210,6 +210,9 @@ Every item below is an ambiguity, contradiction or gap in the brief. The builder
 | Q44 | §7.12 states that every token pair meets WCAG AA, but two of its values do not: light `--warning-foreground` (`oklch(0.15 0.03 70)`) on `--warning` measures 3.5 : 1, and `--border` / `--input` (`oklch(0.87 0.01 250)` light, `oklch(0.34 0.015 250)` dark) measure 1.4–1.6 : 1 against the surfaces, short of the 3 : 1 a field's outline needs. Which gives way? | The contrast requirement. Light `--warning-foreground` is `oklch(0.99 0 0)` (5.5 : 1). `--input`, which outlines fields, checkboxes, radios and switches, is `oklch(0.6 0.02 250)` light and `oklch(0.55 0.02 250)` dark (3.7–4.0 : 1). `--border` keeps §7.12's value: it only divides rows and cards. The light soft success badge tints its background at 8 % rather than 12 %, where its text measured 4.4 : 1. `apps/web/src/styles/theme.test.ts` pins the palette to this table and recomputes every ratio; `docs/rtl-audit.md` records them. |
 | Q45 | §7.14 presses buttons with `motion.button` `whileTap={{ scale: 0.98 }}`. motion's tap gesture also answers Enter by emulating a pointer press, and a Radix trigger (the user menu) toggled by both that and the key closes the menu it has just opened: Enter no longer opens it. How does a button press? | Through CSS on every button, as §7.14 already gives for `asChild`: `active:scale-[0.98]` with a 150 ms transition of colour and scale. `e2e/keyboard.spec.ts` opens the user menu with Enter and checks it stays open; `e2e/motion.spec.ts` checks the press. |
 | Q46 | §7.11.1 gives sonner `richColors`, and §7.12 requires AA for every text, but sonner's rich palette measures 4.3 : 1 for success text in light; tinted like the dark soft badges (20 %), error text on a popover measures 4.3 : 1 too. Its region label is also English ("Notifications alt+T") in every language. What holds? | `richColors` and `closeButton` are on, with sonner's colour variables set from the tokens: background `color-mix(in oklch, var(--<token>) 12%, var(--popover))` in both themes, border 30 %, text `var(--<token>)` (error → `destructive`). The region is labelled `common.notifications` and the close button `common.actions.close`. `e2e/styles.spec.ts` measures a success and an error toast in both themes (≥ 4.5 : 1) in Kurdish. |
+| Q47 | §4.4 calls the credit check exact because it sums the customer's out value under the customer's lock, but §4.8.5 and §4.8.6 lock only the order: deleting a return, or replacing it with a smaller one, puts pallets back out and raises that out value without the lock, so an order priced for the same customer at that moment misses it and can end over the limit with no override recorded. Do return changes lock the customer? | Yes. Edit and delete read the order's customer unlocked (it never changes) and take `lockCustomer` before `lockOrder`, in the global order of §6.6. Creating a return only lowers the out value and a payment never touches it, so they keep locking the order alone. `test/integration/return-locks.test.ts` holds the customer row and checks that both wait. |
+| Q48 | The item history shows a running balance by movement id (§6.15), and `StockLedger.apply` judges only each item's net change. When one change writes a removal before an addition — a return edit writes the old return's −accepted before the new one's +accepted — and the returned pallets have gone out again, the history shows a negative balance on the first row although stock never went below zero. In what order are one change's rows written? | Additions first, then removals, each group in the caller's order. The running balance within one change then never dips below the lower of the stock before and after it, both of which the stock check keeps at zero or more. I2's movement order follows. |
+| Q49 | A whole-system review (2026-09-14) found §8.9, §9 and §10 naming files the build placed differently: `packages/shared/src/i18n-keys.ts` and the schema files `index.ts`, `ledger.ts`, `dashboard.ts` never existed (the audit list query sat in `users.ts`, the ledger list query in `orders.ts`), the web app has no `tsconfig.node.json`, `src/test/setup.ts` or `features/auth`, and several §10 rows name guard and store files by other names. Which gives way? | The code where it is the better place, the document otherwise. `AuditLogListQuery` moved to `schemas/audit.ts` and `LedgerEntryListQuery` to `schemas/payments.ts` as §6.27 says. i18n key types stay in the web app, where the translation files live (§8.9 rewritten). The §9 trees and the §10 file references now name the files that exist; `e2e/auth.spec.ts`, `e2e/daily-flows.spec.ts` and `e2e/__screenshots__/` remain M7 deliverables. |
 
 ## 3. Actors, roles and permissions
 
@@ -497,18 +500,18 @@ lockOrderCounter(tx)   // SELECT last_number FROM order_counter WHERE id = 1 FOR
 8. If `cashRefund > 0`: insert `REFUND / RETURN_CREATE / date = return date / return_id / amount cashRefund`.
 9. `recomputeOrder({ bumpVersion: true })`. Audit `RETURN RETURN_CREATE` (+ `LEDGER_ENTRY REFUND_CREATE`). Idempotency key row. Respond 201 `ReturnResultDto` (`{ returnId, order }`, §6.20).
 
-#### 4.8.5 Edit return — `POST /api/returns/:id/replace` (returns.edit; locks: order, items)
+#### 4.8.5 Edit return — `POST /api/returns/:id/replace` (returns.edit; locks: customer, order, items)
 
-1. Validate body (same schema as create). Read `returns.order_id` (unlocked); `lockOrder`; reload order and the old return. Old return reversed → `RETURN_ALREADY_REVERSED`.
+1. Validate body (same schema as create). Read `returns.order_id` and the order's `customer_id` (unlocked); `lockCustomer` (Q47); `lockOrder`; reload order and the old return. Old return reversed → `RETURN_ALREADY_REVERSED`.
 2. Validate entries as in 4.8.4 steps 1–2 (`date ≥ order.date`, lines belong to order).
 3. `lockItems(union of item ids of the old return's lines and the new entries)`.
 4. Compute the **state without the old return**: `computeOrderTotals` with the old return marked reversed and the old return's REFUND (if any, non-reversed) netted by its reversal. Validate new entries against those `outQuantity` values (`RETURN_EXCEEDS_OUT`) and damaged refund caps. `owedBefore` = that state's `owed`.
 5. Writes, in this order: (a) movements `RETURN_EDIT −oldAccepted` (return_id = old) and, after step (c), `RETURN_ACCEPTED +newAccepted` (return_id = new) — both passed to one `StockLedger.apply` call so the negativity check uses the per-item net (Q20); (b) if the old return has a non-reversed REFUND: `REFUND_REVERSAL / RETURN_EDIT / date today / return_id = old / reverses it`; (c) insert the new `returns` row + `return_lines` with `refundDue`, `owedBefore`, `cashRefund = max(0, refundDue − owedBefore)`; (d) if new `cashRefund > 0`: `REFUND / RETURN_EDIT / date = new return date / return_id = new`; (e) one statement `UPDATE returns SET reversed_at = now(), reversed_by_user_id = :userId, reversal_kind = 'EDIT', replaced_by_return_id = :newId WHERE id = :oldId`.
 6. `recomputeOrder({ bumpVersion: true })`. Audit `RETURN RETURN_EDIT` (entityId = old id; before = old return, after = new return) + `REFUND_REVERSE` / `REFUND_CREATE` as applicable. Respond 201 `ReturnResultDto` (`returnId` = the new return). No idempotency key (a retried replace fails safely with `RETURN_ALREADY_REVERSED`).
 
-#### 4.8.6 Delete return — `DELETE /api/returns/:id` (returns.delete; locks: order, items)
+#### 4.8.6 Delete return — `DELETE /api/returns/:id` (returns.delete; locks: customer, order, items)
 
-1. `lockOrder`; reload; reversed → `RETURN_ALREADY_REVERSED`.
+1. `lockCustomer` (Q47); `lockOrder`; reload; reversed → `RETURN_ALREADY_REVERSED`.
 2. `lockItems(item ids of its lines)`; `StockLedger.apply`: `RETURN_DELETE −accepted` per entry with accepted > 0 (may fail with `STOCK_INSUFFICIENT` if those pallets were lent out again).
 3. If it has a non-reversed REFUND: `REFUND_REVERSAL / RETURN_DELETE / date today / return_id / reverses it`.
 4. `UPDATE returns SET reversed_at, reversed_by_user_id, reversal_kind = 'DELETE'`.
@@ -4346,8 +4349,8 @@ Exports value arrays, value objects and types (identical to the Prisma enums; th
 ### 8.8 `src/constants.ts`
 `CSRF_HEADER_NAME = 'X-Requested-With'`, `CSRF_HEADER_VALUE = 'pallet-web'`, `IDEMPOTENCY_HEADER_NAME = 'Idempotency-Key'`, `IDEMPOTENCY_REPLAYED_HEADER = 'Idempotency-Replayed'`, `REFRESH_COOKIE_NAME = 'pallet_rt'`, `REFRESH_COOKIE_PATH = '/api/auth'`, `ACCESS_TOKEN_TTL_SECONDS = 900`, `REFRESH_TOKEN_SLIDING_DAYS = 14`, `REFRESH_TOKEN_ABSOLUTE_DAYS = 30`, `REFRESH_GRACE_SECONDS = 30`, `IDEMPOTENCY_TTL_HOURS = 24`, `PAGE_SIZE_DEFAULT = 25`, `PAGE_SIZE_MAX = 100`, `PASSWORD_MIN_LENGTH = 10`, `PASSWORD_MAX_LENGTH = 128`, `USERNAME_PATTERN = /^[a-z0-9._-]{3,32}$/`, `PHONE_PATTERN = /^\+?[0-9]{7,15}$/`, `ORDER_NUMBER_PAD = 6`, `PREFS_STORAGE_KEY = 'pallet.prefs.v1'`, `DEFAULT_PREFERENCES = { language: 'ckb', theme: 'light', fontSize: 'md' }`.
 
-### 8.9 `src/i18n-keys.ts` (i18n key type helpers)
-`errorKey(code: AnyErrorCode): \`errors.${AnyErrorCode}\``, `validationKey(code): \`validation.${ValidationCode}\``, `permissionI18nKey(key: PermissionKey): string` (dots → underscores, prefix `permissions.`), `enumKey(enumName, value)`, `auditSummaryKey(entityType: AuditEntityType, action: AuditAction): \`audit.summary.${AuditEntityType}.${AuditAction}\``, and `REQUIRED_I18N_KEYS(): string[]`, which returns every key the completeness test (7.10) demands from shared constants.
+### 8.9 i18n key types (Q49)
+Translation keys are typed in the web app, where they are used: `apps/web/src/i18n/keys.ts` exports `TranslationKey` (i18next's `ParseKeys`, checked against `en.json`) and `dynamicKey(key)` for keys assembled from data (`errors.${code}`, `enums.${name}.${value}`, `permissions.${key}`, `audit.summary.${entity}.${action}`). Which of those keys must exist is computed from the shared constants by `apps/web/src/i18n/locales.test.ts` (§7.10), so the package exports no key builders.
 
 ### 8.10 Tests inside the package (vitest, `src/**/*.test.ts`)
 `ledger-math.test.ts` (all worked examples from section 4, credit-limit cases, chunking), `permissions.test.ts` (dependency closure, every dependency target is grantable, no cycles, admin-only keys never grantable), `enums.test.ts` (Prisma enum parity), `dates.test.ts` (Baghdad day boundaries: 2026-09-10T21:00:00Z is `2026-09-11` in Baghdad; 20:59:59Z is still `2026-09-10`), `format.test.ts`, `zod-issues.test.ts`.
@@ -4359,6 +4362,7 @@ Paths are relative to the repository root. Every folder and file listed here exi
 ### 9.1 Root
 ```
 .
+├── .dockerignore                 # build context = repository root: node_modules, dist, .env*, generated code, docs
 ├── .editorconfig                 # UTF-8, LF, 2-space indent, final newline
 ├── .env.example                  # every environment variable with description and example (section 13)
 ├── .gitignore                    # node_modules, dist, .env, apps/api/src/generated, coverage, test-results, playwright-report
@@ -4400,12 +4404,11 @@ packages/shared/
     ├── constants.ts              # header names, TTLs, limits, patterns (8.8)
     ├── dates.ts                  # Asia/Baghdad business-date helpers (8.6)
     ├── format.ts                 # number/money/order-number/phone/canonical-JSON helpers (8.7)
-    ├── i18n-keys.ts              # typed i18n key builders (8.9)
+    ├── audit-matrix.ts           # §11.3 as data: the (entity, action) pairs the API may record
     ├── domain/
     │   ├── ledger-math.ts        # section 4 formulas as pure functions (8.4)
     │   └── ledger-math.test.ts   # worked examples
     └── schemas/                  # zod request/response schemas per module (8.5)
-        ├── index.ts
         ├── common.ts
         ├── zod-issues.ts
         ├── auth.ts
@@ -4418,17 +4421,16 @@ packages/shared/
         ├── drivers.ts
         ├── orders.ts
         ├── returns.ts
-        ├── ledger.ts
-        ├── dashboard.ts
+        ├── payments.ts
         ├── reports.ts
-        └── audit.ts
+        ├── audit.ts
+        └── dto.ts                # response DTO types shared with the web app
 ```
 
 ### 9.4 `apps/api/`
 ```
 apps/api/
 ├── Dockerfile                    # multi-stage: deps → build (tsc, prisma generate) → runtime node:24.21.0-bookworm-slim, USER node
-├── .dockerignore
 ├── package.json                  # @pallet/api, CommonJS; scripts dev (tsc-watch), build, copy-assets, start, test, test:integration, db:*, reconcile
 ├── prisma.config.ts              # Prisma 7 config: schema path, migrations path, datasource url = DATABASE_MIGRATE_URL
 ├── tsconfig.json                 # module nodenext (CommonJS output), experimentalDecorators, emitDecoratorMetadata
@@ -4508,7 +4510,6 @@ apps/web/
 ├── vite.config.ts                # tanstackRouter plugin, react, tailwindcss; dev proxy /api → http://localhost:3000; vitest config
 ├── components.json               # shadcn config (style new-york, tailwind v4, aliases @/components, @/lib)
 ├── tsconfig.json                 # moduleResolution bundler, jsx react-jsx, paths @/* → ./src/*
-├── tsconfig.node.json            # for vite.config.ts and playwright.config.ts
 ├── playwright.config.ts          # chromium project, baseURL, webServer (api + vite preview), screenshot settings
 ├── public/
 │   ├── boot-prefs.js             # applies language/dir/theme/font size before first paint (7.1)
@@ -4519,9 +4520,8 @@ apps/web/
 │   ├── router.ts                 # router instance and typed context
 │   ├── routeTree.gen.ts          # generated by @tanstack/router-plugin (committed)
 │   ├── routes/                   # file-based routes (7.2): __root, login, change-password, _app/**, _print/**
-│   ├── features/                 # one folder per module: api.ts (query hooks), components/, forms/
-│   │   ├── auth/  dashboard/  orders/  returns/  payments/  customers/  drivers/
-│   │   ├── items/  purchases/  reports/  history/  users/  settings/  account/
+│   ├── features/                 # per module: api.ts (query options), forms, sections; small pages keep theirs in routes/
+│   │   ├── orders/  returns/  payments/  customers/  drivers/  items/  reports/
 │   │   └── receipt/              # receipt components, receipt.css, receipt.test.tsx
 │   ├── components/
 │   │   ├── ui/                   # shadcn-generated components after the RTL audit (7.11.1)
@@ -4550,12 +4550,12 @@ apps/web/
 │   │   ├── locales/ckb.json      # Kurdish Sorani (default)
 │   │   ├── locales/ar.json       # Arabic
 │   │   ├── locales/en.json       # English (type source)
+│   │   ├── keys.ts               # TranslationKey, dynamicKey (8.9)
 │   │   └── locales.test.ts       # completeness test
 │   ├── styles/
 │   │   └── globals.css           # Tailwind import, theme tokens, font stack, reduced-motion rules, print rules for reports
 │   └── test/
-│       ├── setup.ts              # jsdom setup, i18n init for tests
-│       └── rtl-classes.test.ts   # forbids physical-direction classes (7.11)
+│       └── rtl-classes.test.ts   # forbids physical-direction classes (7.11); jsdom is chosen per test file
 └── e2e/
     ├── fixtures.ts               # seeded users/logins, preference init scripts
     ├── auth.spec.ts              # login, forced password change, logout
@@ -4616,7 +4616,7 @@ Every requirement of the client query §6A appears below as one row: requirement
 | S4 | No username enumeration | `argon2` | `DUMMY_HASH` = `argon2.hash(randomBytes(32).toString('hex'), PARAMS)` computed in `onModuleInit`. Every login attempt performs **exactly one** `argon2.verify`: unknown username, inactive user and locked (ip, username) pair verify the submitted password against `DUMMY_HASH` and then fail. Every failure returns HTTP 401 `AUTH_INVALID_CREDENTIALS`, identical body | `apps/api/src/modules/auth/auth.service.ts` |
 | S5 | Login auditing | — | `LOGIN_SUCCESS`, `LOGIN_FAILURE` (params `reason`: `INVALID` \| `LOCKED` \| `INACTIVE` — stored only in the audit row, never in the response), `LOCKOUT`; each with `ip`, `requestId`, `usernameAttempt` | §11 |
 | S6 | Access token | `@nestjs/jwt` 11.0.2 | `JwtModule.registerAsync({ secret: env.JWT_ACCESS_SECRET, signOptions: { algorithm: 'HS256', expiresIn: '15m' }, verifyOptions: { algorithms: ['HS256'] } })`; payload exactly `{ sub: String(userId), tv: tokenVersion }` (+ `iat`, `exp`); the token is read from `Authorization: Bearer` by `AuthGuard`; `env.JWT_ACCESS_SECRET` min length 64 | `apps/api/src/modules/auth/auth.module.ts`, `common/guards/auth.guard.ts` |
-| S7 | Access token in memory only | — | returned in JSON `{ accessToken, accessTokenExpiresAt, user }`; stored in a module-level variable in `apps/web/src/lib/auth/token-store.ts`; never written to `localStorage`, `sessionStorage`, IndexedDB or cookies. ESLint `no-restricted-properties` forbids `localStorage.setItem` outside `apps/web/src/lib/preferences.ts` | web |
+| S7 | Access token in memory only | — | returned in JSON `{ accessToken, accessTokenExpiresAt, user }`; stored in a module-level variable in `apps/web/src/lib/auth-store.ts`; never written to `localStorage`, `sessionStorage`, IndexedDB or cookies. ESLint `no-restricted-properties` forbids `localStorage.setItem` outside `apps/web/src/lib/preferences.ts` | web |
 | S8 | DB check on every request | Prisma | `AuthGuard` verifies the token, then loads `user` + `permissions` by `sub`; rejects with `AUTH_TOKEN_INVALID` when the user is missing, `isActive = false` or `tokenVersion ≠ tv`; a `TokenExpiredError` → `AUTH_TOKEN_EXPIRED`; no header → `AUTH_REQUIRED` | `apps/api/src/common/guards/auth.guard.ts` |
 | S9 | Refresh token | Node `crypto` | value = `randomBytes(32).toString('base64url')`; DB stores `sha256(value)` hex in `refresh_tokens.token_hash` (CHAR 64, UNIQUE) | `apps/api/src/modules/auth/session.service.ts` |
 | S10 | Refresh cookie | `cookie-parser` 1.4.7 | `res.cookie('pallet_rt', value, { httpOnly: true, secure: env.COOKIE_SECURE, sameSite: 'strict', path: '/api/auth', maxAge: expiresAt − now })`; cleared with `res.clearCookie('pallet_rt', { path: '/api/auth', httpOnly: true, secure: env.COOKIE_SECURE, sameSite: 'strict' })`. `COOKIE_SECURE` = `true` in production (compose hard-codes it) | `apps/api/src/modules/auth/auth.controller.ts` |
@@ -4634,9 +4634,9 @@ Every requirement of the client query §6A appears below as one row: requirement
 |---|---|---|---|---|
 | R1 | Real client IP | Express | `app.set('trust proxy', env.TRUST_PROXY_SUBNET)`; production value `172.28.0.0/24` (subnet pinned in `docker-compose.yml`, Caddy at `172.28.0.10`); development value `loopback`. Caddy sets `X-Forwarded-For` to the TCP peer address and does not trust incoming values (no `trusted_proxies` configured) | `apps/api/src/main.ts`, `docker-compose.yml`, `deploy/caddy/Caddyfile` |
 | R2 | Global throttle | `@nestjs/throttler` 6.5.0 | throttler `{ name: 'global', ttl: 60_000, limit: 600 }`, tracker `req.ip`, in-memory storage (single API instance) | `apps/api/src/app.module.ts` |
-| R3 | Login per-IP cap | `@nestjs/throttler` | `{ name: 'login', ttl: 60_000, limit: 60, skipIf: (ctx) => !isRoute(ctx, 'POST', '/api/auth/login') }` | `app.module.ts`, `apps/api/src/common/throttling.ts` |
+| R3 | Login per-IP cap | `@nestjs/throttler` | `{ name: 'login', ttl: 60_000, limit: 60, skipIf: (ctx) => !isRoute(ctx, 'POST', '/api/auth/login') }` | `apps/api/src/common/guards/app-throttler.guard.ts` |
 | R4 | Refresh cap | `@nestjs/throttler` | `{ name: 'refresh', ttl: 60_000, limit: 60, skipIf: (ctx) => !isRoute(ctx, 'POST', '/api/auth/refresh') }` | same |
-| R5 | Upload cap per user | `@nestjs/throttler` storage | controller-level `UploadRateLimitGuard` (runs after the global `AuthGuard`, so the user is known): `storage.increment('upload:' + userId, 60_000, 10, 0, 'upload')`; over limit → 429 | `apps/api/src/modules/uploads/upload-rate-limit.guard.ts` |
+| R5 | Upload cap per user | `@nestjs/throttler` storage | controller-level `UploadThrottleGuard` (runs after the global `AuthGuard`, so the user is known): `storage.increment('upload:' + userId, 60_000, 10, 0, 'upload')`; over limit → 429 | `apps/api/src/modules/uploads/upload-throttle.guard.ts` |
 | R6 | 429 response | — | `AppThrottlerGuard extends ThrottlerGuard` overrides `throwThrottlingException` → `ApiError('RATE_LIMITED', { retryAfterSeconds })` and sets `Retry-After` | `apps/api/src/common/guards/app-throttler.guard.ts` |
 | R7 | Login lockout keyed on (IP, username) | Prisma | table `login_throttles` PK `(ip, username)`; `LOCKOUT_THRESHOLD = 5`, `LOCKOUT_WINDOW_MS = 15 × 60_000`, backoff `lockedUntil = now + min(15 min, 60_000 × 2^lockoutCount)` then `lockoutCount += 1`; window expired → `failureCount = 0`, `windowStartedAt = now`; success → row deleted; hourly job deletes rows with `updated_at < now − 24 h`. Per-username-only lockout is forbidden | `apps/api/src/modules/auth/login-throttle.service.ts` |
 | R8 | Worked example | — | failures 1–4 at 09:00–09:04 → allowed; 5th at 09:05 → `lockedUntil = 09:06` (2⁰ min), `lockoutCount = 1`; attempt 09:05:30 → rejected unverified-password path (dummy verify) + `LOGIN_FAILURE reason LOCKED`; 09:06:10 wrong password → `failureCount = 6 ≥ 5` → `lockedUntil = 09:08` (2¹ min), `lockoutCount = 2`; subsequent locks 4, 8, 15, 15 min | — |
@@ -4649,7 +4649,7 @@ Every requirement of the client query §6A appears below as one row: requirement
 | Z2 | Server-side enforcement | `PermissionGuard` (global, last): admin → allow all; employee → check stored keys; missing → 403 `PERMISSION_DENIED` with `details.required` | `apps/api/src/common/guards/permission.guard.ts` |
 | Z3 | Admin-only by role | `@AdminOnly()` → `user.role === 'ADMIN'` else 403 `ADMIN_ONLY`; `confirmCreditOverride: true` from a non-admin → 403 `ADMIN_ONLY` (checked in the order service before any write) | same |
 | Z4 | Cost field stripping | response mappers take `ctx.canViewCost = role === 'ADMIN' \|\| permissions.has('items.viewCost')`; when false the keys `unitCost`, `totalCost` are **omitted** from batch DTOs, from item detail `batches[]`, and from audit `before`/`after` (§11.5); `GET /api/reports/purchases` re-asserts `items.viewCost` in the service (403 `PERMISSION_DENIED`) | `apps/api/src/modules/purchases/purchase-batch.mapper.ts`, `apps/api/src/modules/audit/audit-redaction.ts` |
-| Z5 | Client-side hiding | `usePermissions().can(key)` hides/disables UI; never trusted by the API | `apps/web/src/lib/auth/permissions.ts` |
+| Z5 | Client-side hiding | `useCan(key)` hides/disables UI; never trusted by the API | `apps/web/src/lib/auth.ts` |
 
 ### 10.4 Input, output and uploads
 
@@ -4689,7 +4689,7 @@ Every requirement of the client query §6A appears below as one row: requirement
 | D6 | Containers | `api`, `migrate`: image `USER node`, `read_only: true`, `tmpfs: /tmp`, `cap_drop: [ALL]`, `security_opt: [no-new-privileges:true]`; `caddy`: runs as the image's root user (needs to bind 80/443) with `cap_drop: [ALL]`, `cap_add: [NET_BIND_SERVICE]`, `read_only: true`; `postgres`: official image (drops to user `postgres` itself); every image pinned to an exact version tag | `docker-compose.yml`, Dockerfiles |
 | D7 | Dependency hygiene | Dependabot weekly (npm, docker, docker-compose, github-actions; majors of NestJS/TypeScript/Prisma/Node ignored — upgraded by runbook); CI `pnpm audit --audit-level=high` fails the build; `pnpm-workspace.yaml` `onlyBuiltDependencies` allowlist; exact versions (`save-exact=true`); GitHub Actions pinned to commit SHAs | `.github/dependabot.yml`, `.github/workflows/ci.yml` |
 | D8 | Structured logs | `nestjs-pino` 4.6.1: `pinoHttp: { level: env.LOG_LEVEL, genReqId: (req, res) => { const id = randomUUID(); res.setHeader('X-Request-Id', id); return id; }, redact: { paths: ['req.headers.authorization', 'req.headers.cookie', 'res.headers["set-cookie"]', 'req.body', 'res.body', '*.password', '*.currentPassword', '*.newPassword', '*.passwordHash', '*.accessToken', '*.refreshToken', '*.token', '*.tokenHash'], censor: '[REDACTED]' }, serializers: { req: (r) => ({ id: r.id, method: r.method, url: r.url, ip: r.ip }) }, autoLogging: { ignore: (req) => req.url === '/api/health' } }`; stdout only; Docker `json-file` `max-size: 50m`, `max-file: 30` | `apps/api/src/app.module.ts`, `docker-compose.yml` |
-| D9 | API error alerting | `@sentry/nestjs` 10.74.0, loaded only when `SENTRY_DSN` is set: `Sentry.init({ dsn, environment: env.SENTRY_ENVIRONMENT, release: env.APP_VERSION, sendDefaultPii: false, tracesSampleRate: 0, beforeSend: (e) => { delete e.request?.cookies; delete e.request?.data; if (e.request?.headers) { delete e.request.headers.authorization; delete e.request.headers.cookie; } return e; } })` in `src/instrument.ts` imported first by `main.ts`; `ApiExceptionFilter` calls `Sentry.captureException` for 5xx only | `apps/api/src/instrument.ts` |
+| D9 | API error alerting | `@sentry/nestjs` 10.74.0, loaded only when `SENTRY_DSN` is set: `Sentry.init({ dsn, environment: env.SENTRY_ENVIRONMENT, release: env.APP_VERSION, sendDefaultPii: false, tracesSampleRate: 0, beforeSend: scrubEvent })` in `src/instrument.ts` imported first by `main.ts`; `scrubEvent` (`src/sentry-scrub.ts`) deletes the request's cookies, data, `authorization` and `cookie` headers and its query string (`query_string`, and the query cut from `url` — a list search is a customer's name or phone); `ApiExceptionFilter` calls `Sentry.captureException` for 5xx only | `apps/api/src/instrument.ts`, `apps/api/src/sentry-scrub.ts` |
 | D10 | Browser error reporting | **not implemented** (CSP `connect-src 'self'` would block it; adding it requires adding the tracker origin to `connect-src`) | — |
 | D11 | Uptime / disk | external uptime check on `/api/health`; `deploy/backup/disk-alert.sh` every 15 min | §13.8 |
 
@@ -5157,7 +5157,7 @@ U1 expected values (`O` = OPEN, `S` = SETTLED):
 | ID | Case | Assertions |
 |---|---|---|
 | I1 | Worked examples 1–9 end-to-end over HTTP | response DTO values = U1 table; ledger rows (type, source, amount, `is_automatic`, `date` null only on automatic PAYMENT); stock movements (reason, signed quantity) and `items.quantity_on_hand`; `orders.status` |
-| I2 | Return edit (U2 scenario) | old return `reversed_at` set, `reversal_kind = 'EDIT'`, `replaced_by_return_id` = new id; movements RETURN_EDIT −50 then RETURN_ACCEPTED +40; ledger REFUND_REVERSAL 50,000 (source RETURN_EDIT) + REFUND 40,000 (source RETURN_EDIT); audit RETURN_EDIT + REFUND_REVERSE + REFUND_CREATE |
+| I2 | Return edit (U2 scenario) | old return `reversed_at` set, `reversal_kind = 'EDIT'`, `replaced_by_return_id` = new id; movements RETURN_ACCEPTED +40 then RETURN_EDIT −50 (Q48); ledger REFUND_REVERSAL 50,000 (source RETURN_EDIT) + REFUND 40,000 (source RETURN_EDIT); audit RETURN_EDIT + REFUND_REVERSE + REFUND_CREATE |
 | I3 | Return delete (example 8) | RETURN_DELETE −50; REFUND_REVERSAL (source RETURN_DELETE); second delete → 409 `RETURN_ALREADY_REVERSED` |
 | I4 | Cancel | ORDER_CANCEL movements restore stock; PAYMENT_REVERSAL (source ORDER_CANCEL) on CASH; order keeps its number, status CANCELLED; customer aggregates exclude it; cancel with a non-reversed return or manual payment → 409 `ORDER_HAS_ACTIVITY`; after that payment is reversed, cancel succeeds |
 | I5 | Line edit | CASH re-issue (example 7) with ORDER_LINE_EDIT movement +40; LENT edit leaves the ledger untouched; adding/removing lines; `unitDeposit` supplied by an employee without `orders.editUnitDeposit` → 403 `UNIT_DEPOSIT_NOT_PERMITTED`; with the permission → stored |
