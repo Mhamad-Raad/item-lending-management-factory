@@ -163,15 +163,7 @@ export class AuthService {
   async logoutAll(userId: number): Promise<void> {
     await runInTransaction(this.prisma, async (tx) => {
       await lockUser(tx, userId);
-      const user = await tx.user.findUniqueOrThrow({ where: { id: userId } });
-      const families = await this.sessions.revokeAllFamilies(tx, userId, 'LOGOUT_ALL');
-      await tx.user.update({ where: { id: userId }, data: { tokenVersion: { increment: 1 } } });
-      await this.audit.record(tx, {
-        action: 'LOGOUT_ALL',
-        entityType: 'USER',
-        entityId: String(userId),
-        summaryParams: { username: user.username, families },
-      });
+      await this.sessions.logoutEverywhere(tx, await tx.user.findUniqueOrThrow({ where: { id: userId } }));
     });
   }
 

@@ -7,13 +7,10 @@ import {
   type DashboardDto,
 } from '@pallet/shared';
 import type { AuthContext } from '../../common/auth-context';
-import { toSafeMoney } from '../../common/utils/money';
+import { fromAggregate, toSafeMoney, type SqlAggregate } from '../../common/utils/money';
 import { PrismaService } from '../../prisma/prisma.service';
 import { uploadUrl } from '../uploads/uploads.mapper';
 import { toCustomerRef } from '../customers/customers.mapper';
-
-type Big = bigint | number | null;
-const n = (value: Big): number => toSafeMoney(BigInt(value ?? 0));
 
 const RECENT = 10;
 const LOW_STOCK_LISTED = 10;
@@ -39,7 +36,14 @@ export class DashboardService {
 
   private async positions(): Promise<NonNullable<DashboardDto['positions']>> {
     const [row] = await this.prisma.$queryRaw<
-      { pallets_out: Big; out_value: Big; owed: Big; held: Big; open_orders: Big; open_customers: Big }[]
+      {
+        pallets_out: SqlAggregate;
+        out_value: SqlAggregate;
+        owed: SqlAggregate;
+        held: SqlAggregate;
+        open_orders: SqlAggregate;
+        open_customers: SqlAggregate;
+      }[]
     >`
       SELECT COALESCE(SUM(out_quantity_total), 0)::bigint AS pallets_out,
              COALESCE(SUM(out_value), 0)::bigint AS out_value,
@@ -50,18 +54,18 @@ export class DashboardService {
         FROM orders
        WHERE cancelled_at IS NULL`;
     return {
-      palletsOut: n(row?.pallets_out ?? 0),
-      outValue: n(row?.out_value ?? 0),
-      owed: n(row?.owed ?? 0),
-      held: n(row?.held ?? 0),
-      openOrderCount: n(row?.open_orders ?? 0),
-      customersWithOpenOrders: n(row?.open_customers ?? 0),
+      palletsOut: fromAggregate(row?.pallets_out ?? 0),
+      outValue: fromAggregate(row?.out_value ?? 0),
+      owed: fromAggregate(row?.owed ?? 0),
+      held: fromAggregate(row?.held ?? 0),
+      openOrderCount: fromAggregate(row?.open_orders ?? 0),
+      customersWithOpenOrders: fromAggregate(row?.open_customers ?? 0),
     };
   }
 
   private async lowStock(): Promise<NonNullable<DashboardDto['lowStock']>> {
     const [counted, rows] = await Promise.all([
-      this.prisma.$queryRaw<{ count: Big }[]>`
+      this.prisma.$queryRaw<{ count: SqlAggregate }[]>`
         SELECT COUNT(*)::bigint AS count FROM items
          WHERE archived_at IS NULL AND min_stock IS NOT NULL AND quantity_on_hand <= min_stock`,
       this.prisma.$queryRaw<{ id: number }[]>`
@@ -76,7 +80,7 @@ export class DashboardService {
     });
     const byId = new Map(items.map((item) => [item.id, item]));
     return {
-      count: n(counted[0]?.count ?? 0),
+      count: fromAggregate(counted[0]?.count ?? 0),
       items: rows.flatMap(({ id }) => {
         const item = byId.get(id);
         return item && item.minStock !== null

@@ -277,16 +277,7 @@ export class UsersService {
       await lockUser(tx, userId);
       const user = await tx.user.findUnique({ where: { id: userId } });
       if (!user) throw new ApiError('USER_NOT_FOUND', { userId });
-
-      const families = await this.sessions.revokeAllFamilies(tx, userId, 'LOGOUT_ALL');
-      await tx.user.update({ where: { id: userId }, data: { tokenVersion: { increment: 1 } } });
-
-      await this.audit.record(tx, {
-        action: 'LOGOUT_ALL',
-        entityType: 'USER',
-        entityId: String(userId),
-        summaryParams: { username: user.username, families },
-      });
+      await this.sessions.logoutEverywhere(tx, user);
     });
   }
 

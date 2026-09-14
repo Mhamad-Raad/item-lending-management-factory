@@ -10,7 +10,7 @@ import type { AuthContext } from '../../common/auth-context';
 import { Clock } from '../../common/clock';
 import { ApiError } from '../../common/errors/api-error';
 import { assertNotInFuture } from '../../common/utils/dates';
-import { safeProduct, toDbMoney, toSafeMoney } from '../../common/utils/money';
+import { toDbMoney, toSafeMoney } from '../../common/utils/money';
 import type { LedgerEntry, Prisma } from '../../generated/prisma/client';
 import { lockCustomer, lockItems, lockOrder } from '../../prisma/locks';
 import { PrismaService } from '../../prisma/prisma.service';
@@ -24,7 +24,11 @@ import { assertCreditAllows, type CreditOverride } from './credit-limit';
 import { recomputeOrder } from './order-state';
 import {
   ORDER_CHANGE_INCLUDE,
+  assertItemOrderable,
   assertMayPriceAndOverride,
+  depositTotalOf,
+  priceLine,
+  type PricedLine,
   assertNoActivity,
   orderActivity,
   standingAutomaticPayment,
@@ -32,22 +36,15 @@ import {
 } from './order-rules';
 import { loadOrderDetail } from './orders.queries';
 
-interface LineRow {
-  itemId: number;
-  quantity: number;
-  unitDeposit: number;
-  lineTotal: number;
-}
-
 /** What a PATCH does to an order's lines, once compared with the stored ones by item. */
 interface LineChange {
-  kept: (LineRow & { lineId: number })[];
-  added: LineRow[];
+  kept: (PricedLine & { lineId: number })[];
+  added: PricedLine[];
   removedLineIds: number[];
   /** Per item: the pallets coming back (positive) or going out (negative). */
   movements: { itemId: number; quantity: number }[];
-  oldLines: LineRow[];
-  newLines: LineRow[];
+  oldLines: PricedLine[];
+  newLines: PricedLine[];
   oldDepositTotal: number;
   newDepositTotal: number;
 }
@@ -237,38 +234,25 @@ export class OrderChangesService {
     );
 
     const kept: LineChange['kept'] = [];
-    const added: LineRow[] = [];
+    const added: PricedLine[] = [];
     let changed = false;
     const newLines = requested.map((line, index) => {
       const old = stored.get(line.itemId);
       if (old) {
-        const unitDeposit = line.unitDeposit ?? toSafeMoney(old.unitDeposit);
         // An archived item may stay on the order, or go down, but no more of it can go out.
         if (old.item.archivedAt && line.quantity > old.quantity) {
           throw new ApiError('ITEM_ARCHIVED', { itemId: line.itemId });
         }
-        const row = {
-          itemId: line.itemId,
-          quantity: line.quantity,
-          unitDeposit,
-          lineTotal: safeProduct(line.quantity, unitDeposit, `lines.${index}.unitDeposit`),
-        };
-        if (row.quantity !== old.quantity || unitDeposit !== toSafeMoney(old.unitDeposit)) {
+        const row = priceLine(line, toSafeMoney(old.unitDeposit), index);
+        if (row.quantity !== old.quantity || row.unitDeposit !== toSafeMoney(old.unitDeposit)) {
           changed = true;
           kept.push({ ...row, lineId: old.id });
         }
         return row;
       }
       const item = newItems.get(line.itemId);
-      if (!item) throw new ApiError('ITEM_NOT_FOUND', { itemId: line.itemId });
-      if (item.archivedAt) throw new ApiError('ITEM_ARCHIVED', { itemId: line.itemId });
-      const unitDeposit = line.unitDeposit ?? toSafeMoney(item.depositPrice);
-      const row = {
-        itemId: line.itemId,
-        quantity: line.quantity,
-        unitDeposit,
-        lineTotal: safeProduct(line.quantity, unitDeposit, `lines.${index}.unitDeposit`),
-      };
+      assertItemOrderable(item, line.itemId);
+      const row = priceLine(line, toSafeMoney(item.depositPrice), index);
       changed = true;
       added.push(row);
       return row;
@@ -297,12 +281,7 @@ export class OrderChangesService {
       unitDeposit: toSafeMoney(line.unitDeposit),
       lineTotal: toSafeMoney(line.lineTotal),
     }));
-    const newDepositTotal = newLines.reduce((total, line) => total + line.lineTotal, 0);
-    if (!Number.isSafeInteger(newDepositTotal)) {
-      throw new ApiError('VALIDATION_FAILED', undefined, [
-        { path: 'lines', code: 'too_big', params: { maximum: Number.MAX_SAFE_INTEGER } },
-      ]);
-    }
+    const newDepositTotal = depositTotalOf(newLines);
     return {
       kept,
       added,

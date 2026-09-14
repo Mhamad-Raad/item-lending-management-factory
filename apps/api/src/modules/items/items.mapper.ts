@@ -56,6 +56,9 @@ export function toStockMovementDto(row: StockMovementRow): StockMovementDto {
   return { ...movement, createdAt: createdAt.toISOString(), createdBy: { id: userId, username, displayName } };
 }
 
+/** The include that loads what `toItemRef` needs. */
+export const ITEM_REF_INCLUDE = { include: { image: { select: { fileName: true } } } } as const;
+
 /** How another record names an item: enough to show it, including when it has been archived. */
 export function toItemRef(
   item: Pick<Item, 'id' | 'name' | 'archivedAt'> & { image: Pick<Upload, 'fileName'> | null },

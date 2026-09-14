@@ -10,11 +10,9 @@ import {
 import { toSafeMoney } from '../../common/utils/money';
 import { Prisma } from '../../generated/prisma/client';
 import { toDriverRef } from '../drivers/drivers.mapper';
-import { toItemRef } from '../items/items.mapper';
+import { ITEM_REF_INCLUDE, toItemRef } from '../items/items.mapper';
 
 type Client = Prisma.TransactionClient;
-
-const ITEM_REF = { include: { image: { select: { fileName: true } } } } as const;
 
 /**
  * A customer's timeline (§6.17): one `UNION ALL` of the entries' keys — hand-overs on the order date,
@@ -57,13 +55,13 @@ export async function queryCustomerHistory(
   const [orders, returns, ledger] = await Promise.all([
     client.order.findMany({
       where: { id: { in: idsOf('HANDOVER') } },
-      include: { driver: true, lines: { orderBy: { id: 'asc' }, include: { item: ITEM_REF } } },
+      include: { driver: true, lines: { orderBy: { id: 'asc' }, include: { item: ITEM_REF_INCLUDE } } },
     }),
     client.palletReturn.findMany({
       where: { id: { in: idsOf('RETURN') } },
       include: {
         order: { select: { orderNumber: true } },
-        lines: { orderBy: { id: 'asc' }, include: { orderLine: { include: { item: ITEM_REF } } } },
+        lines: { orderBy: { id: 'asc' }, include: { orderLine: { include: { item: ITEM_REF_INCLUDE } } } },
       },
     }),
     client.ledgerEntry.findMany({

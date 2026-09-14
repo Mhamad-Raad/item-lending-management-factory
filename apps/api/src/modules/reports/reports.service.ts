@@ -16,21 +16,17 @@ import type { AuthContext } from '../../common/auth-context';
 import { Clock } from '../../common/clock';
 import { ApiError } from '../../common/errors/api-error';
 import { assertDateRange, assertNotInFuture } from '../../common/utils/dates';
-import { toSafeMoney } from '../../common/utils/money';
+import { fromAggregate, toSafeMoney, type SqlAggregate } from '../../common/utils/money';
 import { parseSort } from '../../common/utils/sort';
 import { Prisma } from '../../generated/prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
 import { toCustomerRef } from '../customers/customers.mapper';
 import { toDriverRef } from '../drivers/drivers.mapper';
-import { toItemRef } from '../items/items.mapper';
+import { ITEM_REF_INCLUDE, toItemRef } from '../items/items.mapper';
 import { LEDGER_ENTRY_INCLUDE, toLedgerEntryDto } from '../ledger/ledger.mapper';
 
 /** §12.1: each row array stops at 5,000; asking for one more tells whether it was cut. */
 export const ROW_CAP = 5_000;
-const ITEM_REF = { include: { image: { select: { fileName: true } } } } as const;
-
-type Big = bigint | number | null;
-const n = (value: Big): number => toSafeMoney(BigInt(value ?? 0));
 
 /**
  * The four reports (§6.23, §12). Every aggregate is SQL over the stored order cache and ledger rows,
@@ -59,7 +55,9 @@ export class ReportsService {
       const zeroFilter = query.includeZero
         ? Prisma.empty
         : Prisma.sql`AND (COALESCE(pc.pallets_out, 0) > 0 OR COALESCE(pc.owed, 0) > 0 OR COALESCE(pc.held, 0) > 0)`;
-      const rows = await db.$queryRaw<{ id: number; pallets_out: Big; out_value: Big; owed: Big; held: Big }[]>`
+      const rows = await db.$queryRaw<
+        { id: number; pallets_out: SqlAggregate; out_value: SqlAggregate; owed: SqlAggregate; held: SqlAggregate }[]
+      >`
         WITH per_customer AS (
           SELECT o.customer_id,
                  SUM(o.out_quantity_total)::bigint AS pallets_out,
@@ -77,7 +75,7 @@ export class ReportsService {
          ORDER BY c.id`;
       const ids = rows.map((row) => row.id);
       const perItem = ids.length
-        ? await db.$queryRaw<{ customer_id: number; item_id: number; quantity: Big }[]>`
+        ? await db.$queryRaw<{ customer_id: number; item_id: number; quantity: SqlAggregate }[]>`
             SELECT o.customer_id, ol.item_id, SUM(ol.out_quantity)::bigint AS quantity
               FROM order_lines ol JOIN orders o ON o.id = ol.order_id
              WHERE o.cancelled_at IS NULL AND ol.out_quantity > 0 AND o.customer_id = ANY(${ids}::int[])
@@ -88,13 +86,15 @@ export class ReportsService {
         db.customer.findMany({ where: { id: { in: ids } } }),
         db.item.findMany({
           where: { id: { in: [...new Set(perItem.map((row) => row.item_id))] } },
-          ...ITEM_REF,
+          ...ITEM_REF_INCLUDE,
         }),
       ]);
       const columns = items.map(toItemRef).sort(byName);
       const customerById = new Map(customers.map((customer) => [customer.id, customer]));
       // Keyed once: a lookup per customer × item column stays constant-time on a large customer list.
-      const perItemQuantity = new Map(perItem.map((row) => [`${row.customer_id}:${row.item_id}`, n(row.quantity)]));
+      const perItemQuantity = new Map(
+        perItem.map((row) => [`${row.customer_id}:${row.item_id}`, fromAggregate(row.quantity)]),
+      );
       const quantityOf = (customerId: number, itemId: number): number =>
         perItemQuantity.get(`${customerId}:${itemId}`) ?? 0;
 
@@ -105,10 +105,10 @@ export class ReportsService {
           {
             customer: toCustomerRef(customer),
             palletsOutByItem: columns.map((item) => ({ itemId: item.id, quantityOut: quantityOf(row.id, item.id) })),
-            palletsOut: n(row.pallets_out),
-            outValue: n(row.out_value),
-            owed: n(row.owed),
-            held: n(row.held),
+            palletsOut: fromAggregate(row.pallets_out),
+            outValue: fromAggregate(row.out_value),
+            owed: fromAggregate(row.owed),
+            held: fromAggregate(row.held),
           },
         ];
       });
@@ -153,7 +153,9 @@ export class ReportsService {
       const [batches, perItem] = await Promise.all([
         db.$queryRaw<{ id: number }[]>`
           SELECT pb.id FROM purchase_batches pb WHERE ${where} ORDER BY pb.date ASC, pb.id ASC LIMIT ${ROW_CAP + 1}`,
-        db.$queryRaw<{ item_id: number; batch_count: Big; quantity: Big; total_cost: Big }[]>`
+        db.$queryRaw<
+          { item_id: number; batch_count: SqlAggregate; quantity: SqlAggregate; total_cost: SqlAggregate }[]
+        >`
           SELECT pb.item_id, COUNT(*)::bigint AS batch_count, SUM(pb.quantity)::bigint AS quantity,
                  SUM(pb.total_cost)::bigint AS total_cost
             FROM purchase_batches pb WHERE ${where} GROUP BY pb.item_id`,
@@ -161,11 +163,11 @@ export class ReportsService {
       const page = batches.slice(0, ROW_CAP).map((row) => row.id);
       const stored = await db.purchaseBatch.findMany({
         where: { id: { in: page } },
-        include: { item: ITEM_REF },
+        include: { item: ITEM_REF_INCLUDE },
       });
       const byId = new Map(stored.map((batch) => [batch.id, batch]));
       const items = new Map(
-        (await db.item.findMany({ where: { id: { in: perItem.map((row) => row.item_id) } }, ...ITEM_REF })).map(
+        (await db.item.findMany({ where: { id: { in: perItem.map((row) => row.item_id) } }, ...ITEM_REF_INCLUDE })).map(
           (item) => [item.id, toItemRef(item)],
         ),
       );
@@ -174,7 +176,14 @@ export class ReportsService {
         .flatMap((row) => {
           const item = items.get(row.item_id);
           return item
-            ? [{ item, batchCount: n(row.batch_count), quantity: n(row.quantity), totalCost: n(row.total_cost) }]
+            ? [
+                {
+                  item,
+                  batchCount: fromAggregate(row.batch_count),
+                  quantity: fromAggregate(row.quantity),
+                  totalCost: fromAggregate(row.total_cost),
+                },
+              ]
             : [];
         })
         .sort((x, y) => byName(x.item, y.item));
@@ -229,7 +238,7 @@ export class ReportsService {
            WHERE ${orderFilter} AND o.date BETWEEN ${from}::date AND ${to}::date
              AND EXISTS (SELECT 1 FROM order_lines ol WHERE ol.order_id = o.id ${lineFilter})
            ORDER BY o.date ASC, o.created_at ASC, o.id ASC LIMIT ${ROW_CAP + 1}`,
-        db.$queryRaw<{ quantity: Big; deposit: Big }[]>`
+        db.$queryRaw<{ quantity: SqlAggregate; deposit: SqlAggregate }[]>`
           SELECT SUM(ol.quantity)::bigint AS quantity, SUM(ol.line_total)::bigint AS deposit
             FROM order_lines ol JOIN orders o ON o.id = ol.order_id
            WHERE ${orderFilter} AND o.date BETWEEN ${from}::date AND ${to}::date ${lineFilter}`,
@@ -239,7 +248,9 @@ export class ReportsService {
              AND EXISTS (SELECT 1 FROM return_lines rl JOIN order_lines ol ON ol.id = rl.order_line_id
                           WHERE rl.return_id = r.id ${lineFilter})
            ORDER BY r.date ASC, r.created_at ASC, r.id ASC LIMIT ${ROW_CAP + 1}`,
-        db.$queryRaw<{ accepted: Big; damaged: Big; refund_due: Big; compensation: Big }[]>`
+        db.$queryRaw<
+          { accepted: SqlAggregate; damaged: SqlAggregate; refund_due: SqlAggregate; compensation: SqlAggregate }[]
+        >`
           SELECT SUM(rl.accepted_quantity)::bigint AS accepted, SUM(rl.damaged_quantity)::bigint AS damaged,
                  SUM(rl.accepted_quantity * rl.unit_deposit + rl.damaged_refund)::bigint AS refund_due,
                  SUM(rl.damaged_quantity * rl.unit_deposit - rl.damaged_refund)::bigint AS compensation
@@ -270,13 +281,17 @@ export class ReportsService {
                   SELECT le.id FROM ledger_entries le JOIN orders o ON o.id = le.order_id
                    WHERE ${moneyWhere}
                    ORDER BY COALESCE(le.date, o.date) ASC, le.created_at ASC, le.id ASC LIMIT ${ROW_CAP + 1}`,
-                db.$queryRaw<{ gross: Big; reversals: Big }[]>`
+                db.$queryRaw<{ gross: SqlAggregate; reversals: SqlAggregate }[]>`
                   SELECT COALESCE(SUM(le.amount) FILTER (WHERE le.type::text = ${kind}), 0)::bigint AS gross,
                          COALESCE(SUM(le.amount) FILTER (WHERE le.type::text <> ${kind}), 0)::bigint AS reversals
                     FROM ledger_entries le JOIN orders o ON o.id = le.order_id
                    WHERE ${moneyWhere}`,
               ]);
-              return { keys, gross: n(totals[0]?.gross ?? 0), reversals: n(totals[0]?.reversals ?? 0) };
+              return {
+                keys,
+                gross: fromAggregate(totals[0]?.gross ?? 0),
+                reversals: fromAggregate(totals[0]?.reversals ?? 0),
+              };
             }),
           );
 
@@ -287,7 +302,7 @@ export class ReportsService {
           include: {
             customer: true,
             driver: true,
-            lines: { where: itemIdFilter, orderBy: { id: 'asc' }, include: { item: ITEM_REF } },
+            lines: { where: itemIdFilter, orderBy: { id: 'asc' }, include: { item: ITEM_REF_INCLUDE } },
           },
         }),
         db.palletReturn.findMany({
@@ -297,7 +312,7 @@ export class ReportsService {
             lines: {
               where: query.itemId ? { orderLine: itemIdFilter } : {},
               orderBy: { id: 'asc' },
-              include: { orderLine: { include: { item: ITEM_REF } } },
+              include: { orderLine: { include: { item: ITEM_REF_INCLUDE } } },
             },
           },
         }),
@@ -305,7 +320,7 @@ export class ReportsService {
           where: { id: { in: cap(compensationRows) } },
           include: {
             return: { include: { order: { include: { customer: true } } } },
-            orderLine: { include: { item: ITEM_REF } },
+            orderLine: { include: { item: ITEM_REF_INCLUDE } },
           },
         }),
         money
@@ -404,18 +419,18 @@ export class ReportsService {
           };
         }),
         totals: {
-          handoverQuantity: n(handoverTotal?.quantity ?? 0),
-          handoverDepositTotal: n(handoverTotal?.deposit ?? 0),
-          returnedAccepted: n(returnTotal?.accepted ?? 0),
-          returnedDamaged: n(returnTotal?.damaged ?? 0),
-          refundDueTotal: n(returnTotal?.refund_due ?? 0),
+          handoverQuantity: fromAggregate(handoverTotal?.quantity ?? 0),
+          handoverDepositTotal: fromAggregate(handoverTotal?.deposit ?? 0),
+          returnedAccepted: fromAggregate(returnTotal?.accepted ?? 0),
+          returnedDamaged: fromAggregate(returnTotal?.damaged ?? 0),
+          refundDueTotal: fromAggregate(returnTotal?.refund_due ?? 0),
           paymentsGross: payments?.gross ?? 0,
           paymentReversals: payments?.reversals ?? 0,
           paymentsNet: (payments?.gross ?? 0) - (payments?.reversals ?? 0),
           refundsGross: refunds?.gross ?? 0,
           refundReversals: refunds?.reversals ?? 0,
           refundsNet: (refunds?.gross ?? 0) - (refunds?.reversals ?? 0),
-          compensationAssessed: n(returnTotal?.compensation ?? 0),
+          compensationAssessed: fromAggregate(returnTotal?.compensation ?? 0),
         },
         truncated: [handoverKeys, returnKeys, compensationRows, ...(money ?? []).map((section) => section.keys)].some(
           (keys) => keys.length > ROW_CAP,
@@ -430,7 +445,7 @@ export class ReportsService {
       const lowOnly = query.lowStockOnly
         ? Prisma.sql`AND i.archived_at IS NULL AND i.min_stock IS NOT NULL AND i.quantity_on_hand <= i.min_stock`
         : Prisma.empty;
-      const rows = await db.$queryRaw<{ id: number; quantity_out: Big; damaged_total: Big }[]>`
+      const rows = await db.$queryRaw<{ id: number; quantity_out: SqlAggregate; damaged_total: SqlAggregate }[]>`
         WITH out_q AS (
           SELECT ol.item_id, SUM(ol.out_quantity)::bigint AS q
             FROM order_lines ol JOIN orders o ON o.id = ol.order_id
@@ -450,10 +465,9 @@ export class ReportsService {
           LEFT JOIN damaged_q ON damaged_q.item_id = i.id
          WHERE TRUE ${archived} ${lowOnly}`;
       const items = new Map(
-        (await db.item.findMany({ where: { id: { in: rows.map((row) => row.id) } }, ...ITEM_REF })).map((item) => [
-          item.id,
-          item,
-        ]),
+        (await db.item.findMany({ where: { id: { in: rows.map((row) => row.id) } }, ...ITEM_REF_INCLUDE })).map(
+          (item) => [item.id, item],
+        ),
       );
       const result = rows.flatMap((row) => {
         const item = items.get(row.id);
@@ -462,8 +476,8 @@ export class ReportsService {
           {
             item: toItemRef(item),
             quantityOnHand: item.quantityOnHand,
-            quantityOut: n(row.quantity_out),
-            damagedTotal: n(row.damaged_total),
+            quantityOut: fromAggregate(row.quantity_out),
+            damagedTotal: fromAggregate(row.damaged_total),
             minStock: item.minStock,
             // An archived item is no longer restocked, so it is never low (§12.5).
             isLowStock: item.archivedAt === null && item.minStock !== null && item.quantityOnHand <= item.minStock,

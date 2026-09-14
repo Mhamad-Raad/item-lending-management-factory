@@ -1,7 +1,7 @@
 import { createHash, randomBytes } from 'node:crypto';
 import { Injectable } from '@nestjs/common';
 import { Clock } from '../../common/clock';
-import type { Prisma, RefreshToken, SessionFamily, SessionRevokeReason } from '../../generated/prisma/client';
+import type { Prisma, RefreshToken, SessionFamily, SessionRevokeReason, User } from '../../generated/prisma/client';
 import { AuditService } from '../audit/audit.service';
 import { REFRESH_GRACE_MS, REFRESH_SLIDING_MS, SESSION_ABSOLUTE_MS } from './auth.constants';
 
@@ -130,6 +130,21 @@ export class SessionService {
 
   async revokeFamily(tx: Prisma.TransactionClient, familyId: string, reason: RevokeReason): Promise<void> {
     await this.revokeFamilies(tx, [familyId], reason);
+  }
+
+  /**
+   * Logout everywhere (§10.1 S14), for the user themself or by an admin: every live family revoked, every access token
+   * issued before voided through `tokenVersion`, and one history row. The caller holds the user's lock.
+   */
+  async logoutEverywhere(tx: Prisma.TransactionClient, user: Pick<User, 'id' | 'username'>): Promise<void> {
+    const families = await this.revokeAllFamilies(tx, user.id, 'LOGOUT_ALL');
+    await tx.user.update({ where: { id: user.id }, data: { tokenVersion: { increment: 1 } } });
+    await this.audit.record(tx, {
+      action: 'LOGOUT_ALL',
+      entityType: 'USER',
+      entityId: String(user.id),
+      summaryParams: { username: user.username, families },
+    });
   }
 
   /** Revokes every live family of a user. Returns how many were revoked, for the audit row. */

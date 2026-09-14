@@ -10,6 +10,14 @@ export function toSafeMoney(value: bigint | number): number {
   return n;
 }
 
+/** A value a raw SQL aggregate returns — `bigint` from `::bigint`, a number, or NULL over no rows. */
+export type SqlAggregate = bigint | number | null;
+
+/** An aggregate (a money sum, a count, a quantity) as a safe integer; NULL — nothing to add up — is 0. */
+export function fromAggregate(value: SqlAggregate): number {
+  return toSafeMoney(value ?? 0);
+}
+
 export function toDbMoney(value: number): bigint {
   if (!Number.isSafeInteger(value)) throw new Error(`Money value is not a safe integer: ${value}`);
   return BigInt(value);

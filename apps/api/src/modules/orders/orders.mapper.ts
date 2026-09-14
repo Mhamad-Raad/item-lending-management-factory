@@ -3,12 +3,11 @@ import { toSafeMoney } from '../../common/utils/money';
 import type { Prisma } from '../../generated/prisma/client';
 import { toCustomerRef } from '../customers/customers.mapper';
 import { toDriverRef } from '../drivers/drivers.mapper';
-import { toItemRef } from '../items/items.mapper';
+import { ITEM_REF_INCLUDE, toItemRef } from '../items/items.mapper';
 import { LEDGER_ENTRY_INCLUDE, toLedgerEntryDto } from '../ledger/ledger.mapper';
 import { USER_REF_SELECT, toUserRef } from '../users/users.mapper';
 
 const USER_REF = USER_REF_SELECT;
-const ITEM_REF = { include: { image: { select: { fileName: true } } } } as const;
 
 export const ORDER_LIST_INCLUDE = { customer: true, driver: true } as const satisfies Prisma.OrderInclude;
 
@@ -19,11 +18,11 @@ export const ORDER_DETAIL_INCLUDE = {
   createdBy: USER_REF,
   cancelledBy: USER_REF,
   creditOverrideBy: USER_REF,
-  lines: { orderBy: { id: 'asc' }, include: { item: ITEM_REF } },
+  lines: { orderBy: { id: 'asc' }, include: { item: ITEM_REF_INCLUDE } },
   returns: {
     orderBy: { id: 'asc' },
     include: {
-      lines: { orderBy: { id: 'asc' }, include: { orderLine: { include: { item: ITEM_REF } } } },
+      lines: { orderBy: { id: 'asc' }, include: { orderLine: { include: { item: ITEM_REF_INCLUDE } } } },
       reversedBy: USER_REF,
       createdBy: USER_REF,
       replaces: { select: { id: true } },

@@ -16,7 +16,7 @@ import type { AuthContext } from '../../common/auth-context';
 import { Clock } from '../../common/clock';
 import { ApiError } from '../../common/errors/api-error';
 import { assertDateRange, assertNotInFuture, businessDateFilter } from '../../common/utils/dates';
-import { safeProduct, toDbMoney, toSafeMoney } from '../../common/utils/money';
+import { toDbMoney, toSafeMoney } from '../../common/utils/money';
 import { escapeLikePattern } from '../../common/utils/search';
 import { parseSort } from '../../common/utils/sort';
 import type { Customer, Driver, LedgerEntry, Prisma } from '../../generated/prisma/client';
@@ -31,19 +31,18 @@ import { MoneyLedger } from '../ledger/money-ledger';
 import { uploadUrl } from '../uploads/uploads.mapper';
 import { StockLedger } from '../stock/stock-ledger';
 import { assertCreditAllows, type CreditOverride } from './credit-limit';
-import { assertMayPriceAndOverride } from './order-rules';
+import {
+  assertItemOrderable,
+  assertMayPriceAndOverride,
+  depositTotalOf,
+  priceLine,
+  type PricedLine,
+} from './order-rules';
 import { recomputeOrder } from './order-state';
 import { ORDER_LIST_INCLUDE, toOrderListItemDto } from './orders.mapper';
 import { loadOrderDetail } from './orders.queries';
 
 const SORT_FIELDS = { orderNumber: 'orderNumber', date: 'date', owed: 'owed', outValue: 'outValue' } as const;
-
-interface PricedLine {
-  itemId: number;
-  quantity: number;
-  unitDeposit: number;
-  lineTotal: number;
-}
 
 /** An order number is at most nine digits here; a longer run of digits can only be a name. */
 const ORDER_NUMBER_QUERY = /^\d{1,9}$/;
@@ -204,24 +203,15 @@ export class OrdersService {
 
     const lines = input.map((line, index) => {
       const item = items.get(line.itemId);
-      if (!item) throw new ApiError('ITEM_NOT_FOUND', { itemId: line.itemId });
-      if (item.archivedAt) throw new ApiError('ITEM_ARCHIVED', { itemId: line.itemId });
-      const unitDeposit = line.unitDeposit ?? toSafeMoney(item.depositPrice);
-      const lineTotal = safeProduct(line.quantity, unitDeposit, `lines.${index}.unitDeposit`);
-      return { itemId: line.itemId, quantity: line.quantity, unitDeposit, lineTotal };
+      assertItemOrderable(item, line.itemId);
+      return priceLine(line, toSafeMoney(item.depositPrice), index);
     });
     await this.stock.assertAvailable(
       tx,
       lines.map((line) => ({ itemId: line.itemId, quantity: -line.quantity })),
     );
 
-    const depositTotal = lines.reduce((total, line) => total + line.lineTotal, 0);
-    if (!Number.isSafeInteger(depositTotal)) {
-      throw new ApiError('VALIDATION_FAILED', undefined, [
-        { path: 'lines', code: 'too_big', params: { maximum: Number.MAX_SAFE_INTEGER } },
-      ]);
-    }
-    return { lines, depositTotal };
+    return { lines, depositTotal: depositTotalOf(lines) };
   }
 
   /** The history of a hand-over (§11.3): the order, its automatic payment, and an admin's override. */
