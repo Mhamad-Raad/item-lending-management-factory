@@ -19,6 +19,7 @@ const envSchema = z.object({
   LOG_LEVEL: z.enum(['fatal', 'error', 'warn', 'info', 'debug', 'trace']).default('info'),
   CORS_DEV_ORIGIN: optionalUrl,
   SENTRY_DSN: optionalUrl,
+  SENTRY_ENVIRONMENT: z.string().default('production'),
 });
 
 export type Env = z.infer<typeof envSchema>;

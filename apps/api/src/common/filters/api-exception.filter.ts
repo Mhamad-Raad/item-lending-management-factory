@@ -1,5 +1,6 @@
 import { type ArgumentsHost, Catch, type ExceptionFilter, HttpException, Logger } from '@nestjs/common';
 import type { ApiErrorBody, ErrorCode } from '@pallet/shared';
+import { captureException } from '@sentry/nestjs';
 import type { Request, Response } from 'express';
 import { JSON_BODY_LIMIT_BYTES } from '../../bootstrap';
 import { ApiError } from '../errors/api-error';
@@ -48,6 +49,9 @@ export class ApiExceptionFilter implements ExceptionFilter {
       error = { code: 'INTERNAL_ERROR' };
       this.logger.error(exception);
     }
+
+    // Server errors only (§10.6 D9); a no-op unless `instrument.ts` initialised Sentry.
+    if (status >= 500) captureException(exception);
 
     const body: ApiErrorBody = { error, requestId };
     res.status(status).json(body);
