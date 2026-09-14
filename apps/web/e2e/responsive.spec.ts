@@ -270,3 +270,22 @@ test('a slow record shows its skeleton while the list is left behind', async ({ 
   await expect(page.locator('main [data-slot="skeleton"]').first()).toBeVisible({ timeout: 1_000 });
   await expect(page.getByRole('heading', { level: 1, name: 'Items' })).toBeHidden();
 });
+
+test('the close button of a dialog is a full touch target on a phone (§7.15)', async ({ page }) => {
+  await mockApi(page, ADMIN, 'en');
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.goto('/drivers');
+  await page
+    .getByRole('button', { name: /New driver/ })
+    .first()
+    .click();
+  const close = page.getByRole('dialog').getByRole('button', { name: 'Close', exact: true });
+  await expect(close).toBeVisible();
+  // Measured once the dialog has grown in from 98 %.
+  await expect
+    .poll(async () => {
+      const box = await close.boundingBox();
+      return Math.min(box?.width ?? 0, box?.height ?? 0);
+    })
+    .toBeGreaterThanOrEqual(40);
+});
