@@ -14,7 +14,7 @@ import { ApiError } from '../../common/errors/api-error';
 import { assertNotInFuture } from '../../common/utils/dates';
 import { toDbMoney, toSafeMoney } from '../../common/utils/money';
 import type { LedgerEntry, Prisma } from '../../generated/prisma/client';
-import { lockItems, lockOrder } from '../../prisma/locks';
+import { lockCustomer, lockItems, lockOrder } from '../../prisma/locks';
 import { PrismaService } from '../../prisma/prisma.service';
 import { runInTransaction } from '../../prisma/transaction';
 import { toAuditSnapshot } from '../audit/audit-snapshot';
@@ -196,13 +196,21 @@ export class ReturnsService {
     return order;
   }
 
-  /** Finds a return's order unlocked — a return never changes order — locks it, and re-reads the return under the lock. */
+  /**
+   * Finds a return's order and customer unlocked — neither ever changes — locks them in the global order (§6.6), and
+   * re-reads the return under the locks. The customer first (Q47): taking the return back puts pallets out again and
+   * raises the out value the credit check sums under that lock.
+   */
   private async lockReturn(
     tx: Prisma.TransactionClient,
     returnId: number,
   ): Promise<{ order: ReturnOrder; old: StoredReturn }> {
-    const found = await tx.palletReturn.findUnique({ where: { id: returnId }, select: { orderId: true } });
+    const found = await tx.palletReturn.findUnique({
+      where: { id: returnId },
+      select: { orderId: true, order: { select: { customerId: true } } },
+    });
     if (!found) throw new ApiError('RETURN_NOT_FOUND', { returnId });
+    await lockCustomer(tx, found.order.customerId);
     await lockOrder(tx, found.orderId);
     const order = await tx.order.findUniqueOrThrow({ where: { id: found.orderId }, include: RETURN_ORDER_INCLUDE });
     const old = order.returns.find((pr) => pr.id === returnId);
