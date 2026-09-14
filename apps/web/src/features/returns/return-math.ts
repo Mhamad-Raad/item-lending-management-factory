@@ -1,5 +1,6 @@
 import {
   computeOrderTotals,
+  orderStateWithoutReturn,
   returnMoney,
   returnRefundDue,
   type OrderDetailDto,
@@ -32,16 +33,12 @@ export function orderStateOf(order: OrderDetailDto): OrderState {
 export function returnBaseline(order: OrderDetailDto, replaceReturnId?: number): OrderTotals {
   const state = orderStateOf(order);
   const index = replaceReturnId === undefined ? -1 : order.returns.findIndex((pr) => pr.id === replaceReturnId);
-  const replaced = order.returns[index];
-  if (!replaced) return computeOrderTotals(state);
-  return computeOrderTotals({
-    ...state,
-    returns: state.returns.map((pr, at) => (at === index ? { ...pr, reversed: true } : pr)),
-    ledger:
-      replaced.cashRefund > 0
-        ? [...state.ledger, { type: 'REFUND_REVERSAL', amount: replaced.cashRefund }]
-        : state.ledger,
-  });
+  if (index === -1) return computeOrderTotals(state);
+  // The same rule as the API: the refund row the return paid out, while it still stands.
+  const refund = order.ledgerEntries.find(
+    (entry) => entry.type === 'REFUND' && entry.returnId === replaceReturnId && !entry.isReversed,
+  );
+  return computeOrderTotals(orderStateWithoutReturn(state, index, refund?.amount ?? 0));
 }
 
 export interface ReturnRow {

@@ -205,6 +205,19 @@ export interface CreditCheckResult {
   excess: number;
 }
 
+/**
+ * The order as it would stand had one of its returns been reversed (§4.8.5): what a replacement is checked and priced
+ * against. The return at `returnIndex` is set aside, and `standingRefund` — the refund it paid out and that still
+ * stands, 0 for none — is reversed with it.
+ */
+export function orderStateWithoutReturn(state: OrderState, returnIndex: number, standingRefund: number): OrderState {
+  return {
+    ...state,
+    returns: state.returns.map((pr, at) => (at === returnIndex ? { ...pr, reversed: true } : pr)),
+    ledger: standingRefund > 0 ? [...state.ledger, { type: 'REFUND_REVERSAL', amount: standingRefund }] : state.ledger,
+  };
+}
+
 /** Section 4.4. */
 export function checkCreditLimit({ creditLimit, customerOutValue, depositDelta }: CreditCheckInput): CreditCheckResult {
   if (creditLimit === null || depositDelta <= 0) return { allowed: true, excess: 0 };

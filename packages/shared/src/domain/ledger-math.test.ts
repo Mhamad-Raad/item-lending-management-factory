@@ -4,6 +4,7 @@ import {
   chunkReceiptLines,
   LedgerInvariantError,
   computeOrderTotals,
+  orderStateWithoutReturn,
   returnMoney,
   returnRefundDue,
   type LedgerEntryState,
@@ -222,6 +223,27 @@ describe('ledger invariants: corrupt stored data is refused, never priced', () =
   it('refuses totals past the safe integer range', () => {
     const huge = base({ lines: [{ id: 1, quantity: 2, unitDeposit: Number.MAX_SAFE_INTEGER }] });
     expect(() => computeOrderTotals(huge)).toThrow(/not a safe integer/);
+  });
+});
+
+describe('orderStateWithoutReturn (§4.8.5)', () => {
+  it('U2: sets the return aside and reverses the refund it paid, so the replacement is priced without it', () => {
+    const o = new SimOrder('CASH', [[100, 1_000]]);
+    const a = o.recordReturn([[1, 50, 0, 0]]); // REFUND 50,000
+    const without = orderStateWithoutReturn(o.state as OrderState, a.index, a.cashRefund);
+    expect(computeOrderTotals(without)).toMatchObject({ owed: 0, outQuantityTotal: 100, refundsNet: 0 });
+    // Priced against that state, a 40-pallet replacement refunds 40,000 in cash (U2).
+    expect(returnMoney(computeOrderTotals(without).owed, 40_000)).toEqual({ cashRefund: 40_000, owedAfter: 0 });
+  });
+
+  it('adds no reversal when the return paid nothing out', () => {
+    const o = new SimOrder('LENT', [[100, 1_000]]);
+    const a = o.recordReturn([[1, 30, 0, 0]]);
+    o.recordReturn([[1, 20, 0, 0]]);
+    const without = orderStateWithoutReturn(o.state as OrderState, a.index, 0);
+    expect(without.ledger).toEqual(o.state.ledger);
+    // The other return stands.
+    expect(computeOrderTotals(without)).toMatchObject({ owed: 80_000, outQuantityTotal: 80 });
   });
 });
 

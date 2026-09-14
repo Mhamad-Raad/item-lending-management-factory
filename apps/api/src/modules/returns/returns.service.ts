@@ -7,6 +7,7 @@ import {
   type OrderState,
   type ReturnCreateBody,
   type ReturnResultDto,
+  orderStateWithoutReturn,
 } from '@pallet/shared';
 import type { AuthContext } from '../../common/auth-context';
 import { Clock } from '../../common/clock';
@@ -249,15 +250,8 @@ export class ReturnsService {
    * `toOrderState` keeps the loaded returns in their order, so a return's position is its index.
    */
   private stateWithout(order: ReturnOrder, returnId: number, refund: LedgerEntry | null): OrderState {
-    const state = toOrderState(order);
     const index = order.returns.findIndex((pr) => pr.id === returnId);
-    return {
-      ...state,
-      returns: state.returns.map((pr, at) => (at === index ? { ...pr, reversed: true } : pr)),
-      ledger: refund
-        ? [...state.ledger, { type: 'REFUND_REVERSAL', amount: toSafeMoney(refund.amount) }]
-        : state.ledger,
-    };
+    return orderStateWithoutReturn(toOrderState(order), index, refund ? toSafeMoney(refund.amount) : 0);
   }
 
   /** The REFUND a return paid out, while it has not been reversed. */

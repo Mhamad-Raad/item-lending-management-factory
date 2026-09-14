@@ -7,7 +7,7 @@ const USER = { id: 1, username: 'admin', displayName: 'Admin' };
 
 function order(
   paymentType: 'CASH' | 'LENT',
-  ledger: Pick<LedgerEntryDto, 'type' | 'amount'>[],
+  ledger: (Pick<LedgerEntryDto, 'type' | 'amount'> & Partial<LedgerEntryDto>)[],
   returns: Partial<ReturnDto>[] = [],
 ): OrderDetailDto {
   return {
@@ -73,7 +73,7 @@ describe('return maths on the page (§7.4.2)', () => {
       'CASH',
       [
         { type: 'PAYMENT', amount: 100_000 },
-        { type: 'REFUND', amount: 50_000 },
+        { type: 'REFUND', amount: 50_000, returnId: 5, isReversed: false },
       ],
       [replaced],
     );
