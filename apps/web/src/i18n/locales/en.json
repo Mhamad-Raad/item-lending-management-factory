@@ -935,7 +935,8 @@
     "picker": {
       "title": "Choose the order",
       "empty": "This customer has no order to choose here",
-      "change": "Change order"
+      "change": "Change order",
+      "more": "Show older orders"
     }
   },
   "receipt": {

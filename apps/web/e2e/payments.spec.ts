@@ -153,3 +153,67 @@ test('an order with nothing owed any more offers no form, only the way back to i
   await expect(page.getByLabel('Amount')).toHaveCount(0);
   await expect(page.getByRole('link', { name: 'Back to the order' })).toHaveAttribute('href', '/orders/9');
 });
+
+test('a customer with more open orders than one page can still reach the oldest', async ({ page }) => {
+  await mockPayments(page);
+  // 100 newest orders that owe nothing, then one older one that does.
+  const settled = Array.from({ length: 100 }, (_, index): OrderListItemDto => ({
+    ...OWING,
+    id: 1_000 + index,
+    orderNumber: 5_000 + index,
+    owed: 0,
+  }));
+  const oldest: OrderListItemDto = { ...OWING, id: 9, orderNumber: 42 };
+  await page.route(/\/api\/orders\?/, (route) => {
+    const second = new URL(route.request().url()).searchParams.get('page') === '2';
+    return route.fulfill({
+      json: { items: second ? [oldest] : settled, page: second ? 2 : 1, pageSize: 100, total: 101 },
+    });
+  });
+
+  await page.goto(`/payments/new?customerId=${CUSTOMER.id}`);
+  const more = page.getByRole('button', { name: 'Show older orders' });
+  await expect(more).toBeVisible();
+  // Not chosen for the user while orders are still unseen.
+  await expect(page).not.toHaveURL(/orderId=/);
+  await more.click();
+
+  // Every open order seen now, and only the oldest owes: it is chosen, as a single qualifying order always is.
+  await expect(page).toHaveURL(/orderId=9/);
+  await expect(page.getByLabel('Amount')).toBeVisible();
+});
+
+test('older orders stay whole when an order is created while the customer is being chosen', async ({ page }) => {
+  await mockPayments(page);
+  const settled = (from: number, count: number) =>
+    Array.from({ length: count }, (_, index): OrderListItemDto => ({
+      ...OWING,
+      id: from + index,
+      orderNumber: from + index,
+      owed: 0,
+    }));
+  const owing: OrderListItemDto = { ...OWING, id: 9, orderNumber: 42 };
+  let created = false;
+  await page.route(/\/api\/orders\?/, (route) => {
+    const second = new URL(route.request().url()).searchParams.get('page') === '2';
+    // Before: 99 settled orders then the one owing on page 1, one more settled on page 2.
+    // After a new order: every row moves down one place, and the owing one opens page 2 as well.
+    const items = created
+      ? second
+        ? [owing, ...settled(1, 1)]
+        : [...settled(9_000, 1), ...settled(2_000, 98), ...settled(3_000, 1)]
+      : second
+        ? settled(1, 1)
+        : [...settled(2_000, 98), ...settled(3_000, 1), owing];
+    return route.fulfill({ json: { items, page: second ? 2 : 1, pageSize: 100, total: created ? 102 : 101 } });
+  });
+
+  await page.goto(`/payments/new?customerId=${CUSTOMER.id}`);
+  const more = page.getByRole('button', { name: 'Show older orders' });
+  await expect(more).toBeVisible();
+  created = true;
+  await more.click();
+
+  // Read again from the start: the owing order shows once, and as the only one it is chosen.
+  await expect(page).toHaveURL(/orderId=9/);
+});

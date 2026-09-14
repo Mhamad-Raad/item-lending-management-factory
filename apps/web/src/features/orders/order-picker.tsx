@@ -1,5 +1,5 @@
 import type { OrderDetailDto, OrderListItemDto, PageDto } from '@pallet/shared';
-import { useQuery } from '@tanstack/react-query';
+import { useInfiniteQuery } from '@tanstack/react-query';
 import { Link } from '@tanstack/react-router';
 import { useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
@@ -9,11 +9,14 @@ import { Field, FieldLabel } from '@/components/app/field';
 import { MoneyText } from '@/components/app/money-text';
 import { QuantityText } from '@/components/app/quantity-text';
 import { EmptyState, PageSkeleton, QueryErrorState } from '@/components/app/states';
+import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { apiFetch } from '@/lib/api-client';
 import { qk } from '@/lib/query-keys';
 import { orderLabel } from './order-text';
 import { PaymentTypeText } from './payment-type-text';
+
+const PAGE_SIZE = 100;
 
 /**
  * The first step of daily flows 2 and 3 (§7.4.2, §7.4.3): a customer, then that customer's open orders
@@ -44,14 +47,39 @@ export function OrderPicker({
   autoSelect?: boolean;
 }) {
   const { t } = useTranslation();
-  const params = { customerId: customerId ?? undefined, status: 'OPEN', pageSize: 100, ...query };
-  const orders = useQuery({
-    queryKey: qk.orders.list(params),
-    queryFn: () => apiFetch<PageDto<OrderListItemDto>>('/orders', { query: params }),
+  const params = { customerId: customerId ?? undefined, status: 'OPEN', pageSize: PAGE_SIZE, ...query };
+  // Page after page, newest first: a customer can have more open orders than one page holds.
+  const orders = useInfiniteQuery({
+    queryKey: [...qk.orders.list(params), 'picker'],
+    queryFn: ({ pageParam }) =>
+      apiFetch<PageDto<OrderListItemDto>>('/orders', { query: { ...params, page: pageParam } }),
+    initialPageParam: 1,
+    getNextPageParam: (last) => (last.page * last.pageSize < last.total ? last.page + 1 : undefined),
     enabled: customerId !== null,
   });
-  const choices = orders.data?.items.filter(eligible) ?? [];
-  const only = autoSelect && choices.length === 1 ? choices[0]?.id : undefined;
+  // By id: a page read after the list moved can repeat an order the one before already showed.
+  const choices = [
+    ...new Map((orders.data?.pages ?? []).flatMap((page) => page.items).map((order) => [order.id, order])).values(),
+  ].filter(eligible);
+  // Chosen for the user only once every open order has been seen: an older one may qualify too.
+  const only = autoSelect && !orders.hasNextPage && choices.length === 1 ? choices[0]?.id : undefined;
+  const more = orders.hasNextPage ? (
+    <Button
+      type="button"
+      variant="outline"
+      className="self-start"
+      disabled={orders.isFetchingNextPage}
+      onClick={async () => {
+        const result = await orders.fetchNextPage();
+        const pages = result.data?.pages ?? [];
+        // Orders were created or settled since the first page: every row moved, so read the pages again from the start
+        // rather than skip or repeat the ones at the edge.
+        if (pages.some((page) => page.total !== pages[0]?.total)) await orders.refetch();
+      }}
+    >
+      {t('orders.picker.more')}
+    </Button>
+  ) : null;
 
   useEffect(() => {
     if (only !== undefined) onSelect(only);
@@ -81,7 +109,7 @@ export function OrderPicker({
         <PageSkeleton rows={2} />
       ) : orders.isError ? (
         <QueryErrorState error={orders.error} onRetry={() => void orders.refetch()} />
-      ) : choices.length === 0 ? (
+      ) : choices.length === 0 && !orders.hasNextPage ? (
         <EmptyState title={t('orders.picker.empty')} />
       ) : (
         <section className="flex flex-col gap-3">
@@ -117,6 +145,7 @@ export function OrderPicker({
               </li>
             ))}
           </ul>
+          {more}
         </section>
       )}
     </div>
