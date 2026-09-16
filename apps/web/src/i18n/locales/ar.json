@@ -103,7 +103,9 @@
       "createdAt": "تاريخ الإضافة"
     },
     "filters": {
-      "title": "عوامل التصفية"
+      "title": "عوامل التصفية",
+      "all": "الكل",
+      "active": "نشط"
     },
     "notifications": "الإشعارات",
     "errorReference": "المرجع: {{id}}",
@@ -123,6 +125,8 @@
     "drivers": "السائقون",
     "orders": "الطلبات",
     "openMenu": "فتح القائمة",
+    "collapseSidebar": "طيّ القائمة الجانبية",
+    "expandSidebar": "توسيع القائمة الجانبية",
     "skipToContent": "انتقل إلى المحتوى",
     "reports": "التقارير",
     "language": "اللغة",
@@ -681,7 +685,7 @@
       "title": "الأصناف",
       "new": "صنف جديد",
       "empty": "لا توجد أصناف بعد. أضف أول صنف.",
-      "lowStockOnly": "المخزون المنخفض فقط"
+      "lowStockOnly": "المخزون المنخفض"
     },
     "lowStock": "مخزون منخفض",
     "new": {
@@ -722,7 +726,8 @@
       "minStockHelp": "اتركه فارغاً إن لم ترد تنبيه المخزون المنخفض.",
       "initialStock": "المخزون الأولي",
       "addInitialStock": "إضافة مخزون أولي",
-      "noInitialStockHelp": "بدون مخزون أولي يبدأ الصنف من 0."
+      "noInitialStockHelp": "بدون مخزون أولي يبدأ الصنف من 0.",
+      "noInitialStock": "بدون"
     },
     "adjust": {
       "title": "تعديل المخزون",
@@ -770,7 +775,7 @@
       "title": "الزبائن",
       "new": "زبون جديد",
       "empty": "لا يوجد زبائن بعد. أضف أول زبون.",
-      "hasOpenOrders": "فقط من لديهم طلبات مفتوحة"
+      "hasOpenOrders": "لديهم طلبات مفتوحة"
     },
     "noLimit": "بلا حد",
     "new": {
@@ -966,7 +971,8 @@
       "deletePaymentTitle": "حذف هذه الدفعة؟",
       "deletePaymentBody": "يعود مبلغها مستحقاً. تبقى الدفعة في السجل مع عكسها.",
       "deletePaymentNote": "السبب (اختياري)",
-      "paymentDeleted": "حُذفت الدفعة"
+      "paymentDeleted": "حُذفت الدفعة",
+      "hideReversed": "إخفاء المعكوسة"
     },
     "money": {
       "date": "التاريخ",

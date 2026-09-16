@@ -42,7 +42,7 @@ export function TableHead({ className, scope = 'col', ...props }: React.Componen
       scope={scope}
       data-slot="table-head"
       className={cn(
-        'text-muted-foreground h-11 px-3 text-start align-middle text-xs font-semibold tracking-wide whitespace-nowrap',
+        'text-muted-foreground h-14 px-4 text-start align-middle text-sm font-semibold tracking-wide whitespace-nowrap',
         className,
       )}
       {...props}
@@ -51,5 +51,5 @@ export function TableHead({ className, scope = 'col', ...props }: React.Componen
 }
 
 export function TableCell({ className, ...props }: React.ComponentProps<'td'>) {
-  return <td data-slot="table-cell" className={cn('p-3 align-middle', className)} {...props} />;
+  return <td data-slot="table-cell" className={cn('px-4 py-5 align-middle', className)} {...props} />;
 }

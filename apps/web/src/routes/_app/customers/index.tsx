@@ -8,7 +8,7 @@ import { z } from 'zod';
 import { ArchivedBadge } from '@/components/app/archived-badge';
 import { DataTable, type DataColumn } from '@/components/app/data-table';
 import { DateText } from '@/components/app/date-text';
-import { FilterSwitch, ListEmpty, SearchBox } from '@/components/app/list-controls';
+import { FilterChoice, ListEmpty, SearchBox } from '@/components/app/list-controls';
 import { MoneyText } from '@/components/app/money-text';
 import { PageHeader } from '@/components/app/page-header';
 import { QuantityText } from '@/components/app/quantity-text';
@@ -173,15 +173,15 @@ function CustomersPage() {
         toolbar={
           <>
             <SearchBox value={term} onChange={setTerm} />
-            <FilterSwitch
-              id="hasOpenOrders"
+            <FilterChoice
               label={t('customers.list.hasOpenOrders')}
+              offLabel={t('common.filters.all')}
               checked={search.hasOpenOrders ?? false}
               onCheckedChange={(on) => setFilter({ hasOpenOrders: on || undefined })}
             />
-            <FilterSwitch
-              id="includeArchived"
+            <FilterChoice
               label={t('common.includeArchived')}
+              offLabel={t('common.filters.active')}
               checked={search.includeArchived ?? false}
               onCheckedChange={(on) => setFilter({ includeArchived: on || undefined })}
             />

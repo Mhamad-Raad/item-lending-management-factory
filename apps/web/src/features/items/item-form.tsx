@@ -21,10 +21,9 @@ import { Field, FieldDescription, FieldError, FieldLabel } from '@/components/ap
 import { ImageUploadField, type UploadedImage } from '@/components/app/image-upload-field';
 import { MoneyInput, QuantityInput } from '@/components/app/numeric-input';
 import { Button } from '@/components/ui/button';
+import { FilterChoice } from '@/components/app/list-controls';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
-import { Switch } from '@/components/ui/switch';
 import { useUnsavedChangesGuard } from '@/hooks/use-unsaved-changes-guard';
 import { apiFetch } from '@/lib/api-client';
 import { useCan } from '@/lib/auth';
@@ -223,28 +222,24 @@ export function ItemForm({ item }: { item?: ItemDto }) {
             <CardTitle>{t('items.form.initialStock')}</CardTitle>
           </CardHeader>
           <CardContent className="flex flex-col gap-4">
-            <div className="flex items-center gap-2">
-              <Controller
-                control={form.control}
-                name="addInitialStock"
-                render={({ field }) => (
-                  <Switch
-                    id="addInitialStock"
-                    checked={field.value}
-                    onCheckedChange={(on) => {
-                      field.onChange(on);
-                      // Today as of switching it on: a form left open overnight must not offer yesterday.
-                      if (on && !form.getFieldState('initialBatch.date').isDirty) {
-                        form.setValue('initialBatch.date', businessToday());
-                      }
-                    }}
-                  />
-                )}
-              />
-              <Label htmlFor="addInitialStock" className="font-normal">
-                {t('items.form.addInitialStock')}
-              </Label>
-            </div>
+            <Controller
+              control={form.control}
+              name="addInitialStock"
+              render={({ field }) => (
+                <FilterChoice
+                  label={t('items.form.addInitialStock')}
+                  offLabel={t('items.form.noInitialStock')}
+                  checked={field.value}
+                  onCheckedChange={(on) => {
+                    field.onChange(on);
+                    // Today as of switching it on: a form left open overnight must not offer yesterday.
+                    if (on && !form.getFieldState('initialBatch.date').isDirty) {
+                      form.setValue('initialBatch.date', businessToday());
+                    }
+                  }}
+                />
+              )}
+            />
 
             {addInitialStock ? (
               <div className="grid grid-cols-1 gap-4 md:grid-cols-2">

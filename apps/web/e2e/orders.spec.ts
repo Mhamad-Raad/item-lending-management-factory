@@ -399,3 +399,42 @@ test('the new-order page starts on the customer picker', async ({ page }) => {
 
   await expect(page.getByRole('combobox', { name: 'Customer' })).toBeFocused();
 });
+
+test('Q53: the order filters wait behind a header button, and show at once for a filtered address', async ({
+  page,
+}) => {
+  await mockApi(page, ADMIN);
+  await page.route(/\/api\/orders\?/, (route) =>
+    route.fulfill({ json: { items: [ORDER], page: 1, pageSize: 25, total: 1 } }),
+  );
+
+  await page.goto('/orders');
+  const toggle = page.getByRole('button', { name: 'Filters' });
+  await expect(toggle).toHaveAttribute('aria-expanded', 'false');
+  await expect(page.getByLabel('Search')).toBeVisible();
+  await expect(page.getByRole('combobox', { name: 'Customer' })).toHaveCount(0);
+
+  await toggle.click();
+  await expect(toggle).toHaveAttribute('aria-expanded', 'true');
+  await expect(page.getByRole('combobox', { name: 'Customer' })).toBeVisible();
+  await page.getByRole('combobox', { name: 'Payment' }).click();
+  await page.getByRole('option', { name: 'On credit' }).click();
+  await expect(page).toHaveURL(/paymentType=LENT/);
+  await expect(toggle).toContainText('1');
+
+  await toggle.click();
+  await expect(page.getByRole('combobox', { name: 'Customer' })).toHaveCount(0);
+  // The count stays on the button while the card is hidden, so a filtered list is never a mystery.
+  await expect(toggle).toContainText('1');
+
+  await page.goto('/orders?paymentType=LENT');
+  await expect(page.getByRole('button', { name: 'Filters' })).toHaveAttribute('aria-expanded', 'true');
+  await expect(page.getByRole('combobox', { name: 'Payment' })).toBeVisible();
+
+  // A reversed range keeps its message even after the card is put away.
+  await page.goto('/orders?dateFrom=2026-09-20&dateTo=2026-09-10');
+  await expect(page.getByRole('alert').first()).toBeVisible();
+  await page.getByRole('button', { name: 'Filters' }).click();
+  await expect(page.getByRole('combobox', { name: 'Customer' })).toHaveCount(0);
+  await expect(page.getByRole('alert').first()).toBeVisible();
+});

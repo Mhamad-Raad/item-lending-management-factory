@@ -103,7 +103,9 @@
       "createdAt": "Added"
     },
     "filters": {
-      "title": "Filters"
+      "title": "Filters",
+      "all": "All",
+      "active": "Active"
     },
     "notifications": "Notifications",
     "errorReference": "Reference: {{id}}",
@@ -123,6 +125,8 @@
     "drivers": "Drivers",
     "orders": "Orders",
     "openMenu": "Open menu",
+    "collapseSidebar": "Collapse sidebar",
+    "expandSidebar": "Expand sidebar",
     "skipToContent": "Skip to content",
     "reports": "Reports",
     "language": "Language",
@@ -681,7 +685,7 @@
       "title": "Items",
       "new": "New item",
       "empty": "No items yet. Add the first one.",
-      "lowStockOnly": "Only low stock"
+      "lowStockOnly": "Low stock"
     },
     "lowStock": "Low stock",
     "new": {
@@ -722,7 +726,8 @@
       "minStockHelp": "Leave empty for no low-stock warning.",
       "initialStock": "Initial stock",
       "addInitialStock": "Add initial stock",
-      "noInitialStockHelp": "Without initial stock the item starts at 0."
+      "noInitialStockHelp": "Without initial stock the item starts at 0.",
+      "noInitialStock": "None"
     },
     "adjust": {
       "title": "Adjust stock",
@@ -770,7 +775,7 @@
       "title": "Customers",
       "new": "New customer",
       "empty": "No customers yet. Add the first one.",
-      "hasOpenOrders": "Only with open orders"
+      "hasOpenOrders": "With open orders"
     },
     "noLimit": "No limit",
     "new": {
@@ -966,7 +971,8 @@
       "deletePaymentTitle": "Delete this payment?",
       "deletePaymentBody": "Its amount is owed again. The payment stays in the history with its reversal.",
       "deletePaymentNote": "Why (optional)",
-      "paymentDeleted": "Payment deleted"
+      "paymentDeleted": "Payment deleted",
+      "hideReversed": "Hide reversed"
     },
     "money": {
       "date": "Date",

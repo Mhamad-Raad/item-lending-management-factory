@@ -31,7 +31,7 @@ import {
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
-import { Switch } from '@/components/ui/switch';
+import { FilterSegment } from '@/components/app/list-controls';
 import { usePageTitle } from '@/hooks/use-page-title';
 import { isolate } from '@/lib/bidi';
 import { apiFetch } from '@/lib/api-client';
@@ -163,12 +163,16 @@ function ProfileCard({ user, isSelf, onSaved }: { user: UserDto; isSelf: boolean
               {t(isSelf ? 'users.detail.selfDeactivateHint' : 'users.detail.deactivateHint')}
             </span>
           </div>
-          <Switch
-            checked={user.isActive}
+          <FilterSegment
+            label={t('users.fields.status')}
+            value={user.isActive ? 'active' : 'inactive'}
             disabled={isSelf || patch.isPending}
-            aria-label={t('users.fields.status')}
-            onCheckedChange={(checked) => {
-              if (checked) patch.mutate({ isActive: true });
+            options={[
+              { value: 'active', label: t('users.status.active') },
+              { value: 'inactive', label: t('users.status.inactive') },
+            ]}
+            onChange={(value) => {
+              if (value === 'active') patch.mutate({ isActive: true });
               else setConfirmDeactivate(true);
             }}
           />

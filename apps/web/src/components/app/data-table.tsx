@@ -150,7 +150,7 @@ export function DataTable<T>({
           </div>
 
           <div className="bg-card hidden max-h-[calc(100dvh-14rem)] overflow-auto rounded-xl border shadow-sm md:block">
-            <table aria-label={label} aria-busy={isFetching} className="w-full caption-bottom text-sm">
+            <table aria-label={label} aria-busy={isFetching} className="w-full caption-bottom text-base">
               <TableHeader className="sticky top-0 z-10">
                 <TableRow className="hover:bg-transparent">
                   {columns.map((column) => {
@@ -196,7 +196,7 @@ export function DataTable<T>({
                         <TableCell
                           key={column.id}
                           className={cn(
-                            column.wrap ? 'max-w-64 min-w-40' : 'whitespace-nowrap',
+                            column.wrap ? 'max-w-80 min-w-48' : 'whitespace-nowrap',
                             column.align === 'end' && 'text-end tabular-nums',
                             column.hideBelow && HIDE_BELOW[column.hideBelow],
                           )}

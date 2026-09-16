@@ -159,10 +159,14 @@ test('turning the phone does not reopen a filter sheet it closed by widening', a
   await expect(page.getByRole('dialog', { name: 'Filters' })).toBeVisible();
 
   await page.setViewportSize({ width: 844, height: 390 });
-  // The wide layout has rendered once the button is gone (the sheet's own pickers would match too early).
-  await expect(page.getByRole('button', { name: 'Filters' })).toBeHidden();
+  // The wide layout has rendered once its own header button (Q53) is on screen and the sheet's is gone
+  // (the sheet's own pickers would match too early).
+  const headerToggle = page.locator('[aria-controls="list-filters"]');
+  await expect(headerToggle).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Filters' })).toHaveCount(1);
   await page.setViewportSize({ width: 390, height: 844 });
 
+  await expect(headerToggle).toBeHidden();
   await expect(page.getByRole('button', { name: 'Filters' })).toBeVisible();
   await expect(page.getByRole('dialog', { name: 'Filters' })).toBeHidden();
 });

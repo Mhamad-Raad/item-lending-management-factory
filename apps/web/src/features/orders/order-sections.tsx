@@ -5,13 +5,14 @@ import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { DataTable, type DataColumn } from '@/components/app/data-table';
 import { DateText } from '@/components/app/date-text';
-import { FilterSwitch } from '@/components/app/list-controls';
+import { FilterChoice } from '@/components/app/list-controls';
 import { MoneyText } from '@/components/app/money-text';
 import { QuantityText } from '@/components/app/quantity-text';
 import { EmptyState } from '@/components/app/states';
 import { Thumbnail } from '@/components/app/thumbnail';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
+import { Tip } from '@/components/app/tip';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { cn } from '@/lib/utils';
 
@@ -88,7 +89,7 @@ export function OrderLinesTable({ order }: { order: OrderDetailDto }) {
 
 /**
  * One card per return, newest first; reversed ones only when asked for (§7.3.6). A standing return
- * offers its edit and delete when `actions` allows them.
+ * offers its edit and delete when `actions` allows them, as icon buttons at the end of its header (Q54).
  */
 export function OrderReturns({
   returns,
@@ -106,9 +107,9 @@ export function OrderReturns({
       <div className="flex flex-wrap items-center justify-between gap-3">
         <h2 className="text-lg font-semibold">{t('orders.detail.returns')}</h2>
         {returns.some((pr) => pr.reversed) ? (
-          <FilterSwitch
-            id="showReversed"
+          <FilterChoice
             label={t('orders.detail.showReversed')}
+            offLabel={t('orders.detail.hideReversed')}
             checked={showReversed}
             onCheckedChange={setShowReversed}
           />
@@ -144,6 +145,24 @@ export function OrderReturns({
                 >
                   {t('orders.detail.replacedBy', { id: pr.replacedByReturnId })}
                 </a>
+              ) : null}
+              {!pr.reversed && (actions?.edit || actions?.onDelete) ? (
+                <div className="ms-auto flex items-center gap-1">
+                  {actions.edit?.(pr)}
+                  {actions.onDelete ? (
+                    <Tip label={t('orders.detail.deleteReturn')}>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        aria-label={t('orders.detail.deleteReturn')}
+                        className="text-muted-foreground hover:text-destructive"
+                        onClick={() => actions.onDelete?.(pr)}
+                      >
+                        <Trash2 aria-hidden />
+                      </Button>
+                    </Tip>
+                  ) : null}
+                </div>
               ) : null}
             </CardHeader>
             <CardContent className="flex flex-col gap-2 text-sm">
@@ -181,17 +200,6 @@ export function OrderReturns({
               <p className="text-muted-foreground text-xs">
                 <bdi>{pr.createdBy.displayName}</bdi> · <DateText value={pr.createdAt} withTime />
               </p>
-              {!pr.reversed && (actions?.edit || actions?.onDelete) ? (
-                <div className="flex flex-wrap gap-2">
-                  {actions.edit?.(pr)}
-                  {actions.onDelete ? (
-                    <Button variant="outline" size="sm" onClick={() => actions.onDelete?.(pr)}>
-                      <Trash2 aria-hidden />
-                      {t('orders.detail.deleteReturn')}
-                    </Button>
-                  ) : null}
-                </div>
-              ) : null}
             </CardContent>
           </Card>
         ))

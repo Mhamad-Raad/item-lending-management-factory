@@ -73,7 +73,7 @@ test('an item created with initial stock opens on its own page, with that stock 
   // Typed on an Arabic keyboard: read as 5000 and shown with a separator.
   await page.getByLabel('Deposit price').fill('٥٠٠٠');
   await expect(page.getByLabel('Deposit price')).toHaveValue('5,000');
-  await page.getByLabel('Add initial stock').click();
+  await page.getByRole('radio', { name: 'Add initial stock' }).click();
   await page.getByLabel('Quantity').fill('50');
   await page.getByLabel('Unit cost').fill('700');
   await page.getByRole('button', { name: 'Save' }).click();
@@ -157,7 +157,7 @@ test('the first batch of a new item is dated today, even on a form opened yester
   await page.goto('/items/new');
   await expect(page.getByLabel('Name')).toBeVisible();
   await page.clock.fastForward('05:00');
-  await page.getByLabel('Add initial stock').click();
+  await page.getByRole('radio', { name: 'Add initial stock' }).click();
 
   await expect(page.getByLabel('Date')).toHaveValue('13/09/2026');
 });

@@ -1,7 +1,7 @@
 import type { LedgerEntryDto, PaymentResultDto, ReturnDto, ReturnResultDto } from '@pallet/shared';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Link, createFileRoute, useNavigate } from '@tanstack/react-router';
-import { Ban, HandCoins, Pencil, Printer, ShieldAlert } from 'lucide-react';
+import { Ban, CalendarDays, Car, HandCoins, Pencil, Phone, Printer, ShieldAlert } from 'lucide-react';
 import { Undo2 } from '@/components/app/dir-icon';
 import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
@@ -22,6 +22,7 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Textarea } from '@/components/ui/textarea';
 import { invalidateAfterOrderChange, invalidateAfterPayment, orderQuery } from '@/features/orders/api';
+import { Tip } from '@/components/app/tip';
 import { OrderLinesTable, OrderMoney, OrderReturns } from '@/features/orders/order-sections';
 import { orderLabel } from '@/features/orders/order-text';
 import { usePageTitle } from '@/hooks/use-page-title';
@@ -239,15 +240,31 @@ function OrderDetailPage() {
             </div>
             <div className="flex flex-col gap-1">
               <dt className="text-muted-foreground text-sm">{t('orders.fields.driver')}</dt>
-              <dd className="flex flex-wrap gap-x-2">
-                <bdi>{data.driver.name}</bdi>
-                <span dir="ltr">{data.driver.phone}</span>
-                <span dir="ltr">{data.driver.carNumber}</span>
+              <dd className="flex flex-col gap-1">
+                <span className="truncate">
+                  <bdi>{data.driver.name}</bdi>
+                </span>
+                {/* The phone and the car number are told apart by an icon each; numbers read left to right (§7.11). */}
+                <span className="text-muted-foreground flex flex-wrap gap-x-4 gap-y-1 text-sm">
+                  <span className="inline-flex items-center gap-1.5">
+                    <Phone className="size-3.5 shrink-0" aria-hidden />
+                    <span className="sr-only">{t('drivers.fields.phone')}: </span>
+                    <span dir="ltr" className="tabular-nums">
+                      {data.driver.phone}
+                    </span>
+                  </span>
+                  <span className="inline-flex items-center gap-1.5">
+                    <Car className="size-3.5 shrink-0" aria-hidden />
+                    <span className="sr-only">{t('drivers.fields.carNumber')}: </span>
+                    <span dir="ltr">{data.driver.carNumber}</span>
+                  </span>
+                </span>
               </dd>
             </div>
             <div className="flex flex-col gap-1">
               <dt className="text-muted-foreground text-sm">{t('orders.fields.date')}</dt>
-              <dd>
+              <dd className="inline-flex items-center gap-1.5">
+                <CalendarDays className="text-muted-foreground size-4 shrink-0" aria-hidden />
                 <DateText value={data.date} />
               </dd>
             </div>
@@ -278,12 +295,22 @@ function OrderDetailPage() {
             : {
                 edit: can.editReturn
                   ? (pr) => (
-                      <Button asChild variant="outline" size="sm">
-                        <Link to="/returns/new" search={{ orderId: data.id, replaceReturnId: pr.id }}>
-                          <Pencil aria-hidden />
-                          {t('orders.detail.editReturn')}
-                        </Link>
-                      </Button>
+                      <Tip label={t('orders.detail.editReturn')}>
+                        <Button
+                          asChild
+                          variant="ghost"
+                          size="icon"
+                          className="text-muted-foreground hover:text-foreground"
+                        >
+                          <Link
+                            to="/returns/new"
+                            search={{ orderId: data.id, replaceReturnId: pr.id }}
+                            aria-label={t('orders.detail.editReturn')}
+                          >
+                            <Pencil aria-hidden />
+                          </Link>
+                        </Button>
+                      </Tip>
                     )
                   : undefined,
                 onDelete: can.deleteReturn ? setDeletingReturn : undefined,

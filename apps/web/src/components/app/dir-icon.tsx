@@ -9,6 +9,8 @@ import {
   CornerDownRight as CornerDownRightIcon,
   LogIn as LogInIcon,
   LogOut as LogOutIcon,
+  PanelLeftClose as PanelLeftCloseIcon,
+  PanelLeftOpen as PanelLeftOpenIcon,
   Redo2 as Redo2Icon,
   Undo2 as Undo2Icon,
   type LucideIcon,
@@ -39,5 +41,7 @@ export const CornerDownLeft = dirIcon(CornerDownLeftIcon);
 export const CornerDownRight = dirIcon(CornerDownRightIcon);
 export const LogIn = dirIcon(LogInIcon);
 export const LogOut = dirIcon(LogOutIcon);
+export const PanelLeftClose = dirIcon(PanelLeftCloseIcon);
+export const PanelLeftOpen = dirIcon(PanelLeftOpenIcon);
 export const Redo2 = dirIcon(Redo2Icon);
 export const Undo2 = dirIcon(Undo2Icon);

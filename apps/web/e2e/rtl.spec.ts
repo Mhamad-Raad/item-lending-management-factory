@@ -107,12 +107,13 @@ test('names inside sentences keep their direction: banners and confirmations', a
   for (const [route, opener] of [
     ['/customers/3', 'archive'],
     ['/items/5', 'archive'],
-    ['/users/2', 'switch'],
+    ['/users/2', 'status'],
     ['/users/2', 'logout'],
   ] as const) {
     await page.goto(route);
     await expect(page.locator('main h1').first()).toBeVisible();
-    if (opener === 'switch') await page.getByRole('switch').first().click();
+    // The status segment is the last radio group on the page; its last segment deactivates, behind a dialog.
+    if (opener === 'status') await page.getByRole('radiogroup').last().getByRole('radio').last().click();
     else if (opener === 'logout')
       await page.locator('main button.bg-destructive, main [data-variant="destructive"]').last().click();
     else

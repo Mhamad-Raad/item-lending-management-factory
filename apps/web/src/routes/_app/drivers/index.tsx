@@ -10,7 +10,7 @@ import { ArchivedBadge } from '@/components/app/archived-badge';
 import { ConfirmDialog } from '@/components/app/confirm-dialog';
 import { DataTable, type DataColumn } from '@/components/app/data-table';
 import { DateText } from '@/components/app/date-text';
-import { FilterSwitch, ListEmpty, SearchBox } from '@/components/app/list-controls';
+import { FilterChoice, ListEmpty, SearchBox } from '@/components/app/list-controls';
 import { PageHeader } from '@/components/app/page-header';
 import { PageSkeleton, QueryErrorState } from '@/components/app/states';
 import { Button } from '@/components/ui/button';
@@ -174,9 +174,9 @@ function DriversPage() {
         toolbar={
           <>
             <SearchBox value={term} onChange={setTerm} />
-            <FilterSwitch
-              id="includeArchived"
+            <FilterChoice
               label={t('common.includeArchived')}
+              offLabel={t('common.filters.active')}
               checked={search.includeArchived ?? false}
               onCheckedChange={(on) => setFilter({ includeArchived: on || undefined })}
             />

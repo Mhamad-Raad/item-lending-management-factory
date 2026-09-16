@@ -143,7 +143,7 @@ test('a corrected return names its replacement as a link to it', async ({ page }
   const old: ReturnDto = { ...RETURN, reversed: true, reversalKind: 'EDIT', replacedByReturnId: 6, canReverse: false };
   await openOrder(page, { ...ACTIVE, returns: [old, replacement] });
 
-  await page.getByRole('switch', { name: 'Show reversed' }).click();
+  await page.getByRole('radio', { name: 'Show reversed' }).click();
   await page.getByRole('link', { name: 'Replaced by return #6' }).click();
 
   await expect(page.locator('#return-6')).toBeInViewport();

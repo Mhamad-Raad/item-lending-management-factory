@@ -10,7 +10,7 @@ export function SelectTrigger({ className, children, ...props }: React.Component
     <SelectPrimitive.Trigger
       data-slot="select-trigger"
       className={cn(
-        'border-input flex h-10 w-full items-center justify-between gap-2 rounded-md border bg-transparent px-3 py-2 text-sm whitespace-nowrap shadow-xs outline-none',
+        'border-input flex h-13 w-full items-center justify-between gap-2 rounded-md border bg-transparent px-3 py-2 text-base whitespace-nowrap shadow-xs outline-none',
         'focus-visible:border-ring focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background',
         'disabled:cursor-not-allowed disabled:opacity-50 [&>span]:line-clamp-1',
         className,

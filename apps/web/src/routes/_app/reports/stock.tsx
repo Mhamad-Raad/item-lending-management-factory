@@ -4,7 +4,7 @@ import { Link, createFileRoute, useNavigate } from '@tanstack/react-router';
 import { useTranslation } from 'react-i18next';
 import { z } from 'zod';
 import { ArchivedBadge } from '@/components/app/archived-badge';
-import { FilterSwitch } from '@/components/app/list-controls';
+import { FilterChoice } from '@/components/app/list-controls';
 import { QuantityText } from '@/components/app/quantity-text';
 import { PageSkeleton, QueryErrorState } from '@/components/app/states';
 import { LowStockBadge } from '@/features/items/item-badges';
@@ -111,15 +111,15 @@ function StockReportPage() {
       ]}
       filters={
         <>
-          <FilterSwitch
-            id="lowStockOnly"
+          <FilterChoice
             label={t('reports.stock.lowStockOnly')}
+            offLabel={t('common.filters.all')}
             checked={search.lowStockOnly ?? false}
             onCheckedChange={(on) => setFilter({ lowStockOnly: on || undefined })}
           />
-          <FilterSwitch
-            id="includeArchived"
+          <FilterChoice
             label={t('common.includeArchived')}
+            offLabel={t('common.filters.active')}
             checked={search.includeArchived ?? false}
             onCheckedChange={(on) => setFilter({ includeArchived: on || undefined })}
           />

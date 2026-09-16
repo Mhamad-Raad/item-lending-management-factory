@@ -2,14 +2,13 @@ import { BusinessDate, PAYMENT_TYPES, type OrderListItemDto, type PageDto, type 
 import { keepPreviousData, useQuery } from '@tanstack/react-query';
 import { Link, createFileRoute, useNavigate } from '@tanstack/react-router';
 import { ClipboardList, Plus } from 'lucide-react';
-import { useCallback } from 'react';
+import { useCallback, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { z } from 'zod';
 import { DataTable } from '@/components/app/data-table';
 import { DateRangePicker } from '@/components/app/date-picker';
 import { EntityCombobox } from '@/components/app/entity-combobox';
-import { ListEmpty, ListFilters, SearchBox } from '@/components/app/list-controls';
-import { PageHeader } from '@/components/app/page-header';
+import { FiltersToggle, ListEmpty, ListFilters, SearchBox } from '@/components/app/list-controls';
 import { PageSkeleton, QueryErrorState } from '@/components/app/states';
 import { Button } from '@/components/ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
@@ -23,7 +22,8 @@ import { listSearch, sortSearch } from '@/lib/list-search';
 import { qk } from '@/lib/query-keys';
 import { requirePermission } from '@/lib/route-guards';
 
-const STATUSES = ['OPEN', 'SETTLED', 'CANCELLED', 'ALL'] as const;
+// "All" leads the tabs (Q55); the list still opens on OPEN.
+const STATUSES = ['ALL', 'OPEN', 'SETTLED', 'CANCELLED'] as const;
 const ALL_TYPES = 'all';
 const id = z.coerce.number().int().min(1).optional().catch(undefined);
 
@@ -99,28 +99,42 @@ function OrdersPage() {
     search.dateFrom ?? search.dateTo,
   ].filter(Boolean).length;
   const filtered = Boolean(search.q) || activeFilters > 0;
+  // The filter card starts hidden, unless the address already carries a filter that it would otherwise hide (Q53).
+  const [filtersOpen, setFiltersOpen] = useState(activeFilters > 0);
 
   return (
     <>
-      <PageHeader title={t('orders.list.title')} actions={newOrder} />
+      {/* The top bar already names the page; the heading stays for screen readers only (Q57). */}
+      <h1 className="sr-only">{t('orders.list.title')}</h1>
 
-      <Tabs
-        value={params.status}
-        onValueChange={(status) =>
-          setFilter({ status: status === 'OPEN' ? undefined : (status as (typeof STATUSES)[number]) })
-        }
-      >
-        <TabsList>
-          {STATUSES.map((status) => (
-            <TabsTrigger key={status} value={status}>
-              {t(status === 'ALL' ? 'orders.list.allStatuses' : `enums.orderStatus.${status}`)}
-            </TabsTrigger>
-          ))}
-        </TabsList>
-      </Tabs>
+      {/* One row: the search box and the status tabs at the reading start, the actions at the end (Q55, Q57). */}
+      <div className="flex flex-wrap items-center gap-3">
+        <SearchBox value={term} onChange={setTerm} />
+        <Tabs
+          value={params.status}
+          onValueChange={(status) =>
+            setFilter({ status: status === 'OPEN' ? undefined : (status as (typeof STATUSES)[number]) })
+          }
+        >
+          <TabsList>
+            {STATUSES.map((status) => (
+              <TabsTrigger key={status} value={status}>
+                {t(status === 'ALL' ? 'orders.list.allStatuses' : `enums.orderStatus.${status}`)}
+              </TabsTrigger>
+            ))}
+          </TabsList>
+        </Tabs>
+        <div className="ms-auto flex flex-wrap items-center gap-2">
+          <FiltersToggle
+            open={filtersOpen}
+            onToggle={() => setFiltersOpen((open) => !open)}
+            activeCount={activeFilters}
+          />
+          {newOrder}
+        </div>
+      </div>
 
       <ListFilters
-        search={<SearchBox value={term} onChange={setTerm} />}
         activeCount={activeFilters}
         onClear={() =>
           setFilter({
@@ -133,6 +147,7 @@ function OrdersPage() {
           })
         }
         error={rangeInvalid ? t('errors.DATE_RANGE_INVALID') : undefined}
+        open={filtersOpen}
       >
         <div className="w-full md:w-56">
           <EntityCombobox

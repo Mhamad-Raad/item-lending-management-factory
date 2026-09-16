@@ -256,3 +256,28 @@ test('each order a holding came out on links to that order', async ({ page }) =>
 
   await expect(page.getByRole('link', { name: /#000042/ }).first()).toHaveAttribute('href', '/orders/9');
 });
+
+test('Q56: the list filters are segmented choices, and the narrowing segment sets the flag', async ({ page }) => {
+  await signIn(page);
+  const asked: string[] = [];
+  await page.route(/\/api\/customers(\?.*)?$/, (route) => {
+    asked.push(new URL(route.request().url()).search);
+    return route.fulfill({ json: { items: [CUSTOMER], page: 1, pageSize: 25, total: 1 } });
+  });
+
+  await page.goto('/customers');
+  await expect(page.getByRole('switch')).toHaveCount(0);
+  const openOrders = page.getByRole('radiogroup', { name: 'With open orders' });
+  await expect(openOrders.getByRole('radio', { name: 'All' })).toBeChecked();
+
+  await openOrders.getByRole('radio', { name: 'With open orders' }).click();
+  await expect(page).toHaveURL(/hasOpenOrders=true/);
+  await expect.poll(() => asked.some((search) => search.includes('hasOpenOrders=true'))).toBe(true);
+
+  const archived = page.getByRole('radiogroup', { name: 'Include archived' });
+  await expect(archived.getByRole('radio', { name: 'Active' })).toBeChecked();
+  await archived.getByRole('radio', { name: 'Include archived' }).click();
+  await expect(page).toHaveURL(/includeArchived=true/);
+  await archived.getByRole('radio', { name: 'Active' }).click();
+  await expect(page).not.toHaveURL(/includeArchived/);
+});

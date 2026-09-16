@@ -15,13 +15,18 @@ import {
   type Theme,
 } from '@pallet/shared';
 
-/** Browser-only preferences (never sent to the server). Keep in sync with public/boot-prefs.js. */
+/**
+ * Browser-only preferences (never sent to the server). Keep in sync with public/boot-prefs.js, except
+ * `sidebarCollapsed`: the sidebar is drawn by React from this store on its first render, so nothing needs it before paint.
+ */
 export interface Preferences {
   language: Language;
   theme: Theme;
   palette: Palette;
   font: FontFamily;
   fontSize: FontSize;
+  /** The desktop sidebar reduced to its icons (Q51). */
+  sidebarCollapsed: boolean;
 }
 
 export const PREFERENCES_KEY = 'pallet.prefs.v1';
@@ -31,6 +36,7 @@ export const DEFAULT_PREFERENCES: Preferences = {
   palette: 'harbor',
   font: 'inter',
   fontSize: 'md',
+  sidebarCollapsed: false,
 };
 
 /** Language names are always shown in their own script, so they are not translated. */
@@ -52,6 +58,7 @@ function read(): Preferences {
       palette: oneOf(PALETTES, saved.palette, DEFAULT_PREFERENCES.palette),
       font: oneOf(FONT_FAMILIES, saved.font, DEFAULT_PREFERENCES.font),
       fontSize: oneOf(FONT_SIZES, saved.fontSize, DEFAULT_PREFERENCES.fontSize),
+      sidebarCollapsed: saved.sidebarCollapsed === true,
     };
   } catch {
     return DEFAULT_PREFERENCES;
