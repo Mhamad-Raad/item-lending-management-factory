@@ -85,7 +85,7 @@ export function DatePicker({ id, value, onChange, onBlur, min, max, invalid, dis
             type="button"
             variant="outline"
             size="icon"
-            className="size-13 shrink-0 md:size-13"
+            className="shrink-0"
             disabled={disabled}
             aria-label={t('common.datePicker.open')}
           >

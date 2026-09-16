@@ -181,7 +181,7 @@ export function FilterSegment<V extends string>({
       disabled={disabled}
       onValueChange={(next) => onChange(next as V)}
       dir={isRtl(language) ? 'rtl' : 'ltr'}
-      className="bg-muted text-muted-foreground inline-flex h-13 w-fit max-w-full items-center overflow-x-auto rounded-lg p-1"
+      className="bg-muted text-muted-foreground inline-flex h-12 w-fit max-w-full items-center overflow-x-auto rounded-lg p-1"
     >
       {options.map((option) => (
         <RadioGroupPrimitive.Item

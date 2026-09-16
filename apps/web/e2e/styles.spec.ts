@@ -251,10 +251,10 @@ test('the font-size steps scale the whole interface, controls included, without 
   expect(steps.sm?.root).toBe('14px');
   expect(steps.md?.root).toBe('16px');
   expect(steps.xl?.root).toBe('20px');
-  // A 2.25 rem control follows the root size: 31.5, 36 and 45 px.
-  expect(steps.sm?.control).toBeCloseTo(31.5, 0);
-  expect(steps.md?.control).toBeCloseTo(36, 0);
-  expect(steps.xl?.control).toBeCloseTo(45, 0);
+  // A 3 rem control (Q58) follows the root size: 42, 48 and 60 px.
+  expect(steps.sm?.control).toBeCloseTo(42, 0);
+  expect(steps.md?.control).toBeCloseTo(48, 0);
+  expect(steps.xl?.control).toBeCloseTo(60, 0);
 });
 
 test('every field outline, pickers included, uses the field token at 3 : 1 (Q44)', async ({ page }) => {

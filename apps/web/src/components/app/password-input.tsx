@@ -14,12 +14,12 @@ export function PasswordInput({ className, ...props }: React.ComponentProps<type
 
   return (
     <div className="relative">
-      <Input {...props} type={visible ? 'text' : 'password'} className={`pe-13 ${className ?? ''}`} />
+      <Input {...props} type={visible ? 'text' : 'password'} className={`pe-12 ${className ?? ''}`} />
       <Button
         type="button"
         variant="ghost"
         size="icon"
-        className="absolute end-0 top-0 size-13 text-muted-foreground md:size-13"
+        className="absolute end-0 top-0 text-muted-foreground"
         aria-label={t(visible ? 'common.password.hide' : 'common.password.show')}
         aria-pressed={visible}
         onClick={() => setVisible((shown) => !shown)}
