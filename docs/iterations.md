@@ -259,6 +259,12 @@ backups + disk-alert cron, uptime monitor, Sentry DSN.
 
 E1–E8 green in CI; first quarterly restore test onto a fresh VPS performed and recorded.
 
+**7c end-to-end done** (branch `feat/7c-real-api-e2e`, Q63): the live suite (`pnpm test:e2e:live`) runs E1–E8 against the
+built API and a reset, demo-seeded `pallet_test`; CI runs it and uploads the Linux E6 baselines to commit. **Exit:** E1–E5,
+E7, E8 green twice in a row locally (E6 is Linux-only) and cold with `CI=1`; a deliberately broken `orders.cancel` check
+fails E8; the E6 baselines rendered by CI committed and CI green. The restore drill stays with the
+deployment (7b), which the maintainer hands over.
+
 ---
 
 ## Environments

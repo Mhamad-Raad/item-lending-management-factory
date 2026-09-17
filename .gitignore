@@ -19,6 +19,11 @@ apps/api/data/
 coverage/
 playwright-report/
 test-results/
+playwright-report-live/
+test-results-live/
+# E6 baselines are Linux renders from CI; a local render (PALLET_E6_ANY_PLATFORM=1 … --update-snapshots) is for looking only.
+apps/web/e2e-live/__screenshots__/**/*-darwin.png
+apps/web/e2e-live/__screenshots__/**/*-win32.png
 
 # OS / editor
 .DS_Store

@@ -17,6 +17,7 @@
     "test": "pnpm --filter @pallet/shared build && pnpm -r test",
     "test:integration": "pnpm --filter @pallet/api test:integration",
     "test:e2e": "pnpm --filter @pallet/web test:e2e",
+    "test:e2e:live": "pnpm --filter @pallet/web test:e2e:live",
     "db:up": "docker compose -f docker-compose.dev.yml up -d",
     "db:down": "docker compose -f docker-compose.dev.yml down",
     "db:migrate": "pnpm --filter @pallet/api db:migrate",

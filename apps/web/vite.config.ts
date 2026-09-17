@@ -5,8 +5,10 @@ import react from '@vitejs/plugin-react';
 import { defineConfig } from 'vite';
 
 // Same-origin in every environment: the dev/preview server proxies /api to the local API,
-// exactly like Caddy does in production.
-const apiProxy = { '/api': { target: 'http://localhost:3000', changeOrigin: false } };
+// exactly like Caddy does in production. The live e2e suite points it at its own API (Q63).
+const apiProxy = {
+  '/api': { target: process.env.PALLET_API_ORIGIN ?? 'http://localhost:3000', changeOrigin: false },
+};
 
 export default defineConfig({
   plugins: [
