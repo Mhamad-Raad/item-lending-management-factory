@@ -8,29 +8,43 @@ import type { OrderTotals } from './customers.mapper';
 
 type Client = Pick<Prisma.TransactionClient, '$queryRaw'>;
 
-/** Per customer, the sums of its orders that are not cancelled — per-order `held` is summed (§4.5, §6.17). */
-const ORDER_TOTALS = Prisma.sql`
-  SELECT customer_id,
-         SUM(out_quantity_total)::int AS pallets_out,
-         SUM(out_value)::bigint AS out_value,
-         SUM(owed)::bigint AS owed,
-         SUM(held)::bigint AS held,
-         SUM(compensation)::bigint AS compensation,
-         COUNT(*) FILTER (WHERE status = 'OPEN')::int AS open_order_count
-  FROM orders
-  WHERE cancelled_at IS NULL
-  GROUP BY customer_id`;
+/**
+ * Per customer, the sums of its orders that are not cancelled — per-order `held` is summed (§4.5, §6.17).
+ * Pallets out, out value, owed and held are read from OPEN orders only: a SETTLED order has all four at
+ * zero (`orders_settled_nothing_standing_check`), so the sums are the same and the work is proportional
+ * to what is still standing, not to years of history (Q62). Compensation stays assessed after settlement,
+ * so it is summed over the orders that carry any. `scope` narrows both to some customers.
+ */
+function fromCustomers(scope: Prisma.Sql = Prisma.empty): Prisma.Sql {
+  return Prisma.sql`
+    FROM customers c
+    LEFT JOIN (
+      SELECT customer_id,
+             SUM(out_quantity_total)::int AS pallets_out,
+             SUM(out_value)::bigint AS out_value,
+             SUM(owed)::bigint AS owed,
+             SUM(held)::bigint AS held,
+             COUNT(*)::int AS open_order_count
+      FROM orders
+      WHERE status = 'OPEN' ${scope}
+      GROUP BY customer_id
+    ) t ON t.customer_id = c.id
+    LEFT JOIN (
+      SELECT customer_id, SUM(compensation)::bigint AS compensation
+      FROM orders
+      WHERE compensation > 0 AND status <> 'CANCELLED' ${scope}
+      GROUP BY customer_id
+    ) k ON k.customer_id = c.id`;
+}
 
-const FROM_CUSTOMERS = Prisma.sql`FROM customers c LEFT JOIN (${ORDER_TOTALS}) t ON t.customer_id = c.id`;
-
-/** A customer without orders has no `t` row, and zeros. */
+/** A customer without orders has no `t` or `k` row, and zeros. */
 const TOTAL_COLUMNS = Prisma.sql`
   c.id,
   COALESCE(t.pallets_out, 0)::int AS "palletsOut",
   COALESCE(t.out_value, 0)::bigint AS "outValue",
   COALESCE(t.owed, 0)::bigint AS "owed",
   COALESCE(t.held, 0)::bigint AS "held",
-  COALESCE(t.compensation, 0)::bigint AS "compensation",
+  COALESCE(k.compensation, 0)::bigint AS "compensation",
   COALESCE(t.open_order_count, 0)::int AS "openOrderCount"`;
 
 /** Output names or plain columns, never input: the sort field is picked from this map. */
@@ -69,8 +83,10 @@ export async function queryCustomerTotals(
   customerIds: readonly number[],
 ): Promise<Map<number, OrderTotals>> {
   if (customerIds.length === 0) return new Map();
+  const ids = [...customerIds];
   const rows = await client.$queryRaw<TotalsRow[]>`
-    SELECT ${TOTAL_COLUMNS} ${FROM_CUSTOMERS} WHERE c.id = ANY(${[...customerIds]}::int[])`;
+    SELECT ${TOTAL_COLUMNS} ${fromCustomers(Prisma.sql`AND customer_id = ANY(${ids}::int[])`)}
+    WHERE c.id = ANY(${ids}::int[])`;
   return new Map(rows.map((row) => [row.id, toTotals(row)]));
 }
 
@@ -103,10 +119,10 @@ export async function queryCustomerPage(
 
   const [rows, counted] = await Promise.all([
     client.$queryRaw<TotalsRow[]>`
-      SELECT ${TOTAL_COLUMNS} ${FROM_CUSTOMERS} ${where}
+      SELECT ${TOTAL_COLUMNS} ${fromCustomers()} ${where}
       ORDER BY ${order}
       LIMIT ${query.pageSize} OFFSET ${(query.page - 1) * query.pageSize}`,
-    client.$queryRaw<{ total: number }[]>`SELECT COUNT(*)::int AS total ${FROM_CUSTOMERS} ${where}`,
+    client.$queryRaw<{ total: number }[]>`SELECT COUNT(*)::int AS total ${fromCustomers()} ${where}`,
   ]);
   return { rows: rows.map((row) => ({ id: row.id, ...toTotals(row) })), total: counted[0]?.total ?? 0 };
 }

@@ -112,7 +112,12 @@ ALTER TABLE orders
   ),
   ADD CONSTRAINT orders_credit_override_consistent_check
     CHECK ((credit_override_by_user_id IS NULL) = (credit_override_at IS NULL)),
-  ADD CONSTRAINT orders_version_positive_check CHECK (version >= 1);
+  ADD CONSTRAINT orders_version_positive_check CHECK (version >= 1),
+  -- Q62 (migration 20260917000000_open_order_totals): a settled order has nothing standing, so totals
+  -- of what is out, owed or held are read from open orders only.
+  ADD CONSTRAINT orders_settled_nothing_standing_check CHECK (
+    status <> 'SETTLED' OR (out_quantity_total = 0 AND owed = 0 AND out_value = 0 AND held = 0)
+  );
 
 ALTER TABLE order_lines
   ADD CONSTRAINT order_lines_quantity_positive_check CHECK (quantity > 0),
@@ -250,6 +255,28 @@ $$;
 
 CREATE TRIGGER ledger_reversal_matches_original BEFORE INSERT ON ledger_entries
   FOR EACH ROW EXECUTE FUNCTION ledger_reversal_matches_original();
+
+-- ═══════════════════════════════════════════════════════════════════════════════════════
+-- Partial and covering indexes (Q62, migration 20260917000000_open_order_totals)
+-- Totals over years of history read only what is still standing; the dashboard reads the newest events.
+-- ═══════════════════════════════════════════════════════════════════════════════════════
+CREATE INDEX orders_open_totals_idx
+  ON orders (customer_id) INCLUDE (out_quantity_total, out_value, owed, held)
+  WHERE status = 'OPEN';
+CREATE INDEX orders_compensation_idx
+  ON orders (customer_id) INCLUDE (compensation)
+  WHERE compensation > 0;
+CREATE INDEX order_lines_outstanding_idx
+  ON order_lines (item_id) INCLUDE (out_quantity, order_id)
+  WHERE out_quantity > 0;
+CREATE INDEX order_lines_damaged_idx
+  ON order_lines (item_id) INCLUDE (returned_damaged, order_id)
+  WHERE returned_damaged > 0;
+CREATE INDEX orders_cancelled_at_id_idx ON orders (cancelled_at, id) WHERE cancelled_at IS NOT NULL;
+CREATE INDEX ledger_entries_manual_payments_created_at_id_idx
+  ON ledger_entries (created_at, id) WHERE type = 'PAYMENT' AND source = 'MANUAL';
+CREATE INDEX ledger_entries_refunds_created_at_id_idx
+  ON ledger_entries (created_at, id) WHERE type = 'REFUND';
 
 -- ═══════════════════════════════════════════════════════════════════════════════════════
 -- Seed rows required by the schema itself

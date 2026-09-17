@@ -1,5 +1,12 @@
 import type { INestApplication } from '@nestjs/common';
-import type { CustomerDetailDto, CustomerDto, CustomerPhoneCheckDto, ItemDto, PageDto } from '@pallet/shared';
+import type {
+  CustomerDetailDto,
+  CustomerDto,
+  CustomerPhoneCheckDto,
+  DashboardDto,
+  ItemDto,
+  PageDto,
+} from '@pallet/shared';
 import request from 'supertest';
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import { FixedClock } from '../../src/common/clock';
@@ -243,6 +250,82 @@ describe('customers', () => {
     // The item's own count of pallets out reads the same orders (§6.15).
     const stock = (await http().get(`/api/items/${item.id}`).set(asUser(admin)).expect(200)).body as ItemDto;
     expect(stock.quantityOut).toBe(26);
+  });
+
+  it('Q62 — reads open orders for what stands, keeps compensation past settlement, ignores reversed damage', async () => {
+    const driver = await createDriver(app, admin);
+    const item = await createItem(app, admin, { name: 'Euro pallet', depositPrice: 5_000, stock: 100 });
+    const customer = await createCustomer(app, admin, { name: 'Dilan Blocks', phone: '07503333333' });
+    const line = (order: { lines: { id: number }[] }) => order.lines[0]?.id ?? 0;
+    const cash = (quantity: number) =>
+      createOrder(app, admin, {
+        customerId: customer.id,
+        driverId: driver.id,
+        paymentType: 'CASH',
+        lines: [{ itemId: item.id, quantity }],
+      });
+
+    // A: paid, 8 back and 2 damaged — settled, and the 10,000 of compensation stays assessed.
+    const settled = await cash(10);
+    await recordReturn(app, admin, {
+      orderId: settled.id,
+      date: '2026-09-11',
+      lines: [{ orderLineId: line(settled), acceptedQuantity: 8, damagedQuantity: 2 }],
+    });
+    // B: paid, 3 reported damaged, then that return deleted — nothing damaged, all 10 still out.
+    const reversed = await cash(10);
+    const wrong = await recordReturn(app, admin, {
+      orderId: reversed.id,
+      date: '2026-09-11',
+      lines: [{ orderLineId: line(reversed), acceptedQuantity: 0, damagedQuantity: 3 }],
+    });
+    await http().delete(`/api/returns/${wrong}`).set(asUser(admin)).expect(200);
+    // C: lent, 1 damaged — 3 out, 20,000 owed, 5,000 of compensation.
+    const lent = await createOrder(app, admin, {
+      customerId: customer.id,
+      driverId: driver.id,
+      lines: [{ itemId: item.id, quantity: 4 }],
+    });
+    await recordReturn(app, admin, {
+      orderId: lent.id,
+      date: '2026-09-11',
+      lines: [{ orderLineId: line(lent), acceptedQuantity: 0, damagedQuantity: 1 }],
+    });
+
+    const statuses = await prisma.order.findMany({ where: { customerId: customer.id }, orderBy: { id: 'asc' } });
+    expect(statuses.map((order) => order.status)).toEqual(['SETTLED', 'OPEN', 'OPEN']);
+
+    const summary = {
+      palletsOut: 13, // B 10 + C 3
+      outValue: 65_000,
+      owed: 20_000, // C only
+      held: 50_000, // B holds its whole paid deposit; C owes more than it holds
+      compensation: 15_000, // A 10,000 (settled) + C 5,000; B's deleted damage is gone
+      openOrderCount: 2,
+    };
+    const detail = (await http().get(`/api/customers/${customer.id}`).set(asUser(admin)).expect(200))
+      .body as CustomerDetailDto;
+    expect(detail.summary).toMatchObject(summary);
+    const listed = (await http().get('/api/customers').set(asUser(admin)).expect(200)).body as PageDto<CustomerDto>;
+    expect(listed.items.find((row) => row.id === customer.id)?.summary).toMatchObject(summary);
+
+    const stocked = (await http().get(`/api/items/${item.id}`).set(asUser(admin)).expect(200)).body as ItemDto;
+    expect(stocked).toMatchObject({ quantityOut: 13, damagedTotal: 3 }); // A 2 + C 1
+
+    const dashboard = (await http().get('/api/dashboard').set(asUser(admin)).expect(200)).body as DashboardDto;
+    expect(dashboard.positions).toEqual({
+      palletsOut: 13,
+      outValue: 65_000,
+      owed: 20_000,
+      held: 50_000,
+      openOrderCount: 2,
+      customersWithOpenOrders: 1,
+    });
+
+    // The equivalence the queries rely on is the database's: a settled order cannot carry anything standing.
+    await expect(prisma.$executeRaw`UPDATE orders SET owed = 1 WHERE id = ${settled.id}`).rejects.toThrow(
+      /orders_settled_nothing_standing_check/,
+    );
   });
 
   it('edits under the version, checks only a phone that changes, and a no-op writes nothing (Q37)', async () => {

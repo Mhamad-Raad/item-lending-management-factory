@@ -35,6 +35,7 @@ export class DashboardService {
   }
 
   private async positions(): Promise<NonNullable<DashboardDto['positions']>> {
+    // Open orders only: a settled order contributes zero to every sum (`orders_settled_nothing_standing_check`, Q62).
     const [row] = await this.prisma.$queryRaw<
       {
         pallets_out: SqlAggregate;
@@ -49,10 +50,10 @@ export class DashboardService {
              COALESCE(SUM(out_value), 0)::bigint AS out_value,
              COALESCE(SUM(owed), 0)::bigint AS owed,
              COALESCE(SUM(held), 0)::bigint AS held,
-             COUNT(*) FILTER (WHERE status = 'OPEN')::bigint AS open_orders,
-             COUNT(DISTINCT customer_id) FILTER (WHERE status = 'OPEN')::bigint AS open_customers
+             COUNT(*)::bigint AS open_orders,
+             COUNT(DISTINCT customer_id)::bigint AS open_customers
         FROM orders
-       WHERE cancelled_at IS NULL`;
+       WHERE status = 'OPEN'`;
     return {
       palletsOut: fromAggregate(row?.pallets_out ?? 0),
       outValue: fromAggregate(row?.out_value ?? 0),
@@ -101,19 +102,28 @@ export class DashboardService {
   /**
    * The latest events (§6.22): hand-overs, cancellations, returns, manual payments and refunds, newest
    * first by when they were recorded. Reversed ones stay, flagged.
+   *
+   * Each kind contributes only its own newest ten, read backwards from a `(created_at, id)` index (Q62):
+   * the overall newest ten are among them, because within one kind the outer order is the same
+   * `at DESC, id DESC`. Without the inner limits every event ever recorded was sorted on each visit.
    */
   private async recentActivity(): Promise<ActivityEventDto[]> {
     const keys = await this.prisma.$queryRaw<{ kind: ActivityEventKind; id: number; at: Date }[]>`
       SELECT kind, id, at FROM (
-        SELECT 'HANDOVER' AS kind, o.id, o.created_at AS at FROM orders o
+        (SELECT 'HANDOVER' AS kind, o.id, o.created_at AS at FROM orders o
+          ORDER BY o.created_at DESC, o.id DESC LIMIT ${RECENT})
         UNION ALL
-        SELECT 'CANCELLATION', o.id, o.cancelled_at FROM orders o WHERE o.cancelled_at IS NOT NULL
+        (SELECT 'CANCELLATION', o.id, o.cancelled_at FROM orders o WHERE o.cancelled_at IS NOT NULL
+          ORDER BY o.cancelled_at DESC, o.id DESC LIMIT ${RECENT})
         UNION ALL
-        SELECT 'RETURN', r.id, r.created_at FROM returns r
+        (SELECT 'RETURN', r.id, r.created_at FROM returns r
+          ORDER BY r.created_at DESC, r.id DESC LIMIT ${RECENT})
         UNION ALL
-        SELECT 'PAYMENT', le.id, le.created_at FROM ledger_entries le WHERE le.type = 'PAYMENT' AND le.source = 'MANUAL'
+        (SELECT 'PAYMENT', le.id, le.created_at FROM ledger_entries le WHERE le.type = 'PAYMENT' AND le.source = 'MANUAL'
+          ORDER BY le.created_at DESC, le.id DESC LIMIT ${RECENT})
         UNION ALL
-        SELECT 'REFUND', le.id, le.created_at FROM ledger_entries le WHERE le.type = 'REFUND'
+        (SELECT 'REFUND', le.id, le.created_at FROM ledger_entries le WHERE le.type = 'REFUND'
+          ORDER BY le.created_at DESC, le.id DESC LIMIT ${RECENT})
       ) events
       ORDER BY at DESC, kind ASC, id DESC
       LIMIT ${RECENT}`;

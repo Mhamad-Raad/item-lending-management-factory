@@ -23,6 +23,7 @@ import { PrismaService } from '../../prisma/prisma.service';
 import { toCustomerRef } from '../customers/customers.mapper';
 import { toDriverRef } from '../drivers/drivers.mapper';
 import { ITEM_REF_INCLUDE, toItemRef } from '../items/items.mapper';
+import { itemDerivedTotals } from '../items/items.queries';
 import { LEDGER_ENTRY_INCLUDE, toLedgerEntryDto } from '../ledger/ledger.mapper';
 
 /** §12.1: each row array stops at 5,000; asking for one more tells whether it was cut. */
@@ -59,13 +60,14 @@ export class ReportsService {
         { id: number; pallets_out: SqlAggregate; out_value: SqlAggregate; owed: SqlAggregate; held: SqlAggregate }[]
       >`
         WITH per_customer AS (
+          -- Open orders only: a settled order has all four at zero (orders_settled_nothing_standing_check, Q62).
           SELECT o.customer_id,
                  SUM(o.out_quantity_total)::bigint AS pallets_out,
                  SUM(o.out_value)::bigint AS out_value,
                  SUM(o.owed)::bigint AS owed,
                  SUM(o.held)::bigint AS held
             FROM orders o
-           WHERE o.cancelled_at IS NULL
+           WHERE o.status = 'OPEN'
            GROUP BY o.customer_id
         )
         SELECT c.id, pc.pallets_out, pc.out_value, pc.owed, pc.held
@@ -446,23 +448,9 @@ export class ReportsService {
         ? Prisma.sql`AND i.archived_at IS NULL AND i.min_stock IS NOT NULL AND i.quantity_on_hand <= i.min_stock`
         : Prisma.empty;
       const rows = await db.$queryRaw<{ id: number; quantity_out: SqlAggregate; damaged_total: SqlAggregate }[]>`
-        WITH out_q AS (
-          SELECT ol.item_id, SUM(ol.out_quantity)::bigint AS q
-            FROM order_lines ol JOIN orders o ON o.id = ol.order_id
-           WHERE o.cancelled_at IS NULL
-           GROUP BY ol.item_id
-        ), damaged_q AS (
-          SELECT ol.item_id, SUM(rl.damaged_quantity)::bigint AS q
-            FROM return_lines rl
-            JOIN returns r ON r.id = rl.return_id AND r.reversed_at IS NULL
-            JOIN order_lines ol ON ol.id = rl.order_line_id
-            JOIN orders o ON o.id = ol.order_id AND o.cancelled_at IS NULL
-           GROUP BY ol.item_id
-        )
-        SELECT i.id, COALESCE(out_q.q, 0) AS quantity_out, COALESCE(damaged_q.q, 0) AS damaged_total
+        SELECT i.id, d.quantity_out, d.damaged_total
           FROM items i
-          LEFT JOIN out_q ON out_q.item_id = i.id
-          LEFT JOIN damaged_q ON damaged_q.item_id = i.id
+          JOIN (${itemDerivedTotals()}) d ON d.item_id = i.id
          WHERE TRUE ${archived} ${lowOnly}`;
       const items = new Map(
         (await db.item.findMany({ where: { id: { in: rows.map((row) => row.id) } }, ...ITEM_REF_INCLUDE })).map(

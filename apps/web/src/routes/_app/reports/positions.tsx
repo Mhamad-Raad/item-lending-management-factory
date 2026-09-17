@@ -17,6 +17,7 @@ import { apiFetch } from '@/lib/api-client';
 import { qk } from '@/lib/query-keys';
 import { requirePermission } from '@/lib/route-guards';
 import { cn } from '@/lib/utils';
+import { REPORT_QUERY } from '@/lib/query-client';
 
 const SORTS = ['customerName', 'palletsOut', 'outValue', 'owed', 'held'] as const;
 const SearchSchema = z.object({
@@ -48,7 +49,7 @@ function PositionsReportPage() {
   const report = useQuery({
     queryKey: [...qk.reports.all(), 'positions', params],
     queryFn: () => apiFetch<PositionsReportDto>('/reports/positions', { query: params }),
-    staleTime: 0,
+    ...REPORT_QUERY,
   });
   const toggle = (customerId: number) =>
     setOpen((current) => {

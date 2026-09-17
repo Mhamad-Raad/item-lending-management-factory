@@ -15,6 +15,7 @@ import { apiFetch } from '@/lib/api-client';
 import { flagSearch } from '@/lib/list-search';
 import { qk } from '@/lib/query-keys';
 import { requirePermission } from '@/lib/route-guards';
+import { REPORT_QUERY } from '@/lib/query-client';
 
 const SORTS = ['name', 'quantityOnHand', 'quantityOut', 'damagedTotal'] as const;
 const SearchSchema = z.object({
@@ -44,7 +45,7 @@ function StockReportPage() {
   const report = useQuery({
     queryKey: [...qk.reports.all(), 'stock', params],
     queryFn: () => apiFetch<StockReportDto>('/reports/stock', { query: params }),
-    staleTime: 0,
+    ...REPORT_QUERY,
   });
   const setFilter = (patch: Partial<typeof search>) =>
     void navigate({ search: (prev) => ({ ...prev, ...patch }), replace: true });

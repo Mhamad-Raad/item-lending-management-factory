@@ -18,6 +18,7 @@ import { isolate } from '@/lib/bidi';
 import { apiFetch } from '@/lib/api-client';
 import { qk } from '@/lib/query-keys';
 import { requirePermission } from '@/lib/route-guards';
+import { REPORT_QUERY } from '@/lib/query-client';
 
 const SearchSchema = z.object({
   dateFrom: BusinessDate.optional().catch(undefined),
@@ -61,7 +62,7 @@ function PurchasesReportPage() {
   const report = useQuery({
     queryKey: [...qk.reports.all(), 'purchases', params],
     queryFn: () => apiFetch<PurchasesReportDto>('/reports/purchases', { query: params }),
-    staleTime: 0,
+    ...REPORT_QUERY,
     enabled: refusal === null,
   });
   const dateRefusal = refusal ?? periodRefusalOf(report.error);

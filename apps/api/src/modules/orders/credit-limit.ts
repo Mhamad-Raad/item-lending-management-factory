@@ -26,9 +26,10 @@ export async function assertCreditAllows(
 ): Promise<CreditOverride | null> {
   if (customer.creditLimit === null) return null;
 
+  // Open orders only: a settled order has no out value (`orders_settled_nothing_standing_check`, Q62).
   const [row] = await tx.$queryRaw<{ total: bigint }[]>`
     SELECT COALESCE(SUM(out_value), 0)::bigint AS total
-    FROM orders WHERE customer_id = ${customer.id} AND cancelled_at IS NULL`;
+    FROM orders WHERE customer_id = ${customer.id} AND status = 'OPEN'`;
   const customerOutValue = toSafeMoney(row?.total ?? 0n);
   const creditLimit = toSafeMoney(customer.creditLimit);
   const { allowed, excess } = checkCreditLimit({ creditLimit, customerOutValue, depositDelta });

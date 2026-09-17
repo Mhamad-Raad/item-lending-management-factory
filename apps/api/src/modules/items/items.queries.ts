@@ -5,34 +5,56 @@ import type { ItemDerived, StockMovementRow } from './items.mapper';
 type Client = Pick<Prisma.TransactionClient, '$queryRaw'>;
 
 /**
- * §6.15: per item, the pallets out over orders that are not cancelled, and the pallets returned
- * damaged over live returns of such orders — one query for however many items a page shows.
+ * The line's order is not cancelled, as an anti-join: it reads the few cancelled orders from their partial
+ * index instead of joining every order ever recorded (Q62).
  */
-export async function queryItemDerived(client: Client, itemIds: readonly number[]): Promise<Map<number, ItemDerived>> {
-  if (itemIds.length === 0) return new Map();
+const NOT_CANCELLED = Prisma.sql`NOT EXISTS (
+  SELECT 1 FROM orders o WHERE o.id = ol.order_id AND o.cancelled_at IS NOT NULL
+)`;
 
-  const rows = await client.$queryRaw<(ItemDerived & { itemId: number })[]>`
-    SELECT i.id AS "itemId",
-           COALESCE(outstanding.quantity_out, 0)::int AS "quantityOut",
-           COALESCE(damaged.damaged_total, 0)::int AS "damagedTotal"
+/**
+ * Per item, the pallets out over orders that are not cancelled, and the pallets returned damaged over
+ * live returns of such orders (§6.15, §12.5), read from the maintained line columns `recomputeOrder`
+ * writes: `out_quantity`, and `returned_damaged` (the damaged quantities of the line's non-reversed
+ * returns). Only lines with something out, or something damaged, are read (Q62). `scope` narrows the
+ * lines to some items; the stock report reads every item.
+ */
+export function itemDerivedTotals(scope: Prisma.Sql = Prisma.empty): Prisma.Sql {
+  return Prisma.sql`
+    SELECT i.id AS item_id,
+           COALESCE(outstanding.quantity_out, 0)::bigint AS quantity_out,
+           COALESCE(damaged.damaged_total, 0)::bigint AS damaged_total
     FROM items i
     LEFT JOIN (
       SELECT ol.item_id, SUM(ol.out_quantity) AS quantity_out
       FROM order_lines ol
-      JOIN orders o ON o.id = ol.order_id AND o.cancelled_at IS NULL
+      WHERE ol.out_quantity > 0 ${scope} AND ${NOT_CANCELLED}
       GROUP BY ol.item_id
     ) outstanding ON outstanding.item_id = i.id
     LEFT JOIN (
-      SELECT ol.item_id, SUM(rl.damaged_quantity) AS damaged_total
-      FROM return_lines rl
-      JOIN returns r ON r.id = rl.return_id AND r.reversed_at IS NULL
-      JOIN order_lines ol ON ol.id = rl.order_line_id
-      JOIN orders o ON o.id = ol.order_id AND o.cancelled_at IS NULL
+      SELECT ol.item_id, SUM(ol.returned_damaged) AS damaged_total
+      FROM order_lines ol
+      WHERE ol.returned_damaged > 0 ${scope} AND ${NOT_CANCELLED}
       GROUP BY ol.item_id
-    ) damaged ON damaged.item_id = i.id
-    WHERE i.id = ANY(${[...itemIds]}::int[])`;
+    ) damaged ON damaged.item_id = i.id`;
+}
 
-  return new Map(rows.map(({ itemId, ...derived }) => [itemId, derived]));
+/** §6.15: the derived columns of the items a page shows, in one query. */
+export async function queryItemDerived(client: Client, itemIds: readonly number[]): Promise<Map<number, ItemDerived>> {
+  if (itemIds.length === 0) return new Map();
+  const ids = [...itemIds];
+
+  const rows = await client.$queryRaw<{ item_id: number; quantity_out: bigint; damaged_total: bigint }[]>`
+    SELECT d.item_id, d.quantity_out, d.damaged_total
+    FROM (${itemDerivedTotals(Prisma.sql`AND ol.item_id = ANY(${ids}::int[])`)}) d
+    WHERE d.item_id = ANY(${ids}::int[])`;
+
+  return new Map(
+    rows.map((row) => [
+      row.item_id,
+      { quantityOut: Number(row.quantity_out), damagedTotal: Number(row.damaged_total) },
+    ]),
+  );
 }
 
 /**

@@ -34,3 +34,10 @@ export function clearCacheOnSignOut(queryClient: QueryClient): () => void {
  * and after the user's own save; a save on a version someone else has moved meets the version-conflict dialog.
  */
 export const WHILE_EDITING = { refetchOnWindowFocus: false, refetchOnReconnect: false } as const;
+
+/**
+ * For a report (Q62): fresh whenever the page is opened or its filters change, but not re-run when the window regains
+ * focus. A report is a snapshot read and printed; closing the print dialog hands focus back to the page, and re-running
+ * a multi-megabyte report then only moves the rows under the reader.
+ */
+export const REPORT_QUERY = { staleTime: 0, refetchOnWindowFocus: false } as const;

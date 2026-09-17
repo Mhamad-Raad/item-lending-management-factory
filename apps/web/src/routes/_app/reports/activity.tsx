@@ -29,6 +29,7 @@ import { apiFetch } from '@/lib/api-client';
 import { isolate } from '@/lib/bidi';
 import { qk } from '@/lib/query-keys';
 import { requirePermission } from '@/lib/route-guards';
+import { REPORT_QUERY } from '@/lib/query-client';
 
 const id = z.coerce.number().int().min(1).optional().catch(undefined);
 const SearchSchema = z.object({
@@ -65,7 +66,7 @@ function ActivityReportPage() {
   const report = useQuery({
     queryKey: [...qk.reports.all(), 'activity', params],
     queryFn: () => apiFetch<ActivityReportDto>('/reports/activity', { query: params }),
-    staleTime: 0,
+    ...REPORT_QUERY,
     enabled: refusal === null,
   });
   const dateRefusal = refusal ?? periodRefusalOf(report.error);

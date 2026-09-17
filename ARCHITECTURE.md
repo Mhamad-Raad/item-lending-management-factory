@@ -225,6 +225,7 @@ Every item below is an ambiguity, contradiction or gap in the brief. The builder
 | Q59 | The maintainer asked for no more switches anywhere, in favour of the segmented choice of Q56 (2026-09-16). What holds? | `components/ui/switch.tsx` and `FilterSwitch` are deleted. The stock report's options are `FilterChoice` ("All / Low stock", "Active / Include archived"); the order page's reversed returns are "Hide reversed / Show reversed" (`orders.detail.hideReversed`); the item form's initial stock is "None / Add initial stock" (`items.form.noInitialStock`); a user's status on `/users/$userId` is a `FilterSegment` "Active / Inactive" (`users.status.*`), disabled for oneself and while saving, and choosing Inactive still opens the confirmation dialog, the segment snapping back until it is confirmed. |
 | Q60 | The 2026-09-17 audit ran `reconcile` against a database holding 120,000 orders and it failed before checking anything: R2 loaded every order with its lines, returns and ledger rows in one `findMany`, and Prisma fetches an included relation with one `WHERE order_id IN (...)` over every parent id, which exceeds PostgreSQL's parameter limit past a few tens of thousands of orders (and would hold the whole history in memory below it). What holds? | R2 walks the orders in batches of 1,000 by ascending id (`RECONCILE_BATCH_SIZE`, a `where id > cursor … take` loop in `prisma/reconciliation.ts`), so the statement size and the memory held are bounded by the batch, not the table; the batch size is an option so a test can exercise the cursor with a small one. R1 and R3–R7 stay single SQL aggregates. The same run then reported 0 differences on the 120,000-order database. |
 | Q61 | The 2026-09-17 audit's security and operations findings (iteration 7a): §13.2 promised `COOKIE_SECURE=true` under production but `env.ts` never checked it; D8 logged the query string (a list search is a customer's name or phone) while D9 stripped it, and D9 left the proxy's `x-forwarded-for` in error reports; the containers had no memory or process ceiling, so a few concurrent 40-megapixel uploads could take the 4 GB host down; `deploy.sh` rolled back to the all-zero placeholder on a failed first deploy and died inside the rollback; the health probe stayed green on a full disk; the Caddy image served the web app's source maps; `migrate` required `ADMIN_PASSWORD` forever; §8.2 named `PERMISSION_MODULES` and `dependentsOf`, which never existed. What holds? | `env.ts` refuses `COOKIE_SECURE=false` when `NODE_ENV=production` (U-tested). pino's `req` serializer logs the path without its query string and the redact list carries the D8 wildcard paths (S-21 covers the query); `scrubEvent` also drops `x-forwarded-for`, `x-real-ip` and `forwarded`. Compose sets `mem_limit`/`pids_limit` per service (§13.3). `deploy.sh` treats a placeholder or unknown previous SHA as none and stops without restarting. `GET /api/health` adds `statfs(UPLOADS_DIR)` and answers 503 `reason: 'disk'` under 256 MiB free (`HealthDto.disk`); the container healthcheck treats that answer as alive, so the external uptime check alerts while Caddy keeps serving. A failed first deploy puts back the `APP_VERSION` it found, so the failed SHA never becomes a rollback target. The Caddy image deletes `*.map`. `ADMIN_*` are optional in compose; `.env.example` and §13.4 say to delete the password after the first login. §8.2 now names `togglePermission()`. New runbook `docs/runbooks/incident-triage.md`. Accepted as they are: Caddy's site-wide CSP overriding the upload route's stricter one (images are re-encoded WebP with `nosniff`), no edge rate limit on `/api/auth/login` beyond the API's own, `/api/health` revealing the deployed SHA of a public repository, and the change-password route sharing the login throttle without the (ip, username) lockout. |
+| Q62 | The 2026-09-17 audit measured a database of 120,000 orders over three years (iteration 7a). Every list stayed under 150 ms, but the customer totals, the dashboard, the credit check, the positions and stock reports and the item list summed every order or order line ever recorded, the dashboard's recent activity sorted every event ever recorded, and the pg pool's default of 10 connections made reads wait behind a burst of saves. Work proportional to history grows every year the factory runs. What holds? | **Standing totals read open orders.** A SETTLED order has nothing out and owes nothing (§4.3), so its out value and held are zero too; `orders_settled_nothing_standing_check` makes that the database's rule, and pallets out, out value, owed and held (customer totals, positions report, dashboard positions, credit check) are summed over `status = 'OPEN'` from the covering partial index `orders_open_totals_idx`. Compensation stays assessed after settlement and is summed over `compensation > 0` (`orders_compensation_idx`). **Item totals read the maintained line columns**: pallets out from `order_lines.out_quantity > 0`, damaged from `order_lines.returned_damaged > 0` (the damaged quantities of the line's non-reversed returns, written by `recomputeOrder`), excluding cancelled orders by an anti-join on `orders_cancelled_at_id_idx`; `itemDerivedTotals()` serves the item list and the stock report. **Recent activity** takes each kind's newest ten from a `(created_at, id)` index (orders, returns) or partial index (cancellations, manual payments, refunds) before merging. **The item ledger page** walks `stock_movements (item_id, id)`. **The API pool** holds up to 20 connections (`API_POOL_MAX`). **Report pages** do not re-run on window focus (`REPORT_QUERY`): closing the print dialog returns focus. Every rewrite returned the same rows as the query it replaced on the 120,000-order database (compared both ways with `EXCEPT`); measured there: customer page totals 32 → 16 ms, one customer's totals 0.2 ms, dashboard positions 37 → 1.8 ms, recent activity 25 → 0.2 ms, item page totals 118 → 6 ms, stock report totals 12 ms. Not done: a maximum report period. Each report section already stops at 5,000 rows (§12.1), the longest measured activity report (three years, no filter) answered in about one second, and a cap would refuse a legitimate multi-year statement. |
 
 ## 3. Actors, roles and permissions
 
@@ -1513,6 +1514,8 @@ model StockMovement {
   createdBy User           @relation("StockMovementCreatedBy", fields: [createdByUserId], references: [id])
 
   @@index([itemId, createdAt])
+  // The item ledger page walks one item's movements in id order (running balance, newest first).
+  @@index([itemId, id])
   @@index([batchId])
   @@index([orderId])
   @@index([returnId])
@@ -1623,6 +1626,8 @@ model Order {
   @@index([driverId])
   @@index([date])
   @@index([status, date])
+  // The dashboard's recent activity reads the newest hand-overs (Q62).
+  @@index([createdAt, id])
   @@index([cancelledByUserId])
   @@index([creditOverrideByUserId])
   @@index([createdByUserId])
@@ -1681,6 +1686,8 @@ model PalletReturn {
 
   @@index([orderId])
   @@index([date])
+  // The dashboard's recent activity reads the newest returns (Q62).
+  @@index([createdAt, id])
   @@index([reversedByUserId])
   @@index([createdByUserId])
   @@map("returns")
@@ -1898,7 +1905,12 @@ ALTER TABLE orders
   ),
   ADD CONSTRAINT orders_credit_override_consistent_check
     CHECK ((credit_override_by_user_id IS NULL) = (credit_override_at IS NULL)),
-  ADD CONSTRAINT orders_version_positive_check CHECK (version >= 1);
+  ADD CONSTRAINT orders_version_positive_check CHECK (version >= 1),
+  -- Q62 (migration 20260917000000_open_order_totals): a settled order has nothing standing, so totals
+  -- of what is out, owed or held are read from open orders only.
+  ADD CONSTRAINT orders_settled_nothing_standing_check CHECK (
+    status <> 'SETTLED' OR (out_quantity_total = 0 AND owed = 0 AND out_value = 0 AND held = 0)
+  );
 
 ALTER TABLE order_lines
   ADD CONSTRAINT order_lines_quantity_positive_check CHECK (quantity > 0),
@@ -2036,6 +2048,28 @@ $$;
 
 CREATE TRIGGER ledger_reversal_matches_original BEFORE INSERT ON ledger_entries
   FOR EACH ROW EXECUTE FUNCTION ledger_reversal_matches_original();
+
+-- ═══════════════════════════════════════════════════════════════════════════════════════
+-- Partial and covering indexes (Q62, migration 20260917000000_open_order_totals)
+-- Totals over years of history read only what is still standing; the dashboard reads the newest events.
+-- ═══════════════════════════════════════════════════════════════════════════════════════
+CREATE INDEX orders_open_totals_idx
+  ON orders (customer_id) INCLUDE (out_quantity_total, out_value, owed, held)
+  WHERE status = 'OPEN';
+CREATE INDEX orders_compensation_idx
+  ON orders (customer_id) INCLUDE (compensation)
+  WHERE compensation > 0;
+CREATE INDEX order_lines_outstanding_idx
+  ON order_lines (item_id) INCLUDE (out_quantity, order_id)
+  WHERE out_quantity > 0;
+CREATE INDEX order_lines_damaged_idx
+  ON order_lines (item_id) INCLUDE (returned_damaged, order_id)
+  WHERE returned_damaged > 0;
+CREATE INDEX orders_cancelled_at_id_idx ON orders (cancelled_at, id) WHERE cancelled_at IS NOT NULL;
+CREATE INDEX ledger_entries_manual_payments_created_at_id_idx
+  ON ledger_entries (created_at, id) WHERE type = 'PAYMENT' AND source = 'MANUAL';
+CREATE INDEX ledger_entries_refunds_created_at_id_idx
+  ON ledger_entries (created_at, id) WHERE type = 'REFUND';
 
 -- ═══════════════════════════════════════════════════════════════════════════════════════
 -- Seed rows required by the schema itself

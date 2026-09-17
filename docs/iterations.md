@@ -241,6 +241,10 @@ failed outright on a 120,000-order database; R2 now walks the orders in batches 
 Sentry scrubbing, container ceilings, first-deploy guard, disk-aware health probe, no source maps in the Caddy
 image, optional `ADMIN_*`, the incident-triage runbook, §8.2 drift. **Exit:** unit + integration green;
 `docker compose config` valid with the new limits.
+**7a performance** (branch `feat/7a-performance`, Q62): open-order totals and partial indexes, item totals from the
+maintained line columns, recent-activity and stock-ledger indexes, pool of 20, no report focus refetch.
+**Exit:** every rewritten query returns the same rows as before on the 120,000-order database (`EXCEPT` both
+ways); reconcile 0; unit + integration green.
 The audit's remaining items (pg pool size, open-order aggregates and partial indexes, report period cap,
 container memory limits, `COOKIE_SECURE` refinement, log/Sentry scrubbing, first-deploy guard, disk-full
 health, sourcemaps, §8.2 drift) are listed in CLAUDE.md and belong to 7a–7c as each is picked up.

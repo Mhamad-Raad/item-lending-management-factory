@@ -385,6 +385,8 @@ model StockMovement {
   createdBy User           @relation("StockMovementCreatedBy", fields: [createdByUserId], references: [id])
 
   @@index([itemId, createdAt])
+  // The item ledger page walks one item's movements in id order (running balance, newest first).
+  @@index([itemId, id])
   @@index([batchId])
   @@index([orderId])
   @@index([returnId])
@@ -495,6 +497,8 @@ model Order {
   @@index([driverId])
   @@index([date])
   @@index([status, date])
+  // The dashboard's recent activity reads the newest hand-overs (Q62).
+  @@index([createdAt, id])
   @@index([cancelledByUserId])
   @@index([creditOverrideByUserId])
   @@index([createdByUserId])
@@ -553,6 +557,8 @@ model PalletReturn {
 
   @@index([orderId])
   @@index([date])
+  // The dashboard's recent activity reads the newest returns (Q62).
+  @@index([createdAt, id])
   @@index([reversedByUserId])
   @@index([createdByUserId])
   @@map("returns")
