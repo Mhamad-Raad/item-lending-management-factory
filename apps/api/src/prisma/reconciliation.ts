@@ -1,7 +1,7 @@
 import { LedgerInvariantError, computeOrderTotals } from '@pallet/shared';
 import type { PrismaClient } from '../generated/prisma/client';
 import { toSafeMoney } from '../common/utils/money';
-import { ORDER_STATE_INCLUDE, toOrderState } from '../modules/orders/order-state';
+import { ORDER_STATE_INCLUDE, type OrderWithLedgers, toOrderState } from '../modules/orders/order-state';
 
 export interface Discrepancy {
   entity: 'item' | 'order' | 'orderLine' | 'orderCounter' | 'batch' | 'return';
@@ -12,11 +12,29 @@ export interface Discrepancy {
 }
 
 /**
+ * How many orders R2 loads per round trip (Q60). Prisma fetches an included relation with one
+ * `WHERE order_id IN (...)` per batch, so the batch bounds both the statement's parameter count and
+ * the rows held in memory; the whole table in one call broke past a few tens of thousands of orders.
+ */
+const RECONCILE_BATCH_SIZE = 1_000;
+
+export interface ReconcileOptions {
+  /** Orders per R2 batch, a positive integer; tests use a small one to exercise the cursor. */
+  batchSize?: number;
+}
+
+/**
  * The reconciliation of §4.9, R1–R7: every maintained total recomputed from the ledgers, and every
  * cross-row invariant the ledgers must keep. An empty result means the database is consistent.
  */
-export async function findLedgerDiscrepancies(prisma: PrismaClient): Promise<Discrepancy[]> {
+export async function findLedgerDiscrepancies(
+  prisma: PrismaClient,
+  options: ReconcileOptions = {},
+): Promise<Discrepancy[]> {
   const out: Discrepancy[] = [];
+  const batchSize = options.batchSize ?? RECONCILE_BATCH_SIZE;
+  // A zero or negative `take` would silently check nothing (or only the last order) and report "consistent".
+  if (!Number.isInteger(batchSize) || batchSize < 1) throw new RangeError(`batchSize must be a positive integer`);
 
   const stock = await prisma.$queryRaw<{ id: number; stored: number; expected: bigint }[]>`
     SELECT i.id, i.quantity_on_hand AS stored, COALESCE(SUM(sm.quantity), 0)::bigint AS expected
@@ -31,11 +49,32 @@ export async function findLedgerDiscrepancies(prisma: PrismaClient): Promise<Dis
     }
   }
 
-  const orders = await prisma.order.findMany({
-    orderBy: { id: 'asc' },
-    include: ORDER_STATE_INCLUDE,
-  });
+  // R2, one batch of orders at a time by ascending id: memory and query size stay bounded however
+  // many years the table holds. The script runs against a quiet database (a live one may show an
+  // order mid-transaction as a difference, as it always could). A short batch is the last one.
+  let cursor = 0;
+  let orders: OrderWithLedgers[];
+  do {
+    orders = await prisma.order.findMany({
+      where: { id: { gt: cursor } },
+      orderBy: { id: 'asc' },
+      take: batchSize,
+      include: ORDER_STATE_INCLUDE,
+    });
+    cursor = orders[orders.length - 1]?.id ?? cursor;
+    checkOrderTotals(orders, out);
+  } while (orders.length === batchSize);
 
+  await findInvariantBreaks(prisma, out);
+  return out;
+}
+
+/**
+ * R2: every order's cache columns, and its lines', against `computeOrderTotals` of its source rows.
+ * Differences are appended to `out` one by one: a spread of a large list into `push` would overflow
+ * the call stack on exactly the badly broken database this exists to report.
+ */
+function checkOrderTotals(orders: readonly OrderWithLedgers[], out: Discrepancy[]): void {
   for (const order of orders) {
     let totals;
     try {
@@ -84,15 +123,10 @@ export async function findLedgerDiscrepancies(prisma: PrismaClient): Promise<Dis
       }
     });
   }
-
-  out.push(...(await findInvariantBreaks(prisma)));
-  return out;
 }
 
-/** R3–R7: the invariants between rows that no single maintained column shows. */
-async function findInvariantBreaks(prisma: PrismaClient): Promise<Discrepancy[]> {
-  const out: Discrepancy[] = [];
-
+/** R3–R7: the invariants between rows that no single maintained column shows, appended to `out`. */
+async function findInvariantBreaks(prisma: PrismaClient, out: Discrepancy[]): Promise<void> {
   // R3 (I6): a live cash order has one standing automatic payment of its deposit, and no manual one.
   const cash = await prisma.$queryRaw<
     { id: number; deposit: bigint; automaticCount: number; automaticAmount: bigint; manualCount: number }[]
@@ -186,6 +220,4 @@ async function findInvariantBreaks(prisma: PrismaClient): Promise<Discrepancy[]>
     const expected = cashRefund > 0 ? `1 × ${cashRefund}` : '0 × 0';
     if (stored !== expected) out.push({ entity: 'return', id: row.id, field: 'refund', stored, expected });
   }
-
-  return out;
 }

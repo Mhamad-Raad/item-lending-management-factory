@@ -1,6 +1,6 @@
 import type { INestApplication } from '@nestjs/common';
 import request from 'supertest';
-import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
+import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import { FixedClock } from '../../src/common/clock';
 import { MoneyLedger } from '../../src/modules/ledger/money-ledger';
 import { PrismaService } from '../../src/prisma/prisma.service';
@@ -58,6 +58,35 @@ describe('reconciliation', () => {
     await order('LENT');
 
     expect(await checks()).toEqual([]);
+  });
+
+  it('R2 — scans orders in batches by id and still reaches the last one (Q60)', async () => {
+    const ids: number[] = [];
+    for (let i = 0; i < 5; i++) ids.push((await order(i % 2 ? 'CASH' : 'LENT')).id);
+    const last = ids[ids.length - 1]!; // the fifth order is LENT: it owes its 10,000 deposit
+    // A wrong cache column on the last order of a partial final batch: only a cursor that walks every
+    // batch, and does not stop at the first full one, finds it.
+    await prisma.order.update({ where: { id: last }, data: { owed: 1 } });
+    const broken = [{ entity: 'order', id: last, field: 'owed', stored: 1, expected: 10_000 }];
+
+    // The batches themselves, not only their result: one order query per batch plus the empty or
+    // short one that ends the walk, so a scan that quietly loaded everything at once would show here.
+    const batches = async (batchSize: number) => {
+      const findMany = vi.spyOn(prisma.order, 'findMany');
+      try {
+        expect(await findLedgerDiscrepancies(prisma, { batchSize })).toEqual(broken);
+        return findMany.mock.calls.map(([args]) => args?.take);
+      } finally {
+        findMany.mockRestore();
+      }
+    };
+    expect(await batches(2)).toEqual([2, 2, 2]); // 2 + 2 + 1 (short: last)
+    expect(await batches(5)).toEqual([5, 5]); // 5 (full) + 0 (empty: last)
+    expect(await batches(1)).toEqual([1, 1, 1, 1, 1, 1]);
+    expect(await batches(1_000)).toEqual([1_000]);
+
+    await expect(findLedgerDiscrepancies(prisma, { batchSize: 0 })).rejects.toThrow(RangeError);
+    await expect(findLedgerDiscrepancies(prisma, { batchSize: 1.5 })).rejects.toThrow(RangeError);
   });
 
   it('R3 — a cash order with a manual payment, or without its automatic one', async () => {

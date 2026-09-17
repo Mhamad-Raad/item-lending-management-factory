@@ -234,6 +234,13 @@ Read: §10, §13, §14.6.
 
 §10 checklist line by line, `pnpm audit` clean, Dependabot enabled (majors pinned per CLAUDE.md stay pinned).
 
+**7a fixes from the 2026-09-17 whole-system audit** (branch `feat/7a-reconcile-batching`, Q60): `reconcile`
+failed outright on a 120,000-order database; R2 now walks the orders in batches of 1,000 by id.
+**Exit:** `reconcile` on the 120,000-order load database → 0 discrepancies; the integration suite green.
+The audit's remaining items (pg pool size, open-order aggregates and partial indexes, report period cap,
+container memory limits, `COOKIE_SECURE` refinement, log/Sentry scrubbing, first-deploy guard, disk-full
+health, sourcemaps, §8.2 drift) are listed in CLAUDE.md and belong to 7a–7c as each is picked up.
+
 ### 7b — Production deployment — _blocked on choosing a host_
 
 Provision the VPS (§10.7, §13.4), fill `/opt/pallet/.env` from §13.2, first deploy through `deploy.yml`,
