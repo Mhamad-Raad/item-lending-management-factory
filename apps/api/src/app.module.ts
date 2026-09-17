@@ -31,6 +31,11 @@ import { UploadsModule } from './modules/uploads/uploads.module';
 import { UsersModule } from './modules/users/users.module';
 import { PrismaModule } from './prisma/prisma.module';
 
+/** A request line without its query string: what the logs may keep of a URL (§10.6 D8). */
+function pathOnly(url: string | undefined): string | undefined {
+  return url?.split('?')[0];
+}
+
 @Module({
   imports: [
     EnvModule,
@@ -46,7 +51,8 @@ import { PrismaModule } from './prisma/prisma.module';
             res.setHeader('X-Request-Id', id);
             return id;
           },
-          // Never log secrets, tokens or bodies.
+          // Never log secrets, tokens or bodies (§10.6 D8). The request line keeps its path but not its
+          // query string: a list search is a customer's name or phone (the same rule Sentry follows, D9).
           redact: {
             paths: [
               'req.headers.authorization',
@@ -54,10 +60,28 @@ import { PrismaModule } from './prisma/prisma.module';
               'res.headers["set-cookie"]',
               'req.body',
               'res.body',
+              '*.password',
+              '*.currentPassword',
+              '*.newPassword',
+              '*.passwordHash',
+              '*.accessToken',
+              '*.refreshToken',
+              '*.token',
+              '*.tokenHash',
             ],
             remove: true,
           },
-          autoLogging: { ignore: (req) => req.url === '/api/health' },
+          // pino-http hands this pino's own request object; the Express request is its `raw`, and only
+          // Express's `ip` honours `trust proxy` (the caller's address, not Caddy's).
+          serializers: {
+            req: (req: { id?: unknown; method?: string; url?: string; raw?: { ip?: string } }) => ({
+              id: req.id,
+              method: req.method,
+              url: pathOnly(req.url),
+              ip: req.raw?.ip,
+            }),
+          },
+          autoLogging: { ignore: (req) => pathOnly(req.url) === '/api/health' },
         },
       }),
     }),

@@ -23,3 +23,5 @@ RUN pnpm --filter "@pallet/web..." build
 FROM caddy:2.11.4-alpine AS runtime
 COPY deploy/caddy/Caddyfile /etc/caddy/Caddyfile
 COPY --from=build /repo/apps/web/dist /srv
+# Source maps serve local debugging (vite preview, Playwright traces); the public site does not ship them.
+RUN find /srv -type f -name '*.map' -delete

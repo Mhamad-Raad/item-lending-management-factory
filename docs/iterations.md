@@ -237,6 +237,10 @@ Read: §10, §13, §14.6.
 **7a fixes from the 2026-09-17 whole-system audit** (branch `feat/7a-reconcile-batching`, Q60): `reconcile`
 failed outright on a 120,000-order database; R2 now walks the orders in batches of 1,000 by id.
 **Exit:** `reconcile` on the 120,000-order load database → 0 discrepancies; the integration suite green.
+**7a security and operations fixes** (branch `feat/7a-security-pass`, Q61): `COOKIE_SECURE` refinement, log and
+Sentry scrubbing, container ceilings, first-deploy guard, disk-aware health probe, no source maps in the Caddy
+image, optional `ADMIN_*`, the incident-triage runbook, §8.2 drift. **Exit:** unit + integration green;
+`docker compose config` valid with the new limits.
 The audit's remaining items (pg pool size, open-order aggregates and partial indexes, report period cap,
 container memory limits, `COOKIE_SECURE` refinement, log/Sentry scrubbing, first-deploy guard, disk-full
 health, sourcemaps, §8.2 drift) are listed in CLAUDE.md and belong to 7a–7c as each is picked up.

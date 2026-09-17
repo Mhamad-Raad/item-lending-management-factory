@@ -15,6 +15,19 @@ x-hardening: &hardening
   cap_drop:
     - ALL
 
+# Memory and process ceilings (§13.1 sizes the VPS at 4 GB): a runaway container is restarted by Docker
+# instead of taking the host — and every other service — down with it. Image decoding is the API's largest
+# allocation (sharp, ≤ 40 MP inputs); PostgreSQL gets the most, with its 256 MB of shared memory inside.
+x-limits-api: &limits-api
+  mem_limit: 1g
+  pids_limit: 256
+x-limits-caddy: &limits-caddy
+  mem_limit: 256m
+  pids_limit: 128
+x-limits-postgres: &limits-postgres
+  mem_limit: 1536m
+  pids_limit: 256
+
 x-api-env: &api-env
   NODE_ENV: production
   TZ: UTC
@@ -33,7 +46,7 @@ services:
   caddy:
     image: ghcr.io/mhamad-raad/pallet-caddy:${APP_VERSION:?APP_VERSION is required}
     restart: unless-stopped
-    <<: *hardening
+    <<: [*hardening, *limits-caddy]
     cap_add:
       - NET_BIND_SERVICE
     read_only: true
@@ -60,7 +73,7 @@ services:
   api:
     image: ghcr.io/mhamad-raad/pallet-api:${APP_VERSION:?APP_VERSION is required}
     restart: unless-stopped
-    <<: *hardening
+    <<: [*hardening, *limits-api]
     read_only: true
     tmpfs:
       - /tmp
@@ -88,7 +101,7 @@ services:
     image: ghcr.io/mhamad-raad/pallet-api:${APP_VERSION:?APP_VERSION is required}
     profiles: ['migrate']
     restart: 'no'
-    <<: *hardening
+    <<: [*hardening, *limits-api]
     read_only: true
     tmpfs:
       - /tmp
@@ -99,9 +112,10 @@ services:
       CHECKPOINT_DISABLE: '1'
       PRISMA_HIDE_UPDATE_MESSAGE: '1'
       DATABASE_MIGRATE_URL: postgresql://pallet_owner:${DB_OWNER_PASSWORD:?DB_OWNER_PASSWORD is required}@postgres:5432/pallet?schema=public
-      ADMIN_USERNAME: ${ADMIN_USERNAME:?ADMIN_USERNAME is required}
-      ADMIN_DISPLAY_NAME: ${ADMIN_DISPLAY_NAME:?ADMIN_DISPLAY_NAME is required}
-      ADMIN_PASSWORD: ${ADMIN_PASSWORD:?ADMIN_PASSWORD is required}
+      # Read only while `users` is empty (first run); migrate.js fails with a clear message if they are missing then.
+      ADMIN_USERNAME: ${ADMIN_USERNAME:-}
+      ADMIN_DISPLAY_NAME: ${ADMIN_DISPLAY_NAME:-}
+      ADMIN_PASSWORD: ${ADMIN_PASSWORD:-}
     networks:
       - pallet_net
     depends_on:
@@ -112,6 +126,7 @@ services:
   postgres:
     image: postgres:18.6-alpine3.24
     restart: unless-stopped
+    <<: *limits-postgres
     shm_size: 256mb
     environment:
       POSTGRES_USER: postgres

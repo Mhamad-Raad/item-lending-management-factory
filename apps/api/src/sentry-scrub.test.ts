@@ -4,7 +4,7 @@ import { scrubEvent } from './sentry-scrub';
 
 /** §10.6 D9: an error report carries no personal data — a search term is a customer's name or phone. */
 describe('scrubEvent', () => {
-  it('drops cookies, body, credentials and the query string, and keeps the path', () => {
+  it('drops cookies, body, credentials, the client address and the query string, and keeps the path', () => {
     const event = scrubEvent({
       type: undefined,
       request: {
@@ -12,7 +12,14 @@ describe('scrubEvent', () => {
         query_string: 'search=Karwan%20Aziz&page=2',
         cookies: { pallet_rt: 'secret' },
         data: '{"password":"x"}',
-        headers: { authorization: 'Bearer abc', cookie: 'pallet_rt=secret', 'user-agent': 'Chrome' },
+        headers: {
+          authorization: 'Bearer abc',
+          cookie: 'pallet_rt=secret',
+          'X-Forwarded-For': '203.0.113.7',
+          'x-real-ip': '203.0.113.7',
+          forwarded: 'for=203.0.113.7',
+          'user-agent': 'Chrome',
+        },
       },
     } as ErrorEvent);
 

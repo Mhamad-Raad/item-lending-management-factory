@@ -6,7 +6,7 @@ const booleanString = z.enum(['true', 'false']).transform((v) => v === 'true');
 const optionalUrl = z.preprocess((v) => (v === '' ? undefined : v), z.url().optional());
 
 /** Every environment variable the API reads at runtime. Validated once at startup. */
-const envSchema = z.object({
+const envSchemaShape = z.object({
   NODE_ENV: z.enum(['development', 'test', 'production']).default('development'),
   API_PORT: z.coerce.number().int().min(1).max(65535).default(3000),
   APP_VERSION: z.string().default('dev'),
@@ -20,6 +20,13 @@ const envSchema = z.object({
   CORS_DEV_ORIGIN: optionalUrl,
   SENTRY_DSN: optionalUrl,
   SENTRY_ENVIRONMENT: z.string().default('production'),
+});
+
+/** §13.2: a production API never issues the refresh cookie without `Secure`, whatever `.env` says. */
+const envSchema = envSchemaShape.superRefine((env, ctx) => {
+  if (env.NODE_ENV === 'production' && !env.COOKIE_SECURE) {
+    ctx.addIssue({ code: 'custom', path: ['COOKIE_SECURE'], message: 'must be true in production' });
+  }
 });
 
 export type Env = z.infer<typeof envSchema>;

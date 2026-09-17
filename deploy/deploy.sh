@@ -17,6 +17,13 @@ current_version() { grep -E '^APP_VERSION=' .env | cut -d= -f2-; }
 set_version() { sed -i -E "s/^APP_VERSION=.*/APP_VERSION=$1/" .env; }
 
 PREV_SHA="$(current_version)"
+ORIGINAL_VERSION="$PREV_SHA"
+# A fresh .env carries the all-zero placeholder from .env.example, and nothing guarantees an old value
+# still names a commit this clone has: neither is a version to roll back to, so a failed first deploy
+# stops with nothing restarted instead of dying inside the rollback on `git checkout`.
+if [[ "$PREV_SHA" =~ ^0*$ ]] || ! git cat-file -e "${PREV_SHA}^{commit}" 2>/dev/null; then
+  PREV_SHA=""
+fi
 echo "deploy: ${PREV_SHA:-<none>} -> $NEW_SHA"
 
 rollback() {
@@ -26,6 +33,10 @@ rollback() {
     git checkout --quiet --detach "$PREV_SHA"
     set_version "$PREV_SHA"
     docker compose up -d --remove-orphans
+  else
+    # Put back what .env said before: the failed SHA must not become the next deploy's rollback target.
+    set_version "$ORIGINAL_VERSION"
+    echo "deploy: no previous version to restore — fix the cause and deploy again" >&2
   fi
   exit 1
 }

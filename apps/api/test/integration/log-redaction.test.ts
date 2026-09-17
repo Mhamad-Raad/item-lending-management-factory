@@ -73,8 +73,20 @@ describe('request logs', () => {
     await new Promise((resolve) => setTimeout(resolve, 300));
 
     expect(output).toContain('/api/auth/login');
+    // The request line still says who called: the address Express resolved behind `trust proxy`.
+    expect(output).toMatch(/"method":"POST","url":"\/api\/auth\/login","ip":"(::ffff:)?127\.0\.0\.1"/);
     expect(output).not.toContain(TEST_ADMIN.password);
     expect(output).not.toContain(tokenValue);
     expect(output.toLowerCase()).not.toContain('set-cookie');
+  });
+
+  it('keeps the path of a request but not its query string — a search is a customer name or phone (D8)', async () => {
+    const response = await fetch(`http://127.0.0.1:${PORT}/api/customers?q=Karwan-Aziz-0750`);
+    expect(response.status).toBe(401);
+
+    await new Promise((resolve) => setTimeout(resolve, 300));
+
+    expect(output).toContain('/api/customers');
+    expect(output).not.toContain('Karwan-Aziz-0750');
   });
 });

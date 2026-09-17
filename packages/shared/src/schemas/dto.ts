@@ -30,6 +30,14 @@ export interface MeDto {
   permissions: PermissionKey[];
 }
 
+/** `GET /api/health` (§6.25): the database answered and the uploads volume has room (Q61). */
+export interface HealthDto {
+  status: 'ok';
+  db: 'ok';
+  disk: 'ok';
+  version: string;
+}
+
 export interface AuthTokenDto {
   accessToken: string;
   /** ISO-8601 UTC. */
