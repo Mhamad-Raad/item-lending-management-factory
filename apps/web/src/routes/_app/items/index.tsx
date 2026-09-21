@@ -8,7 +8,7 @@ import { z } from 'zod';
 import { ArchivedBadge } from '@/components/app/archived-badge';
 import { DataTable, type DataColumn } from '@/components/app/data-table';
 import { DateText } from '@/components/app/date-text';
-import { FilterChoice, ListEmpty, SearchBox } from '@/components/app/list-controls';
+import { FilterChoice, ListEmpty, ListFilters, SearchBox } from '@/components/app/list-controls';
 import { MoneyText } from '@/components/app/money-text';
 import { PageHeader } from '@/components/app/page-header';
 import { QuantityText } from '@/components/app/quantity-text';
@@ -56,6 +56,7 @@ const COLUMNS: DataColumn<ItemDto>[] = [
     cell: (item) => <MoneyText value={item.depositPrice} />,
     sortKey: 'depositPrice',
     align: 'end',
+    mobile: 'figure',
   },
   {
     id: 'onHand',
@@ -63,6 +64,7 @@ const COLUMNS: DataColumn<ItemDto>[] = [
     cell: (item) => <QuantityText value={item.quantityOnHand} />,
     sortKey: 'quantityOnHand',
     align: 'end',
+    mobile: 'figure',
   },
   {
     id: 'out',
@@ -70,6 +72,7 @@ const COLUMNS: DataColumn<ItemDto>[] = [
     cell: (item) => <QuantityText value={item.quantityOut} />,
     align: 'end',
     hideBelow: 'lg',
+    mobile: 'figure',
   },
   {
     id: 'damaged',
@@ -77,6 +80,7 @@ const COLUMNS: DataColumn<ItemDto>[] = [
     cell: (item) => <QuantityText value={item.damagedTotal} />,
     align: 'end',
     hideBelow: 'lg',
+    mobile: 'figure',
   },
   {
     id: 'minStock',
@@ -84,6 +88,7 @@ const COLUMNS: DataColumn<ItemDto>[] = [
     cell: (item) => (item.minStock === null ? '—' : <QuantityText value={item.minStock} />),
     align: 'end',
     hideBelow: 'lg',
+    mobile: 'figure',
   },
   {
     id: 'createdAt',
@@ -91,17 +96,19 @@ const COLUMNS: DataColumn<ItemDto>[] = [
     cell: (item) => <DateText value={item.createdAt} />,
     sortKey: 'createdAt',
     hideBelow: 'lg',
+    mobile: 'footer',
   },
   {
     id: 'status',
     header: 'items.fields.status',
-    cell: (item) => (
-      <span className="flex flex-wrap gap-1">
-        {item.isLowStock ? <LowStockBadge /> : null}
-        {item.archivedAt ? <ArchivedBadge /> : null}
-      </span>
-    ),
-    mobile: 'subtitle',
+    cell: (item) =>
+      item.isLowStock || item.archivedAt ? (
+        <span className="flex flex-wrap gap-1">
+          {item.isLowStock ? <LowStockBadge /> : null}
+          {item.archivedAt ? <ArchivedBadge /> : null}
+        </span>
+      ) : null,
+    mobile: 'badge',
   },
 ];
 
@@ -149,6 +156,26 @@ function ItemsPage() {
   return (
     <>
       <PageHeader title={t('items.list.title')} actions={newItem} />
+      {/* Search beside the funnel; below `md` the choices move into its sheet rather than take a row each (Q64). */}
+      <ListFilters
+        search={<SearchBox value={term} onChange={setTerm} />}
+        activeCount={[search.lowStockOnly, search.includeArchived].filter(Boolean).length}
+        onClear={() => setFilter({ lowStockOnly: undefined, includeArchived: undefined })}
+      >
+        <FilterChoice
+          label={t('items.list.lowStockOnly')}
+          offLabel={t('common.filters.all')}
+          checked={search.lowStockOnly ?? false}
+          onCheckedChange={(on) => setFilter({ lowStockOnly: on || undefined })}
+        />
+        <FilterChoice
+          label={t('common.includeArchived')}
+          offLabel={t('common.filters.active')}
+          checked={search.includeArchived ?? false}
+          onCheckedChange={(on) => setFilter({ includeArchived: on || undefined })}
+        />
+      </ListFilters>
+
       <DataTable
         label={t('items.list.title')}
         columns={COLUMNS}
@@ -168,23 +195,6 @@ function ItemsPage() {
         onPageChange={(page) => void navigate({ search: (prev) => ({ ...prev, page }) })}
         onPageSizeChange={(pageSize) => setFilter({ pageSize })}
         isFetching={items.isFetching}
-        toolbar={
-          <>
-            <SearchBox value={term} onChange={setTerm} />
-            <FilterChoice
-              label={t('items.list.lowStockOnly')}
-              offLabel={t('common.filters.all')}
-              checked={search.lowStockOnly ?? false}
-              onCheckedChange={(on) => setFilter({ lowStockOnly: on || undefined })}
-            />
-            <FilterChoice
-              label={t('common.includeArchived')}
-              offLabel={t('common.filters.active')}
-              checked={search.includeArchived ?? false}
-              onCheckedChange={(on) => setFilter({ includeArchived: on || undefined })}
-            />
-          </>
-        }
         empty={
           <ListEmpty
             filtered={Boolean(search.q || search.lowStockOnly || search.includeArchived)}

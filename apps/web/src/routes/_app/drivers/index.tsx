@@ -1,7 +1,7 @@
 import type { DriverDto, PageDto } from '@pallet/shared';
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { createFileRoute, useNavigate } from '@tanstack/react-router';
-import { Archive, Pencil, Plus, Truck } from 'lucide-react';
+import { Archive, EllipsisVertical, Pencil, Plus, Truck } from 'lucide-react';
 import { useCallback, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { toast } from 'sonner';
@@ -10,10 +10,16 @@ import { ArchivedBadge } from '@/components/app/archived-badge';
 import { ConfirmDialog } from '@/components/app/confirm-dialog';
 import { DataTable, type DataColumn } from '@/components/app/data-table';
 import { DateText } from '@/components/app/date-text';
-import { FilterChoice, ListEmpty, SearchBox } from '@/components/app/list-controls';
+import { FilterChoice, ListEmpty, ListFilters, SearchBox } from '@/components/app/list-controls';
 import { PageHeader } from '@/components/app/page-header';
 import { PageSkeleton, QueryErrorState } from '@/components/app/states';
 import { Button } from '@/components/ui/button';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
 import { DriverDialog } from '@/features/drivers/driver-dialog';
 import { useDialogState } from '@/hooks/use-dialog-state';
 import { usePageTitle } from '@/hooks/use-page-title';
@@ -104,12 +110,13 @@ function DriversPage() {
       cell: (driver) => <DateText value={driver.createdAt} />,
       sortKey: 'createdAt',
       hideBelow: 'lg',
+      mobile: 'footer' as const,
     },
     {
       id: 'status',
       header: 'drivers.fields.status',
       cell: (driver) => (driver.archivedAt ? <ArchivedBadge /> : null),
-      mobile: 'subtitle',
+      mobile: 'badge',
     },
     ...(can.edit || can.archive
       ? [
@@ -117,6 +124,7 @@ function DriversPage() {
             id: 'actions',
             header: 'common.actions.title' as const,
             align: 'end' as const,
+            mobile: 'actions' as const,
             cell: (driver: DriverDto) =>
               driver.archivedAt ? null : (
                 <div className="flex justify-end gap-1">
@@ -142,6 +150,31 @@ function DriversPage() {
                   ) : null}
                 </div>
               ),
+            // On a card the two bare icons read as decoration: one menu at the head's end, actions named in words.
+            mobileCell: (driver: DriverDto) =>
+              driver.archivedAt ? null : (
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <Button variant="ghost" size="icon" aria-label={t('common.actions.title')}>
+                      <EllipsisVertical aria-hidden />
+                    </Button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="end">
+                    {can.edit ? (
+                      <DropdownMenuItem onSelect={() => setOpen({ kind: 'edit', driver })}>
+                        <Pencil aria-hidden />
+                        {t('common.actions.edit')}
+                      </DropdownMenuItem>
+                    ) : null}
+                    {can.archive ? (
+                      <DropdownMenuItem onSelect={() => setOpen({ kind: 'archive', driver })}>
+                        <Archive aria-hidden />
+                        {t('common.actions.archive')}
+                      </DropdownMenuItem>
+                    ) : null}
+                  </DropdownMenuContent>
+                </DropdownMenu>
+              ),
           },
         ]
       : []),
@@ -157,6 +190,20 @@ function DriversPage() {
   return (
     <>
       <PageHeader title={t('drivers.list.title')} actions={newDriver} />
+      {/* Search beside the funnel; below `md` the choices move into its sheet rather than take a row each (Q64). */}
+      <ListFilters
+        search={<SearchBox value={term} onChange={setTerm} />}
+        activeCount={search.includeArchived ? 1 : 0}
+        onClear={() => setFilter({ includeArchived: undefined })}
+      >
+        <FilterChoice
+          label={t('common.includeArchived')}
+          offLabel={t('common.filters.active')}
+          checked={search.includeArchived ?? false}
+          onCheckedChange={(on) => setFilter({ includeArchived: on || undefined })}
+        />
+      </ListFilters>
+
       <DataTable
         label={t('drivers.list.title')}
         columns={columns}
@@ -171,17 +218,6 @@ function DriversPage() {
         onPageChange={(page) => void navigate({ search: (prev) => ({ ...prev, page }) })}
         onPageSizeChange={(pageSize) => setFilter({ pageSize })}
         isFetching={drivers.isFetching}
-        toolbar={
-          <>
-            <SearchBox value={term} onChange={setTerm} />
-            <FilterChoice
-              label={t('common.includeArchived')}
-              offLabel={t('common.filters.active')}
-              checked={search.includeArchived ?? false}
-              onCheckedChange={(on) => setFilter({ includeArchived: on || undefined })}
-            />
-          </>
-        }
         empty={
           <ListEmpty
             filtered={Boolean(search.q || search.includeArchived)}

@@ -340,3 +340,44 @@ test('from md the status tabs come back and the filter funnel keeps its word fro
   await page.setViewportSize({ width: 1440, height: 900 });
   await expect(page.getByRole('button', { name: 'Filters' })).toHaveText('Filters', { useInnerText: true });
 });
+
+test('a tablet reads order cards, not a table with the status clipped off its end (Q65)', async ({ page }) => {
+  await mockApi(page, ADMIN, 'en');
+  await page.setViewportSize({ width: 768, height: 1024 });
+  await page.goto('/orders');
+
+  await expect(page.getByRole('table')).toBeHidden();
+  const card = page.getByRole('list', { name: 'Orders' }).getByRole('listitem').first();
+  await expect(card).toBeVisible();
+
+  // The status rides the card's own head, inside its box: at 768 px the table cut this badge in half.
+  const status = card.getByText('Open').first();
+  const [statusBox, cardBox] = [await status.boundingBox(), await card.boundingBox()];
+  expect(statusBox).not.toBeNull();
+  expect(cardBox).not.toBeNull();
+  expect(statusBox!.x).toBeGreaterThanOrEqual(cardBox!.x - 1);
+  expect(statusBox!.x + statusBox!.width).toBeLessThanOrEqual(cardBox!.x + cardBox!.width + 1);
+
+  // Its figures are labelled once each, above the value.
+  await expect(card.getByText('Owed', { exact: true })).toBeVisible();
+
+  await page.setViewportSize({ width: 1280, height: 900 });
+  await expect(page.getByRole('table')).toBeVisible();
+});
+
+test("a row's actions sit at the head of its card, named in a menu (Q66)", async ({ page }) => {
+  await mockApi(page, ADMIN, 'en');
+  await page.goto('/drivers');
+
+  const card = page.getByRole('list', { name: 'Drivers' }).getByRole('listitem').first();
+  const menu = card.getByRole('button', { name: 'Actions' });
+  // On the head's line, at its end: not a pair of bare icons closing the card.
+  const [menuBox, cardBox] = [await menu.boundingBox(), await card.boundingBox()];
+  expect(menuBox).not.toBeNull();
+  expect(cardBox).not.toBeNull();
+  expect(menuBox!.y - cardBox!.y).toBeLessThan(60);
+
+  await menu.click();
+  await expect(page.getByRole('menuitem', { name: 'Edit' })).toBeVisible();
+  await expect(page.getByRole('menuitem', { name: 'Archive' })).toBeVisible();
+});

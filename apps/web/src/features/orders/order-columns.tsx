@@ -16,7 +16,13 @@ export const ORDER_COLUMNS: DataColumn<OrderListItemDto>[] = [
     cell: (order) => orderLabel(order.orderNumber),
     sortKey: 'orderNumber',
   },
-  { id: 'date', header: 'orders.fields.date', cell: (order) => <DateText value={order.date} />, sortKey: 'date' },
+  {
+    id: 'date',
+    header: 'orders.fields.date',
+    cell: (order) => <DateText value={order.date} />,
+    sortKey: 'date',
+    mobile: 'footer',
+  },
   {
     id: 'customer',
     header: 'orders.fields.customer',
@@ -24,12 +30,20 @@ export const ORDER_COLUMNS: DataColumn<OrderListItemDto>[] = [
     mobile: 'subtitle',
     wrap: true,
   },
-  { id: 'driver', header: 'orders.fields.driver', cell: (order) => order.driver.name, hideBelow: 'lg', wrap: true },
+  {
+    id: 'driver',
+    header: 'orders.fields.driver',
+    cell: (order) => order.driver.name,
+    hideBelow: 'lg',
+    wrap: true,
+    mobile: 'footer',
+  },
   {
     id: 'paymentType',
     header: 'orders.fields.paymentType',
     cell: (order) => <PaymentTypeBadge type={order.paymentType} />,
     hideBelow: 'lg',
+    mobile: 'footer',
   },
   {
     id: 'depositTotal',
@@ -37,12 +51,14 @@ export const ORDER_COLUMNS: DataColumn<OrderListItemDto>[] = [
     cell: (order) => <MoneyText value={order.depositTotal} />,
     align: 'end',
     hideBelow: '2xl',
+    mobile: 'figure',
   },
   {
     id: 'palletsOut',
     header: 'orders.fields.palletsOut',
     cell: (order) => <QuantityText value={order.outQuantityTotal} />,
     align: 'end',
+    mobile: 'figure',
   },
   {
     id: 'owed',
@@ -50,6 +66,7 @@ export const ORDER_COLUMNS: DataColumn<OrderListItemDto>[] = [
     cell: (order) => <MoneyText value={order.owed} />,
     sortKey: 'owed',
     align: 'end',
+    mobile: 'figure',
   },
   {
     id: 'outValue',
@@ -58,6 +75,7 @@ export const ORDER_COLUMNS: DataColumn<OrderListItemDto>[] = [
     sortKey: 'outValue',
     align: 'end',
     hideBelow: 'lg',
+    mobile: 'figure',
   },
   {
     id: 'held',
@@ -65,8 +83,14 @@ export const ORDER_COLUMNS: DataColumn<OrderListItemDto>[] = [
     cell: (order) => <MoneyText value={order.held} />,
     align: 'end',
     hideBelow: '2xl',
+    mobile: 'figure',
   },
-  { id: 'status', header: 'orders.fields.status', cell: (order) => <StatusBadge status={order.status} /> },
+  {
+    id: 'status',
+    header: 'orders.fields.status',
+    cell: (order) => <StatusBadge status={order.status} />,
+    mobile: 'badge',
+  },
 ];
 
 /** The first cell of an order row: a link to the order, the row's tab stop (§7.15). */

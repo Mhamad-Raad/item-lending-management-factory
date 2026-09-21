@@ -15,14 +15,27 @@ export interface DataColumn<T> {
   /** i18n key of the header, also the label on the phone card. */
   header: TranslationKey;
   cell: (row: T) => React.ReactNode;
+  /** What the card shows instead of `cell`, where a row of the table does not read as a card (Q66). */
+  mobileCell?: (row: T) => React.ReactNode;
   /** The `sort` value this column orders by; a column without one is not sortable. */
   sortKey?: string;
   align?: 'start' | 'end';
   hideBelow?: 'md' | 'lg' | 'xl' | '2xl';
   /** Free text such as a name: wraps onto a second line in a bounded width. Every other cell stays on one line. */
   wrap?: boolean;
-  /** Its place on the card that replaces the table below `md`; the first column is the title. */
-  mobile?: 'title' | 'subtitle' | 'meta' | 'hidden';
+  /**
+   * Its place on the card that replaces the table below `lg`; the first column is the title (Q65).
+   *
+   * `title` heads the card, with `badge` and then `actions` at that line's end, and `subtitle` under it.
+   * `figure` joins the grid of numbers, two to a row with its header above its value; `footer` joins the
+   * quiet line that closes the card. `meta` — the default — keeps the label-beside-value row of a short card.
+   */
+  mobile?: 'title' | 'subtitle' | 'badge' | 'actions' | 'figure' | 'footer' | 'meta' | 'hidden';
+}
+
+interface CardCell<T> {
+  column: DataColumn<T>;
+  cell: React.ReactNode;
 }
 
 interface DataTableProps<T> {
@@ -84,7 +97,8 @@ function useReplacements(keys: readonly React.Key[]): number {
 
 /**
  * Every list in the app (§7.5): sortable headers, pagination with a page size, a sticky header,
- * and below `md` one card per row instead of a table that would scroll sideways.
+ * and below `lg` cards instead of a table: at a tablet's width the columns no longer fit, and the table
+ * scrolled sideways with the status clipped off its end (Q65). The cards go two to a row from `md`.
  */
 export function DataTable<T>({
   label,
@@ -135,6 +149,29 @@ export function DataTable<T>({
   };
   const mobileRole = (column: DataColumn<T>): NonNullable<DataColumn<T>['mobile']> =>
     column.mobile ?? (column === firstColumn ? 'title' : 'meta');
+  /**
+   * A card's columns drawn once and grouped by their slot. A column may draw itself differently here
+   * (`mobileCell`), and a cell with nothing to say is dropped, so a slot whose cells are all empty can be
+   * left out with its wrapper instead of printing a label over a blank.
+   */
+  const cardSlots = (row: T): Record<NonNullable<DataColumn<T>['mobile']>, CardCell<T>[]> => {
+    const slots = {
+      title: [],
+      subtitle: [],
+      badge: [],
+      actions: [],
+      figure: [],
+      footer: [],
+      meta: [],
+      hidden: [],
+    } as Record<NonNullable<DataColumn<T>['mobile']>, CardCell<T>[]>;
+    for (const column of columns) {
+      const cell = column.mobileCell ? isolated(column.mobileCell(row)) : renderCell(column, row);
+      if (cell === null || cell === undefined || cell === false) continue;
+      slots[mobileRole(column)].push({ column, cell });
+    }
+    return slots;
+  };
 
   return (
     <div className="flex flex-col gap-3">
@@ -149,7 +186,7 @@ export function DataTable<T>({
             {isFetching ? <div className="bg-primary absolute inset-0 animate-pulse" /> : null}
           </div>
 
-          <div className="bg-card hidden max-h-[calc(100dvh-14rem)] overflow-auto rounded-xl border shadow-sm md:block">
+          <div className="bg-card hidden max-h-[calc(100dvh-14rem)] overflow-auto rounded-xl border shadow-sm lg:block">
             <table aria-label={label} aria-busy={isFetching} className="w-full caption-bottom text-base">
               <TableHeader className="sticky top-0 z-10">
                 <TableRow className="hover:bg-transparent">
@@ -211,44 +248,85 @@ export function DataTable<T>({
             </table>
           </div>
 
-          <ul aria-label={label} className="flex flex-col gap-2 md:hidden">
+          <ul aria-label={label} className="grid grid-cols-1 gap-2 md:grid-cols-2 lg:hidden">
             <AnimatePresence key={replacements} initial={replacements > 0}>
-              {rows.map((row) => (
-                <Card
-                  key={rowKey(row)}
-                  {...rowMotion}
-                  className={cn(
-                    'bg-card flex flex-col gap-2 rounded-xl border p-4 shadow-sm',
-                    rowLink && 'hover:border-primary/40 cursor-pointer transition-colors',
-                  )}
-                  onClick={rowLink ? openRowLink : undefined}
-                >
-                  {columns
-                    .filter((column) => mobileRole(column) === 'title')
-                    .map((column) => (
-                      <div key={column.id} className="font-medium">
-                        {renderCell(column, row)}
+              {rows.map((row) => {
+                const slots = cardSlots(row);
+                return (
+                  <Card
+                    key={rowKey(row)}
+                    {...rowMotion}
+                    className={cn(
+                      'bg-card flex flex-col gap-2 rounded-xl border p-4 shadow-sm',
+                      rowLink && 'hover:border-primary/40 cursor-pointer transition-colors',
+                    )}
+                    onClick={rowLink ? openRowLink : undefined}
+                  >
+                    {/* The card's head: what this row is, the badges that say its state, and its own actions. */}
+                    <div className="flex items-center gap-2">
+                      <div className="min-w-0 flex-1 font-medium">
+                        {slots.title.map(({ column, cell }) => (
+                          <div key={column.id}>{cell}</div>
+                        ))}
+                        {slots.subtitle.map(({ column, cell }) => (
+                          <div key={column.id} className="text-muted-foreground text-sm font-normal">
+                            {cell}
+                          </div>
+                        ))}
                       </div>
-                    ))}
-                  {columns
-                    .filter((column) => mobileRole(column) === 'subtitle')
-                    .map((column) => (
-                      <div key={column.id} className="text-muted-foreground text-sm">
-                        {renderCell(column, row)}
-                      </div>
-                    ))}
-                  <dl className="grid grid-cols-[auto_1fr] gap-x-4 gap-y-1 text-sm">
-                    {columns
-                      .filter((column) => mobileRole(column) === 'meta')
-                      .map((column) => (
-                        <div key={column.id} className="contents">
-                          <dt className="text-muted-foreground">{t(column.header)}</dt>
-                          <dd>{renderCell(column, row)}</dd>
+                      {slots.badge.length > 0 || slots.actions.length > 0 ? (
+                        <div className="flex shrink-0 items-center gap-1">
+                          {slots.badge.length > 0 ? (
+                            <div className="flex flex-wrap justify-end gap-1">
+                              {slots.badge.map(({ column, cell }) => (
+                                <div key={column.id}>{cell}</div>
+                              ))}
+                            </div>
+                          ) : null}
+                          {slots.actions.map(({ column, cell }) => (
+                            <div key={column.id}>{cell}</div>
+                          ))}
                         </div>
-                      ))}
-                  </dl>
-                </Card>
-              ))}
+                      ) : null}
+                    </div>
+
+                    {/* The numbers, two to a row with their header above them, so they can be compared down a column. */}
+                    {slots.figure.length > 0 ? (
+                      <dl className="grid grid-cols-2 gap-x-4 gap-y-2 border-t pt-2 text-sm">
+                        {slots.figure.map(({ column, cell }) => (
+                          <div key={column.id} className="flex min-w-0 flex-col">
+                            <dt className="text-muted-foreground text-xs">{t(column.header)}</dt>
+                            <dd>{cell}</dd>
+                          </div>
+                        ))}
+                      </dl>
+                    ) : null}
+
+                    {slots.meta.length > 0 ? (
+                      <dl className="grid grid-cols-[auto_1fr] gap-x-4 gap-y-1 text-sm">
+                        {slots.meta.map(({ column, cell }) => (
+                          <div key={column.id} className="contents">
+                            <dt className="text-muted-foreground">{t(column.header)}</dt>
+                            <dd>{cell}</dd>
+                          </div>
+                        ))}
+                      </dl>
+                    ) : null}
+
+                    {/* Everything else that names the row rather than measures it, on one quiet line. */}
+                    {slots.footer.length > 0 ? (
+                      <div className="text-muted-foreground flex flex-wrap items-center gap-x-3 gap-y-1 border-t pt-2 text-sm">
+                        {slots.footer.map(({ column, cell }) => (
+                          <div key={column.id} className="flex min-w-0 items-center gap-1.5">
+                            <span className="sr-only">{t(column.header)}</span>
+                            {cell}
+                          </div>
+                        ))}
+                      </div>
+                    ) : null}
+                  </Card>
+                );
+              })}
             </AnimatePresence>
           </ul>
 

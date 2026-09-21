@@ -8,7 +8,7 @@ import { z } from 'zod';
 import { ArchivedBadge } from '@/components/app/archived-badge';
 import { DataTable, type DataColumn } from '@/components/app/data-table';
 import { DateText } from '@/components/app/date-text';
-import { FilterChoice, ListEmpty, SearchBox } from '@/components/app/list-controls';
+import { FilterChoice, ListEmpty, ListFilters, SearchBox } from '@/components/app/list-controls';
 import { MoneyText } from '@/components/app/money-text';
 import { PageHeader } from '@/components/app/page-header';
 import { QuantityText } from '@/components/app/quantity-text';
@@ -57,6 +57,7 @@ const COLUMNS: DataColumn<CustomerDto>[] = [
     header: 'customers.fields.palletsOut',
     cell: (customer) => <QuantityText value={customer.summary.palletsOut} />,
     align: 'end',
+    mobile: 'figure',
   },
   {
     id: 'outValue',
@@ -65,6 +66,7 @@ const COLUMNS: DataColumn<CustomerDto>[] = [
     sortKey: 'outValue',
     align: 'end',
     hideBelow: 'lg',
+    mobile: 'figure',
   },
   {
     id: 'owed',
@@ -72,6 +74,7 @@ const COLUMNS: DataColumn<CustomerDto>[] = [
     cell: (customer) => <MoneyText value={customer.summary.owed} />,
     sortKey: 'owed',
     align: 'end',
+    mobile: 'figure',
   },
   {
     id: 'held',
@@ -80,6 +83,7 @@ const COLUMNS: DataColumn<CustomerDto>[] = [
     sortKey: 'held',
     align: 'end',
     hideBelow: 'lg',
+    mobile: 'figure',
   },
   {
     id: 'creditLimit',
@@ -87,6 +91,7 @@ const COLUMNS: DataColumn<CustomerDto>[] = [
     cell: (customer) => <CreditLimit value={customer.creditLimit} />,
     align: 'end',
     hideBelow: 'lg',
+    mobile: 'figure',
   },
   {
     id: 'createdAt',
@@ -94,12 +99,13 @@ const COLUMNS: DataColumn<CustomerDto>[] = [
     cell: (customer) => <DateText value={customer.createdAt} />,
     sortKey: 'createdAt',
     hideBelow: 'lg',
+    mobile: 'footer',
   },
   {
     id: 'status',
     header: 'customers.fields.status',
     cell: (customer) => (customer.archivedAt ? <ArchivedBadge /> : null),
-    mobile: 'subtitle',
+    mobile: 'badge',
   },
 ];
 
@@ -147,6 +153,26 @@ function CustomersPage() {
   return (
     <>
       <PageHeader title={t('customers.list.title')} actions={newCustomer} />
+
+      {/* Search beside the funnel; below `md` the two choices move into its sheet rather than take a row each (Q64). */}
+      <ListFilters
+        search={<SearchBox value={term} onChange={setTerm} />}
+        activeCount={[search.hasOpenOrders, search.includeArchived].filter(Boolean).length}
+        onClear={() => setFilter({ hasOpenOrders: undefined, includeArchived: undefined })}
+      >
+        <FilterChoice
+          label={t('customers.list.hasOpenOrders')}
+          offLabel={t('common.filters.all')}
+          checked={search.hasOpenOrders ?? false}
+          onCheckedChange={(on) => setFilter({ hasOpenOrders: on || undefined })}
+        />
+        <FilterChoice
+          label={t('common.includeArchived')}
+          offLabel={t('common.filters.active')}
+          checked={search.includeArchived ?? false}
+          onCheckedChange={(on) => setFilter({ includeArchived: on || undefined })}
+        />
+      </ListFilters>
       <DataTable
         label={t('customers.list.title')}
         columns={COLUMNS}
@@ -170,23 +196,6 @@ function CustomersPage() {
         onPageChange={(page) => void navigate({ search: (prev) => ({ ...prev, page }) })}
         onPageSizeChange={(pageSize) => setFilter({ pageSize })}
         isFetching={customers.isFetching}
-        toolbar={
-          <>
-            <SearchBox value={term} onChange={setTerm} />
-            <FilterChoice
-              label={t('customers.list.hasOpenOrders')}
-              offLabel={t('common.filters.all')}
-              checked={search.hasOpenOrders ?? false}
-              onCheckedChange={(on) => setFilter({ hasOpenOrders: on || undefined })}
-            />
-            <FilterChoice
-              label={t('common.includeArchived')}
-              offLabel={t('common.filters.active')}
-              checked={search.includeArchived ?? false}
-              onCheckedChange={(on) => setFilter({ includeArchived: on || undefined })}
-            />
-          </>
-        }
         empty={
           <ListEmpty
             filtered={Boolean(search.q || search.hasOpenOrders || search.includeArchived)}
