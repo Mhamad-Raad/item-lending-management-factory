@@ -205,37 +205,51 @@ function RecentActivity({ events }: { events: ActivityEventDto[] }) {
                   onClick={openOrderLink}
                   className={cn('cursor-pointer', event.reversed && 'opacity-60')}
                 >
-                  <div className="hover:bg-accent/50 -mx-2 flex flex-wrap items-center gap-x-3 gap-y-1 rounded-md px-2 py-2.5 transition-colors">
+                  <div className="hover:bg-accent/50 -mx-2 flex items-center gap-3 rounded-md px-2 py-2.5 transition-colors">
                     <span
                       aria-hidden
                       className={cn('flex size-8 shrink-0 items-center justify-center rounded-md', TONE_CHIP[tone])}
                     >
                       <Icon className="size-4" />
                     </span>
-                    <span className="font-medium">{t(`enums.activityEventKind.${event.kind}`)}</span>
-                    {event.reversed ? (
-                      <Badge variant="secondary">
-                        <Ban aria-hidden />
-                        {t('orders.detail.reversed')}
-                      </Badge>
-                    ) : null}
-                    <Link
-                      to="/orders/$orderId"
-                      params={{ orderId: String(event.orderId) }}
-                      dir="ltr"
-                      className="text-primary underline-offset-4 hover:underline"
-                    >
-                      {orderLabel(event.orderNumber)}
-                    </Link>
-                    <bdi className="text-muted-foreground min-w-0 truncate">{event.customer.name}</bdi>
-                    <span className="ms-auto flex items-center gap-3 text-sm">
-                      {event.amount !== null ? (
-                        <MoneyText value={event.amount} />
-                      ) : event.quantity !== null ? (
-                        <QuantityText value={event.quantity} />
-                      ) : null}
-                      <span className="text-muted-foreground">
-                        <DateText value={event.date} />
+                    {/*
+                      A phone cannot fit the label, the order number and the figures across one line, so below sm
+                      the three stack and each gets the full width; from sm up this is the single row it reads as.
+                    */}
+                    <span className="flex min-w-0 flex-1 flex-col gap-0.5 sm:flex-row sm:items-center sm:gap-3">
+                      <span className="flex min-w-0 items-center gap-2">
+                        <span className="truncate font-medium">{t(`enums.activityEventKind.${event.kind}`)}</span>
+                        {event.reversed ? (
+                          <Badge variant="secondary">
+                            <Ban aria-hidden />
+                            {t('orders.detail.reversed')}
+                          </Badge>
+                        ) : null}
+                        <Link
+                          to="/orders/$orderId"
+                          params={{ orderId: String(event.orderId) }}
+                          dir="ltr"
+                          className="text-primary underline-offset-4 hover:underline"
+                        >
+                          {orderLabel(event.orderNumber)}
+                        </Link>
+                      </span>
+                      {/*
+                        The wrapper is the flex item, so every line starts at the page's own edge; a bdi left to
+                        blockify would take its own direction and push a Latin name to the opposite side (§7.11).
+                      */}
+                      <span className="text-muted-foreground min-w-0 truncate">
+                        <bdi>{event.customer.name}</bdi>
+                      </span>
+                      <span className="flex shrink-0 items-center gap-3 text-sm sm:ms-auto">
+                        {event.amount !== null ? (
+                          <MoneyText value={event.amount} />
+                        ) : event.quantity !== null ? (
+                          <QuantityText value={event.quantity} />
+                        ) : null}
+                        <span className="text-muted-foreground">
+                          <DateText value={event.date} />
+                        </span>
                       </span>
                     </span>
                   </div>
