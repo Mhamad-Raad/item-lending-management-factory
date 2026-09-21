@@ -10,10 +10,12 @@ import { DateRangePicker } from '@/components/app/date-picker';
 import { EntityCombobox } from '@/components/app/entity-combobox';
 import { FiltersToggle, ListEmpty, ListFilters, SearchBox } from '@/components/app/list-controls';
 import { PageSkeleton, QueryErrorState } from '@/components/app/states';
+import { TabSelect } from '@/components/app/tab-select';
 import { Button } from '@/components/ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Tabs, TabsTrigger } from '@/components/ui/tabs';
 import { ORDER_COLUMNS, orderRowLink } from '@/features/orders/order-columns';
+import { MD_QUERY } from '@/hooks/use-media-query';
 import { usePageTitle } from '@/hooks/use-page-title';
 import { useSearchInput } from '@/hooks/use-search-input';
 import { apiFetch } from '@/lib/api-client';
@@ -22,7 +24,7 @@ import { listSearch, sortSearch } from '@/lib/list-search';
 import { qk } from '@/lib/query-keys';
 import { requirePermission } from '@/lib/route-guards';
 
-// "All" leads the tabs (Q55); the list still opens on OPEN.
+// "All" leads the tabs and is where the list opens (Q55, amended by Q64).
 const STATUSES = ['ALL', 'OPEN', 'SETTLED', 'CANCELLED'] as const;
 const ALL_TYPES = 'all';
 const id = z.coerce.number().int().min(1).optional().catch(undefined);
@@ -63,7 +65,7 @@ function OrdersPage() {
   // A range typed back to front is not sent: the API would refuse it (§6.2).
   const rangeInvalid = Boolean(search.dateFrom && search.dateTo && search.dateFrom > search.dateTo);
   const params = {
-    status: search.status ?? 'OPEN',
+    status: search.status ?? 'ALL',
     q: search.q,
     customerId: search.customerId,
     driverId: search.driverId,
@@ -100,37 +102,42 @@ function OrdersPage() {
   ].filter(Boolean).length;
   const filtered = Boolean(search.q) || activeFilters > 0;
   // The filter card starts hidden, unless the address already carries a filter that it would otherwise hide (Q53).
-  const [filtersOpen, setFiltersOpen] = useState(activeFilters > 0);
+  // Below `md` the same flag opens the sheet, which must not spring open on arrival: there it starts shut.
+  const [filtersOpen, setFiltersOpen] = useState(() => activeFilters > 0 && window.matchMedia(MD_QUERY).matches);
 
   return (
     <>
       {/* The top bar already names the page; the heading stays for screen readers only (Q57). */}
       <h1 className="sr-only">{t('orders.list.title')}</h1>
 
-      {/* One row: the search box and the status tabs at the reading start, the actions at the end (Q55, Q57). */}
-      <div className="flex flex-wrap items-center gap-3">
-        <SearchBox value={term} onChange={setTerm} />
-        <Tabs
-          value={params.status}
-          onValueChange={(status) =>
-            setFilter({ status: status === 'OPEN' ? undefined : (status as (typeof STATUSES)[number]) })
-          }
-        >
-          <TabsList>
-            {STATUSES.map((status) => (
-              <TabsTrigger key={status} value={status}>
-                {t(status === 'ALL' ? 'orders.list.allStatuses' : `enums.orderStatus.${status}`)}
-              </TabsTrigger>
-            ))}
-          </TabsList>
-        </Tabs>
-        <div className="ms-auto flex flex-wrap items-center gap-2">
-          <FiltersToggle
-            open={filtersOpen}
-            onToggle={() => setFiltersOpen((open) => !open)}
-            activeCount={activeFilters}
-          />
-          {newOrder}
+      {/*
+        One row from `md`: the search box and the status tabs at the reading start, the actions at the end
+        (Q55, Q57). Below it the four tabs and three buttons cannot share a line, so they pair up: search with
+        the filter funnel, then the status as a dropdown with the new-order action (Q64).
+      */}
+      <div className="flex flex-col gap-3 md:flex-row md:flex-wrap md:items-center">
+        {/* `md:contents` dissolves each pair into the one row above, where `order` puts them back in reading order. */}
+        <div className="flex items-center gap-2 md:contents">
+          <div className="min-w-0 flex-1 md:order-1 md:flex-none">
+            <SearchBox value={term} onChange={setTerm} />
+          </div>
+          <div className="md:order-3 md:ms-auto">
+            <FiltersToggle
+              open={filtersOpen}
+              onToggle={() => setFiltersOpen((open) => !open)}
+              activeCount={activeFilters}
+            />
+          </div>
+        </div>
+
+        <div className="flex items-center gap-2 md:contents">
+          <div className="min-w-0 flex-1 md:order-2 md:flex-none">
+            <OrderStatusFilter
+              value={params.status}
+              onChange={(status) => setFilter({ status: status === 'ALL' ? undefined : status })}
+            />
+          </div>
+          {newOrder ? <div className="md:order-4">{newOrder}</div> : null}
         </div>
       </div>
 
@@ -148,6 +155,7 @@ function OrdersPage() {
         }
         error={rangeInvalid ? t('errors.DATE_RANGE_INVALID') : undefined}
         open={filtersOpen}
+        onOpenChange={setFiltersOpen}
       >
         <div className="w-full md:w-56">
           <EntityCombobox
@@ -238,5 +246,34 @@ function OrdersPage() {
         />
       )}
     </>
+  );
+}
+
+/**
+ * The status filter: tabs from `md`, a dropdown below it (Q64). Both drive the same search param.
+ */
+function OrderStatusFilter({
+  value,
+  onChange,
+}: {
+  value: (typeof STATUSES)[number];
+  onChange: (status: (typeof STATUSES)[number]) => void;
+}) {
+  const { t } = useTranslation();
+  const options = STATUSES.map((status) => ({
+    value: status,
+    label: t(status === 'ALL' ? 'orders.list.allStatuses' : `enums.orderStatus.${status}`),
+  }));
+
+  return (
+    <Tabs value={value} onValueChange={(status) => onChange(status as (typeof STATUSES)[number])}>
+      <TabSelect value={value} onChange={onChange} options={options} label={t('orders.list.status')}>
+        {options.map((option) => (
+          <TabsTrigger key={option.value} value={option.value}>
+            {option.label}
+          </TabsTrigger>
+        ))}
+      </TabSelect>
+    </Tabs>
   );
 }

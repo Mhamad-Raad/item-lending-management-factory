@@ -827,7 +827,8 @@
       "payments": "پارەدانەکان",
       "refunds": "گەڕاندنەوەی پارە",
       "money": "پارە",
-      "history": "مێژوو"
+      "history": "مێژوو",
+      "label": "بەشەکان"
     },
     "history": {
       "empty": "هێشتا هیچ شتێک بۆ ئەم کڕیارە تۆمار نەکراوە",
@@ -889,7 +890,8 @@
       "anyCustomer": "هەر کڕیارێک",
       "anyDriver": "هەر شۆفێرێک",
       "anyItem": "هەر کاڵایەک",
-      "anyPaymentType": "هەر جۆرێکی پارەدان"
+      "anyPaymentType": "هەر جۆرێکی پارەدان",
+      "status": "دۆخ"
     },
     "fields": {
       "orderNumber": "داواکاری",

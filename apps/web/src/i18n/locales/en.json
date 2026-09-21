@@ -827,7 +827,8 @@
       "payments": "Payments",
       "refunds": "Refunds",
       "money": "Money",
-      "history": "History"
+      "history": "History",
+      "label": "Sections"
     },
     "history": {
       "empty": "Nothing recorded for this customer yet",
@@ -889,7 +890,8 @@
       "anyCustomer": "Any customer",
       "anyDriver": "Any driver",
       "anyItem": "Any item",
-      "anyPaymentType": "Any payment type"
+      "anyPaymentType": "Any payment type",
+      "status": "Status"
     },
     "fields": {
       "orderNumber": "Order",

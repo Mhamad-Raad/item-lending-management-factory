@@ -827,7 +827,8 @@
       "payments": "الدفعات",
       "refunds": "المبالغ المستردة",
       "money": "المال",
-      "history": "السجل"
+      "history": "السجل",
+      "label": "الأقسام"
     },
     "history": {
       "empty": "لم يُسجَّل شيء لهذا الزبون بعد",
@@ -889,7 +890,8 @@
       "anyCustomer": "أي زبون",
       "anyDriver": "أي سائق",
       "anyItem": "أي صنف",
-      "anyPaymentType": "أي نوع دفع"
+      "anyPaymentType": "أي نوع دفع",
+      "status": "الحالة"
     },
     "fields": {
       "orderNumber": "الطلب",

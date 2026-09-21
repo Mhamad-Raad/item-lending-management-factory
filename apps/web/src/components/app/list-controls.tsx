@@ -2,7 +2,7 @@ import { SEARCH_MAX_LENGTH } from '@pallet/shared';
 import type { LucideIcon } from 'lucide-react';
 import { ListFilter, SearchX } from 'lucide-react';
 import { RadioGroup as RadioGroupPrimitive } from 'radix-ui';
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { EmptyState } from '@/components/app/states';
 import { Badge } from '@/components/ui/badge';
@@ -44,6 +44,7 @@ export function ListFilters({
   onClear,
   error,
   open: desktopOpen = true,
+  onOpenChange,
   children,
 }: {
   search?: React.ReactNode;
@@ -53,18 +54,52 @@ export function ListFilters({
   error?: string;
   /**
    * From `md`, whether the filter card is on screen; `false` leaves only the search box (Q53). A page that passes
-   * this renders a `FiltersToggle` in its header. The phone sheet keeps its own button whatever this says.
+   * this renders a `FiltersToggle` in its header.
    */
   open?: boolean;
+  /**
+   * Passing this hands the phone sheet to the page's own `FiltersToggle`, so the one trigger sits beside the
+   * search box instead of the sheet adding a second button on a row of its own (Q64).
+   */
+  onOpenChange?: (open: boolean) => void;
   children: React.ReactNode;
 }) {
   const { t } = useTranslation();
   const wide = useMediaQuery(MD_QUERY);
-  const [open, setOpen] = useState(false);
+  // Controlled by the page when it renders the trigger itself; otherwise this component owns both.
+  const controlled = onOpenChange !== undefined;
+  // The sheet keeps its own state either way: mounted already open it would start life leaving, and the
+  // exit it never finishes leaves a closed sheet lying over the page, swallowing the next tap.
+  const [open, setOpenState] = useState(false);
+  const setOpen = (next: boolean): void => {
+    setOpenState(next);
+    // Closing from inside the sheet puts the page's own toggle back in step.
+    if (!next) onOpenChange?.(false);
+  };
+
+  // The page's flag is a press, not a state: it opens the sheet on the render that flips it, so a flag left
+  // on by widening cannot pop the sheet open again when the phone turns back.
+  const [previousOpen, setPreviousOpen] = useState(desktopOpen);
+  if (controlled && previousOpen !== desktopOpen) {
+    setPreviousOpen(desktopOpen);
+    if (!wide) setOpenState(desktopOpen);
+  }
+
+  /**
+   * Crossing into the narrow layout puts that flag back down. A card left open would otherwise sit there
+   * with no sheet to show for it, and the next press would spend itself turning the flag off again.
+   */
+  const closeFilters = useRef(onOpenChange);
+  useEffect(() => {
+    closeFilters.current = onOpenChange;
+  });
+  useEffect(() => {
+    if (!wide) closeFilters.current?.(false);
+  }, [wide]);
 
   if (wide) {
     // The sheet is gone from this layout; left open, it would pop up again when the phone turns back.
-    if (open) setOpen(false);
+    if (open) setOpenState(false);
     if (!desktopOpen) {
       // The error outlives the card: a reversed range closed away would otherwise leave a blank, silent list.
       if (!search && !error) return null;
@@ -91,44 +126,72 @@ export function ListFilters({
     );
   }
 
-  return (
-    <div className="flex w-full flex-col gap-2">
+  const trigger = controlled ? null : (
+    // Controlled: the page's own toggle opens this sheet, so there is no second button here (Q64).
+    <SheetTrigger asChild>
+      <Button variant="outline" size="icon" className="relative shrink-0" aria-label={t('common.filters.title')}>
+        <ListFilter aria-hidden />
+        {activeCount > 0 ? <FilterCount count={activeCount} /> : null}
+      </Button>
+    </SheetTrigger>
+  );
+  const bar =
+    search || trigger ? (
       <div className="flex items-center gap-2">
         {search ? <div className="min-w-0 flex-1">{search}</div> : null}
-        <Sheet open={open} onOpenChange={setOpen}>
-          <SheetTrigger asChild>
-            <Button variant="outline" className={search ? undefined : 'w-full'}>
-              <ListFilter aria-hidden />
-              {t('common.filters.title')}
-              {activeCount > 0 ? <Badge className="px-1.5 tabular-nums">{activeCount}</Badge> : null}
-            </Button>
-          </SheetTrigger>
-          <SheetContent side="bottom" closeLabel={t('common.actions.close')} aria-describedby={undefined}>
-            <SheetTitle className="text-lg font-semibold">{t('common.filters.title')}</SheetTitle>
-            <div className="flex flex-col gap-3">{children}</div>
-            <div className="flex gap-2">
-              <Button variant="outline" className="flex-1" disabled={activeCount === 0} onClick={onClear}>
-                {t('common.actions.clearFilters')}
-              </Button>
-              <Button className="flex-1" onClick={() => setOpen(false)}>
-                {t('common.actions.done')}
-              </Button>
-            </div>
-          </SheetContent>
-        </Sheet>
+        {trigger}
       </div>
-      {error && !open ? (
-        <p role="alert" className="text-destructive text-sm">
-          {error}
-        </p>
+    ) : null;
+  const shownError = error && !open ? error : null;
+
+  return (
+    <Sheet open={open} onOpenChange={setOpen}>
+      {/* Nothing of its own to show — the page draws the search box and the trigger — so no empty row either. */}
+      {bar || shownError ? (
+        <div className="flex w-full flex-col gap-2">
+          {bar}
+          {shownError ? (
+            <p role="alert" className="text-destructive text-sm">
+              {shownError}
+            </p>
+          ) : null}
+        </div>
       ) : null}
-    </div>
+      <SheetContent side="bottom" closeLabel={t('common.actions.close')} aria-describedby={undefined}>
+        <SheetTitle className="text-lg font-semibold">{t('common.filters.title')}</SheetTitle>
+        <div className="flex flex-col gap-3">{children}</div>
+        <div className="flex gap-2">
+          <Button variant="outline" className="flex-1" disabled={activeCount === 0} onClick={onClear}>
+            {t('common.actions.clearFilters')}
+          </Button>
+          <Button className="flex-1" onClick={() => setOpen(false)}>
+            {t('common.actions.done')}
+          </Button>
+        </div>
+      </SheetContent>
+    </Sheet>
   );
 }
 
 /**
- * The header button that shows or hides a list's filter card from `md` (Q53), counting the active filters
- * the way the phone button does. Hidden below `md`, where `ListFilters` has its own sheet button.
+ * How many filters are on, over the funnel of an icon-only button. Inside the button's own box so it
+ * cannot widen the square, and `aria-hidden` because the button's label already names the control.
+ */
+function FilterCount({ count }: { count: number }) {
+  return (
+    <span
+      aria-hidden
+      className="bg-primary text-primary-foreground absolute end-1 top-1 flex size-4 items-center justify-center rounded-full text-[10px] font-medium tabular-nums lg:hidden"
+    >
+      {count}
+    </span>
+  );
+}
+
+/**
+ * The header button that shows or hides a list's filter card from `md` (Q53) and opens the sheet below it,
+ * counting the active filters. Only the funnel until `lg`: on a phone or a tablet the word costs a row that
+ * the search box needs, and the icon carries the meaning (Q64). The accessible name is there at every size.
  */
 export function FiltersToggle({
   open,
@@ -140,17 +203,25 @@ export function FiltersToggle({
   activeCount: number;
 }) {
   const { t } = useTranslation();
+  const wide = useMediaQuery(MD_QUERY);
   return (
     <Button
       variant="outline"
       aria-expanded={open}
-      aria-controls={LIST_FILTERS_ID}
+      // The card it names only exists from `md`; below that this button opens the sheet, a dialog of its own.
+      aria-controls={wide ? LIST_FILTERS_ID : undefined}
+      aria-label={t('common.filters.title')}
       onClick={onToggle}
-      className="hidden md:inline-flex"
+      className="relative size-12 shrink-0 p-0 lg:h-12 lg:w-auto lg:px-4 lg:py-2"
     >
       <ListFilter aria-hidden />
-      {t('common.filters.title')}
-      {activeCount > 0 ? <Badge className="px-1.5 tabular-nums">{activeCount}</Badge> : null}
+      <span className="hidden lg:inline">{t('common.filters.title')}</span>
+      {activeCount > 0 ? (
+        <>
+          <FilterCount count={activeCount} />
+          <Badge className="hidden px-1.5 tabular-nums lg:inline-flex">{activeCount}</Badge>
+        </>
+      ) : null}
     </Button>
   );
 }

@@ -159,16 +159,20 @@ test('turning the phone does not reopen a filter sheet it closed by widening', a
   await expect(page.getByRole('dialog', { name: 'Filters' })).toBeVisible();
 
   await page.setViewportSize({ width: 844, height: 390 });
-  // The wide layout has rendered once its own header button (Q53) is on screen and the sheet's is gone
-  // (the sheet's own pickers would match too early).
-  const headerToggle = page.locator('[aria-controls="list-filters"]');
-  await expect(headerToggle).toBeVisible();
-  await expect(page.getByRole('button', { name: 'Filters' })).toHaveCount(1);
+  // One toggle serves both layouts (Q64): here it opens the filter card instead, and the sheet is gone.
+  // Found by its name, not by aria-controls: below `md` there is no card for it to control.
+  const toggle = page.getByRole('button', { name: 'Filters' });
+  await expect(toggle).toHaveCount(1);
+  await expect(toggle).toBeVisible();
+  await expect(page.getByRole('dialog', { name: 'Filters' })).toBeHidden();
   await page.setViewportSize({ width: 390, height: 844 });
 
-  await expect(headerToggle).toBeHidden();
-  await expect(page.getByRole('button', { name: 'Filters' })).toBeVisible();
+  await expect(toggle).toBeVisible();
   await expect(page.getByRole('dialog', { name: 'Filters' })).toBeHidden();
+  // The flag the wide layout left on is down again, so the button neither lies nor swallows the next press.
+  await expect(toggle).toHaveAttribute('aria-expanded', 'false');
+  await toggle.click();
+  await expect(page.getByRole('dialog', { name: 'Filters' })).toBeVisible();
 });
 
 test('on a phone, the customer summary sits two cards to a row', async ({ page }) => {
@@ -292,4 +296,47 @@ test('the close button of a dialog is a full touch target on a phone (§7.15)', 
       return Math.min(box?.width ?? 0, box?.height ?? 0);
     })
     .toBeGreaterThanOrEqual(40);
+});
+
+test('on a phone the status is a dropdown and the filter funnel shares the search row (Q64)', async ({ page }) => {
+  await mockApi(page, ADMIN, 'en');
+  const asked: string[] = [];
+  page.on('request', (request) => {
+    if (request.url().includes('/api/orders?')) asked.push(new URL(request.url()).search);
+  });
+  await page.goto('/orders');
+
+  // The four-tab strip is gone; its choices live in a dropdown that names itself.
+  await expect(page.getByRole('tablist')).toBeHidden();
+  const status = page.getByRole('combobox', { name: 'Status' });
+  await status.click();
+  await page.getByRole('option', { name: 'Settled' }).click();
+  await expect.poll(() => asked.some((search) => search.includes('status=SETTLED'))).toBe(true);
+
+  // The funnel carries no word here, and sits on the search box's own line.
+  const filters = page.getByRole('button', { name: 'Filters' });
+  await expect(filters).toHaveText('', { useInnerText: true });
+  const search = page.getByRole('textbox', { name: 'Search' });
+  const [filtersBox, searchBox] = [await filters.boundingBox(), await search.boundingBox()];
+  expect(filtersBox).not.toBeNull();
+  expect(searchBox).not.toBeNull();
+  const centre = (box: { y: number; height: number }): number => box.y + box.height / 2;
+  expect(Math.abs(centre(filtersBox!) - centre(searchBox!))).toBeLessThan(8);
+  // A touch target of its own (§7.15), not a shrunken square.
+  expect(filtersBox!.width).toBeGreaterThanOrEqual(40);
+  expect(filtersBox!.height).toBeGreaterThanOrEqual(40);
+});
+
+test('from md the status tabs come back and the filter funnel keeps its word from lg', async ({ page }) => {
+  await mockApi(page, ADMIN, 'en');
+
+  await page.setViewportSize({ width: 820, height: 900 });
+  await page.goto('/orders');
+  await expect(page.getByRole('tablist')).toBeVisible();
+  await expect(page.getByRole('combobox', { name: 'Status' })).toBeHidden();
+  // A tablet still has no room for the word beside the tabs.
+  await expect(page.getByRole('button', { name: 'Filters' })).toHaveText('', { useInnerText: true });
+
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await expect(page.getByRole('button', { name: 'Filters' })).toHaveText('Filters', { useInnerText: true });
 });

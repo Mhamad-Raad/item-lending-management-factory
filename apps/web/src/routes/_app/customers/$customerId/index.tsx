@@ -26,12 +26,13 @@ import { MoneyText } from '@/components/app/money-text';
 import { PageHeader } from '@/components/app/page-header';
 import { QuantityText } from '@/components/app/quantity-text';
 import { EmptyState, PageSkeleton, QueryErrorState } from '@/components/app/states';
+import { TabSelect } from '@/components/app/tab-select';
 import { Thumbnail } from '@/components/app/thumbnail';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Tabs, TabsContent, TabsTrigger } from '@/components/ui/tabs';
 import { customerQuery, invalidateCustomers } from '@/features/customers/api';
 import { CustomerHistoryTab, CustomerLedgerTab, CustomerOrdersTab } from '@/features/customers/customer-tabs';
 import { usePageTitle } from '@/hooks/use-page-title';
@@ -297,12 +298,18 @@ function CustomerProfilePage() {
           value={tab}
           onValueChange={(next) => void navigate({ search: { tab: next as (typeof TABS)[number] }, replace: true })}
         >
-          <TabsList>
-            <TabsTrigger value="history">{t('customers.tabs.history')}</TabsTrigger>
-            <TabsTrigger value="orders">{t('customers.tabs.orders')}</TabsTrigger>
-            <TabsTrigger value="payments">{t('customers.tabs.payments')}</TabsTrigger>
-            <TabsTrigger value="refunds">{t('customers.tabs.refunds')}</TabsTrigger>
-          </TabsList>
+          <TabSelect
+            value={tab}
+            onChange={(next) => void navigate({ search: { tab: next }, replace: true })}
+            options={TABS.map((name) => ({ value: name, label: t(`customers.tabs.${name}`) }))}
+            label={t('customers.tabs.label')}
+          >
+            {TABS.map((name) => (
+              <TabsTrigger key={name} value={name}>
+                {t(`customers.tabs.${name}`)}
+              </TabsTrigger>
+            ))}
+          </TabSelect>
           <TabsContent value="history">
             <CustomerHistoryTab customerId={data.id} />
           </TabsContent>
