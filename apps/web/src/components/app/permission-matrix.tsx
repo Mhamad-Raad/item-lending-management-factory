@@ -28,7 +28,7 @@ export function PermissionMatrix({
     <div className="flex flex-col gap-6">
       {MODULES.map((module) => (
         <fieldset key={module} className="flex flex-col gap-3">
-          <legend className="text-sm font-medium">{t(dynamicKey(`permissions.modules.${module}`))}</legend>
+          <legend className="mb-3 text-base font-semibold">{t(dynamicKey(`permissions.modules.${module}`))}</legend>
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
             {GRANTABLE_PERMISSION_KEYS.filter((key) => key.startsWith(`${module}.`)).map((key) => (
               <div key={key} className="flex items-center gap-2">
