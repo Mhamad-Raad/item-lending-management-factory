@@ -73,7 +73,12 @@ function EntityRef({ row }: { row: AuditLogDto }) {
   if (!row.entityId) return <>{label}</>;
 
   const id = row.entityId;
-  const text = <span dir="ltr">#{id}</span>;
+  // A session's id is a uuid: it must be allowed to break, or it pushes a phone's layout sideways.
+  const text = (
+    <span dir="ltr" className="break-all">
+      #{id}
+    </span>
+  );
   const orderId =
     row.entityType === 'ORDER'
       ? id
@@ -103,7 +108,7 @@ function EntityRef({ row }: { row: AuditLogDto }) {
     );
 
   return (
-    <span className="whitespace-nowrap">
+    <span>
       {label} {target}
     </span>
   );
