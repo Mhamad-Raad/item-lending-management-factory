@@ -18,4 +18,4 @@ Rules:
 - Migrations must be expand-only for one release (add columns/tables; drop only in the release after the code stops using them). This keeps rollback safe.
 - A short restart is acceptable (zero downtime is not required). Deploy outside factory working hours when possible.
 
-One-time VPS prerequisites: `/opt/pallet` is a git clone of the repository; `/opt/pallet/.env` exists (from `.env.example`); `docker login ghcr.io` done with a GitHub token that has `read:packages` (or both GHCR packages set to public); GitHub repository secrets `VPS_HOST`, `VPS_USER`, `VPS_SSH_KEY`, `VPS_HOST_FINGERPRINT` and environment `production` exist.
+One-time VPS prerequisites: `/opt/pallet` is a git clone of the repository; `/opt/pallet/.env` exists (from `.env.example`); `docker login ghcr.io` done with a GitHub token that has `read:packages` (or both GHCR packages set to public); GitHub repository secrets `VPS_HOST`, `VPS_USER`, `VPS_SSH_KEY`, `VPS_HOST_FINGERPRINT` and environment `production` exist; the backup bucket has Object Lock and the VPS an append-only key (`backup-keys.md`).

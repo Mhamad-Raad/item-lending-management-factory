@@ -14,6 +14,7 @@ Short, step-by-step procedures for the maintainer (ARCHITECTURE.md §13).
 | [deploy.md](runbooks/deploy.md)                                 | Deploy a new version                               |
 | [rollback.md](runbooks/rollback.md)                             | Go back to the previous version                    |
 | [restore-from-backup.md](runbooks/restore-from-backup.md)       | Restore the database and uploads from off-site     |
+| [backup-keys.md](runbooks/backup-keys.md)                       | Append-only backup key, Object Lock, monthly prune |
 | [quarterly-restore-test.md](runbooks/quarterly-restore-test.md) | Quarterly "fresh VPS from off-site material" test  |
 | [rotate-secrets.md](runbooks/rotate-secrets.md)                 | Rotate JWT secret, DB passwords, backup key        |
 | [manage-users.md](runbooks/manage-users.md)                     | Add, deactivate or reset a user                    |

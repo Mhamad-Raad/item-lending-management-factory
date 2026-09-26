@@ -1,6 +1,8 @@
 # Runbook — restore from backup
 
-Inputs: `/etc/pallet/backup.env` (restic repository + password + bucket keys, from the password manager) and a running Docker host with `/opt/pallet` cloned and `/opt/pallet/.env` present.
+Inputs: `/etc/pallet/backup.env` (restic repository + password + bucket keys, from the password manager) and a running Docker host with `/opt/pallet` cloned and `/opt/pallet/.env` present. The append-only VPS key can read and restore; it cannot delete (Q70).
+
+If the old server was compromised, first follow "If the VPS was compromised" in `backup-keys.md`: rotate its key and bring back any snapshots the attacker hid.
 
 1. List snapshots: `sudo bash -c 'source /etc/pallet/backup.env && export RESTIC_REPOSITORY RESTIC_PASSWORD AWS_ACCESS_KEY_ID AWS_SECRET_ACCESS_KEY && restic snapshots --tag pallet'`.
 2. Pick a snapshot id (or `latest`).

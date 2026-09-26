@@ -30,7 +30,7 @@ Always: generate with `openssl rand -hex 32`, update the password manager entry 
 
 ## Bucket keys (AWS_ACCESS_KEY_ID / AWS_SECRET_ACCESS_KEY)
 
-Create a new bucket-scoped key in the provider console, update `/etc/pallet/backup.env`, run `backup.sh` once by hand, then delete the old key.
+There are two keys (Q70, `backup-keys.md`): the VPS's **append-only** key (no `deleteFiles`) in `/etc/pallet/backup.env`, and the **prune** key (with `deleteFiles`) in `~/.config/pallet/prune.env` on the maintainer's machine. Create each new key with the B2 CLI exactly as `backup-keys.md` shows (the web console cannot leave out `deleteFiles`), update its file and the password manager, run `backup.sh` (VPS key) or `prune.sh` (prune key) once, then delete the old key.
 
 ## Deploy SSH key / GHCR token
 

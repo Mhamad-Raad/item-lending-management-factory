@@ -1,5 +1,7 @@
 #!/usr/bin/env bash
 # Nightly backup: pg_dump + uploads volume → restic (AES-256 encrypted) → off-site S3-compatible bucket.
+# Append-only: this server's bucket key cannot delete (no deleteFiles), so it only ADDS snapshots.
+# Retention (forget + prune) runs from the maintainer's machine with a separate key: prune.sh (Q70).
 # Cron (root, host in UTC): 30 23 * * *  /opt/pallet/deploy/backup/backup.sh >> /var/log/pallet-backup.log 2>&1
 #   (= 02:30 Asia/Baghdad). Config: /etc/pallet/backup.env (mode 600, template: backup.env.example).
 set -Eeuo pipefail
@@ -28,9 +30,9 @@ docker compose exec -T postgres pg_dump -U pallet_owner -d pallet -Fc > "$DUMP_F
 # 2) Uploads volume (read directly from its mountpoint on the host).
 UPLOADS_PATH="$(docker volume inspect pallet_uploads --format '{{ .Mountpoint }}')"
 
-# 3) Encrypted, deduplicated snapshot off-site; 30-day retention.
+# 3) Encrypted, deduplicated snapshot off-site. Never forget/prune here: someone who takes this server
+#    must not be able to destroy the backups with its key (prune.sh, from a trusted machine, does that).
 restic backup --tag pallet --host pallet-vps "$DUMP_FILE" "$UPLOADS_PATH"
-restic forget --tag pallet --host pallet-vps --keep-daily 30 --prune
 
 # 4) Weekly (Sunday UTC) integrity check of 5 % of the data.
 if [[ "$(date -u +%u)" == "7" ]]; then
