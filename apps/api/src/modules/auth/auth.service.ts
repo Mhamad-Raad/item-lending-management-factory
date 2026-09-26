@@ -213,7 +213,7 @@ export class AuthService {
         include: { permissions: { select: { permissionKey: true } } },
       });
 
-      // A locked pair refuses first, as at the login. Past the account's ceiling nobody may try, known
+      // A locked pair refuses, as at the login. Past the account's ceiling nobody may try, known
       // address or not: the caller already holds a token, so an address that signed in before proves
       // nothing here, and a thief's guesses spread over many addresses must stop at the ceiling (Q69).
       // The answer names the longer of the two waits.
