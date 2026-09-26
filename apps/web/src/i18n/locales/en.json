@@ -200,7 +200,8 @@
       "title": "Security",
       "logoutAll": "Log out everywhere",
       "logoutAllHint": "Ends every session, including this one.",
-      "logoutAllConfirm": "You will have to sign in again on every device."
+      "logoutAllConfirm": "You will have to sign in again on every device.",
+      "logoutAllFailed": "You are signed out on this device, but the other sessions could not be ended. Sign in and try again."
     }
   },
   "users": {

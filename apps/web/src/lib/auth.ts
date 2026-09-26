@@ -65,10 +65,17 @@ export async function logout(): Promise<void> {
   }
 }
 
-/** Ends every session of the current user, this one included, then forgets it locally (§7.3.21). */
+/**
+ * Ends every session of the current user, this one included, then forgets it locally (§7.3.21). The user asked
+ * to be signed out: this device forgets the session even when the request fails, and the failure is rethrown so
+ * the page can say the other sessions may still be open.
+ */
 export async function logoutEverywhere(): Promise<void> {
-  await apiFetch<void>('/auth/logout-all', { method: 'POST' });
-  authStore.clear();
+  try {
+    await apiFetch<void>('/auth/logout-all', { method: 'POST' });
+  } finally {
+    authStore.clear();
+  }
 }
 
 export async function refreshMe(): Promise<MeDto> {

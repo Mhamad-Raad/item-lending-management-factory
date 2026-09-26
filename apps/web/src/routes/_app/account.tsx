@@ -1,6 +1,7 @@
 import { createFileRoute, useNavigate } from '@tanstack/react-router';
 import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
+import { toast } from 'sonner';
 import { ChangePasswordForm } from '@/components/app/change-password-form';
 import { ConfirmDialog } from '@/components/app/confirm-dialog';
 import { PageHeader } from '@/components/app/page-header';
@@ -8,7 +9,6 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { usePageTitle } from '@/hooks/use-page-title';
 import { logoutEverywhere, useAuth } from '@/lib/auth';
-import { handleApiError } from '@/lib/errors';
 
 export const Route = createFileRoute('/_app/account')({ component: AccountPage });
 
@@ -24,13 +24,14 @@ function AccountPage() {
     setPending(true);
     try {
       await logoutEverywhere();
-      await navigate({ to: '/login' });
-    } catch (error) {
-      handleApiError(error);
+    } catch {
+      // This device is signed out whatever happened; the others may not be.
+      toast.error(t('account.security.logoutAllFailed'));
     } finally {
       setPending(false);
       setConfirmLogoutAll(false);
     }
+    await navigate({ to: '/login' });
   };
 
   return (

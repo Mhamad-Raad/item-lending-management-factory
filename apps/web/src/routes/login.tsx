@@ -15,6 +15,7 @@ import { Input } from '@/components/ui/input';
 import { usePageTitle } from '@/hooks/use-page-title';
 import { ApiError } from '@/lib/api-error';
 import { authStore, login } from '@/lib/auth';
+import { safeRedirect } from '@/lib/safe-redirect';
 
 const SearchSchema = z.object({ redirect: z.string().optional() });
 
@@ -26,12 +27,6 @@ export const Route = createFileRoute('/login')({
   },
   component: LoginPage,
 });
-
-/** Only a relative path is followed, so `?redirect=` cannot send anyone to another site. */
-function safeRedirect(target: string | undefined): string {
-  if (!target || !target.startsWith('/') || target.startsWith('//')) return '/';
-  return target;
-}
 
 function LoginPage() {
   const { t } = useTranslation();
