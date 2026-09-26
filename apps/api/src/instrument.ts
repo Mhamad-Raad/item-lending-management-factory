@@ -4,7 +4,8 @@ import { scrubEvent } from './sentry-scrub';
 /**
  * API error alerting (§10.6 D9), imported by `main.ts` before anything else so Sentry can wrap what loads after it.
  * Active only when `SENTRY_DSN` is set; `ApiExceptionFilter` reports 5xx errors. No personal data leaves: no default
- * PII, and `scrubEvent` drops the request's cookies, body, credentials and query string from every event.
+ * PII, and `scrubEvent` drops the request's cookies, body, credentials and query string, breadcrumb messages and
+ * data, and database error text from every event (Q75).
  */
 const dsn = process.env.SENTRY_DSN?.trim();
 if (dsn) {
