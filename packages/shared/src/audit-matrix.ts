@@ -1,4 +1,5 @@
-import type { AuditAction, AuditEntityType } from './enums.js';
+import { AUDIT_ENTITY_TYPES, type AuditAction, type AuditEntityType } from './enums.js';
+import type { PermissionKey } from './permissions.js';
 
 /**
  * The action × entity matrix of §11.3, which is exhaustive: every audit row the API writes is one of
@@ -36,4 +37,31 @@ export const AUDIT_SUMMARY_KEYS: readonly string[] = Object.entries(AUDIT_MATRIX
 
 export function isAuditPair(entityType: AuditEntityType, action: AuditAction): boolean {
   return AUDIT_MATRIX[entityType].includes(action);
+}
+
+/**
+ * What a history reader must also be allowed to see for each kind of row (Q73): `audit.view` shows the
+ * history of what the reader may otherwise read, never more. `null` = any reader (settings and uploads
+ * are shown to every signed-in user). Users and sessions (sign-ins) are the admin's (`users.manage`).
+ */
+export const AUDIT_ENTITY_VIEW_PERMISSION: Readonly<Record<AuditEntityType, PermissionKey | null>> = {
+  USER: 'users.manage',
+  SESSION: 'users.manage',
+  SETTINGS: null,
+  UPLOAD: null,
+  ITEM: 'items.view',
+  PURCHASE_BATCH: 'purchases.view',
+  CUSTOMER: 'customers.view',
+  DRIVER: 'drivers.view',
+  ORDER: 'orders.view',
+  RETURN: 'orders.view',
+  LEDGER_ENTRY: 'orders.view',
+};
+
+/** The entity types whose history a reader holding `can` may see, in `AUDIT_ENTITY_TYPES` order. */
+export function visibleAuditEntityTypes(can: (key: PermissionKey) => boolean): AuditEntityType[] {
+  return AUDIT_ENTITY_TYPES.filter((type) => {
+    const required = AUDIT_ENTITY_VIEW_PERMISSION[type];
+    return required === null || can(required);
+  });
 }

@@ -4,6 +4,7 @@ import {
   BusinessDate,
   businessToday,
   formatTimestamp,
+  visibleAuditEntityTypes,
   type AuditAction,
   type AuditEntityType,
   type AuditLogDto,
@@ -27,7 +28,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { usePageTitle } from '@/hooks/use-page-title';
 import { apiFetch } from '@/lib/api-client';
 import { translateSummaryParams } from '@/lib/audit-summary';
-import { useAuth, useCan } from '@/lib/auth';
+import { authStore, useAuth, useCan } from '@/lib/auth';
 import { qk } from '@/lib/query-keys';
 import { requirePermission } from '@/lib/route-guards';
 
@@ -150,12 +151,16 @@ function HistoryPage() {
   // The user filter lists users, which only an admin may read (§7.3.18).
   const isAdmin = useAuth().user?.role === 'ADMIN';
   usePageTitle('history.title');
+  // The API shows only the history of what the reader may otherwise see (Q73): so does the filter, and a
+  // link naming a type the reader may not see falls back to all.
+  const entityTypes = visibleAuditEntityTypes((key) => authStore.can(key));
+  const entityType = search.entityType && entityTypes.includes(search.entityType) ? search.entityType : undefined;
 
   // Typed back to front, a range is refused by the API; it is reported next to the dates instead.
   const rangeInvalid = Boolean(search.dateFrom && search.dateTo && search.dateFrom > search.dateTo);
   const params = {
     action: search.action,
-    entityType: search.entityType,
+    entityType,
     userId: isAdmin ? search.userId : undefined,
     dateFrom: search.dateFrom,
     dateTo: search.dateTo,
@@ -172,7 +177,7 @@ function HistoryPage() {
 
   const activeFilters = [
     search.action,
-    search.entityType,
+    entityType,
     isAdmin ? search.userId : undefined,
     search.dateFrom ?? search.dateTo,
   ].filter(Boolean).length;
@@ -214,7 +219,7 @@ function HistoryPage() {
         </Select>
 
         <Select
-          value={search.entityType ?? ALL}
+          value={entityType ?? ALL}
           onValueChange={(value) => setFilter({ entityType: value === ALL ? undefined : (value as AuditEntityType) })}
         >
           <SelectTrigger className="w-full md:w-56" aria-label={t('history.filters.entityType')}>
@@ -222,7 +227,7 @@ function HistoryPage() {
           </SelectTrigger>
           <SelectContent>
             <SelectItem value={ALL}>{t('history.filters.allEntities')}</SelectItem>
-            {AUDIT_ENTITY_TYPES.map((entity: AuditEntityType) => (
+            {entityTypes.map((entity: AuditEntityType) => (
               <SelectItem key={entity} value={entity}>
                 {t(`enums.auditEntityType.${entity}`)}
               </SelectItem>

@@ -17,6 +17,6 @@ export class AuditController {
     @Query(new ZodValidationPipe(AuditLogListQuery)) query: AuditLogListQuery,
     @CurrentUser() viewer: AuthContext,
   ): Promise<PageDto<AuditLogDto>> {
-    return this.audit.list(query, viewer.canViewCost);
+    return this.audit.list(query, viewer);
   }
 }

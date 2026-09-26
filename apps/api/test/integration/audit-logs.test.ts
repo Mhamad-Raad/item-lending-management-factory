@@ -87,8 +87,13 @@ describe('GET /api/audit-logs', () => {
       },
     });
 
-    const plain = await createEmployee(app, ['audit.view'], 'no.cost');
-    const withCost = await createEmployee(app, ['audit.view', 'items.view', 'items.viewCost'], 'sees.cost');
+    // Both may read batches (Q73): what differs is the cost.
+    const plain = await createEmployee(app, ['audit.view', 'items.view', 'purchases.view'], 'no.cost');
+    const withCost = await createEmployee(
+      app,
+      ['audit.view', 'items.view', 'purchases.view', 'items.viewCost'],
+      'sees.cost',
+    );
 
     const hidden = await request(app.getHttpServer())
       .get('/api/audit-logs?entityType=PURCHASE_BATCH')
@@ -110,6 +115,48 @@ describe('GET /api/audit-logs', () => {
       .set(asUser(admin))
       .expect(200);
     expect(hasKeyAnywhere(asAdmin.body, 'totalCost')).toBe(true);
+  });
+
+  it('Q73: shows a reader only the history of what they may otherwise see', async () => {
+    const row = (entityType: 'CUSTOMER' | 'ORDER' | 'SETTINGS', entityId: string) =>
+      prisma.auditLog.create({
+        data: {
+          action: entityType === 'SETTINGS' ? 'SETTINGS_CHANGE' : 'CREATE',
+          entityType,
+          entityId,
+          summaryKey: `audit.summary.${entityType}.${entityType === 'SETTINGS' ? 'SETTINGS_CHANGE' : 'CREATE'}`,
+          summaryParams: {},
+        },
+      });
+    await row('CUSTOMER', '1');
+    await row('ORDER', '2');
+    await row('SETTINGS', '1');
+
+    const clerk = await createEmployee(app, ['audit.view', 'customers.view'], 'clerk');
+    const session = await login(app, clerk.username, EMPLOYEE_PASSWORD);
+    const page = (await request(app.getHttpServer()).get('/api/audit-logs').set(asUser(session)).expect(200))
+      .body as PageDto<AuditLogDto>;
+    // Customers and settings; not the order, nor anyone's sign-ins (users and sessions are the admin's).
+    expect(new Set(page.items.map((item) => item.entityType))).toEqual(new Set(['CUSTOMER', 'SETTINGS']));
+    expect(page.total).toBe(2);
+
+    for (const [entityType, required] of [
+      ['ORDER', 'orders.view'],
+      ['SESSION', 'users.manage'],
+    ] as const) {
+      const refused = await request(app.getHttpServer())
+        .get(`/api/audit-logs?entityType=${entityType}`)
+        .set(asUser(session))
+        .expect(403);
+      expect(refused.body).toMatchObject({ error: { code: 'PERMISSION_DENIED', details: { required: [required] } } });
+    }
+
+    // The admin still sees everything.
+    const all = (await request(app.getHttpServer()).get('/api/audit-logs').set(asUser(admin)).expect(200))
+      .body as PageDto<AuditLogDto>;
+    expect(new Set(all.items.map((item) => item.entityType))).toEqual(
+      new Set(['CUSTOMER', 'ORDER', 'SETTINGS', 'SESSION']),
+    );
   });
 
   it('needs the audit.view permission', async () => {
