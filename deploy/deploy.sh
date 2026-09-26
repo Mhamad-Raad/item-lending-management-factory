@@ -13,6 +13,30 @@ HEALTH_TIMEOUT_SECONDS=60
 cd "$APP_DIR"
 [[ -f .env ]] || { echo "missing $APP_DIR/.env" >&2; exit 1; }
 
+# The .env.example placeholders are public (so is the repository): a token secret anyone can read lets anyone
+# sign in as an admin. Refuse it before anything changes; never print the value. The API repeats the check,
+# and more, at startup (apps/api/src/config/env.ts).
+env_value() { grep -E "^$1=" .env | tail -n 1 | cut -d= -f2- || true; }
+jwt_secret="$(env_value JWT_ACCESS_SECRET)"
+jwt_problem=""
+if [[ -z "$jwt_secret" ]]; then jwt_problem="is missing"
+elif [[ "$jwt_secret" == *change-me* ]]; then jwt_problem="is still the .env.example placeholder"
+elif (( ${#jwt_secret} < 64 )); then jwt_problem="is shorter than 64 characters"
+fi
+if [[ -n "$jwt_problem" ]]; then
+  echo "deploy: refused — JWT_ACCESS_SECRET in $APP_DIR/.env $jwt_problem." >&2
+  echo "deploy: generate one with \`openssl rand -hex 64\`, store it in the password manager" \
+    "(docs/runbooks/rotate-secrets.md), put it in .env and deploy again. Nothing was changed." >&2
+  exit 1
+fi
+unset jwt_secret jwt_problem
+for name in POSTGRES_PASSWORD DB_OWNER_PASSWORD DB_APP_PASSWORD; do
+  if [[ "$(env_value "$name")" == *change-me* ]]; then
+    echo "deploy: WARNING — $name in .env is still the .env.example placeholder; rotate it" \
+      "(docs/runbooks/rotate-secrets.md)." >&2
+  fi
+done
+
 current_version() { grep -E '^APP_VERSION=' .env | cut -d= -f2-; }
 set_version() { sed -i -E "s/^APP_VERSION=.*/APP_VERSION=$1/" .env; }
 

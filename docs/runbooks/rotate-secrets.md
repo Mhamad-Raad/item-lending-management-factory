@@ -4,7 +4,7 @@ Always: generate with `openssl rand -hex 32`, update the password manager entry 
 
 ## JWT_ACCESS_SECRET (effect: every access token becomes invalid; tabs silently refresh via the cookie)
 
-1. Edit `/opt/pallet/.env` → new `JWT_ACCESS_SECRET`.
+1. Generate it with `openssl rand -hex 64` (the API refuses a placeholder, a repository value or a predictable one at startup, Q67). Edit `/opt/pallet/.env` → new `JWT_ACCESS_SECRET`.
 2. `cd /opt/pallet && docker compose up -d api`.
 
 ## DB_APP_PASSWORD (runtime role)
