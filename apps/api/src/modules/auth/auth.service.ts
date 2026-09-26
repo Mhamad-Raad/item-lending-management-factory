@@ -75,7 +75,7 @@ export class AuthService {
       }
 
       // Past the account's ceiling only an address that has signed in to it before may try (Q68).
-      const retryAfterSeconds = this.throttle.accountRetryAfterSeconds(account);
+      const retryAfterSeconds = this.throttle.retryAfterSeconds(account);
       if (retryAfterSeconds !== null && !(user && (await this.throttle.isKnownAddress(tx, user.id, origin.ip)))) {
         await this.passwords.verifyDummy(password);
         await this.auditLoginFailure(tx, user, username, 'ACCOUNT_THROTTLED');
@@ -190,18 +190,37 @@ export class AuthService {
     });
   }
 
-  /** §6.8.6. Ends with a fresh family so the tab that changed the password stays signed in. */
+  /**
+   * §6.8.6. Ends with a fresh family so the tab that changed the password stays signed in. Wrong
+   * current passwords count on the login throttle's (ip, username) pair (Q69): a stolen access token
+   * must not become an unlimited password oracle.
+   */
   async changePassword(userId: number, body: ChangePasswordBody, origin: RequestOrigin): Promise<AuthResult> {
-    return runInTransaction(this.prisma, async (tx) => {
+    // The username names the throttle pair, which is locked before the user row as in login.
+    const { username } = await this.prisma.user.findUniqueOrThrow({
+      where: { id: userId },
+      select: { username: true },
+    });
+
+    // A wrong guess must still commit its count, so the refusal leaves the transaction as a value.
+    const result = await runInTransaction(this.prisma, async (tx): Promise<AuthResult | ApiError> => {
+      const throttle = await this.throttle.lock(tx, origin.ip, username);
       await lockUser(tx, userId);
       const user = await tx.user.findUniqueOrThrow({
         where: { id: userId },
         include: { permissions: { select: { permissionKey: true } } },
       });
 
+      const lockedFor = this.throttle.retryAfterSeconds(throttle);
+      if (lockedFor !== null) return currentPasswordLocked(lockedFor);
+
       if (!(await this.passwords.verify(user.passwordHash, body.currentPassword))) {
-        throw new ApiError('CURRENT_PASSWORD_INCORRECT');
+        const lockout = await this.throttle.registerFailure(tx, throttle);
+        if (lockout.lockedMinutes === null) return new ApiError('CURRENT_PASSWORD_INCORRECT');
+        await this.auditLockout(tx, user, user.username, lockout, 'ADDRESS');
+        return currentPasswordLocked(lockout.lockedMinutes * 60);
       }
+      await this.throttle.clear(tx, origin.ip, username);
 
       const policyFailure = checkPasswordPolicy(body.newPassword, user.username);
       if (policyFailure) throw new ApiError(policyFailure);
@@ -231,6 +250,9 @@ export class AuthService {
 
       return { token: this.issueAccessToken(updated, toMeDto(updated)), refresh };
     });
+
+    if (result instanceof ApiError) throw result;
+    return result;
   }
 
   private issueAccessToken(user: User, me: MeDto): AuthTokenDto {
@@ -284,4 +306,12 @@ export class AuthService {
       },
     });
   }
+}
+
+/** The pair is locked out: how long until the current password may be tried again (Q69). */
+function currentPasswordLocked(retryAfterSeconds: number): ApiError {
+  return new ApiError('CURRENT_PASSWORD_LOCKED', {
+    retryAfterSeconds,
+    retryAfterMinutes: Math.ceil(retryAfterSeconds / 60),
+  });
 }

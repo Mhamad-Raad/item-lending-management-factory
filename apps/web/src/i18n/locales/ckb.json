@@ -541,6 +541,7 @@
     "AUTH_REFRESH_INVALID": "دانیشتنەکەت کۆتایی هات. تکایە دووبارە بچۆرە ژوورەوە.",
     "PASSWORD_CHANGE_REQUIRED": "سەرەتا دەبێت وشەی تێپەڕەکەت بگۆڕیت",
     "CURRENT_PASSWORD_INCORRECT": "وشەی تێپەڕی ئێستا هەڵەیە",
+    "CURRENT_PASSWORD_LOCKED": "وشەی تێپەڕی ئێستا چەند جارێک بە هەڵە نووسرا. دوای {{retryAfterMinutes}} خولەک دووبارە هەوڵ بدە.",
     "PASSWORD_TOO_SHORT": "وشەی تێپەڕ زۆر کورتە",
     "PASSWORD_TOO_LONG": "وشەی تێپەڕ زۆر درێژە",
     "PASSWORD_TOO_COMMON": "ئەم وشەی تێپەڕە زۆر ئاسانە بۆ مەزەندەکردن",

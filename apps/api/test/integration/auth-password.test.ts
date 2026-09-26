@@ -78,6 +78,44 @@ describe('change password', () => {
       expect((response.body as { error: { code: string } }).error.code, JSON.stringify(body)).toBe(code);
     }
   });
+
+  it('locks the current-password check after five wrong guesses, sharing the login pair (Q69)', async () => {
+    const session = await login(app);
+    const wrong = { currentPassword: 'not-my-password', newPassword: NEW_PASSWORD };
+
+    for (let i = 0; i < 4; i++) {
+      const response = await changePassword(session, wrong).expect(400);
+      expect((response.body as { error: { code: string } }).error.code).toBe('CURRENT_PASSWORD_INCORRECT');
+    }
+    // The fifth wrong guess locks the pair and says for how long.
+    const locked = await changePassword(session, wrong).expect(429);
+    expect(locked.body).toMatchObject({
+      error: { code: 'CURRENT_PASSWORD_LOCKED', details: { retryAfterSeconds: 60, retryAfterMinutes: 1 } },
+    });
+
+    // While locked even the right password is refused.
+    await changePassword(session, { currentPassword: TEST_ADMIN.password, newPassword: NEW_PASSWORD }).expect(429);
+    // The pair is the login's: signing in from the same address is locked too.
+    await request(app.getHttpServer())
+      .post('/api/auth/login')
+      .set(CSRF_HEADER)
+      .send({ username: TEST_ADMIN.username, password: TEST_ADMIN.password })
+      .expect(401);
+
+    const lockout = await prisma.auditLog.findFirstOrThrow({ where: { action: 'LOCKOUT' } });
+    expect(lockout.summaryParams).toMatchObject({ lockedMinutes: 1, scope: 'ADDRESS' });
+    // The password is unchanged.
+    expect(await prisma.sessionFamily.count({ where: { revokedReason: 'PASSWORD_CHANGED' } })).toBe(0);
+  });
+
+  it('clears the pair once the current password is right', async () => {
+    const session = await login(app);
+    for (let i = 0; i < 4; i++) {
+      await changePassword(session, { currentPassword: 'not-my-password', newPassword: NEW_PASSWORD }).expect(400);
+    }
+    await changePassword(session, { currentPassword: TEST_ADMIN.password, newPassword: NEW_PASSWORD }).expect(200);
+    expect(await prisma.loginThrottle.count({ where: { username: TEST_ADMIN.username, NOT: { ip: '*' } } })).toBe(0);
+  });
 });
 
 describe('must-change-password gate (S-16)', () => {

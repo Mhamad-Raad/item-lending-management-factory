@@ -541,6 +541,7 @@
     "AUTH_REFRESH_INVALID": "انتهت جلستك. يرجى تسجيل الدخول مجدداً.",
     "PASSWORD_CHANGE_REQUIRED": "عليك تغيير كلمة المرور أولاً",
     "CURRENT_PASSWORD_INCORRECT": "كلمة المرور الحالية غير صحيحة",
+    "CURRENT_PASSWORD_LOCKED": "أُدخلت كلمة المرور الحالية خطأً مرات كثيرة. حاول بعد {{retryAfterMinutes}} دقيقة.",
     "PASSWORD_TOO_SHORT": "كلمة المرور قصيرة جداً",
     "PASSWORD_TOO_LONG": "كلمة المرور طويلة جداً",
     "PASSWORD_TOO_COMMON": "كلمة المرور هذه سهلة التخمين",

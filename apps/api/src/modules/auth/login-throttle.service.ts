@@ -61,8 +61,8 @@ export class LoginThrottleService {
     return this.lock(tx, ACCOUNT_THROTTLE_IP, username);
   }
 
-  /** Whole seconds until the account's ceiling lifts for unknown addresses, or `null` when it is open. */
-  accountRetryAfterSeconds(row: LoginThrottle): number | null {
+  /** Whole seconds until a pair's lock or an account's ceiling lifts, or `null` when the row is open. */
+  retryAfterSeconds(row: LoginThrottle): number | null {
     if (!this.isLocked(row) || !row.lockedUntil) return null;
     return Math.max(1, Math.ceil((row.lockedUntil.getTime() - this.clock.now().getTime()) / 1000));
   }

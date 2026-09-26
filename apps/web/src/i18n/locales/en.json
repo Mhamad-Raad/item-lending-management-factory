@@ -541,6 +541,7 @@
     "AUTH_REFRESH_INVALID": "Your session ended. Please sign in again.",
     "PASSWORD_CHANGE_REQUIRED": "You must change your password first",
     "CURRENT_PASSWORD_INCORRECT": "The current password is incorrect",
+    "CURRENT_PASSWORD_LOCKED": "The current password was entered wrongly too many times. Try again in {{retryAfterMinutes}} minutes.",
     "PASSWORD_TOO_SHORT": "The password is too short",
     "PASSWORD_TOO_LONG": "The password is too long",
     "PASSWORD_TOO_COMMON": "This password is too easy to guess",
