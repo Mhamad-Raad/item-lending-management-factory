@@ -3,7 +3,8 @@
 # Pallet System — PostgreSQL first-run initialisation.
 # Mounted into /docker-entrypoint-initdb.d of the official postgres image; it runs ONCE,
 # only when the pgdata volume is empty. It creates:
-#   pallet_owner  LOGIN CREATEDB  — owns database `pallet` and schema public; runs migrations
+#   pallet_owner  LOGIN           — owns database `pallet` and schema public; runs migrations
+#                                   (CREATEDB only in development/CI, for `prisma migrate dev`'s shadow database)
 #   pallet_app    LOGIN           — runtime role used by the API (table grants: prisma/sql/grants.sql)
 # Required environment: POSTGRES_USER (superuser, set by the image), DB_OWNER_PASSWORD, DB_APP_PASSWORD.
 # ═══════════════════════════════════════════════════════════════════════════════════════
@@ -17,7 +18,7 @@ psql -v ON_ERROR_STOP=1 \
   --dbname "${POSTGRES_DB:-$POSTGRES_USER}" \
   -v owner_pw="$DB_OWNER_PASSWORD" \
   -v app_pw="$DB_APP_PASSWORD" <<'SQL'
-CREATE ROLE pallet_owner LOGIN CREATEDB PASSWORD :'owner_pw';
+CREATE ROLE pallet_owner LOGIN PASSWORD :'owner_pw';
 CREATE ROLE pallet_app LOGIN PASSWORD :'app_pw';
 CREATE DATABASE pallet OWNER pallet_owner ENCODING 'UTF8' TEMPLATE template0;
 SQL
@@ -43,11 +44,13 @@ SQL
 echo "pallet init: roles pallet_owner, pallet_app and database pallet created"
 
 # Development / CI only (docker-compose.dev.yml, ci.yml): a separate, identically configured
-# database `pallet_test` for the integration suite. Never set in production.
+# database `pallet_test` for the integration suite, and CREATEDB for `prisma migrate dev`'s shadow
+# database. Never set in production: there the owner only runs `migrate deploy` (Q76).
 if [[ "${PALLET_CREATE_TEST_DB:-false}" == "true" ]]; then
   psql -v ON_ERROR_STOP=1 \
     --username "$POSTGRES_USER" \
     --dbname "${POSTGRES_DB:-$POSTGRES_USER}" <<'SQL'
+ALTER ROLE pallet_owner CREATEDB;
 CREATE DATABASE pallet_test OWNER pallet_owner ENCODING 'UTF8' TEMPLATE template0;
 SQL
 

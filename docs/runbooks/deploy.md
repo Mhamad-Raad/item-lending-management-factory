@@ -19,3 +19,7 @@ Rules:
 - A short restart is acceptable (zero downtime is not required). Deploy outside factory working hours when possible.
 
 One-time VPS prerequisites: `/opt/pallet` is a git clone of the repository; `/opt/pallet/.env` exists (from `.env.example`); `docker login ghcr.io` done with a GitHub token that has `read:packages` (or both GHCR packages set to public); GitHub repository secrets `VPS_HOST`, `VPS_USER`, `VPS_SSH_KEY`, `VPS_HOST_FINGERPRINT` and environment `production` exist; the backup bucket has Object Lock and the VPS an append-only key (`backup-keys.md`).
+
+Repository settings (by hand, GitHub → Settings → Environments → `production`): add yourself as a required reviewer, and under "Deployment branches and tags" allow only `main` and tags matching `v*`. The workflow also refuses any other ref on its own (ARCHITECTURE.md Q76).
+
+Servers set up before 2026-09-26 gave the owner role `CREATEDB`, which production never needs. Remove it once: `docker compose exec -T postgres psql -U postgres -c "ALTER ROLE pallet_owner NOCREATEDB;"`.

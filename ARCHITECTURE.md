@@ -239,6 +239,7 @@ Every item below is an ambiguity, contradiction or gap in the brief. The builder
 | Q73 | The 2026-09-26 security review (iteration 7d): `audit.view` showed every module's history — order amounts, customers' phones, batch quantities, every sign-in with its address — to a reader who may see none of those modules' own pages. What holds? | The history shows what the reader may otherwise see: each entity type needs its module's view key (`AUDIT_ENTITY_VIEW_PERMISSION` in `packages/shared/src/audit-matrix.ts`: `USER` and `SESSION` → `users.manage`, i.e. admins; `ITEM` → `items.view`; `PURCHASE_BATCH` → `purchases.view`; `CUSTOMER` → `customers.view`; `DRIVER` → `drivers.view`; `ORDER`, `RETURN`, `LEDGER_ENTRY` → `orders.view`; `SETTINGS`, `UPLOAD` → any reader, as settings are readable by every signed-in user). `GET /api/audit-logs` filters rows by the visible types (no filter for an admin, who sees all) and refuses an explicit `entityType` outside them with `PERMISSION_DENIED { required }`; cost stays redacted as before. Chosen over making `audit.view` depend on the view keys, which would have forced every history reader to see every module. The web filter offers only the visible types. |
 | Q74 | The 2026-09-26 security review (iteration 7d): `page` had no upper bound, so `?page=1e12` made the database walk an arbitrarily large `OFFSET` for an empty page; and the positions and stock reports returned every row, unlike the period reports' 5,000-row cap (§12.1). What holds? | `PAGE_MAX = 100,000` (`schemas/common.ts`) bounds `page` in `PageQuery` and `AuditLogListQuery` — 10,000,000 rows at the largest page size, more than any list here will hold — and a larger value is the ordinary `VALIDATION_FAILED` `too_big` on `page`; the web's list search params fall back to page 1 past it, as they do for any unparsable value. The positions and stock reports keep the §12.1 cap: they rank their one small row per customer (item) in memory as before, keep the first 5,000 in the requested order, hydrate names and per-item cells for those only, and set `truncated`; every total, including the positions' per-item totals (now one SQL aggregate under the customer filter — a customer the zero filter leaves out has nothing out, so the set is the same), counts every row. The pages show `reports.truncatedRows` ("narrow the filters"), since these reports have no period. |
 | Q75 | The 2026-09-26 security review (iteration 7d): `scrubEvent` cleaned only `event.request`, but an error report also carries breadcrumbs (console lines and outgoing HTTP calls, with messages and data that can quote anything) and the exception message, which for Prisma's validation errors prints the call's arguments and for PostgreSQL's constraint errors the clashing key (`Key (phone)=(0750…)`). What holds? | `scrubEvent(event, hint)` rebuilds each breadcrumb from `type`, `category`, `level` and `timestamp` only; an `http` breadcrumb also keeps `method`, `status_code` and its URL without the query. An exception whose type is `PrismaClient…Error`, `DriverAdapterError` or `DatabaseError` has its message replaced by the type and, when the original error has one, its code (`PrismaClientKnownRequestError P2002`). The application's own errors (`LedgerInvariantError`, …) keep their messages, which carry ids and codes only; stack traces stay. U-tested in `sentry-scrub.test.ts`. |
+| Q76 | The 2026-09-26 security review (iteration 7d), low findings: `deploy.yml`'s manual dispatch could deploy any branch; `pallet_owner` had `CREATEDB` in production; the `postgres` container lacked `no-new-privileges`; and `style-src 'unsafe-inline'` in the CSP. What holds? | `deploy.yml`: every job carries `if: github.ref == 'refs/heads/main' \|\| startsWith(github.ref, 'refs/tags/')`; the maintainer should also give the `production` environment required reviewers and a deployment rule limited to `main` and `v*` tags (repository settings, by hand). `01-roles.sh` grants `CREATEDB` only with `PALLET_CREATE_TEST_DB=true` (development and CI, where `prisma migrate dev` needs a shadow database); production only runs `migrate deploy`, and `restore.sh` recreates the database as `postgres` — an existing server keeps the old grant until `ALTER ROLE pallet_owner NOCREATEDB;` is run by hand. `postgres` gets `no-new-privileges` (checked: first-run init and restart work, since su-exec drops privileges by calling `setuid` as root rather than through a setuid binary); no `cap_drop`, which the entrypoint's `chown` needs. The CSP stays: T4 is the client's verbatim policy, and removing `'unsafe-inline'` would need nonces or hashes for the `<style>` elements the toaster and the print routes insert, for little gain with `script-src 'self'`. |
 
 ## 3. Actors, roles and permissions
 
@@ -1105,7 +1106,7 @@ The API maps a PostgreSQL `check_violation` (23514) that escapes service validat
 | Role | Created by | Login | Purpose |
 |---|---|---|---|
 | `postgres` | postgres image (`POSTGRES_PASSWORD`) | yes (local socket inside the container only) | Superuser. Used only by the init script and emergency runbooks. |
-| `pallet_owner` | `deploy/postgres/init/01-roles.sh` (`DB_OWNER_PASSWORD`) | yes | Owns database `pallet` and schema `public`; `CREATEDB` (Prisma shadow database in development). Runs migrations, grants, seeds, backups (`pg_dump`) and the reconciliation command. URL: `DATABASE_MIGRATE_URL`. |
+| `pallet_owner` | `deploy/postgres/init/01-roles.sh` (`DB_OWNER_PASSWORD`) | yes | Owns database `pallet` and schema `public`; `CREATEDB` only in development and CI (`PALLET_CREATE_TEST_DB=true`, for Prisma's shadow database), never in production (Q76). Runs migrations, grants, seeds, backups (`pg_dump`) and the reconciliation command. URL: `DATABASE_MIGRATE_URL`. |
 | `pallet_app` | init script (`DB_APP_PASSWORD`) | yes | Runtime role of the API. URL: `DATABASE_URL`. Session defaults: `statement_timeout = 30s`, `idle_in_transaction_session_timeout = 60s`, `timezone = UTC`. |
 
 Privilege matrix for `pallet_app` (applied by `grants.sql`; no TRUNCATE, REFERENCES, TRIGGER or DDL anywhere; nothing on `_prisma_migrations`):
@@ -2153,7 +2154,8 @@ COMMIT;
 # Pallet System — PostgreSQL first-run initialisation.
 # Mounted into /docker-entrypoint-initdb.d of the official postgres image; it runs ONCE,
 # only when the pgdata volume is empty. It creates:
-#   pallet_owner  LOGIN CREATEDB  — owns database `pallet` and schema public; runs migrations
+#   pallet_owner  LOGIN           — owns database `pallet` and schema public; runs migrations
+#                                   (CREATEDB only in development/CI, for `prisma migrate dev`'s shadow database)
 #   pallet_app    LOGIN           — runtime role used by the API (table grants: prisma/sql/grants.sql)
 # Required environment: POSTGRES_USER (superuser, set by the image), DB_OWNER_PASSWORD, DB_APP_PASSWORD.
 # ═══════════════════════════════════════════════════════════════════════════════════════
@@ -2167,7 +2169,7 @@ psql -v ON_ERROR_STOP=1 \
   --dbname "${POSTGRES_DB:-$POSTGRES_USER}" \
   -v owner_pw="$DB_OWNER_PASSWORD" \
   -v app_pw="$DB_APP_PASSWORD" <<'SQL'
-CREATE ROLE pallet_owner LOGIN CREATEDB PASSWORD :'owner_pw';
+CREATE ROLE pallet_owner LOGIN PASSWORD :'owner_pw';
 CREATE ROLE pallet_app LOGIN PASSWORD :'app_pw';
 CREATE DATABASE pallet OWNER pallet_owner ENCODING 'UTF8' TEMPLATE template0;
 SQL
@@ -2191,6 +2193,37 @@ ALTER ROLE pallet_owner IN DATABASE pallet SET timezone = 'UTC';
 SQL
 
 echo "pallet init: roles pallet_owner, pallet_app and database pallet created"
+
+# Development / CI only (docker-compose.dev.yml, ci.yml): a separate, identically configured
+# database `pallet_test` for the integration suite, and CREATEDB for `prisma migrate dev`'s shadow
+# database. Never set in production: there the owner only runs `migrate deploy` (Q76).
+if [[ "${PALLET_CREATE_TEST_DB:-false}" == "true" ]]; then
+  psql -v ON_ERROR_STOP=1 \
+    --username "$POSTGRES_USER" \
+    --dbname "${POSTGRES_DB:-$POSTGRES_USER}" <<'SQL'
+ALTER ROLE pallet_owner CREATEDB;
+CREATE DATABASE pallet_test OWNER pallet_owner ENCODING 'UTF8' TEMPLATE template0;
+SQL
+
+  psql -v ON_ERROR_STOP=1 \
+    --username "$POSTGRES_USER" \
+    --dbname pallet_test <<'SQL'
+REVOKE ALL ON DATABASE pallet_test FROM PUBLIC;
+GRANT CONNECT, TEMPORARY ON DATABASE pallet_test TO pallet_owner;
+GRANT CONNECT ON DATABASE pallet_test TO pallet_app;
+
+ALTER SCHEMA public OWNER TO pallet_owner;
+REVOKE ALL ON SCHEMA public FROM PUBLIC;
+GRANT USAGE ON SCHEMA public TO pallet_app;
+
+ALTER ROLE pallet_app IN DATABASE pallet_test SET statement_timeout = '30s';
+ALTER ROLE pallet_app IN DATABASE pallet_test SET idle_in_transaction_session_timeout = '60s';
+ALTER ROLE pallet_app IN DATABASE pallet_test SET timezone = 'UTC';
+ALTER ROLE pallet_owner IN DATABASE pallet_test SET timezone = 'UTC';
+SQL
+
+  echo "pallet init: database pallet_test created (PALLET_CREATE_TEST_DB=true)"
+fi
 ```
 
 
@@ -4455,7 +4488,7 @@ Paths are relative to the repository root. Every folder and file listed here exi
 ├── dependabot.yml                # weekly updates: npm (root), docker (apps/api, deploy/caddy), github-actions
 └── workflows/
     ├── ci.yml                    # lint, format, typecheck, unit, integration (postgres service), audit, build, e2e
-    └── deploy.yml                # tag v* / manual: build + push GHCR images, SSH deploy with health-check rollback
+    └── deploy.yml                # tag v* / manual from main or a tag: build + push GHCR images, SSH deploy with health-check rollback
 ```
 
 ### 9.3 `packages/shared/`
@@ -4755,7 +4788,7 @@ Every requirement of the client query §6A appears below as one row: requirement
 | D3 | Secrets only in env | `.env` (mode 600) on the VPS; `.env*` in `.gitignore` and `.dockerignore`; zod env schema never logs values; `SENTRY_DSN` optional | `.env.example`, `apps/api/src/config/env.ts` |
 | D4 | Rotation + escrow | runbook `docs/runbooks/rotate-secrets.md`; escrow list §13.6 | docs |
 | D5 | VPS hardening | see §10.7 commands | host |
-| D6 | Containers | `api`, `migrate`: image `USER node`, `read_only: true`, `tmpfs: /tmp`, `cap_drop: [ALL]`, `security_opt: [no-new-privileges:true]`; `caddy`: runs as the image's root user (needs to bind 80/443) with `cap_drop: [ALL]`, `cap_add: [NET_BIND_SERVICE]`, `read_only: true`; `postgres`: official image (drops to user `postgres` itself); every image pinned to an exact version tag | `docker-compose.yml`, Dockerfiles |
+| D6 | Containers | `api`, `migrate`: image `USER node`, `read_only: true`, `tmpfs: /tmp`, `cap_drop: [ALL]`, `security_opt: [no-new-privileges:true]`; `caddy`: runs as the image's root user (needs to bind 80/443) with `cap_drop: [ALL]`, `cap_add: [NET_BIND_SERVICE]`, `read_only: true`; `postgres`: official image (drops to user `postgres` itself), `security_opt: [no-new-privileges:true]` (Q76); every image pinned to an exact version tag | `docker-compose.yml`, Dockerfiles |
 | D7 | Dependency hygiene | Dependabot weekly (npm, docker, docker-compose, github-actions; majors of NestJS/TypeScript/Prisma/Node ignored — upgraded by runbook); CI `pnpm audit --audit-level=high` fails the build; `pnpm-workspace.yaml` `onlyBuiltDependencies` allowlist; exact versions (`save-exact=true`); GitHub Actions pinned to commit SHAs | `.github/dependabot.yml`, `.github/workflows/ci.yml` |
 | D8 | Structured logs | `nestjs-pino` 4.6.1: `pinoHttp: { level: env.LOG_LEVEL, genReqId: (req, res) => { const id = randomUUID(); res.setHeader('X-Request-Id', id); return id; }, redact: { paths: ['req.headers.authorization', 'req.headers.cookie', 'res.headers["set-cookie"]', 'req.body', 'res.body', '*.password', '*.currentPassword', '*.newPassword', '*.passwordHash', '*.accessToken', '*.refreshToken', '*.token', '*.tokenHash'], censor: '[REDACTED]' }, serializers: { req: (r) => ({ id: r.id, method: r.method, url: r.url.split('?')[0], ip: r.raw.ip }) }` (the path without its query string — a list search is a customer's name or phone; pino-http passes the serializer pino's own request object, so the `trust proxy` address is on `raw`, Q61) `, autoLogging: { ignore: (req) => req.url === '/api/health' } }`; stdout only; Docker `json-file` `max-size: 50m`, `max-file: 30` | `apps/api/src/app.module.ts`, `docker-compose.yml` |
 | D9 | API error alerting | `@sentry/nestjs` 10.74.0, loaded only when `SENTRY_DSN` is set: `Sentry.init({ dsn, environment: env.SENTRY_ENVIRONMENT, release: env.APP_VERSION, sendDefaultPii: false, tracesSampleRate: 0, beforeSend: scrubEvent })` in `src/instrument.ts` imported first by `main.ts`; `scrubEvent` (`src/sentry-scrub.ts`) deletes the request's cookies, data, `authorization` and `cookie` headers, the client-address headers `x-forwarded-for`, `x-real-ip` and `forwarded` (Q61) and its query string (`query_string`, and the query cut from `url` — a list search is a customer's name or phone); it keeps only `type`, `category`, `level` and `timestamp` of each breadcrumb (plus method, status and query-less URL of an `http` one) and replaces the message of a Prisma, driver-adapter or PostgreSQL error with its type and code (Q75); `ApiExceptionFilter` calls `Sentry.captureException` for 5xx only | `apps/api/src/instrument.ts`, `apps/api/src/sentry-scrub.ts` |
@@ -5074,7 +5107,7 @@ Production values live in `/opt/pallet/.env` (mode 600, owner `deploy`); `docker
 | `caddy` | `ghcr.io/mhamad-raad/pallet-caddy:${APP_VERSION}` (built from `deploy/caddy/Dockerfile`: web `dist` baked into `caddy:2.11.4-alpine`, source maps deleted) | `172.28.0.10` | `80`, `443`, `443/udp` | `caddy_data:/data`, `caddy_config:/config` | root + `cap_drop: ALL`, `cap_add: NET_BIND_SERVICE`, `read_only`, `mem_limit 256m`, `pids_limit 128` | — (depends on api healthy) | `unless-stopped` |
 | `api` | `ghcr.io/mhamad-raad/pallet-api:${APP_VERSION}` (`apps/api/Dockerfile`) | `172.28.0.20` | none | `uploads:/data/uploads` | `node`, `read_only`, tmpfs `/tmp`, `cap_drop: ALL`, `no-new-privileges`, `mem_limit 1g`, `pids_limit 256` | `node dist/scripts/healthcheck.js` every 30 s | `unless-stopped` |
 | `migrate` (profile `migrate`) | same as api | dynamic in `172.28.0.128/25` | none | none | as api, `HOME=/tmp` | — | `no` |
-| `postgres` | `postgres:18.6-alpine3.24` | `172.28.0.30` | none | `pgdata:/var/lib/postgresql`, `./deploy/postgres/init:/docker-entrypoint-initdb.d:ro` | image default (`postgres`), `mem_limit 1536m`, `pids_limit 256` | `pg_isready -U postgres -d pallet` | `unless-stopped` |
+| `postgres` | `postgres:18.6-alpine3.24` | `172.28.0.30` | none | `pgdata:/var/lib/postgresql`, `./deploy/postgres/init:/docker-entrypoint-initdb.d:ro` | image default (`postgres`), `no-new-privileges`, `mem_limit 1536m`, `pids_limit 256` | `pg_isready -U postgres -d pallet` | `unless-stopped` |
 
 Network `pallet_net`: bridge, subnet `172.28.0.0/24` pinned (Express `trust proxy`), gateway `172.28.0.1`. Named volumes are given fixed names (`pallet_pgdata`, `pallet_uploads`, `pallet_caddy_data`, `pallet_caddy_config`) so scripts can address them. Logging: `json-file`, `max-size 50m`, `max-file 30` on every service. All containers log to stdout/stderr only. Memory and process ceilings (Q61): a runaway container is restarted by Docker instead of taking the 4 GB host down with it. The `migrate` service reads `ADMIN_*` only while `users` is empty, so compose no longer requires them: `ADMIN_PASSWORD` is deleted from `.env` after the first login (§13.4 step 10).
 
@@ -5099,7 +5132,7 @@ Network `pallet_net`: bridge, subnet `172.28.0.0/24` pinned (Express `trust prox
 ### 13.5 Deploy and rollback
 
 - CI (`.github/workflows/ci.yml`) on every push to `main` and every PR: jobs `quality` (install `--frozen-lockfile`, lint, format:check, typecheck, unit tests, build), `audit` (`pnpm audit --audit-level=high`), `integration-e2e` (Postgres service, roles script, build, `pnpm db:deploy`, `pnpm test:integration`, Playwright chromium `pnpm test:e2e`, report uploaded on failure), `docker` (both images built, not pushed).
-- Deploy (`.github/workflows/deploy.yml`) on tag `v*` or manual dispatch: reuses CI (without the docker job), builds and pushes `pallet-api:<sha>` and `pallet-caddy:<sha>` to GHCR, then (environment `production`) SSHes to the VPS and runs `/opt/pallet/deploy/deploy.sh <sha>`.
+- Deploy (`.github/workflows/deploy.yml`) on tag `v*` or manual dispatch from `main` or a tag (every job's `if:` refuses any other ref, Q76): reuses CI (without the docker job), builds and pushes `pallet-api:<sha>` and `pallet-caddy:<sha>` to GHCR, then (environment `production`) SSHes to the VPS and runs `/opt/pallet/deploy/deploy.sh <sha>`.
 - `deploy.sh`: `git checkout --detach <sha>`, set `APP_VERSION`, pull, run `migrate`, `up -d`, wait ≤ 60 s for the API healthcheck; on any failure restore the previous SHA and `up -d` again (a placeholder or unknown `APP_VERSION` counts as no previous version: the first deploy stops with nothing restarted, Q61); on success write `.previous_version` and prune images older than 30 days.
 - Migration rule (makes image rollback safe): each release's migrations are **expand-only** (new tables, nullable or defaulted columns, new indexes); dropping or renaming happens in a later release after no deployed code uses the old shape.
 - Zero downtime is not required; a deploy restarts `api` and `caddy` (a few seconds).

@@ -127,6 +127,10 @@ services:
     image: postgres:18.6-alpine3.24
     restart: unless-stopped
     <<: *limits-postgres
+    # No capability drop: the entrypoint starts as root to chown the data directory, then su-exec drops to
+    # `postgres` by calling setuid itself, which no-new-privileges allows (it only stops setuid binaries).
+    security_opt:
+      - no-new-privileges:true
     shm_size: 256mb
     environment:
       POSTGRES_USER: postgres
