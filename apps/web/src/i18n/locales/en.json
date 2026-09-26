@@ -538,7 +538,7 @@
     "AUTH_TOKEN_EXPIRED": "Your session expired. Please sign in again.",
     "AUTH_TOKEN_INVALID": "Your session is no longer valid. Please sign in again.",
     "AUTH_INVALID_CREDENTIALS": "The username or password is incorrect",
-    "LOGIN_ACCOUNT_THROTTLED": "Too many failed sign-ins on this account from other places. Try again in {{retryAfterMinutes}} minutes, or sign in from a device you have used before.",
+    "LOGIN_ACCOUNT_THROTTLED": "Too many failed sign-ins on this account from other places. You can still sign in from a network or place you have signed in from before; otherwise wait {{retryAfterMinutes}} minutes and try again.",
     "AUTH_REFRESH_INVALID": "Your session ended. Please sign in again.",
     "PASSWORD_CHANGE_REQUIRED": "You must change your password first",
     "CURRENT_PASSWORD_INCORRECT": "The current password is incorrect",
