@@ -2,7 +2,7 @@
 
 Lockouts are per (IP, username) and expire by themselves after at most 15 minutes. Because the whole factory shares one public IP, a lockout affects that username from the office only.
 
-There is also an account-wide ceiling (ARCHITECTURE.md Q68): after 20 failed sign-ins on one username within an hour, from any addresses, addresses that have **never** signed in to that account must wait 5, 10, 20, 40 and then 60 minutes; the sign-in page says "too many failed sign-ins on this account" with the wait. Devices the user has signed in from before are not affected. It shows in the History as `LOCKOUT` with `scope = ACCOUNT`, and the API logs a warning `login ceiling reached for one account`. The `DELETE` below clears it too (it is the row with `ip = '*'`).
+There is also an account-wide ceiling (ARCHITECTURE.md Q68): after 20 failures on one username within an hour, from any addresses — failed sign-ins and wrong current passwords on the change-password page count together — addresses that have **never** signed in to that account must wait 5, 10, 20, 40 and then 60 minutes; the sign-in page says "too many failed sign-ins on this account" with the wait. Addresses the user has signed in from before can still sign in; changing the password is refused from every address until the wait is over (the page says the current password was entered wrongly too many times). It shows in the History as `LOCKOUT` with `scope = ACCOUNT`, and the API logs a warning `login ceiling reached for one account`. The `DELETE` below clears it too (it is the row with `ip = '*'`).
 
 Wait it out when possible. To clear immediately (maintainer, on the VPS):
 

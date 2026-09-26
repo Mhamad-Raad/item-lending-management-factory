@@ -192,8 +192,8 @@ export class AuthService {
 
   /**
    * §6.8.6. Ends with a fresh family so the tab that changed the password stays signed in. Wrong
-   * current passwords count on the login throttle's (ip, username) pair (Q69): a stolen access token
-   * must not become an unlimited password oracle.
+   * current passwords count on the login throttle's (ip, username) pair and on the account's ceiling
+   * (Q69): a stolen access token must not become a password oracle, from one address or from many.
    */
   async changePassword(userId: number, body: ChangePasswordBody, origin: RequestOrigin): Promise<AuthResult> {
     // The username names the throttle pair, which is locked before the user row as in login.
@@ -204,21 +204,40 @@ export class AuthService {
 
     // A wrong guess must still commit its count, so the refusal leaves the transaction as a value.
     const result = await runInTransaction(this.prisma, async (tx): Promise<AuthResult | ApiError> => {
+      // Login's lock order: the pair, the account-wide row, then the user.
       const throttle = await this.throttle.lock(tx, origin.ip, username);
+      const account = await this.throttle.lockAccount(tx, username);
       await lockUser(tx, userId);
       const user = await tx.user.findUniqueOrThrow({
         where: { id: userId },
         include: { permissions: { select: { permissionKey: true } } },
       });
 
-      const lockedFor = this.throttle.retryAfterSeconds(throttle);
-      if (lockedFor !== null) return currentPasswordLocked(lockedFor);
+      // A locked pair refuses first, as at the login. Past the account's ceiling nobody may try, known
+      // address or not: the caller already holds a token, so an address that signed in before proves
+      // nothing here, and a thief's guesses spread over many addresses must stop at the ceiling (Q69).
+      // The answer names the longer of the two waits.
+      const lockedFor = Math.max(
+        this.throttle.retryAfterSeconds(throttle) ?? 0,
+        this.throttle.retryAfterSeconds(account) ?? 0,
+      );
+      if (lockedFor > 0) return currentPasswordLocked(lockedFor);
 
       if (!(await this.passwords.verify(user.passwordHash, body.currentPassword))) {
         const lockout = await this.throttle.registerFailure(tx, throttle);
-        if (lockout.lockedMinutes === null) return new ApiError('CURRENT_PASSWORD_INCORRECT');
-        await this.auditLockout(tx, user, user.username, lockout, 'ADDRESS');
-        return currentPasswordLocked(lockout.lockedMinutes * 60);
+        const accountLockout = await this.throttle.registerAccountFailure(tx, account);
+        if (lockout.lockedMinutes !== null) await this.auditLockout(tx, user, user.username, lockout, 'ADDRESS');
+        if (accountLockout.lockedMinutes !== null) {
+          await this.auditLockout(tx, user, user.username, accountLockout, 'ACCOUNT');
+          this.logger.warn(
+            `change-password ceiling reached for one account: current-password checks and new addresses ` +
+              `held back for ${accountLockout.lockedMinutes} minutes (see LOCKOUT in the history)`,
+          );
+        }
+        const lockedMinutes = Math.max(lockout.lockedMinutes ?? 0, accountLockout.lockedMinutes ?? 0);
+        return lockedMinutes > 0
+          ? currentPasswordLocked(lockedMinutes * 60)
+          : new ApiError('CURRENT_PASSWORD_INCORRECT');
       }
       await this.throttle.clear(tx, origin.ip, username);
 
@@ -308,7 +327,10 @@ export class AuthService {
   }
 }
 
-/** The pair is locked out: how long until the current password may be tried again (Q69). */
+/**
+ * The pair is locked out or the account's ceiling holds: how long until the current password may be
+ * tried again (Q69).
+ */
 function currentPasswordLocked(retryAfterSeconds: number): ApiError {
   return new ApiError('CURRENT_PASSWORD_LOCKED', {
     retryAfterSeconds,
