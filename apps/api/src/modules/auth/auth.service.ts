@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, Logger } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import type { AuthTokenDto, ChangePasswordBody, LoginBody, MeDto } from '@pallet/shared';
 import { Clock } from '../../common/clock';
@@ -9,7 +9,7 @@ import { PrismaService } from '../../prisma/prisma.service';
 import { AuditService } from '../audit/audit.service';
 import { ACCESS_TOKEN_TTL_MS } from './auth.constants';
 import { toMeDto } from './auth.mapper';
-import { LoginThrottleService } from './login-throttle.service';
+import { LoginThrottleService, type LockoutResult } from './login-throttle.service';
 import { checkPasswordPolicy } from './password-policy';
 import { PasswordService } from './password.service';
 import { SessionService, type IssuedToken } from './session.service';
@@ -25,8 +25,15 @@ export interface AuthResult {
   refresh: IssuedToken;
 }
 
+/** A login refused because the account's ceiling holds back unknown addresses (Q68). */
+interface AccountThrottled {
+  retryAfterSeconds: number;
+}
+
 @Injectable()
 export class AuthService {
+  private readonly logger = new Logger(AuthService.name);
+
   constructor(
     private readonly prisma: PrismaService,
     private readonly jwt: JwtService,
@@ -39,14 +46,18 @@ export class AuthService {
 
   /**
    * §6.8.2. Every path — unknown username, inactive user, locked pair, wrong password — performs
-   * exactly one Argon2 verification and answers the same `AUTH_INVALID_CREDENTIALS`.
+   * exactly one Argon2 verification and answers the same `AUTH_INVALID_CREDENTIALS`. The one other
+   * answer, `LOGIN_ACCOUNT_THROTTLED` (Q68), does not depend on the password or on whether the
+   * username exists, so it reveals neither.
    */
   async login(body: LoginBody, origin: RequestOrigin): Promise<AuthResult> {
     // A failed attempt still writes: its throttle counter and its audit row. Those must commit,
     // so the refusal is returned from the transaction and thrown only after it (§6.8.2 step 5).
-    const result = await runInTransaction(this.prisma, async (tx): Promise<AuthResult | null> => {
+    const result = await runInTransaction(this.prisma, async (tx): Promise<AuthResult | AccountThrottled | null> => {
       const { username, password } = body;
+      // Lock order: the pair, the account-wide row, then the user.
       const throttle = await this.throttle.lock(tx, origin.ip, username);
+      const account = await this.throttle.lockAccount(tx, username);
       // Locked before the hash is read: a reset or change committing while this attempt verifies
       // would otherwise be overtaken — the old password would still open a session issued after the
       // `token_version` bump, and a rehash would write the old password back over the new one.
@@ -63,26 +74,31 @@ export class AuthService {
         return null;
       }
 
+      // Past the account's ceiling only an address that has signed in to it before may try (Q68).
+      const retryAfterSeconds = this.throttle.accountRetryAfterSeconds(account);
+      if (retryAfterSeconds !== null && !(user && (await this.throttle.isKnownAddress(tx, user.id, origin.ip)))) {
+        await this.passwords.verifyDummy(password);
+        await this.auditLoginFailure(tx, user, username, 'ACCOUNT_THROTTLED');
+        return { retryAfterSeconds };
+      }
+
       const valid = user?.isActive ? await this.passwords.verify(user.passwordHash, password) : false;
       if (!user?.isActive) await this.passwords.verifyDummy(password);
 
       if (!valid || !user) {
         const lockout = await this.throttle.registerFailure(tx, throttle);
+        const accountLockout = await this.throttle.registerAccountFailure(tx, account);
         // The reason is recorded for the admin reading the history; it never reaches the client.
         await this.auditLoginFailure(tx, user ?? null, username, user && !user.isActive ? 'INACTIVE' : 'INVALID');
-        if (lockout.lockedMinutes !== null) {
-          await this.audit.record(tx, {
-            action: 'LOCKOUT',
-            entityType: 'USER',
-            entityId: user ? String(user.id) : null,
-            userId: user?.id ?? null,
-            usernameAttempt: username,
-            summaryParams: {
-              usernameAttempt: username,
-              lockedMinutes: lockout.lockedMinutes,
-              lockoutCount: lockout.lockoutCount,
-            },
-          });
+        if (lockout.lockedMinutes !== null) await this.auditLockout(tx, user ?? null, username, lockout, 'ADDRESS');
+        if (accountLockout.lockedMinutes !== null) {
+          await this.auditLockout(tx, user ?? null, username, accountLockout, 'ACCOUNT');
+          // Many addresses guessing at one account is an attack in progress: say so where alerts look.
+          // The username stays in the audit row: a mistyped password can land in that field.
+          this.logger.warn(
+            `login ceiling reached for one account: new addresses held back for ${accountLockout.lockedMinutes} ` +
+              `minutes (see LOCKOUT in the history)`,
+          );
         }
         return null;
       }
@@ -113,6 +129,13 @@ export class AuthService {
     });
 
     if (!result) throw new ApiError('AUTH_INVALID_CREDENTIALS');
+    if (!('token' in result)) {
+      const { retryAfterSeconds } = result;
+      throw new ApiError('LOGIN_ACCOUNT_THROTTLED', {
+        retryAfterSeconds,
+        retryAfterMinutes: Math.ceil(retryAfterSeconds / 60),
+      });
+    }
     return result;
   }
 
@@ -227,7 +250,7 @@ export class AuthService {
     tx: Prisma.TransactionClient,
     user: User | null,
     usernameAttempt: string,
-    reason: 'INVALID' | 'LOCKED' | 'INACTIVE',
+    reason: 'INVALID' | 'LOCKED' | 'INACTIVE' | 'ACCOUNT_THROTTLED',
   ): Promise<void> {
     await this.audit.record(tx, {
       action: 'LOGIN_FAILURE',
@@ -236,6 +259,29 @@ export class AuthService {
       userId: user?.id ?? null,
       usernameAttempt,
       summaryParams: { usernameAttempt, reason },
+    });
+  }
+
+  /** `scope` tells the history's reader which limit was reached: one address's, or the account's (Q68). */
+  private async auditLockout(
+    tx: Prisma.TransactionClient,
+    user: User | null,
+    usernameAttempt: string,
+    lockout: LockoutResult,
+    scope: 'ADDRESS' | 'ACCOUNT',
+  ): Promise<void> {
+    await this.audit.record(tx, {
+      action: 'LOCKOUT',
+      entityType: 'USER',
+      entityId: user ? String(user.id) : null,
+      userId: user?.id ?? null,
+      usernameAttempt,
+      summaryParams: {
+        usernameAttempt,
+        lockedMinutes: lockout.lockedMinutes,
+        lockoutCount: lockout.lockoutCount,
+        scope,
+      },
     });
   }
 }

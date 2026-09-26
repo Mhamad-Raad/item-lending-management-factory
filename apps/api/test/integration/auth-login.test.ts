@@ -111,6 +111,78 @@ describe('login', () => {
     ).toBeNull();
   });
 
+  describe('account-wide ceiling (Q68)', () => {
+    /** One wrong guess from each of `count` addresses, so no single pair ever locks. */
+    const spreadFailures = async (username: string, count: number, from = 0): Promise<void> => {
+      for (let i = from; i < from + count; i++) {
+        await attempt(app, { username, password: `wrong-${i}` }, `198.51.100.${i + 1}`).expect(401);
+      }
+    };
+    const NEW_IP = '192.0.2.200';
+    const KNOWN_IP = '192.0.2.100';
+
+    it('holds back new addresses after twenty failures from many, but never the account’s own devices', async () => {
+      // The admin has signed in from KNOWN_IP before the attack.
+      await attempt(app, { username: TEST_ADMIN.username, password: TEST_ADMIN.password }, KNOWN_IP).expect(200);
+
+      await spreadFailures(TEST_ADMIN.username, 19);
+      // Nineteen failures: still open to everyone.
+      await attempt(app, { username: TEST_ADMIN.username, password: 'wrong' }, NEW_IP).expect(401);
+
+      // The twentieth crossed the ceiling. Even the right password from a new address is held back,
+      // with a code that says how long to wait — the answer does not depend on the password.
+      for (const password of [TEST_ADMIN.password, 'still-wrong']) {
+        const refused = await attempt(app, { username: TEST_ADMIN.username, password }, '192.0.2.201').expect(429);
+        expect(refused.body).toMatchObject({
+          error: { code: 'LOGIN_ACCOUNT_THROTTLED', details: { retryAfterSeconds: 300, retryAfterMinutes: 5 } },
+        });
+      }
+
+      // The colleague at their usual device is not locked out.
+      await attempt(app, { username: TEST_ADMIN.username, password: TEST_ADMIN.password }, KNOWN_IP).expect(200);
+
+      const prisma = app.get(PrismaService);
+      const lockout = await prisma.auditLog.findFirstOrThrow({
+        where: { action: 'LOCKOUT', summaryParams: { path: ['scope'], equals: 'ACCOUNT' } },
+      });
+      expect(lockout).toMatchObject({ usernameAttempt: TEST_ADMIN.username });
+      expect(lockout.summaryParams).toMatchObject({ lockedMinutes: 5, lockoutCount: 1 });
+      expect(
+        await prisma.auditLog.count({
+          where: { action: 'LOGIN_FAILURE', summaryParams: { path: ['reason'], equals: 'ACCOUNT_THROTTLED' } },
+        }),
+      ).toBe(2);
+
+      // Five minutes later new addresses may try again.
+      clock.advance(300_000);
+      await attempt(app, { username: TEST_ADMIN.username, password: TEST_ADMIN.password }, '192.0.2.202').expect(200);
+    });
+
+    it('doubles the hold each time the ceiling is reached again', async () => {
+      await spreadFailures(TEST_ADMIN.username, 20);
+      clock.advance(300_000);
+      await spreadFailures(TEST_ADMIN.username, 20, 20);
+
+      const refused = await attempt(app, { username: TEST_ADMIN.username, password: 'x' }, NEW_IP).expect(429);
+      expect(refused.body).toMatchObject({ error: { details: { retryAfterSeconds: 600, retryAfterMinutes: 10 } } });
+    });
+
+    it('answers an unknown username the same way, so the ceiling reveals no account', async () => {
+      await spreadFailures('nobody-here', 20);
+      const refused = await attempt(app, { username: 'nobody-here', password: 'x' }, NEW_IP).expect(429);
+      expect(refused.body).toMatchObject({
+        error: { code: 'LOGIN_ACCOUNT_THROTTLED', details: { retryAfterSeconds: 300, retryAfterMinutes: 5 } },
+      });
+    });
+
+    it('forgets failures older than the one-hour window', async () => {
+      await spreadFailures(TEST_ADMIN.username, 19);
+      clock.advance(60 * 60_000 + 1_000);
+      await spreadFailures(TEST_ADMIN.username, 1, 19);
+      await attempt(app, { username: TEST_ADMIN.username, password: TEST_ADMIN.password }, NEW_IP).expect(200);
+    });
+  });
+
   it('S-17: refuses a state-changing request without the CSRF header', async () => {
     await request(app.getHttpServer())
       .post('/api/auth/login')

@@ -24,3 +24,18 @@ export const LOCKOUT_MAX_MS = 15 * 60 * 1000;
 export function lockoutDurationMs(lockoutCount: number): number {
   return Math.min(LOCKOUT_MAX_MS, LOCKOUT_BASE_MS * 2 ** lockoutCount);
 }
+
+/**
+ * Account-wide ceiling (Q68): the failures on one username from every address together. Past it, only
+ * addresses that have signed in to the account before may try; others wait 5, 10, 20, 40, 60, 60 …
+ * minutes. It never stops the account's own devices, so nobody can lock a colleague out with it.
+ */
+export const ACCOUNT_THROTTLE_IP = '*';
+export const ACCOUNT_FAILURE_WINDOW_MS = 60 * 60 * 1000;
+export const ACCOUNT_MAX_FAILURES = 20;
+export const ACCOUNT_THROTTLE_BASE_MS = 5 * 60 * 1000;
+export const ACCOUNT_THROTTLE_MAX_MS = 60 * 60 * 1000;
+
+export function accountThrottleDurationMs(throttleCount: number): number {
+  return Math.min(ACCOUNT_THROTTLE_MAX_MS, ACCOUNT_THROTTLE_BASE_MS * 2 ** throttleCount);
+}

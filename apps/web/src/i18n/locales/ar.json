@@ -160,7 +160,8 @@
     "loginFailure": {
       "INVALID": "كلمة مرور خاطئة",
       "LOCKED": "الحساب مقفل مؤقتاً",
-      "INACTIVE": "الحساب معطل"
+      "INACTIVE": "الحساب معطل",
+      "ACCOUNT_THROTTLED": "محاولات فاشلة كثيرة على الحساب؛ الأجهزة الجديدة موقوفة مؤقتاً"
     }
   },
   "dashboard": {
@@ -536,6 +537,7 @@
     "AUTH_TOKEN_EXPIRED": "انتهت جلستك. يرجى تسجيل الدخول مجدداً.",
     "AUTH_TOKEN_INVALID": "لم تعد جلستك صالحة. يرجى تسجيل الدخول مجدداً.",
     "AUTH_INVALID_CREDENTIALS": "اسم المستخدم أو كلمة المرور غير صحيحة",
+    "LOGIN_ACCOUNT_THROTTLED": "محاولات دخول فاشلة كثيرة على هذا الحساب من أماكن أخرى. حاول بعد {{retryAfterMinutes}} دقيقة، أو سجّل الدخول من جهاز استخدمته من قبل.",
     "AUTH_REFRESH_INVALID": "انتهت جلستك. يرجى تسجيل الدخول مجدداً.",
     "PASSWORD_CHANGE_REQUIRED": "عليك تغيير كلمة المرور أولاً",
     "CURRENT_PASSWORD_INCORRECT": "كلمة المرور الحالية غير صحيحة",

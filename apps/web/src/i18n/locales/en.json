@@ -160,7 +160,8 @@
     "loginFailure": {
       "INVALID": "Wrong password",
       "LOCKED": "Account temporarily locked",
-      "INACTIVE": "Account deactivated"
+      "INACTIVE": "Account deactivated",
+      "ACCOUNT_THROTTLED": "Too many failures on this account; new devices paused"
     }
   },
   "dashboard": {
@@ -536,6 +537,7 @@
     "AUTH_TOKEN_EXPIRED": "Your session expired. Please sign in again.",
     "AUTH_TOKEN_INVALID": "Your session is no longer valid. Please sign in again.",
     "AUTH_INVALID_CREDENTIALS": "The username or password is incorrect",
+    "LOGIN_ACCOUNT_THROTTLED": "Too many failed sign-ins on this account from other places. Try again in {{retryAfterMinutes}} minutes, or sign in from a device you have used before.",
     "AUTH_REFRESH_INVALID": "Your session ended. Please sign in again.",
     "PASSWORD_CHANGE_REQUIRED": "You must change your password first",
     "CURRENT_PASSWORD_INCORRECT": "The current password is incorrect",

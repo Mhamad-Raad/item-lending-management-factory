@@ -69,7 +69,7 @@ describe('translation files', () => {
       ...UPLOAD_KINDS.map((kind) => `enums.uploadKind.${kind}`),
       ...new Set(GRANTABLE_PERMISSION_KEYS.map((key) => `permissions.modules.${key.split('.')[0]}`)),
       // The reasons the API writes into a LOGIN_FAILURE audit row (auth.service.ts).
-      ...['INVALID', 'LOCKED', 'INACTIVE'].map((reason) => `auth.loginFailure.${reason}`),
+      ...['INVALID', 'LOCKED', 'INACTIVE', 'ACCOUNT_THROTTLED'].map((reason) => `auth.loginFailure.${reason}`),
       ...LEDGER_ENTRY_TYPES.map((type) => `enums.ledgerEntryType.${type}`),
       ...LEDGER_ENTRY_SOURCES.map((source) => `enums.ledgerEntrySource.${source}`),
       ...PERMISSION_KEYS.map((key) => `permissions.${key.replace(/\./g, '_')}`),
