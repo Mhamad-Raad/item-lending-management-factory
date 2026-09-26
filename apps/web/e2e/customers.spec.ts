@@ -6,7 +6,7 @@ const ADMIN = {
   displayName: 'Admin',
   role: 'ADMIN',
   mustChangePassword: false,
-  permissions: [],
+  permissions: [] as string[],
 };
 
 const MATCH = { customerId: 3, name: 'Old Blocks', archived: true, matchedField: 'phone' };
@@ -36,7 +36,16 @@ const CUSTOMER = {
   palletsOutByItem: [],
 };
 
-async function signIn(page: Page): Promise<void> {
+const CLERK = {
+  ...ADMIN,
+  id: 2,
+  username: 'clerk',
+  displayName: 'Clerk',
+  role: 'EMPLOYEE',
+  permissions: ['customers.view', 'customers.create', 'customers.edit'],
+};
+
+async function signIn(page: Page, user: typeof ADMIN = ADMIN): Promise<void> {
   await page.addInitScript(() => {
     window.localStorage.setItem('pallet.prefs.v1', JSON.stringify({ language: 'en' }));
   });
@@ -45,7 +54,7 @@ async function signIn(page: Page): Promise<void> {
       json: {
         accessToken: 'token',
         accessTokenExpiresAt: new Date(Date.now() + 900_000).toISOString(),
-        user: ADMIN,
+        user,
       },
     }),
   );
@@ -96,6 +105,36 @@ test('a phone another customer holds is warned about, then saved once confirmed'
   expect(sent.map((body) => body.confirmDuplicatePhone)).toEqual([false, true]);
   // The same customer both times, its phone as the shared schema normalised it.
   expect(sent[1]).toMatchObject({ name: 'Kurdistan Cement', phone: '07501234567', altPhone: null, creditLimit: null });
+});
+
+test('only an administrator may change the credit limit; an employee is told why, and the refusal lands on the field', async ({
+  page,
+}) => {
+  await page.route(/\/api\/customers\/phone-check\?/, (route) =>
+    route.fulfill({ json: { normalizedPhone: '07501234567', matches: [] } }),
+  );
+  await page.route(/\/api\/customers\/7$/, (route) =>
+    route.request().method() === 'PATCH'
+      ? route.fulfill({ status: 403, json: { error: { code: 'CUSTOMER_CREDIT_LIMIT_ADMIN_ONLY' } } })
+      : route.fulfill({ json: { ...CUSTOMER, creditLimit: 2_000_000 } }),
+  );
+
+  await signIn(page, CLERK);
+  await page.goto('/customers/7/edit');
+  await expect(page.getByLabel('Credit limit')).toBeDisabled();
+  await expect(page.getByText('Only an administrator can set or change the credit limit.')).toBeVisible();
+
+  // Should the API refuse anyway (a stale role), the reason shows under the field.
+  await page.getByLabel('Name').fill('Renamed');
+  await page.getByRole('button', { name: 'Save' }).click();
+  await expect(page.getByText(/Only an administrator can set or change a customer.s credit limit/)).toBeVisible();
+});
+
+test('an administrator edits the credit limit', async ({ page }) => {
+  await signIn(page);
+  await page.route(/\/api\/customers\/7$/, (route) => route.fulfill({ json: CUSTOMER }));
+  await page.goto('/customers/7/edit');
+  await expect(page.getByLabel('Credit limit')).toBeEnabled();
 });
 
 test('phone numbers on the profile read left to right, whatever the language', async ({ page }) => {

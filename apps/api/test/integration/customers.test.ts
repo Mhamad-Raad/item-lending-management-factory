@@ -402,4 +402,49 @@ describe('customers', () => {
       .expect(403);
     await http().delete(`/api/customers/${customer.id}?version=1`).set(asUser(session)).expect(403);
   });
+
+  it('Q71: leaves the credit limit to an admin, while an employee edits everything else', async () => {
+    const clerk = await createEmployee(app, ['customers.view', 'customers.create', 'customers.edit'], 'clerk');
+    const session = await login(app, clerk.username, EMPLOYEE_PASSWORD);
+    const refusal = { error: { code: 'CUSTOMER_CREDIT_LIMIT_ADMIN_ONLY' } };
+
+    // Creating: without a limit is fine; with one — even zero — is the admin's call.
+    for (const creditLimit of [5_000_000, 0]) {
+      const refused = await http()
+        .post('/api/customers')
+        .set(asUser(session))
+        .send({ ...BODY, creditLimit })
+        .expect(403);
+      expect(refused.body).toMatchObject(refusal);
+    }
+    const created = await http()
+      .post('/api/customers')
+      .set(asUser(session))
+      .send({ ...BODY, creditLimit: null })
+      .expect(201);
+    const customer = created.body as CustomerDto;
+    expect(customer.creditLimit).toBeNull();
+
+    // Editing: raising or setting the limit is refused and changes nothing, not even the other fields.
+    const raised = await patch(customer.id, { version: 1, name: 'Renamed', creditLimit: 1 })
+      .set(asUser(session))
+      .expect(403);
+    expect(raised.body).toMatchObject(refusal);
+    expect(await prisma.customer.findUniqueOrThrow({ where: { id: customer.id } })).toMatchObject({
+      name: BODY.name,
+      creditLimit: null,
+      version: 1,
+    });
+
+    // The form sends the limit back unchanged with the rest: that is not a change.
+    const renamed = await patch(customer.id, { version: 1, name: 'Renamed', creditLimit: null })
+      .set(asUser(session))
+      .expect(200);
+    expect(renamed.body).toMatchObject({ name: 'Renamed', creditLimit: null, version: 2 });
+
+    // The admin sets it; the employee may still edit the customer, sending it back as it is, but not lower it.
+    await patch(customer.id, { version: 2, creditLimit: 2_000_000 }).expect(200);
+    await patch(customer.id, { version: 3, address: 'Duhok', creditLimit: 2_000_000 }).set(asUser(session)).expect(200);
+    await patch(customer.id, { version: 4, creditLimit: null }).set(asUser(session)).expect(403);
+  });
 });

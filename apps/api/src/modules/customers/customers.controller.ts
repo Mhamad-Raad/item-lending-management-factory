@@ -68,8 +68,9 @@ export class CustomersController {
   update(
     @Param('id', new ZodValidationPipe(IdParam)) id: number,
     @Body(new ZodValidationPipe(CustomerUpdateBody)) body: CustomerUpdateBody,
+    @CurrentUser() actor: AuthContext,
   ): Promise<CustomerDto> {
-    return this.customers.update(id, body);
+    return this.customers.update(id, body, actor);
   }
 
   @Delete(':id')

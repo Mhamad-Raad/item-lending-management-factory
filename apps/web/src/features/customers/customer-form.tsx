@@ -24,6 +24,7 @@ import { useDebouncedValue } from '@/hooks/use-debounced-value';
 import { useUnsavedChangesGuard } from '@/hooks/use-unsaved-changes-guard';
 import { apiFetch } from '@/lib/api-client';
 import { ApiError } from '@/lib/api-error';
+import { useAuth } from '@/lib/auth';
 import { handleApiError } from '@/lib/errors';
 import { qk } from '@/lib/query-keys';
 import { invalidateCustomers } from './api';
@@ -75,6 +76,8 @@ export function CustomerForm({ customer }: { customer?: CustomerDto }) {
   const { t } = useTranslation();
   const navigate = useNavigate();
   const queryClient = useQueryClient();
+  // The API refuses anyone else a credit limit change (Q71); the field only says so ahead of time.
+  const mayEditCreditLimit = useAuth().user?.role === 'ADMIN';
   const [duplicates, setDuplicates] = useState<{ matches: CustomerPhoneMatchDto[]; values: CustomerFormValues } | null>(
     null,
   );
@@ -121,6 +124,7 @@ export function CustomerForm({ customer }: { customer?: CustomerDto }) {
       handleApiError(error, {
         setError: form.setError,
         fields: FIELDS,
+        fieldMap: { CUSTOMER_CREDIT_LIMIT_ADMIN_ONLY: 'creditLimit' },
         onReload: customer
           ? () => void queryClient.invalidateQueries({ queryKey: qk.customers.detail(customer.id) })
           : undefined,
@@ -204,12 +208,15 @@ export function CustomerForm({ customer }: { customer?: CustomerDto }) {
                   value={field.value}
                   onChange={field.onChange}
                   onBlur={field.onBlur}
+                  disabled={!mayEditCreditLimit}
                   aria-invalid={Boolean(errors.creditLimit)}
                   aria-describedby="creditLimit-help creditLimit-error"
                 />
               )}
             />
-            <FieldDescription id="creditLimit-help">{t('customers.form.creditLimitHelp')}</FieldDescription>
+            <FieldDescription id="creditLimit-help">
+              {t(mayEditCreditLimit ? 'customers.form.creditLimitHelp' : 'customers.form.creditLimitAdminOnly')}
+            </FieldDescription>
             <FieldError id="creditLimit-error" message={errors.creditLimit?.message} />
           </Field>
         </CardContent>

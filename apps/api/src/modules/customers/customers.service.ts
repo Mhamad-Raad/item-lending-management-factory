@@ -98,8 +98,12 @@ export class CustomersService {
     };
   }
 
-  /** A shared phone is a warning, not a block (A13): confirmed, the customer is saved. */
+  /**
+   * A shared phone is a warning, not a block (A13): confirmed, the customer is saved. Only an admin
+   * may give a new customer a credit limit (Q71); anyone else creates it without one.
+   */
   async create(body: CustomerCreateBody, actor: AuthContext): Promise<CustomerDto> {
+    if (body.creditLimit !== null) assertMaySetCreditLimit(actor);
     if (!body.confirmDuplicatePhone) await this.assertNoDuplicates(this.prisma, [body.phone, body.altPhone]);
 
     return runInTransaction(this.prisma, async (tx) => {
@@ -124,8 +128,11 @@ export class CustomersService {
     });
   }
 
-  /** Lowering the credit limit below what is out is allowed: it only blocks future orders (§6.17). */
-  async update(customerId: number, body: CustomerUpdateBody): Promise<CustomerDto> {
+  /**
+   * Lowering the credit limit below what is out is allowed: it only blocks future orders (§6.17).
+   * Changing it at all is an admin's decision (Q71); a form that sends the limit unchanged is fine.
+   */
+  async update(customerId: number, body: CustomerUpdateBody, actor: AuthContext): Promise<CustomerDto> {
     return runInTransaction(this.prisma, async (tx) => {
       await lockCustomer(tx, customerId);
       const before = await tx.customer.findUnique({ where: { id: customerId } });
@@ -137,6 +144,7 @@ export class CustomersService {
       const changed = EDITABLE_FIELDS.filter((field) => body[field] !== undefined && body[field] !== current[field]);
       // Q37: a save that changes nothing writes nothing — no version bump, no history row.
       if (changed.length === 0) return this.toDto(tx, before);
+      if (changed.includes('creditLimit')) assertMaySetCreditLimit(actor);
 
       const phone = body.phone ?? before.phone;
       const altPhone = body.altPhone === undefined ? before.altPhone : body.altPhone;
@@ -246,4 +254,12 @@ export class CustomersService {
     const totals = await queryCustomerTotals(client, [row.id]);
     return toCustomerDto(row, totals.get(row.id) ?? NO_ORDERS);
   }
+}
+
+/**
+ * The credit limit is what the admin-only override (§4.4) protects: whoever may set it may lift it,
+ * so setting it is admin-only too (Q71).
+ */
+function assertMaySetCreditLimit(actor: AuthContext): void {
+  if (!actor.isAdmin) throw new ApiError('CUSTOMER_CREDIT_LIMIT_ADMIN_ONLY');
 }
