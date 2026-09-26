@@ -235,6 +235,7 @@ Every item below is an ambiguity, contradiction or gap in the brief. The builder
 | Q69 | The 2026-09-26 security review (iteration 7d): a wrong `currentPassword` on `POST /api/auth/change-password` was bounded only by the `login` throttler (60 a minute per address), so a stolen 15-minute access token was a fast password oracle (Q61 had accepted this). The same review asked whether login should stop holding the user's row lock and a pool connection through the Argon2 verification. What holds? | Change-password locks the login throttle's `(req.ip, username)` pair before the user row (the login's lock order) and counts a wrong current password on it exactly as a failed login: the fifth locks the pair for 1, 2, 4 … 15 minutes, audits `LOCKOUT` (`scope = 'ADDRESS'`), and while locked the check answers 429 `CURRENT_PASSWORD_LOCKED { retryAfterSeconds, retryAfterMinutes }` without verifying. Sharing the pair is deliberate: guesses through either door count together. A right current password clears the pair. It does not count on the account-wide ceiling (Q68), which is about addresses that cannot sign in at all. **Login keeps verifying under its locks.** The throttle's correctness rests on a second attempt for a pair waiting for the first (`login-throttle-lock.test.ts`), and M1's login/reset race fix on the hash being read under the user row lock; verifying outside them would let parallel guesses pass the five-failure limit before any is counted. The cost is bounded: the `login` throttler caps each address at 60 attempts a minute, the pool holds 20 connections (Q62), and one verification takes tens of milliseconds. |
 | Q70 | The 2026-09-26 security review (iteration 7d): `backup.sh` ran `restic forget --prune` on the VPS, so the bucket key stored on the server could delete every backup — whoever takes the server can destroy the one thing meant to survive that. What holds? | The VPS only adds: `backup.sh` runs `restic backup` (and the Sunday `restic check`), never `forget`/`prune`, with an append-only B2 key (`listBuckets,listFiles,readFiles,writeFiles`; no `deleteFiles`, `bypassGovernance` or `writeFileRetentions`). Retention moves to `deploy/backup/prune.sh`, run monthly from the maintainer's machine with a second, deleting key kept in `~/.config/pallet/prune.env` and the password manager only; it refuses to run where `/etc/pallet/backup.env` exists. The bucket gets Object Lock (Compliance, 30 days) and a lifecycle rule keeping prior versions 30 days, so even a hide through the append-only key (B2's delete without a version) stays recoverable within that window (`docs/runbooks/backup-keys.md`, "If the VPS was compromised"). The B2 part is manual and must be done by the maintainer; until then the old key can still delete. |
 | Q71 | The 2026-09-26 security review (iteration 7d): `customers.edit` covered the credit limit, so an employee who may edit customers could raise a limit — or clear it — and then place the order that the admin-only credit override (§4.4, `orders.overrideCreditLimit`) exists to stop. What holds? | Setting or changing a credit limit is admin-only, checked by role like the override (no new grantable key: the override itself is not grantable, and a key that lifts the limit it guards would be the same power by another name). `POST /api/customers` with `creditLimit !== null` and `PATCH` with a `creditLimit` different from the stored one answer 403 `CUSTOMER_CREDIT_LIMIT_ADMIN_ONLY` from a non-admin before anything is written; sending the stored value back is not a change, so the edit form keeps working for employees, and a non-admin creates customers with no limit. The web form disables the field for non-admins with `customers.form.creditLimitAdminOnly`, and maps the code onto the field. |
+| Q72 | The 2026-09-26 security review (iteration 7d): the customer list and profile returned what each customer has out, owes, holds and may still take (`outValue`, `owed`, `held`, `compensation`, `headroom`, the holdings' deposits) to anyone with `customers.view`, which §3.2 grants for pickers and contact details — while every order, payment and refund screen that produces those figures needs `orders.view`. What holds? | Those fields are order data: `toCustomerDto` includes them only for a caller holding `orders.view` (admins hold every key) and otherwise **omits** them, the way cost fields are omitted without `items.viewCost`; `palletsOut`, `openOrderCount` and `creditLimit` stay (the limit is the customer's own field). The holdings keep their quantities and source orders but lose `outValue` and `unitDeposit`. The list refuses a money sort (`outValue`, `owed`, `held`) without `orders.view` with `PERMISSION_DENIED { required: ['orders.view'] }`, since the order would reveal the ranking; the web list drops those columns and falls back to its default sort for an old link, and the profile draws no money cards. The order forms need `orders.create` (so `orders.view`) and are unaffected. |
 
 ## 3. Actors, roles and permissions
 
@@ -265,7 +266,7 @@ Constants live in `packages/shared/src/permissions.ts` (`GRANTABLE_PERMISSION_KE
 | 8 | `purchases.create` | purchases | Add purchase batches (including the initial batch on item creation). | purchases.view | No |
 | 9 | `purchases.edit` | purchases | Edit purchase batches (`BATCH_EDIT`). | purchases.view | No |
 | 10 | `purchases.delete` | purchases | Delete (soft) purchase batches (`BATCH_DELETE`). | purchases.view | No |
-| 11 | `customers.view` | customers | List/view customers, profile summary and holdings, phone-duplicate check; customer pickers. | — | No |
+| 11 | `customers.view` | customers | List/view customers, profile summary and holdings, phone-duplicate check; customer pickers. The summary's and holdings' money (out value, owed, held, compensation, headroom, deposits) also needs `orders.view` (Q72). | — | No |
 | 12 | `customers.create` | customers | Create customers. | customers.view | No |
 | 13 | `customers.edit` | customers | Edit customers. Setting or changing the credit limit (on create too) is admin-only, like the override it would sidestep (Q71). | customers.view | No |
 | 14 | `customers.delete` | customers | Archive customers. | customers.view | No |
@@ -2669,10 +2670,10 @@ interface PurchaseBatchDto {
 }
 
 // ── customers / drivers ──
-interface CustomerSummaryDto {
-  palletsOut: number; outValue: number; owed: number; held: number; compensation: number;
+interface CustomerSummaryDto {       // money fields omitted (not null) without orders.view (Q72)
+  palletsOut: number; outValue?: number; owed?: number; held?: number; compensation?: number;
   creditLimit: number | null;
-  headroom: number | null;          // creditLimit − outValue (negative after an admin override); null = no limit
+  headroom?: number | null;         // creditLimit − outValue (negative after an admin override); null = no limit
   openOrderCount: number;
 }
 interface CustomerDto {
@@ -2682,8 +2683,8 @@ interface CustomerDto {
   summary: CustomerSummaryDto;
 }
 interface CustomerHoldingDto {
-  item: ItemRefDto; quantityOut: number; outValue: number;
-  sources: { orderId: number; orderNumber: number; orderDate: string; quantityOut: number; unitDeposit: number }[];
+  item: ItemRefDto; quantityOut: number; outValue?: number;   // outValue, unitDeposit omitted without orders.view (Q72)
+  sources: { orderId: number; orderNumber: number; orderDate: string; quantityOut: number; unitDeposit?: number }[];
   // sources: non-cancelled orders with out_quantity > 0 for this item, ordered by orderDate asc, orderNumber asc
 }
 interface CustomerDetailDto extends CustomerDto {
@@ -3090,7 +3091,7 @@ The summary of every `CustomerDto` comes from `LEFT JOIN (SELECT customer_id, SU
 #### `GET /api/customers`
 - **Access:** `@RequirePermission('customers.view')`.
 - **Query:** `CustomerListQuery = z.strictObject({ ...PageQuery, q: SearchQuery /* name, phone, alt_phone */, includeArchived: BoolQuery.default(false), hasOpenOrders: BoolQuery.optional(), sort: sortParam(['name','palletsOut','outValue','owed','held','createdAt'], 'name') })`.
-- **Response:** 200 `PageDto<CustomerDto>`.
+- **Response:** 200 `PageDto<CustomerDto>`; the summary's money fields only with `orders.view` (Q72). Sorting by `outValue`, `owed` or `held` without `orders.view` → 403 `PERMISSION_DENIED { required: ['orders.view'] }`.
 
 #### `GET /api/customers/phone-check`
 - **Access:** `@RequirePermission('customers.view')`.
@@ -3099,7 +3100,7 @@ The summary of every `CustomerDto` comes from `LEFT JOIN (SELECT customer_id, SU
 
 #### `GET /api/customers/:id`
 - **Access:** `@RequirePermission('customers.view')`.
-- **Response:** 200 `CustomerDetailDto`. **Errors:** `CUSTOMER_NOT_FOUND`.
+- **Response:** 200 `CustomerDetailDto`; without `orders.view` the summary's money fields and the holdings' `outValue` and `sources[].unitDeposit` are omitted (Q72). **Errors:** `CUSTOMER_NOT_FOUND`.
 
 #### `GET /api/customers/:id/history`
 - **Access:** `@RequirePermission('customers.view', 'orders.view')`.
@@ -3692,7 +3693,7 @@ Common rules for every page:
 #### 7.3.10 `/customers` Customers list
 - **Search params:** `q`, `includeArchived` (default false), `hasOpenOrders` (optional boolean), `sort` (default `name`), `page`, `pageSize`.
 - **Data:** `GET /api/customers`.
-- **Columns:** name, phone, pallets out, out value, owed, held, credit limit (`customers.noLimit` when null), archived badge when archived. Sortable: name, owed, out value, held, created.
+- **Columns:** name, phone, pallets out, out value, owed, held, credit limit (`customers.noLimit` when null), archived badge when archived. Sortable: name, owed, out value, held, created. Out value, owed and held (columns and sorts) only with `orders.view` (Q72).
 - **Filters:** search, "Only with open orders" `Switch`, "Include archived" `Switch`.
 - **Actions:** "New customer" (`customers.create`). Row click → detail.
 
@@ -3704,7 +3705,7 @@ Common rules for every page:
 
 #### 7.3.12 `/customers/$customerId` Customer profile
 - **Data:** `GET /api/customers/:id` (summary + holdings).
-- **Summary cards:** pallets out (total, plus a per-item mini list), out value, owed, held, credit limit, and headroom (`creditLimit − outValue`). When `creditLimit` is null: `customers.noLimit`. When headroom < 0: the amount is shown with an `over limit` badge (icon + text).
+- **Summary cards:** pallets out (total, plus a per-item mini list), out value, owed, held, credit limit, and headroom (`creditLimit − outValue`); out value, owed, held and headroom only when the API sends them (`orders.view`, Q72). When `creditLimit` is null: `customers.noLimit`. When headroom < 0: the amount is shown with an `over limit` badge (icon + text).
 - **Holdings table:** item (thumbnail + name), quantity out, then per source order a chip "#<orderNumber> · <date> · <qty>" linking to the order.
 - **Tabs** (URL search param `tab`, default `history`); each tab renders only when `orders.view` is held:
   - `history` — `GET /api/customers/:id/history` paginated timeline: hand-overs, returns (accepted/damaged), money rows (payments, refunds, reversals), with dates and amounts. Reversed returns carry the `reversed` badge.

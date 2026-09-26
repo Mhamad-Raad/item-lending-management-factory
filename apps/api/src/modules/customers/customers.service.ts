@@ -23,11 +23,13 @@ import { PrismaService } from '../../prisma/prisma.service';
 import { pickSnapshot, toAuditSnapshot } from '../audit/audit-snapshot';
 import { AuditService } from '../audit/audit.service';
 import { queryCustomerHistory } from './customer-history';
-import { NO_ORDERS, toCustomerDto } from './customers.mapper';
+import { NO_ORDERS, mayViewOrderMoney, toCustomerDto, withoutHoldingMoney } from './customers.mapper';
 import { queryCustomerHoldings, queryCustomerPage, queryCustomerTotals } from './customers.queries';
 import { runInTransaction } from '../../prisma/transaction';
 
 const EDITABLE_FIELDS = ['name', 'phone', 'altPhone', 'address', 'creditLimit'] as const;
+/** The list's sort keys that are sums of order money (Q72). */
+const MONEY_SORTS: ReadonlySet<string> = new Set(['outValue', 'owed', 'held']);
 
 /** A duplicate as `CUSTOMER_PHONE_DUPLICATE` reports it: which number matched, and what it was. */
 type PhoneMatch = CustomerPhoneMatchDto & { matchedValue: string };
@@ -40,7 +42,12 @@ export class CustomersService {
     private readonly audit: AuditService,
   ) {}
 
-  async list(query: CustomerListQuery): Promise<PageDto<CustomerDto>> {
+  async list(query: CustomerListQuery, actor: AuthContext): Promise<PageDto<CustomerDto>> {
+    const withMoney = mayViewOrderMoney(actor);
+    // Sorting by a sum would rank customers by money the caller may not see (Q72).
+    if (!withMoney && MONEY_SORTS.has(query.sort.replace(/^-/, ''))) {
+      throw new ApiError('PERMISSION_DENIED', { required: ['orders.view'] });
+    }
     const { rows, total } = await queryCustomerPage(this.prisma, query);
     const customers = await this.prisma.customer.findMany({ where: { id: { in: rows.map((row) => row.id) } } });
     const byId = new Map(customers.map((customer) => [customer.id, customer]));
@@ -48,7 +55,7 @@ export class CustomersService {
     return {
       items: rows.flatMap(({ id, ...totals }) => {
         const customer = byId.get(id);
-        return customer ? [toCustomerDto(customer, totals)] : [];
+        return customer ? [toCustomerDto(customer, totals, withMoney)] : [];
       }),
       page: query.page,
       pageSize: query.pageSize,
@@ -79,7 +86,7 @@ export class CustomersService {
   }
 
   /** Archived customers are returned too: their orders still name them. */
-  async get(customerId: number): Promise<CustomerDetailDto> {
+  async get(customerId: number, actor: AuthContext): Promise<CustomerDetailDto> {
     const customer = await this.prisma.customer.findUnique({ where: { id: customerId } });
     if (!customer) throw new ApiError('CUSTOMER_NOT_FOUND', { customerId });
 
@@ -87,9 +94,10 @@ export class CustomersService {
       queryCustomerTotals(this.prisma, [customerId]),
       queryCustomerHoldings(this.prisma, customerId),
     ]);
+    const withMoney = mayViewOrderMoney(actor);
     return {
-      ...toCustomerDto(customer, totals.get(customerId) ?? NO_ORDERS),
-      holdings,
+      ...toCustomerDto(customer, totals.get(customerId) ?? NO_ORDERS, withMoney),
+      holdings: withMoney ? holdings : holdings.map(withoutHoldingMoney),
       palletsOutByItem: holdings.map((holding) => ({
         itemId: holding.item.id,
         itemName: holding.item.name,
@@ -124,7 +132,7 @@ export class CustomersService {
         summaryParams: { name: customer.name },
         after: toAuditSnapshot('CUSTOMER', customer),
       });
-      return toCustomerDto(customer, NO_ORDERS);
+      return toCustomerDto(customer, NO_ORDERS, mayViewOrderMoney(actor));
     });
   }
 
@@ -143,7 +151,7 @@ export class CustomersService {
       const current = { ...before, creditLimit: before.creditLimit === null ? null : toSafeMoney(before.creditLimit) };
       const changed = EDITABLE_FIELDS.filter((field) => body[field] !== undefined && body[field] !== current[field]);
       // Q37: a save that changes nothing writes nothing — no version bump, no history row.
-      if (changed.length === 0) return this.toDto(tx, before);
+      if (changed.length === 0) return this.toDto(tx, before, actor);
       if (changed.includes('creditLimit')) assertMaySetCreditLimit(actor);
 
       const phone = body.phone ?? before.phone;
@@ -182,7 +190,7 @@ export class CustomersService {
         before: pickSnapshot(toAuditSnapshot('CUSTOMER', before), changed),
         after: pickSnapshot(toAuditSnapshot('CUSTOMER', after), changed),
       });
-      return this.toDto(tx, after);
+      return this.toDto(tx, after, actor);
     });
   }
 
@@ -209,7 +217,7 @@ export class CustomersService {
         before: toAuditSnapshot('CUSTOMER', before),
         after: toAuditSnapshot('CUSTOMER', after),
       });
-      return this.toDto(tx, after);
+      return this.toDto(tx, after, actor);
     });
   }
 
@@ -250,9 +258,9 @@ export class CustomersService {
     });
   }
 
-  private async toDto(client: Prisma.TransactionClient, row: Customer): Promise<CustomerDto> {
+  private async toDto(client: Prisma.TransactionClient, row: Customer, actor: AuthContext): Promise<CustomerDto> {
     const totals = await queryCustomerTotals(client, [row.id]);
-    return toCustomerDto(row, totals.get(row.id) ?? NO_ORDERS);
+    return toCustomerDto(row, totals.get(row.id) ?? NO_ORDERS, mayViewOrderMoney(actor));
   }
 }
 

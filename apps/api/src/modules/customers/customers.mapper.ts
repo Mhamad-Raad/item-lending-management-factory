@@ -1,4 +1,5 @@
-import type { CustomerDto, CustomerRefDto } from '@pallet/shared';
+import type { CustomerDto, CustomerHoldingDto, CustomerRefDto } from '@pallet/shared';
+import type { AuthContext } from '../../common/auth-context';
 import { toSafeMoney } from '../../common/utils/money';
 import type { Customer } from '../../generated/prisma/client';
 
@@ -22,8 +23,17 @@ export const NO_ORDERS: OrderTotals = {
   openOrderCount: 0,
 };
 
-export function toCustomerDto(row: Customer, totals: OrderTotals): CustomerDto {
+/**
+ * What a customer's orders are worth — out value, owed, held, compensation, headroom — is order data:
+ * it is returned only to a caller who may read orders, and otherwise left out, as cost is (Q72).
+ */
+export function mayViewOrderMoney(actor: AuthContext): boolean {
+  return actor.permissions.has('orders.view');
+}
+
+export function toCustomerDto(row: Customer, totals: OrderTotals, withMoney: boolean): CustomerDto {
   const creditLimit = row.creditLimit === null ? null : toSafeMoney(row.creditLimit);
+  const { palletsOut, openOrderCount } = totals;
   return {
     id: row.id,
     name: row.name,
@@ -35,9 +45,20 @@ export function toCustomerDto(row: Customer, totals: OrderTotals): CustomerDto {
     version: row.version,
     createdAt: row.createdAt.toISOString(),
     updatedAt: row.updatedAt.toISOString(),
-    // Headroom may go negative after an admin override; it is shown as it is (§4.5).
-    summary: { ...totals, creditLimit, headroom: creditLimit === null ? null : creditLimit - totals.outValue },
+    summary: withMoney
+      ? // Headroom may go negative after an admin override; it is shown as it is (§4.5).
+        { ...totals, creditLimit, headroom: creditLimit === null ? null : creditLimit - totals.outValue }
+      : { palletsOut, creditLimit, openOrderCount },
   };
+}
+
+/** A holding without its money: quantities and source orders stay, deposits go (Q72). */
+export function withoutHoldingMoney({
+  outValue: _outValue,
+  sources,
+  ...holding
+}: CustomerHoldingDto): CustomerHoldingDto {
+  return { ...holding, sources: sources.map(({ unitDeposit: _unitDeposit, ...source }) => source) };
 }
 
 /** How another record names a customer, archived or not. */

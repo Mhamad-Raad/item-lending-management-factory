@@ -165,15 +165,19 @@ export interface ItemRefDto {
 }
 
 /** A customer's sums over its orders that are not cancelled (§4.5); zeros until it has orders. */
+/**
+ * The money fields are order data: they are omitted (not null) for a caller without `orders.view`,
+ * as cost fields are without `items.viewCost` (Q72).
+ */
 export interface CustomerSummaryDto {
   palletsOut: number;
-  outValue: number;
-  owed: number;
-  held: number;
-  compensation: number;
+  outValue?: number;
+  owed?: number;
+  held?: number;
+  compensation?: number;
   creditLimit: number | null;
   /** `creditLimit − outValue`, negative after an admin override; null when there is no limit. */
-  headroom: number | null;
+  headroom?: number | null;
   openOrderCount: number;
 }
 
@@ -194,9 +198,10 @@ export interface CustomerDto {
 export interface CustomerHoldingDto {
   item: ItemRefDto;
   quantityOut: number;
-  outValue: number;
-  /** The orders the pallets went out on, oldest first. */
-  sources: { orderId: number; orderNumber: number; orderDate: string; quantityOut: number; unitDeposit: number }[];
+  /** Omitted without `orders.view` (Q72). */
+  outValue?: number;
+  /** The orders the pallets went out on, oldest first; `unitDeposit` omitted without `orders.view` (Q72). */
+  sources: { orderId: number; orderNumber: number; orderDate: string; quantityOut: number; unitDeposit?: number }[];
 }
 
 export interface CustomerDetailDto extends CustomerDto {

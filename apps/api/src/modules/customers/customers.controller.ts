@@ -25,8 +25,11 @@ export class CustomersController {
 
   @Get()
   @RequirePermission('customers.view')
-  list(@Query(new ZodValidationPipe(CustomerListQuery)) query: CustomerListQuery): Promise<PageDto<CustomerDto>> {
-    return this.customers.list(query);
+  list(
+    @Query(new ZodValidationPipe(CustomerListQuery)) query: CustomerListQuery,
+    @CurrentUser() actor: AuthContext,
+  ): Promise<PageDto<CustomerDto>> {
+    return this.customers.list(query, actor);
   }
 
   /** Declared before `:id`, which would otherwise take `phone-check` for an id (§6.17). */
@@ -40,8 +43,11 @@ export class CustomersController {
 
   @Get(':id')
   @RequirePermission('customers.view')
-  get(@Param('id', new ZodValidationPipe(IdParam)) id: number): Promise<CustomerDetailDto> {
-    return this.customers.get(id);
+  get(
+    @Param('id', new ZodValidationPipe(IdParam)) id: number,
+    @CurrentUser() actor: AuthContext,
+  ): Promise<CustomerDetailDto> {
+    return this.customers.get(id, actor);
   }
 
   /** A timeline of orders, returns and money needs both customers and orders access (§6.26). */

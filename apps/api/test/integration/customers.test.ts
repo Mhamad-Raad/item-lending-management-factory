@@ -403,6 +403,50 @@ describe('customers', () => {
     await http().delete(`/api/customers/${customer.id}?version=1`).set(asUser(session)).expect(403);
   });
 
+  it('Q72: shows what a customer owes, holds and has out only to someone who may read orders', async () => {
+    const item = await createItem(app, admin, { depositPrice: 5_000, stock: 80 });
+    const driver = await createDriver(app, admin);
+    const customer = await createCustomer(app, admin, { creditLimit: 100_000 });
+    await createOrder(app, admin, {
+      customerId: customer.id,
+      driverId: driver.id,
+      lines: [{ itemId: item.id, quantity: 10 }],
+    });
+
+    const viewer = await createEmployee(app, ['customers.view'], 'viewer');
+    const reader = await createEmployee(app, ['customers.view', 'orders.view', 'drivers.view', 'items.view'], 'reader');
+    const asViewer = asUser(await login(app, viewer.username, EMPLOYEE_PASSWORD));
+    const asReader = asUser(await login(app, reader.username, EMPLOYEE_PASSWORD));
+    const MONEY = ['outValue', 'owed', 'held', 'compensation', 'headroom'];
+
+    // Without orders.view: quantities, the limit and the source orders stay; every money figure is left out.
+    const listed = (await http().get('/api/customers').set(asViewer).expect(200)).body as PageDto<CustomerDto>;
+    const detail = (await http().get(`/api/customers/${customer.id}`).set(asViewer).expect(200))
+      .body as CustomerDetailDto;
+    for (const summary of [listed.items[0]?.summary, detail.summary]) {
+      expect(summary).toEqual({ palletsOut: 10, creditLimit: 100_000, openOrderCount: 1 });
+      for (const key of MONEY) expect(summary).not.toHaveProperty(key);
+    }
+    expect(detail.holdings[0]).not.toHaveProperty('outValue');
+    expect(detail.holdings[0]?.sources[0]).not.toHaveProperty('unitDeposit');
+    expect(detail.holdings[0]).toMatchObject({ quantityOut: 10, sources: [{ quantityOut: 10 }] });
+    // Nor may the list be ranked by money it does not show.
+    for (const sort of ['owed', '-outValue', 'held']) {
+      const refused = await http().get(`/api/customers?sort=${sort}`).set(asViewer).expect(403);
+      expect(refused.body).toMatchObject({
+        error: { code: 'PERMISSION_DENIED', details: { required: ['orders.view'] } },
+      });
+    }
+    await http().get('/api/customers?sort=-palletsOut').set(asViewer).expect(200);
+
+    // With orders.view everything is there.
+    const full = (await http().get(`/api/customers/${customer.id}`).set(asReader).expect(200))
+      .body as CustomerDetailDto;
+    expect(full.summary).toMatchObject({ outValue: 50_000, owed: 50_000, held: 0, headroom: 50_000 });
+    expect(full.holdings[0]).toMatchObject({ outValue: 50_000, sources: [{ unitDeposit: 5_000 }] });
+    await http().get('/api/customers?sort=owed').set(asReader).expect(200);
+  });
+
   it('Q71: leaves the credit limit to an admin, while an employee edits everything else', async () => {
     const clerk = await createEmployee(app, ['customers.view', 'customers.create', 'customers.edit'], 'clerk');
     const session = await login(app, clerk.username, EMPLOYEE_PASSWORD);

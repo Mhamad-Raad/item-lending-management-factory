@@ -130,6 +130,31 @@ test('only an administrator may change the credit limit; an employee is told why
   await expect(page.getByText(/Only an administrator can set or change a customer.s credit limit/)).toBeVisible();
 });
 
+test('Q72: without orders.view the customer pages leave out the money the API leaves out', async ({ page }) => {
+  const viewer = { ...CLERK, permissions: ['customers.view'] };
+  const { outValue: _o, owed: _w, held: _h, compensation: _c, headroom: _r, ...summary } = CUSTOMER.summary;
+  const customer = { ...CUSTOMER, summary: { ...summary, palletsOut: 12 } };
+  await signIn(page, viewer);
+  await page.route(/\/api\/customers\/7$/, (route) => route.fulfill({ json: customer }));
+  const listQueries: string[] = [];
+  await page.route(/\/api\/customers(\?.*)?$/, (route) => {
+    listQueries.push(new URL(route.request().url()).search);
+    return route.fulfill({ json: { items: [customer], page: 1, pageSize: 25, total: 1 } });
+  });
+
+  await page.goto('/customers/7');
+  await expect(page.getByText('Pallets out', { exact: true }).first()).toBeVisible();
+  for (const label of ['Value out', 'Owed', 'Deposit held', 'Credit left']) {
+    await expect(page.getByText(label, { exact: true })).toHaveCount(0);
+  }
+
+  // An old link sorted by money falls back to the default instead of asking for what would be refused.
+  await page.goto('/customers?sort=owed');
+  await expect(page.getByRole('link', { name: 'Kurdistan Cement' }).first()).toBeVisible();
+  await expect(page.getByRole('columnheader', { name: 'Owed' })).toHaveCount(0);
+  expect(listQueries.every((query) => !query.includes('sort=owed'))).toBe(true);
+});
+
 test('an administrator edits the credit limit', async ({ page }) => {
   await signIn(page);
   await page.route(/\/api\/customers\/7$/, (route) => route.fulfill({ json: CUSTOMER }));

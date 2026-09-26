@@ -57,6 +57,14 @@ export const Route = createFileRoute('/_app/customers/$customerId/')({
   component: CustomerProfilePage,
 });
 
+interface SummaryCard {
+  label: TranslationKey;
+  icon: LucideIcon;
+  tone: Tone;
+  value: React.ReactNode;
+  extra?: React.ReactNode;
+}
+
 const HOLDING_COLUMNS: DataColumn<CustomerHoldingDto>[] = [
   {
     id: 'item',
@@ -146,13 +154,7 @@ function CustomerProfilePage() {
   const data = customer.data;
   const { summary } = data;
   const live = data.archivedAt === null;
-  const cards: {
-    label: TranslationKey;
-    icon: LucideIcon;
-    tone: Tone;
-    value: React.ReactNode;
-    extra?: React.ReactNode;
-  }[] = [
+  const cards: SummaryCard[] = [
     {
       label: 'customers.fields.palletsOut',
       icon: Package,
@@ -170,37 +172,17 @@ function CustomerProfilePage() {
           </ul>
         ) : null,
     },
-    { label: 'customers.fields.outValue', icon: Coins, tone: 'primary', value: <MoneyText value={summary.outValue} /> },
-    { label: 'customers.fields.owed', icon: ClipboardList, tone: 'warning', value: <MoneyText value={summary.owed} /> },
-    { label: 'customers.fields.held', icon: Wallet, tone: 'success', value: <MoneyText value={summary.held} /> },
+    // The API leaves the order money out without orders.view (Q72): those cards are not drawn.
+    ...moneyCard('customers.fields.outValue', Coins, 'primary', summary.outValue),
+    ...moneyCard('customers.fields.owed', ClipboardList, 'warning', summary.owed),
+    ...moneyCard('customers.fields.held', Wallet, 'success', summary.held),
     {
       label: 'customers.fields.creditLimit',
       icon: Gauge,
       tone: 'primary',
       value: summary.creditLimit === null ? t('customers.noLimit') : <MoneyText value={summary.creditLimit} />,
     },
-    {
-      label: 'customers.fields.headroom',
-      icon: ShieldCheck,
-      tone: summary.headroom !== null && summary.headroom < 0 ? 'destructive' : 'success',
-      value:
-        summary.headroom === null ? (
-          t('customers.noLimit')
-        ) : summary.headroom < 0 ? (
-          // Negative only after an admin override (§4.5); shown as it is, with a badge that says so.
-          <span className="flex flex-wrap items-center gap-2">
-            <span dir="ltr" className="tabular-nums">
-              −<MoneyText value={-summary.headroom} />
-            </span>
-            <Badge variant="destructive">
-              <TriangleAlert aria-hidden />
-              {t('customers.detail.overLimit')}
-            </Badge>
-          </span>
-        ) : (
-          <MoneyText value={summary.headroom} />
-        ),
-    },
+    ...(summary.headroom === undefined ? [] : [headroomCard(summary.headroom)]),
   ];
 
   return (
@@ -335,5 +317,37 @@ function CustomerProfilePage() {
         onConfirm={() => archive.mutate(data.version)}
       />
     </>
+  );
+}
+
+/** A money card, or none when the API left the figure out (Q72). */
+function moneyCard(label: TranslationKey, icon: LucideIcon, tone: Tone, value: number | undefined): SummaryCard[] {
+  return value === undefined ? [] : [{ label, icon, tone, value: <MoneyText value={value} /> }];
+}
+
+/** `creditLimit − outValue`: negative only after an admin override (§4.5), shown as it is with a badge. */
+function headroomCard(headroom: number | null): SummaryCard {
+  return {
+    label: 'customers.fields.headroom',
+    icon: ShieldCheck,
+    tone: headroom !== null && headroom < 0 ? 'destructive' : 'success',
+    value: <Headroom value={headroom} />,
+  };
+}
+
+function Headroom({ value }: { value: number | null }) {
+  const { t } = useTranslation();
+  if (value === null) return t('customers.noLimit');
+  if (value >= 0) return <MoneyText value={value} />;
+  return (
+    <span className="flex flex-wrap items-center gap-2">
+      <span dir="ltr" className="tabular-nums">
+        −<MoneyText value={-value} />
+      </span>
+      <Badge variant="destructive">
+        <TriangleAlert aria-hidden />
+        {t('customers.detail.overLimit')}
+      </Badge>
+    </span>
   );
 }

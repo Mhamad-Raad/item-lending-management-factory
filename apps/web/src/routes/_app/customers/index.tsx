@@ -44,6 +44,14 @@ function CreditLimit({ value }: { value: number | null }) {
   );
 }
 
+/** A sum the API leaves out for a caller without `orders.view` (Q72). */
+function OrderMoney({ value }: { value: number | undefined }) {
+  return value === undefined ? null : <MoneyText value={value} />;
+}
+
+/** The columns and sort keys that are order money: shown only with `orders.view` (Q72). */
+const MONEY_COLUMNS: ReadonlySet<string> = new Set(['outValue', 'owed', 'held']);
+
 const COLUMNS: DataColumn<CustomerDto>[] = [
   { id: 'name', header: 'customers.fields.name', cell: (customer) => customer.name, sortKey: 'name', wrap: true },
   {
@@ -62,7 +70,7 @@ const COLUMNS: DataColumn<CustomerDto>[] = [
   {
     id: 'outValue',
     header: 'customers.fields.outValue',
-    cell: (customer) => <MoneyText value={customer.summary.outValue} />,
+    cell: (customer) => <OrderMoney value={customer.summary.outValue} />,
     sortKey: 'outValue',
     align: 'end',
     hideBelow: 'lg',
@@ -71,7 +79,7 @@ const COLUMNS: DataColumn<CustomerDto>[] = [
   {
     id: 'owed',
     header: 'customers.fields.owed',
-    cell: (customer) => <MoneyText value={customer.summary.owed} />,
+    cell: (customer) => <OrderMoney value={customer.summary.owed} />,
     sortKey: 'owed',
     align: 'end',
     mobile: 'figure',
@@ -79,7 +87,7 @@ const COLUMNS: DataColumn<CustomerDto>[] = [
   {
     id: 'held',
     header: 'customers.fields.held',
-    cell: (customer) => <MoneyText value={customer.summary.held} />,
+    cell: (customer) => <OrderMoney value={customer.summary.held} />,
     sortKey: 'held',
     align: 'end',
     hideBelow: 'lg',
@@ -114,7 +122,11 @@ function CustomersPage() {
   const navigate = useNavigate({ from: Route.fullPath });
   const search = Route.useSearch();
   const canCreate = useCan('customers.create');
+  const canViewOrders = useCan('orders.view');
   usePageTitle('customers.list.title');
+  // Without orders.view the API refuses to rank by money; an old link sorted so falls back to the default.
+  const sort = !canViewOrders && MONEY_COLUMNS.has(search.sort?.replace(/^-/, '') ?? '') ? undefined : search.sort;
+  const columns = canViewOrders ? COLUMNS : COLUMNS.filter((column) => !MONEY_COLUMNS.has(column.id));
 
   const commitSearch = useCallback(
     (q: string | undefined) => void navigate({ search: (prev) => ({ ...prev, q, page: 1 }), replace: true }),
@@ -128,7 +140,7 @@ function CustomersPage() {
     q: search.q,
     hasOpenOrders: search.hasOpenOrders,
     includeArchived: search.includeArchived,
-    sort: search.sort,
+    sort,
     page: search.page,
     pageSize: search.pageSize,
   };
@@ -175,7 +187,7 @@ function CustomersPage() {
       </ListFilters>
       <DataTable
         label={t('customers.list.title')}
-        columns={COLUMNS}
+        columns={columns}
         rows={customers.data.items}
         rowKey={(customer) => customer.id}
         rowLink={(customer, children) => (
@@ -190,7 +202,7 @@ function CustomersPage() {
         total={customers.data.total}
         page={customers.data.page}
         pageSize={customers.data.pageSize}
-        sort={search.sort}
+        sort={sort}
         defaultSort="name"
         onSortChange={(sort) => setFilter({ sort })}
         onPageChange={(page) => void navigate({ search: (prev) => ({ ...prev, page }) })}

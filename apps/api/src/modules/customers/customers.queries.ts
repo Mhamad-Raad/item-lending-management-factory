@@ -153,7 +153,7 @@ export async function queryCustomerHoldings(client: Client, customerId: number):
     ORDER BY i.name, i.id, o.date, o.order_number`;
 
   // Rows arrive grouped by item in name order; a Map keeps that order.
-  const holdings = new Map<number, CustomerHoldingDto>();
+  const holdings = new Map<number, CustomerHoldingDto & { outValue: number }>();
   for (const row of rows) {
     const unitDeposit = toSafeMoney(row.unitDeposit);
     let holding = holdings.get(row.itemId);

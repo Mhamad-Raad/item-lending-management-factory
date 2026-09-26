@@ -82,7 +82,7 @@ describe('order changes: edit, cancel, receipt, ledger (§4.8.2, §4.8.3, §6.19
     });
   const outValueOf = async (customerId: number): Promise<number> =>
     ((await http().get(`/api/customers/${customerId}`).set(asUser(admin)).expect(200)).body as CustomerDetailDto)
-      .summary.outValue;
+      .summary.outValue ?? Number.NaN;
 
   it('E7 — a cash line edit re-issues the automatic payment for the new total', async () => {
     const created = await order100('CASH');
