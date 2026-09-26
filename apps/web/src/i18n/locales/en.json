@@ -1081,6 +1081,7 @@
     "total": "Total",
     "empty": "Nothing to show for these filters",
     "truncated": "Showing the first 5,000 rows only. Narrow the date range to see the rest.",
+    "truncatedRows": "Showing the first 5,000 rows only; the totals count every row. Narrow the filters to see the rest.",
     "generatedAt": "Generated {{at}}",
     "printedFilters": "Filters: {{filters}}",
     "period": "From {{from}} to {{to}}",

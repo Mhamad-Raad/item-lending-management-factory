@@ -9,6 +9,7 @@ import { EntityCombobox } from '@/components/app/entity-combobox';
 import { MoneyText } from '@/components/app/money-text';
 import { QuantityText } from '@/components/app/quantity-text';
 import { PageSkeleton, QueryErrorState } from '@/components/app/states';
+import { Alert, AlertDescription } from '@/components/ui/alert';
 import { useCanFilterBy, useFilterName } from '@/features/reports/report-filters';
 import { ReportFrame } from '@/features/reports/report-frame';
 import { ReportTable, type ReportColumn } from '@/features/reports/report-table';
@@ -164,34 +165,41 @@ function PositionsReportPage() {
       ) : report.isError ? (
         <QueryErrorState error={report.error} onRetry={() => void report.refetch()} />
       ) : (
-        <ReportTable
-          label={t('reports.positions.title')}
-          columns={columns}
-          rows={report.data.rows}
-          rowKey={(row) => row.customer.id}
-          sort={search.sort}
-          // The API's own order (PositionsReportQuery).
-          defaultSort="-owed"
-          onSortChange={(sort) =>
-            void navigate({ search: (prev) => ({ ...prev, sort: sort as typeof prev.sort }), replace: true })
-          }
-          expanded={(row) =>
-            open.has(row.customer.id) ? (
-              <tr className="bg-muted/30 border-b">
-                <td colSpan={columns.length} className="px-3 py-2 ps-14">
-                  {perItem(row.palletsOutByItem)}
-                </td>
-              </tr>
-            ) : null
-          }
-          totals={{
-            palletsOut: <QuantityText value={report.data.totals.palletsOut} />,
-            outValue: <MoneyText value={report.data.totals.outValue} />,
-            owed: <MoneyText value={report.data.totals.owed} />,
-            held: <MoneyText value={report.data.totals.held} />,
-          }}
-          emptyText={t('reports.empty')}
-        />
+        <>
+          {report.data.truncated ? (
+            <Alert>
+              <AlertDescription>{t('reports.truncatedRows')}</AlertDescription>
+            </Alert>
+          ) : null}
+          <ReportTable
+            label={t('reports.positions.title')}
+            columns={columns}
+            rows={report.data.rows}
+            rowKey={(row) => row.customer.id}
+            sort={search.sort}
+            // The API's own order (PositionsReportQuery).
+            defaultSort="-owed"
+            onSortChange={(sort) =>
+              void navigate({ search: (prev) => ({ ...prev, sort: sort as typeof prev.sort }), replace: true })
+            }
+            expanded={(row) =>
+              open.has(row.customer.id) ? (
+                <tr className="bg-muted/30 border-b">
+                  <td colSpan={columns.length} className="px-3 py-2 ps-14">
+                    {perItem(row.palletsOutByItem)}
+                  </td>
+                </tr>
+              ) : null
+            }
+            totals={{
+              palletsOut: <QuantityText value={report.data.totals.palletsOut} />,
+              outValue: <MoneyText value={report.data.totals.outValue} />,
+              owed: <MoneyText value={report.data.totals.owed} />,
+              held: <MoneyText value={report.data.totals.held} />,
+            }}
+            emptyText={t('reports.empty')}
+          />
+        </>
       )}
       {data && data.totals.palletsOut > 0 ? (
         <section className="flex flex-col gap-1">

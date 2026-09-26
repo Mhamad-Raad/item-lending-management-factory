@@ -1,10 +1,10 @@
 import { z } from 'zod';
 import { AUDIT_ACTIONS, AUDIT_ENTITY_TYPES } from '../enums.js';
-import { IdParam, dateRange } from './common.js';
+import { IdParam, PAGE_MAX, dateRange } from './common.js';
 
 /** `GET /api/audit-logs` (§6.25): newest first, 50 to a page. */
 export const AuditLogListQuery = z.strictObject({
-  page: z.coerce.number().int().min(1).default(1),
+  page: z.coerce.number().int().min(1).max(PAGE_MAX).default(1),
   pageSize: z.coerce.number().int().min(1).max(100).default(50),
   userId: IdParam.optional(),
   entityType: z.enum(AUDIT_ENTITY_TYPES).optional(),

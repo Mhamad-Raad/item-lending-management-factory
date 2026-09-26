@@ -7,6 +7,7 @@ import { ArchivedBadge } from '@/components/app/archived-badge';
 import { FilterChoice } from '@/components/app/list-controls';
 import { QuantityText } from '@/components/app/quantity-text';
 import { PageSkeleton, QueryErrorState } from '@/components/app/states';
+import { Alert, AlertDescription } from '@/components/ui/alert';
 import { LowStockBadge } from '@/features/items/item-badges';
 import { useCanFilterBy } from '@/features/reports/report-filters';
 import { ReportFrame } from '@/features/reports/report-frame';
@@ -132,26 +133,33 @@ function StockReportPage() {
       ) : report.isError ? (
         <QueryErrorState error={report.error} onRetry={() => void report.refetch()} />
       ) : (
-        <ReportTable
-          label={t('reports.stock.title')}
-          columns={columns}
-          rows={report.data.rows}
-          rowKey={(row) => row.item.id}
-          sort={search.sort}
-          // The API's own order (StockReportQuery).
-          defaultSort="name"
-          onSortChange={(sort) => setFilter({ sort: sort as typeof search.sort })}
-          totals={{
-            quantityOnHand: <QuantityText value={report.data.totals.quantityOnHand} />,
-            quantityOut: <QuantityText value={report.data.totals.quantityOut} />,
-            damagedTotal: <QuantityText value={report.data.totals.damagedTotal} />,
-            minStock:
-              report.data.totals.lowStockCount > 0
-                ? t('reports.stock.lowStockCount', { value: formatNumber(report.data.totals.lowStockCount) })
-                : null,
-          }}
-          emptyText={t('reports.empty')}
-        />
+        <>
+          {report.data.truncated ? (
+            <Alert>
+              <AlertDescription>{t('reports.truncatedRows')}</AlertDescription>
+            </Alert>
+          ) : null}
+          <ReportTable
+            label={t('reports.stock.title')}
+            columns={columns}
+            rows={report.data.rows}
+            rowKey={(row) => row.item.id}
+            sort={search.sort}
+            // The API's own order (StockReportQuery).
+            defaultSort="name"
+            onSortChange={(sort) => setFilter({ sort: sort as typeof search.sort })}
+            totals={{
+              quantityOnHand: <QuantityText value={report.data.totals.quantityOnHand} />,
+              quantityOut: <QuantityText value={report.data.totals.quantityOut} />,
+              damagedTotal: <QuantityText value={report.data.totals.damagedTotal} />,
+              minStock:
+                report.data.totals.lowStockCount > 0
+                  ? t('reports.stock.lowStockCount', { value: formatNumber(report.data.totals.lowStockCount) })
+                  : null,
+            }}
+            emptyText={t('reports.empty')}
+          />
+        </>
       )}
     </ReportFrame>
   );

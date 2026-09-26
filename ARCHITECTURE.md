@@ -237,6 +237,7 @@ Every item below is an ambiguity, contradiction or gap in the brief. The builder
 | Q71 | The 2026-09-26 security review (iteration 7d): `customers.edit` covered the credit limit, so an employee who may edit customers could raise a limit — or clear it — and then place the order that the admin-only credit override (§4.4, `orders.overrideCreditLimit`) exists to stop. What holds? | Setting or changing a credit limit is admin-only, checked by role like the override (no new grantable key: the override itself is not grantable, and a key that lifts the limit it guards would be the same power by another name). `POST /api/customers` with `creditLimit !== null` and `PATCH` with a `creditLimit` different from the stored one answer 403 `CUSTOMER_CREDIT_LIMIT_ADMIN_ONLY` from a non-admin before anything is written; sending the stored value back is not a change, so the edit form keeps working for employees, and a non-admin creates customers with no limit. The web form disables the field for non-admins with `customers.form.creditLimitAdminOnly`, and maps the code onto the field. |
 | Q72 | The 2026-09-26 security review (iteration 7d): the customer list and profile returned what each customer has out, owes, holds and may still take (`outValue`, `owed`, `held`, `compensation`, `headroom`, the holdings' deposits) to anyone with `customers.view`, which §3.2 grants for pickers and contact details — while every order, payment and refund screen that produces those figures needs `orders.view`. What holds? | Those fields are order data: `toCustomerDto` includes them only for a caller holding `orders.view` (admins hold every key) and otherwise **omits** them, the way cost fields are omitted without `items.viewCost`; `palletsOut`, `openOrderCount` and `creditLimit` stay (the limit is the customer's own field). The holdings keep their quantities and source orders but lose `outValue` and `unitDeposit`. The list refuses a money sort (`outValue`, `owed`, `held`) without `orders.view` with `PERMISSION_DENIED { required: ['orders.view'] }`, since the order would reveal the ranking; the web list drops those columns and falls back to its default sort for an old link, and the profile draws no money cards. The order forms need `orders.create` (so `orders.view`) and are unaffected. |
 | Q73 | The 2026-09-26 security review (iteration 7d): `audit.view` showed every module's history — order amounts, customers' phones, batch quantities, every sign-in with its address — to a reader who may see none of those modules' own pages. What holds? | The history shows what the reader may otherwise see: each entity type needs its module's view key (`AUDIT_ENTITY_VIEW_PERMISSION` in `packages/shared/src/audit-matrix.ts`: `USER` and `SESSION` → `users.manage`, i.e. admins; `ITEM` → `items.view`; `PURCHASE_BATCH` → `purchases.view`; `CUSTOMER` → `customers.view`; `DRIVER` → `drivers.view`; `ORDER`, `RETURN`, `LEDGER_ENTRY` → `orders.view`; `SETTINGS`, `UPLOAD` → any reader, as settings are readable by every signed-in user). `GET /api/audit-logs` filters rows by the visible types (no filter for an admin, who sees all) and refuses an explicit `entityType` outside them with `PERMISSION_DENIED { required }`; cost stays redacted as before. Chosen over making `audit.view` depend on the view keys, which would have forced every history reader to see every module. The web filter offers only the visible types. |
+| Q74 | The 2026-09-26 security review (iteration 7d): `page` had no upper bound, so `?page=1e12` made the database walk an arbitrarily large `OFFSET` for an empty page; and the positions and stock reports returned every row, unlike the period reports' 5,000-row cap (§12.1). What holds? | `PAGE_MAX = 100,000` (`schemas/common.ts`) bounds `page` in `PageQuery` and `AuditLogListQuery` — 10,000,000 rows at the largest page size, more than any list here will hold — and a larger value is the ordinary `VALIDATION_FAILED` `too_big` on `page`; the web's list search params fall back to page 1 past it, as they do for any unparsable value. The positions and stock reports keep the §12.1 cap: they rank their one small row per customer (item) in memory as before, keep the first 5,000 in the requested order, hydrate names and per-item cells for those only, and set `truncated`; every total, including the positions' per-item totals (now one SQL aggregate under the customer filter — a customer the zero filter leaves out has nothing out, so the set is the same), counts every row. The pages show `reports.truncatedRows` ("narrow the filters"), since these reports have no period. |
 
 ## 3. Actors, roles and permissions
 
@@ -2257,7 +2258,8 @@ export const Phone          = z.string().max(40)
                                 .pipe(z.string().regex(/^\+?[0-9]{7,15}$/));   // stored normalized
 export const SearchQuery    = z.string().trim().max(100).optional().transform((v) => (v ? v : undefined));
 export const BoolQuery      = z.enum(['true', 'false']).transform((v) => v === 'true');
-export const PageQuery      = { page: z.coerce.number().int().min(1).default(1),
+export const PAGE_MAX       = 100_000;                                      // Q74
+export const PageQuery      = { page: z.coerce.number().int().min(1).max(PAGE_MAX).default(1),
                                 pageSize: z.coerce.number().int().min(1).max(100).default(25) };
 export const sortParam      = <F extends string>(fields: readonly F[], dflt: `${'' | '-'}${F}`) =>
                                 z.enum([...fields, ...fields.map((f) => `-${f}`)] as [string, ...string[]]).default(dflt);
@@ -2804,6 +2806,7 @@ interface PositionsReportDto {
           palletsOut: number; outValue: number; owed: number; held: number }[];
   totals: { palletsOutByItem: { itemId: number; quantityOut: number }[];
             palletsOut: number; outValue: number; owed: number; held: number };
+  truncated: boolean;               // over 5,000 customers: rows are the first 5,000 in the sort; totals complete (Q74)
 }
 interface PurchasesReportDto {      // every money field here is cost data; the endpoint refuses without items.viewCost
   generatedAt: string; dateFrom: string; dateTo: string;
@@ -2844,6 +2847,7 @@ interface StockReportDto {
   rows: { item: ItemRefDto; quantityOnHand: number; quantityOut: number; damagedTotal: number;
           minStock: number | null; isLowStock: boolean }[];
   totals: { quantityOnHand: number; quantityOut: number; damagedTotal: number; lowStockCount: number };
+  truncated: boolean;               // over 5,000 items: rows are the first 5,000 in the sort; totals complete (Q74)
 }
 
 // ── audit ──
@@ -3414,7 +3418,7 @@ All report queries are single SQL aggregates (`$queryRaw` tagged templates, mone
 - **Query:**
 ```ts
 AuditLogListQuery = z.strictObject({
-  page: z.coerce.number().int().min(1).default(1),
+  page: z.coerce.number().int().min(1).max(PAGE_MAX).default(1),
   pageSize: z.coerce.number().int().min(1).max(100).default(50),
   userId: IdParam.optional(), entityType: z.enum(AUDIT_ENTITY_TYPES).optional(),
   entityId: z.string().max(64).optional(), action: z.enum(AUDIT_ACTIONS).optional(),
@@ -4893,7 +4897,7 @@ The list lives in `AUDIT_READ_REDACTIONS` (`apps/api/src/modules/audit/audit-red
 - Ledger effective date = `COALESCE(le.date, o.date)` (the automatic hand-over payment has no stored date).
 - Date filters are business dates `YYYY-MM-DD`, inclusive on both ends: `x.date BETWEEN ${dateFrom}::date AND ${dateTo}::date`. `dateFrom > dateTo` → 400 `DATE_RANGE_INVALID`; either date after today (Baghdad) → 400 `BUSINESS_DATE_IN_FUTURE`. Defaults applied by the web app (not the API): first day of the current month → today.
 - Every response carries `generatedAt` (ISO UTC) and echoes the applied `filters`; the page prints them in the header.
-- Row cap: each row array is limited to 5 000 rows (`LIMIT 5001`, the 5 001st row sets `truncated: true` and is dropped); totals come from separate aggregate queries and are always complete. The UI shows "narrow the date range" when `truncated`.
+- Row cap: each row array is limited to 5 000 rows (`LIMIT 5001`, the 5 001st row sets `truncated: true` and is dropped); totals come from separate aggregate queries and are always complete. The UI shows "narrow the date range" when `truncated` (`reports.truncated`). The snapshot reports (positions, stock) rank their one row per customer or item in memory, then keep the first 5,000 in the requested order and set `truncated`; their totals, including the positions' per-item totals, are computed over every row, and the page says "narrow the filters" (`reports.truncatedRows`, Q74).
 - Snapshot reports (1, 4) are small (one row per customer / item) and are sorted client-side; the API returns a fixed default order.
 - Print: every report page has a Print button (`window.print()`). Print CSS (`apps/web/src/styles/print.css`): `@page { size: A4 portrait; margin: 12mm }` (Activity: `A4 landscape`), hide `[data-print="hide"]` (sidebar, filters, buttons), show `[data-print="only"]` header (factory name, report title, filters, `generatedAt` in Asia/Baghdad), `thead { display: table-header-group }`, `tr { break-inside: avoid }`, forced light colours (`color-scheme: light`, `--background: #fff`), no motion.
 

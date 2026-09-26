@@ -330,6 +330,7 @@ const POSITIONS: PositionsReportDto = {
     owed: 603_125_000,
     held: 120_000_000,
   },
+  truncated: false,
 };
 
 const PURCHASES: PurchasesReportDto = {
@@ -410,6 +411,7 @@ const STOCK: StockReportDto = {
     damagedTotal: ITEM.damagedTotal,
     lowStockCount: 0,
   },
+  truncated: false,
 };
 
 /** A one-sheet receipt for order 9 (§7.16). */

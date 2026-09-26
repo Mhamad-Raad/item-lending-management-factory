@@ -507,6 +507,8 @@ export interface PositionsReportDto {
     owed: number;
     held: number;
   };
+  /** More than 5,000 customers matched: `rows` holds the first 5,000 in the sort order; totals are complete (§12.1). */
+  truncated: boolean;
 }
 
 /** Every money field is cost data: the endpoint refuses a viewer without `items.viewCost`. */
@@ -612,4 +614,6 @@ export interface StockReportDto {
     isLowStock: boolean;
   }[];
   totals: { quantityOnHand: number; quantityOut: number; damagedTotal: number; lowStockCount: number };
+  /** More than 5,000 items matched: `rows` holds the first 5,000 in the sort order; totals are complete (§12.1). */
+  truncated: boolean;
 }

@@ -14,6 +14,8 @@ import type { INestApplication } from '@nestjs/common';
 import request from 'supertest';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { FixedClock } from '../../src/common/clock';
+import { ROW_CAP } from '../../src/modules/reports/reports.service';
+import { PrismaService } from '../../src/prisma/prisma.service';
 import { createTestApp } from '../helpers/app';
 import { asUser, login, type Session } from '../helpers/auth';
 import { disconnectDatabase, resetDatabase } from '../helpers/db';
@@ -198,6 +200,7 @@ describe('reports and dashboard (§6.22, §6.23, §12)', () => {
       owed: 20_000,
       held: 75_000,
     });
+    expect(report.truncated).toBe(false);
 
     const one = await get<PositionsReportDto>(`/api/reports/positions?customerId=${baban.id}&sort=-palletsOut`);
     expect(one.rows.map((row) => row.customer.name)).toEqual(['Baban Cement']);
@@ -217,6 +220,47 @@ describe('reports and dashboard (§6.22, §6.23, §12)', () => {
     expect(
       reversedSort.rows.filter((row) => row.customer.name === 'Twin Traders').map((row) => row.customer.id),
     ).toEqual(twins.map((twin) => twin.id).sort((x, y) => x - y));
+  });
+
+  it('positions and stock stop at 5,000 rows, saying so, with totals over every row (Q74)', async () => {
+    const creator = await app.get(PrismaService).user.findFirstOrThrow({ where: { role: 'ADMIN' } });
+    await app.get(PrismaService).customer.createMany({
+      data: Array.from({ length: ROW_CAP }, (_, index) => ({
+        name: `Bulk ${String(index).padStart(5, '0')}`,
+        phone: `0780${String(index).padStart(7, '0')}`,
+        address: 'Erbil',
+        createdByUserId: creator.id,
+      })),
+    });
+
+    // Every customer, zeros included: more than 5,000 rows. The first 5,000 in the sort order are drawn.
+    const all = await get<PositionsReportDto>('/api/reports/positions?includeZero=true&sort=-palletsOut');
+    expect(all.truncated).toBe(true);
+    expect(all.rows).toHaveLength(ROW_CAP);
+    expect(all.rows.slice(0, 2).map((row) => row.customer.id)).toEqual([ashti.id, baban.id]);
+    expect(all.totals).toMatchObject({
+      palletsOutByItem: [
+        { itemId: a.id, quantityOut: 75 },
+        { itemId: b.id, quantityOut: 8 },
+      ],
+      palletsOut: 83,
+      owed: 20_000,
+    });
+    // Without the empty ones the report is whole again.
+    expect((await get<PositionsReportDto>('/api/reports/positions')).truncated).toBe(false);
+    expect((await get<StockReportDto>('/api/reports/stock')).truncated).toBe(false);
+
+    await app.get(PrismaService).customer.deleteMany({ where: { name: { startsWith: 'Bulk ' } } });
+  });
+
+  it('refuses a page past the last one any list may ask for (Q74)', async () => {
+    for (const path of ['/api/customers?page=100001', '/api/audit-logs?page=100001', '/api/orders?page=1e12']) {
+      const refused = await request(app.getHttpServer()).get(path).set(asUser(admin)).expect(400);
+      expect(refused.body).toMatchObject({
+        error: { code: 'VALIDATION_FAILED', fields: [{ path: 'page' }] },
+      });
+    }
+    await request(app.getHttpServer()).get('/api/customers?page=100000').set(asUser(admin)).expect(200);
   });
 
   it('purchases: each standing batch in the period, per item and in total, never averaged', async () => {

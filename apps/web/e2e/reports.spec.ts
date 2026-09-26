@@ -53,6 +53,7 @@ const POSITIONS: PositionsReportDto = {
     owed: 20_000,
     held: 75_000,
   },
+  truncated: false,
 };
 
 const PURCHASES: PurchasesReportDto = {
@@ -147,6 +148,7 @@ const STOCK: StockReportDto = {
     { item: B, quantityOnHand: 90, quantityOut: 8, damagedTotal: 2, minStock: 90, isLowStock: true },
   ],
   totals: { quantityOnHand: 565, quantityOut: 83, damagedTotal: 2, lowStockCount: 1 },
+  truncated: false,
 };
 
 async function mockReports(page: Page, user: MeDto = ADMIN) {

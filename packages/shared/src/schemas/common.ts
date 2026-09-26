@@ -52,9 +52,15 @@ export type BusinessDate = z.infer<typeof BusinessDate>;
 export const IdParam = z.coerce.number().int().min(1).max(2_147_483_647);
 export type IdParam = z.infer<typeof IdParam>;
 
+/**
+ * The last page any list may ask for (Q74): 10,000,000 rows at the largest page size. Beyond it the
+ * database would still walk the whole OFFSET to answer an empty page.
+ */
+export const PAGE_MAX = 100_000;
+
 /** `?page=&pageSize=` on every paginated list; spread into each list query. */
 export const PageQuery = {
-  page: z.coerce.number().int().min(1).default(1),
+  page: z.coerce.number().int().min(1).max(PAGE_MAX).default(1),
   pageSize: z.coerce.number().int().min(1).max(100).default(25),
 } as const;
 

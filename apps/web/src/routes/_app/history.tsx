@@ -4,6 +4,7 @@ import {
   BusinessDate,
   businessToday,
   formatTimestamp,
+  PAGE_MAX,
   visibleAuditEntityTypes,
   type AuditAction,
   type AuditEntityType,
@@ -41,7 +42,7 @@ const SearchSchema = z.object({
   userId: z.coerce.number().int().min(1).optional().catch(undefined),
   dateFrom: BusinessDate.optional().catch(undefined),
   dateTo: BusinessDate.optional().catch(undefined),
-  page: z.coerce.number().int().min(1).default(1).catch(1),
+  page: z.coerce.number().int().min(1).max(PAGE_MAX).default(1).catch(1),
 });
 
 export const Route = createFileRoute('/_app/history')({

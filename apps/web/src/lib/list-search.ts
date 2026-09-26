@@ -1,4 +1,4 @@
-import { SEARCH_MAX_LENGTH } from '@pallet/shared';
+import { PAGE_MAX, SEARCH_MAX_LENGTH } from '@pallet/shared';
 import { z } from 'zod';
 
 export const PAGE_SIZES = [10, 25, 50, 100] as const;
@@ -14,7 +14,7 @@ export const listSearch = {
     .transform((q) => q.slice(0, SEARCH_MAX_LENGTH))
     .optional()
     .catch(undefined),
-  page: z.coerce.number().int().min(1).default(1).catch(1),
+  page: z.coerce.number().int().min(1).max(PAGE_MAX).default(1).catch(1),
   pageSize: z.coerce
     .number()
     .int()
