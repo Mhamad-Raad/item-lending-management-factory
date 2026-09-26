@@ -33,7 +33,8 @@ const PUBLIC_SECRET_MARKERS = ['change-me', 'dev-only', 'ci-only', 'e2e-only', '
 /**
  * Why `secret` is unfit to sign access tokens, or `null`. The placeholder is refused everywhere; the rest
  * (public values, low variety, a repeated pattern) only in production, so the development, CI and test
- * values keep working. Never includes the secret itself.
+ * values keep working. Never includes the secret itself. `deploy/deploy.sh` mirrors these rules for production
+ * (Q67): change both together.
  */
 export function jwtSecretProblem(secret: string, nodeEnv: Env['NODE_ENV']): string | null {
   const lower = secret.toLowerCase();

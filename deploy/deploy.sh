@@ -13,23 +13,42 @@ HEALTH_TIMEOUT_SECONDS=60
 cd "$APP_DIR"
 [[ -f .env ]] || { echo "missing $APP_DIR/.env" >&2; exit 1; }
 
-# The .env.example placeholders are public (so is the repository): a token secret anyone can read lets anyone
-# sign in as an admin. Refuse it before anything changes; never print the value. The API repeats the check,
-# and more, at startup (apps/api/src/config/env.ts).
+# The .env.example placeholder and the development, CI and e2e secrets are public (so is the repository): a
+# token secret anyone can read lets anyone sign in as an admin. Refuse, before anything changes, every secret
+# the production API refuses at startup (jwtSecretProblem in apps/api/src/config/env.ts — keep the two in
+# step): otherwise the new API would not start and the deploy would roll back after an outage. Never print it.
 env_value() { grep -E "^$1=" .env | tail -n 1 | cut -d= -f2- || true; }
-jwt_secret="$(env_value JWT_ACCESS_SECRET)"
-jwt_problem=""
-if [[ -z "$jwt_secret" ]]; then jwt_problem="is missing"
-elif [[ "$jwt_secret" == *change-me* ]]; then jwt_problem="is still the .env.example placeholder"
-elif (( ${#jwt_secret} < 64 )); then jwt_problem="is shorter than 64 characters"
-fi
+jwt_secret_problem() {
+  local secret="$1" lower length distinct most_common period marker
+  lower="$(printf '%s' "$secret" | tr '[:upper:]' '[:lower:]')"
+  length=${#secret}
+  if [[ -z "$secret" ]]; then echo "is missing"; return; fi
+  if [[ "$lower" == *change-me* ]]; then echo "is still the .env.example placeholder"; return; fi
+  if (( length < 64 )); then echo "is shorter than 64 characters"; return; fi
+  for marker in dev-only ci-only e2e-only example; do
+    if [[ "$lower" == *"$marker"* ]]; then echo "is a development/CI value published in the repository"; return; fi
+  done
+  # Same thresholds as the API: fewer than 12 distinct characters, one character filling more than a
+  # quarter of the string, or a short block repeated.
+  distinct="$(printf '%s' "$secret" | fold -w1 | sort -u | wc -l | tr -d ' ')"
+  most_common="$(printf '%s' "$secret" | fold -w1 | sort | uniq -c | awk '$1 > m { m = $1 } END { print m + 0 }')"
+  if (( distinct < 12 || most_common * 4 > length )); then
+    echo "looks too predictable (too few distinct characters)"; return
+  fi
+  for (( period = 1; period * 4 <= length; period++ )); do
+    if [[ "${secret:period}" == "${secret:0:length-period}" ]]; then
+      echo "looks too predictable (a repeated pattern)"; return
+    fi
+  done
+}
+jwt_problem="$(jwt_secret_problem "$(env_value JWT_ACCESS_SECRET)")"
 if [[ -n "$jwt_problem" ]]; then
   echo "deploy: refused — JWT_ACCESS_SECRET in $APP_DIR/.env $jwt_problem." >&2
   echo "deploy: generate one with \`openssl rand -hex 64\`, store it in the password manager" \
     "(docs/runbooks/rotate-secrets.md), put it in .env and deploy again. Nothing was changed." >&2
   exit 1
 fi
-unset jwt_secret jwt_problem
+unset jwt_problem
 for name in POSTGRES_PASSWORD DB_OWNER_PASSWORD DB_APP_PASSWORD; do
   if [[ "$(env_value "$name")" == *change-me* ]]; then
     echo "deploy: WARNING — $name in .env is still the .env.example placeholder; rotate it" \
