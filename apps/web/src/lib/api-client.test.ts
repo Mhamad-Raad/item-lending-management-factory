@@ -44,6 +44,7 @@ describe('apiFetch', () => {
         role: 'ADMIN',
         mustChangePassword: false,
         permissions: [],
+        version: 1,
       },
     });
     const fetchMock = vi.spyOn(globalThis, 'fetch').mockResolvedValue(jsonResponse(200, { ok: true }));
@@ -139,6 +140,7 @@ describe('apiFetch', () => {
             role: 'ADMIN',
             mustChangePassword: false,
             permissions: [],
+            version: 1,
           },
         }),
       )
@@ -164,6 +166,7 @@ describe('apiFetch', () => {
         role: 'ADMIN',
         mustChangePassword: false,
         permissions: [],
+        version: 1,
       },
     });
     vi.spyOn(globalThis, 'fetch')
@@ -191,6 +194,7 @@ describe('apiFetch', () => {
           role: 'ADMIN',
           mustChangePassword: false,
           permissions: [],
+          version: 1,
         },
       });
 
@@ -249,6 +253,7 @@ describe('apiFetch', () => {
             role: 'ADMIN',
             mustChangePassword: false,
             permissions: [],
+            version: 1,
           },
         }),
       )

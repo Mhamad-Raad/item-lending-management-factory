@@ -5,6 +5,7 @@ import { toast } from 'sonner';
 import { ChangePasswordForm } from '@/components/app/change-password-form';
 import { ConfirmDialog } from '@/components/app/confirm-dialog';
 import { PageHeader } from '@/components/app/page-header';
+import { ProfileForm } from '@/components/app/profile-form';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { usePageTitle } from '@/hooks/use-page-title';
@@ -43,22 +44,8 @@ function AccountPage() {
           <CardTitle>{t('account.profile.title')}</CardTitle>
         </CardHeader>
         <CardContent>
-          <dl className="grid gap-2 text-sm sm:grid-cols-3">
-            <div>
-              <dt className="text-muted-foreground">{t('account.profile.username')}</dt>
-              <dd className="font-medium">{user?.username}</dd>
-            </div>
-            <div>
-              <dt className="text-muted-foreground">{t('account.profile.displayName')}</dt>
-              <dd className="font-medium">
-                <bdi>{user?.displayName}</bdi>
-              </dd>
-            </div>
-            <div>
-              <dt className="text-muted-foreground">{t('account.profile.role')}</dt>
-              <dd className="font-medium">{user ? t(`enums.role.${user.role}`) : ''}</dd>
-            </div>
-          </dl>
+          {/* Keyed by version: a save, here or elsewhere, remounts the form with what the server now holds. */}
+          {user ? <ProfileForm key={`${user.id}-${user.version}`} user={user} /> : null}
         </CardContent>
       </Card>
 

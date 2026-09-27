@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { DisplayName } from './users.js';
 
 /**
  * Login deliberately accepts any non-empty username: an invalid one must take exactly the same
@@ -27,3 +28,13 @@ export type ChangePasswordBody = z.infer<typeof ChangePasswordBody>;
 /** Policy bounds, shared with the web app so it can show the rules before submitting. */
 export const PASSWORD_MIN_LENGTH = 10;
 export const PASSWORD_MAX_LENGTH = 128;
+
+/**
+ * What a signed-in user may change about themselves (Q94): only the display name, validated exactly as
+ * the admin's user form validates it. Username, role and active state stay with the administrators.
+ */
+export const MeUpdateBody = z.strictObject({
+  version: z.number().int().positive(),
+  displayName: DisplayName,
+});
+export type MeUpdateBody = z.infer<typeof MeUpdateBody>;

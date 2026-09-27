@@ -47,6 +47,7 @@ describe('a sign-out the server missed (Q80)', () => {
       role: 'ADMIN' as const,
       mustChangePassword: false,
       permissions: [],
+      version: 1,
     },
   };
 

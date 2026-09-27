@@ -38,6 +38,7 @@ export const ADMIN: MeDto = {
   role: 'ADMIN',
   mustChangePassword: false,
   permissions: [],
+  version: 1,
 };
 
 export const ITEM: ItemDto = {
@@ -438,7 +439,7 @@ export const RECEIPT: ReceiptDto = {
 
 const page1 = <T>(items: T[]): PageDto<T> => ({ items, page: 1, pageSize: 25, total: items.length * 40 });
 
-/** Signs `user` in and answers every read the built pages make; writes are not needed here. */
+/** Signs `user` in and answers every read the built pages make, and the own-profile save. */
 export async function mockApi(
   page: Page,
   user: MeDto = ADMIN,
@@ -487,4 +488,11 @@ export async function mockApi(
   for (const [pattern, json] of routes) {
     await page.route(pattern, (route) => route.fulfill({ json }));
   }
+  // The one write every signed-in user has on their own page (Q94): the saved name, one version on.
+  await page.route(/\/api\/auth\/me$/, (route) => {
+    if (route.request().method() !== 'PATCH') return route.fallback();
+    const body = route.request().postDataJSON() as { displayName: string };
+    const saved: MeDto = { ...user, displayName: body.displayName, version: user.version + 1 };
+    return route.fulfill({ json: saved });
+  });
 }

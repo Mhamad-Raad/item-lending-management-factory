@@ -1,5 +1,12 @@
-import { Body, Controller, Get, HttpCode, Inject, Post, Req, Res } from '@nestjs/common';
-import { ChangePasswordBody, LoginBody, RefreshBody, type AuthTokenDto, type MeDto } from '@pallet/shared';
+import { Body, Controller, Get, HttpCode, Inject, Patch, Post, Req, Res } from '@nestjs/common';
+import {
+  ChangePasswordBody,
+  LoginBody,
+  MeUpdateBody,
+  RefreshBody,
+  type AuthTokenDto,
+  type MeDto,
+} from '@pallet/shared';
 import type { Request, Response } from 'express';
 import type { AuthContext } from '../../common/auth-context';
 import { Authenticated, Public } from '../../common/decorators/access.decorators';
@@ -71,6 +78,16 @@ export class AuthController {
   me(@CurrentUser() user: AuthContext): MeDto {
     // AuthGuard has already loaded the user and its permissions for this request.
     return contextToMeDto(user);
+  }
+
+  /** The caller's own display name (Q94); refused while `mustChangePassword`, as every non-listed route is. */
+  @Patch('me')
+  @Authenticated()
+  updateMe(
+    @CurrentUser() user: AuthContext,
+    @Body(new ZodValidationPipe(MeUpdateBody)) body: MeUpdateBody,
+  ): Promise<MeDto> {
+    return this.auth.updateOwnProfile(user.userId, body);
   }
 
   @Post('change-password')

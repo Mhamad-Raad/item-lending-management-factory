@@ -28,6 +28,8 @@ export interface MeDto {
   mustChangePassword: boolean;
   /** Admin: every key; employee: the stored keys. Sorted ascending. */
   permissions: PermissionKey[];
+  /** The user row's version, which `PATCH /api/auth/me` names (Q94). */
+  version: number;
 }
 
 /** `GET /api/health` (§6.25): the database answered and the uploads volume has room (Q61). */

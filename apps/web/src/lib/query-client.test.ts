@@ -12,6 +12,7 @@ const SESSION = {
     role: 'ADMIN' as const,
     mustChangePassword: false,
     permissions: [],
+    version: 1,
   },
 };
 

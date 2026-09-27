@@ -202,7 +202,9 @@
       "title": "Profile",
       "username": "Username",
       "displayName": "Display name",
-      "role": "Role"
+      "role": "Role",
+      "adminManaged": "Only an administrator can change your username and role.",
+      "saved": "Your name is saved"
     },
     "security": {
       "title": "Security",

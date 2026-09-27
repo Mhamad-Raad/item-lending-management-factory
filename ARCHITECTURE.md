@@ -257,6 +257,7 @@ Every item below is an ambiguity, contradiction or gap in the brief. The builder
 | Q91 | Every paginated list ends its `ORDER BY` in `id` so a row cannot appear on two pages, but not the same way: items, drivers, users and customers break ties by `id` ascending whatever the sort direction; orders, purchase batches and the money ledger by `id` in the sort's direction; audit logs and stock movements sort by `id` descending alone; the customer history by date, time, kind and `id` descending. The 2026-09-27 DRY pass (`common/utils/pagination.ts`) centralised the paging but not the ordering. Unify the tie-break? | Not in a refactor: a different tie-break reorders rows that tie on the sort key (same name, same date), so a page could show different rows than before. Each list keeps its current `orderBy` explicitly, next to its `pageArgs`/`pageSqlLimit`. Default until the owner decides otherwise: leave as is. If unified, the likely choice is `id` in the sort's direction (a descending date sort then lists the newest-created first among equal dates), applied in one commit with the list tests updated. |
 | Q92 | The four submit flows refresh their stale queries in two different orders: the new-order and edit-order forms wait for the refresh and then navigate to the order, while the payment and return forms navigate first and refresh behind it. The DRY pass (`hooks/use-flow-mutation.ts`) kept both. Should they agree? | Kept as they are, and named: `useFlowMutation` takes `refresh: 'before-navigate' \| 'after-navigate'` and each flow states its choice (pinned by `use-flow-mutation.test.tsx`). Each order has a reason: the order page must open with the new order's figures, while a payment or return form refreshed before leaving would flash its own "nothing owed" or "nothing out" state. Default: leave both; revisit only if the order page is seen opening with stale figures after a payment or return. |
 | Q93 | The maintainer asked that a sign-in refused by the (ip, username) pair lock say so and say for how long: until now the locked pair, and the failure that locked it, answered the generic `AUTH_INVALID_CREDENTIALS`, so a colleague who mistyped five times kept retrying the right password for up to 15 minutes, each attempt refused as if it were wrong. Can the login name the lock without helping a guesser? | Yes. A locked pair and the failure that locks it answer 429 `LOGIN_THROTTLED { retryAfterSeconds, retryAfterMinutes }` (the shape of `LOGIN_ACCOUNT_THROTTLED`, declared in `ErrorDetailsByCode`): the time left on the lock, or the new lock's duration. It stays safe because the lock applies identically wherever it could leak: (a) the pair is keyed on the typed, normalised username whether or not an account has it, so an unknown username locks after the same five failures and gets the same answer, byte for byte except `requestId` — the answer reveals no account; (b) the lock is checked before the password is looked at, and every attempt during it runs exactly one Argon2 verification against `DUMMY_HASH`, so a right and a wrong password get the same answer in the same time — it reveals no password. What it does tell a guesser, that five failures lock the pair and for how long, was already public in this document and measurable from the refusals. Inactive users keep the generic answer outside a lock (they lock like anyone else). The account-wide ceiling keeps its own code and wording (Q68); the pair is checked first, so when both hold the answer is the pair's — its wait is the one this address is actually under at that moment, and once it lifts the ceiling answers with its own. Audit rows are unchanged (`LOGIN_FAILURE` `reason = 'LOCKED'`, `LOCKOUT` `scope = 'ADDRESS'`). The message names the wait as "Minutes to wait: n" rather than "n minutes", because the translation files carry no plural keys (§7.10) and the first lock is one minute. |
+| Q94 | The maintainer asked that every user can change their own information on `/account` — "the fields that make sense". The user row holds `username`, `display_name`, the password, `role`, the permission set and `is_active`; until now `/account` showed the profile read-only and only an admin could change any of it. Which fields are the user's own? | **The display name only**, through `PATCH /api/auth/me` (`@Authenticated()`, body `MeUpdateBody = z.strictObject({ version, displayName })`, the admin form's `DisplayName` rule: trimmed, 1–100 characters). The password already has its own form on the page (§6.8.6). The **username** stays admin-managed: it is the sign-in identity, the key of the login throttle (§6.8.2, Q68, Q93) and of every audit row's `usernameAttempt`, and the name a colleague is known by in the user list — renaming it from one's own account would let a user step out from under a lock or muddy the history, for no daily need. **Role, permissions and active state** stay admin-only (§3.2). The route edits the caller's own row only (the body names no user; the strict schema refuses `id` and every other field), under `lockUser`, with the usual version check (`VERSION_CONFLICT`) and Q37 no-op; the change is audited as the admin's rename is (`UPDATE` on `USER`, `fields: ['displayName']`, before/after), with the user as actor. It is **not** on the `mustChangePassword` allow-list (§6.8.7): a new or reset account sets its password first. `MeDto` gains `version` so the client can name it; the access token carries only `sub` and `tv`, so nothing is re-issued — the response is the new `MeDto`, which the web app puts into the auth store, so the sidebar and the dashboard greeting change at once. |
 
 ## 3. Actors, roles and permissions
 
@@ -2686,6 +2687,7 @@ interface MeDto {
   id: number; username: string; displayName: string; role: Role;
   mustChangePassword: boolean;
   permissions: PermissionKey[];      // admin: all PERMISSION_KEYS; employee: stored keys; sorted ascending
+  version: number;                   // the user row's version, named by PATCH /api/auth/me (Q94)
 }
 interface AuthTokenDto { accessToken: string; accessTokenExpiresAt: string; user: MeDto }
 interface UserListItemDto {
@@ -2964,6 +2966,14 @@ Audit rows are written through `AuditService.record(tx, entry)` inside the same 
 #### `GET /api/auth/me`
 - **Access:** `@Authenticated()` (allowed while `mustChangePassword`).
 - **Response:** 200 `MeDto` built from the user row loaded by `AuthGuard`.
+
+#### `PATCH /api/auth/me`
+- **Access:** `@Authenticated()` (not allowed while `mustChangePassword`, §6.8.7). The caller's own row only (Q94).
+- **Body:** `MeUpdateBody = z.strictObject({ version: z.number().int().positive(), displayName: DisplayName /* z.string().trim().min(1).max(100) */ })` — no other field of the user row is accepted.
+- **Steps:** `lockUser(self)`; a row deactivated meanwhile → `AUTH_TOKEN_INVALID`; version check; an unchanged name changes nothing (no version bump, no audit row, Q37); else `display_name` set, `version += 1`.
+- **Writes:** audit `UPDATE` (entity `USER`, params `{ username, fields: ['displayName'] }`, before/after), as `PATCH /api/users/:id` writes it.
+- **Response:** 200 `MeDto` (the access token carries no name and is not re-issued).
+- **Errors:** `VALIDATION_FAILED`, `VERSION_CONFLICT`, `PASSWORD_CHANGE_REQUIRED`, `AUTH_TOKEN_INVALID` (deactivated meanwhile).
 
 #### `POST /api/auth/change-password`
 - **Access:** `@Authenticated()` (allowed while `mustChangePassword`); throttlers `global`, `login`.
@@ -3502,6 +3512,7 @@ AuditLogListQuery = z.strictObject({
 | POST | /api/auth/logout | Public (cookie) |
 | POST | /api/auth/logout-all | Authenticated |
 | GET | /api/auth/me | Authenticated |
+| PATCH | /api/auth/me | Authenticated |
 | POST | /api/auth/change-password | Authenticated |
 | GET | /api/users | AdminOnly |
 | POST | /api/users | AdminOnly |
@@ -3842,7 +3853,7 @@ Common: a filter bar, a `ReportTable` (a `DataTable` without pagination, with a 
 - **Submit:** `PUT /api/settings` with `version`. Success → toast; invalidate `['settings']`.
 
 #### 7.3.21 `/account` My account
-- **Profile** (read-only): username, display name, role.
+- **Profile** (Q94): username and role read-only, with the hint `account.profile.adminManaged`; the display name is editable (`components/app/profile-form.tsx`) → `PATCH /api/auth/me` with the `MeDto` version. Save is disabled while unchanged or pending; field errors sit under the field, a version conflict offers the reload dialog (which refetches `GET /api/auth/me`); success toasts `account.profile.saved` and puts the returned `MeDto` into the auth store, so the sidebar and the greeting change at once. The form is keyed by the user's version and guarded against leaving with unsaved changes (§7.9).
 - **Change password:** the same form as 7.3.2, embedded.
 - **Preferences** live on `/settings` (§7.3.20, Q50). The top bar keeps a one-press light/dark toggle and a language menu.
 - **Sessions:** "Log out everywhere" (confirm) → `POST /api/auth/logout-all`, then clear local auth and go to `/login` — also when the request fails, with the toast `account.security.logoutAllFailed` (Q76).
@@ -4875,7 +4886,7 @@ A **snapshot** is produced by `toAuditSnapshot(entityType, row)` (`apps/api/src/
 | Entity type | Action | Written by | `entity_id` | `summary_key` | `summary_params` |
 |---|---|---|---|---|---|
 | USER | CREATE | POST /api/users | user id | `audit.summary.USER.CREATE` | `username`, `role` |
-| USER | UPDATE | PATCH /api/users/:id (displayName/role) | user id | `audit.summary.USER.UPDATE` | `username`, `fields` (array of changed field names) |
+| USER | UPDATE | PATCH /api/users/:id (displayName/role), PATCH /api/auth/me (own displayName, Q94) | user id | `audit.summary.USER.UPDATE` | `username`, `fields` (array of changed field names) |
 | USER | USER_DEACTIVATE | PATCH isActive=false | user id | `audit.summary.USER.USER_DEACTIVATE` | `username` |
 | USER | USER_ACTIVATE | PATCH isActive=true | user id | `audit.summary.USER.USER_ACTIVATE` | `username` |
 | USER | PERMISSION_CHANGE | PUT /api/users/:id/permissions | user id | `audit.summary.USER.PERMISSION_CHANGE` | `username`, `added` (count), `removed` (count) — full key arrays in `before`/`after` as `{ permissions: [...] }` |

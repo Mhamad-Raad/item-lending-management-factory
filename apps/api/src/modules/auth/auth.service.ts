@@ -1,11 +1,12 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
-import type { AuthTokenDto, ChangePasswordBody, ErrorDetails, LoginBody, MeDto } from '@pallet/shared';
+import type { AuthTokenDto, ChangePasswordBody, ErrorDetails, LoginBody, MeDto, MeUpdateBody } from '@pallet/shared';
 import { Clock } from '../../common/clock';
 import { ApiError } from '../../common/errors/api-error';
 import type { Prisma, User } from '../../generated/prisma/client';
 import { lockUser, lockUserByUsername } from '../../prisma/locks';
 import { PrismaService } from '../../prisma/prisma.service';
+import { toAuditSnapshot } from '../audit/audit-snapshot';
 import { AuditService } from '../audit/audit.service';
 import { ACCESS_TOKEN_TTL_MS } from './auth.constants';
 import { toMeDto } from './auth.mapper';
@@ -14,6 +15,7 @@ import { checkPasswordPolicy } from './password-policy';
 import { PasswordService } from './password.service';
 import { SessionService, type IssuedToken } from './session.service';
 import { runInTransaction } from '../../prisma/transaction';
+import { assertVersion, changedFields } from '../../common/utils/versioning';
 
 export interface RequestOrigin {
   ip: string;
@@ -281,6 +283,44 @@ export class AuthService {
 
     if (result instanceof ApiError) throw result;
     return result;
+  }
+
+  /**
+   * `PATCH /api/auth/me` (Q94): the caller renames themselves — their own row only, and only the
+   * display name. Recorded as the admin's rename is (`UPDATE` on `USER`), so the history reads the
+   * same whoever made the change. The token carries no name, so the session is left as it is.
+   */
+  async updateOwnProfile(userId: number, body: MeUpdateBody): Promise<MeDto> {
+    return runInTransaction(this.prisma, async (tx) => {
+      await lockUser(tx, userId);
+      const before = await tx.user.findUnique({
+        where: { id: userId },
+        include: { permissions: { select: { permissionKey: true } } },
+      });
+      // Deactivated between the guard and the lock: the session is no longer good for anything.
+      if (!before?.isActive) throw new ApiError('AUTH_TOKEN_INVALID');
+      assertVersion(before.version, body.version);
+
+      // Q37: a save that changes nothing writes nothing — no version bump, no history row.
+      if (changedFields(body, before, ['displayName'] as const).length === 0) return toMeDto(before);
+
+      const after = await tx.user.update({
+        where: { id: userId },
+        data: { displayName: body.displayName, version: { increment: 1 } },
+        include: { permissions: { select: { permissionKey: true } } },
+      });
+
+      await this.audit.record(tx, {
+        action: 'UPDATE',
+        entityType: 'USER',
+        entityId: String(userId),
+        summaryParams: { username: before.username, fields: ['displayName'] },
+        before: toAuditSnapshot('USER', before),
+        after: toAuditSnapshot('USER', after),
+      });
+
+      return toMeDto(after);
+    });
   }
 
   private issueAccessToken(user: User, me: MeDto): AuthTokenDto {

@@ -11,6 +11,8 @@ export interface AuthContext {
   role: Role;
   isAdmin: boolean;
   mustChangePassword: boolean;
+  /** The user row's version, for the caller's own profile edit (Q94). */
+  version: number;
   permissions: ReadonlySet<PermissionKey>;
   canViewCost: boolean;
   ip: string;

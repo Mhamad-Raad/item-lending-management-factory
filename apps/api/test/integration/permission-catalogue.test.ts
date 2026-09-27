@@ -28,6 +28,7 @@ const ROUTE_ACCESS: Record<string, Rule> = {
   'POST /api/auth/logout': PUBLIC,
   'POST /api/auth/logout-all': AUTHENTICATED,
   'GET /api/auth/me': AUTHENTICATED,
+  'PATCH /api/auth/me': AUTHENTICATED,
   'POST /api/auth/change-password': AUTHENTICATED,
   'GET /api/users': ADMIN_ONLY,
   'POST /api/users': ADMIN_ONLY,
