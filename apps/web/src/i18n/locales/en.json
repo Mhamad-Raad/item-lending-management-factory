@@ -162,7 +162,8 @@
       "LOCKED": "Account temporarily locked",
       "INACTIVE": "Account deactivated",
       "ACCOUNT_THROTTLED": "Too many failures on this account; new devices paused"
-    }
+    },
+    "logoutFailed": "You are signed out on this device, but the server could not be reached to end the session. It ends the next time this device opens the app while connected."
   },
   "dashboard": {
     "title": "Dashboard",

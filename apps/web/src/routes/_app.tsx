@@ -1,7 +1,7 @@
-import { createFileRoute, useNavigate } from '@tanstack/react-router';
+import { createFileRoute } from '@tanstack/react-router';
 import { AnimatedOutlet } from '@/components/app/animated-outlet';
 import { AppShell } from '@/components/app/app-shell';
-import { logout } from '@/lib/auth';
+import { useSignOut } from '@/hooks/use-sign-out';
 import { requireAuthenticated } from '@/lib/route-guards';
 
 export const Route = createFileRoute('/_app')({
@@ -10,15 +10,10 @@ export const Route = createFileRoute('/_app')({
 });
 
 function AppLayout() {
-  const navigate = useNavigate();
+  const signOut = useSignOut();
 
   return (
-    <AppShell
-      onLogout={async () => {
-        await logout();
-        await navigate({ to: '/login' });
-      }}
-    >
+    <AppShell onLogout={() => void signOut()}>
       <AnimatedOutlet />
     </AppShell>
   );

@@ -63,9 +63,10 @@ export default defineConfig(
     },
   },
   {
-    // Security requirement (§10.1 S7): tokens live in memory only; the preferences are the one thing kept in storage.
+    // Security requirement (§10.1 S7): tokens live in memory only. Kept in storage: the preferences, and a
+    // flag that holds no secret — a sign-out the server missed (Q80).
     files: ['apps/web/src/**/*.{ts,tsx}'],
-    ignores: ['apps/web/src/lib/preferences.ts'],
+    ignores: ['apps/web/src/lib/preferences.ts', 'apps/web/src/lib/pending-sign-out.ts'],
     rules: {
       'no-restricted-properties': [
         'error',

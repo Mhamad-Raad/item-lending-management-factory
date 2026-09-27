@@ -4,7 +4,7 @@ import { ChangePasswordForm } from '@/components/app/change-password-form';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { usePageTitle } from '@/hooks/use-page-title';
-import { logout } from '@/lib/auth';
+import { useSignOut } from '@/hooks/use-sign-out';
 import { requireAuthenticated } from '@/lib/route-guards';
 
 export const Route = createFileRoute('/change-password')({
@@ -16,6 +16,7 @@ export const Route = createFileRoute('/change-password')({
 function ChangePasswordPage() {
   const { t } = useTranslation();
   const navigate = useNavigate();
+  const signOut = useSignOut();
   usePageTitle('auth.changePassword.title');
 
   return (
@@ -27,14 +28,7 @@ function ChangePasswordPage() {
         </CardHeader>
         <CardContent className="flex flex-col gap-4">
           <ChangePasswordForm onSuccess={() => navigate({ to: '/' })} />
-          <Button
-            type="button"
-            variant="ghost"
-            onClick={async () => {
-              await logout();
-              await navigate({ to: '/login' });
-            }}
-          >
+          <Button type="button" variant="ghost" onClick={() => void signOut()}>
             {t('nav.logout')}
           </Button>
         </CardContent>

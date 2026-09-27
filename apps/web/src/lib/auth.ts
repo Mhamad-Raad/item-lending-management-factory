@@ -2,6 +2,7 @@ import type { AuthTokenDto, LoginBody, MeDto, PermissionKey } from '@pallet/shar
 import { useSyncExternalStore } from 'react';
 import { apiFetch } from './api-client';
 import { authStore } from './auth-store';
+import { clearPendingSignOut, hasPendingSignOut, markSignOutPending } from './pending-sign-out';
 import { listenForPeerRefreshes, refreshAccessToken } from './refresh-lock';
 
 /** Refresh this long before the access token expires, while the tab is visible. */
@@ -56,19 +57,39 @@ export async function bootstrapAuth(): Promise<void> {
     });
   }
 
+  if (hasPendingSignOut()) {
+    // The user signed out while the server was out of reach (Q80): never use the leftover cookie,
+    // and try once more to end its session on the server.
+    authStore.clear();
+    void apiFetch<void>('/auth/logout', { method: 'POST', skipAuthRetry: true }).then(
+      clearPendingSignOut,
+      () => undefined,
+    );
+    return;
+  }
   if (!(await refreshAccessToken())) authStore.clear();
 }
 
 export async function login(body: LoginBody): Promise<MeDto> {
   const session = await apiFetch<AuthTokenDto>('/auth/login', { method: 'POST', body, skipAuthRetry: true });
+  // A fresh sign-in replaces the cookie a failed sign-out left behind.
+  clearPendingSignOut();
   authStore.setSession(session);
   return session.user;
 }
 
-/** Always ends anonymous, even if the request fails: the user asked to be signed out. */
+/**
+ * Always ends anonymous, even if the request fails: the user asked to be signed out. A failure is
+ * rethrown so the page can say the server may still hold the session, and marked (Q80) so the
+ * refresh cookie left behind cannot sign this device back in.
+ */
 export async function logout(): Promise<void> {
   try {
     await apiFetch<void>('/auth/logout', { method: 'POST', skipAuthRetry: true });
+    clearPendingSignOut();
+  } catch (error) {
+    markSignOutPending();
+    throw error;
   } finally {
     authStore.clear();
   }
@@ -82,6 +103,10 @@ export async function logout(): Promise<void> {
 export async function logoutEverywhere(): Promise<void> {
   try {
     await apiFetch<void>('/auth/logout-all', { method: 'POST' });
+    clearPendingSignOut();
+  } catch (error) {
+    markSignOutPending();
+    throw error;
   } finally {
     authStore.clear();
   }

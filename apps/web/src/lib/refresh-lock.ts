@@ -1,6 +1,7 @@
 import type { AuthTokenDto } from '@pallet/shared';
 import { ApiError, apiErrorFromResponse } from './api-error';
 import { authStore } from './auth-store';
+import { hasPendingSignOut } from './pending-sign-out';
 
 const REFRESH_CHANNEL = 'pallet-auth';
 const PEER_BUSY_MS = 3_000;
@@ -36,6 +37,8 @@ export function listenForPeerRefreshes(): void {
  * the caller keeps the user signed in (Q79).
  */
 async function doRefresh(): Promise<boolean> {
+  // Signed out in some tab while the server was out of reach (Q80): the cookie is not to be used.
+  if (hasPendingSignOut()) return false;
   let response: Response;
   try {
     response = await fetch('/api/auth/refresh', {
