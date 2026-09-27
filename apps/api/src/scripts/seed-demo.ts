@@ -5,8 +5,8 @@
  * what the app itself would have written. The services' clock is walked forward day by day, which dates the
  * business dates and the timestamps the services set (cancellations, reversals, overrides, archiving); the
  * `created_at` columns the database fills with now() are moved to the same times afterwards (`backdate`).
- * Deterministic: the same seed and the same end date give the same data. Refuses to run in production or on a
- * database that already holds items, customers or orders. Stop the API first: rows anything else writes while
+ * Deterministic: the same seed and the same end date give the same data. Refuses to run unless NODE_ENV says
+ * development or test, and on a database that already holds items, customers or orders. Stop the API first: rows anything else writes while
  * it runs would be dated with the seed's, and the dating step locks the ledger tables until it commits.
  */
 import 'reflect-metadata';
@@ -317,8 +317,14 @@ async function backdate(owner: PrismaClient, baseline: Record<Timestamped, numbe
 let started = false;
 
 async function main(): Promise<void> {
-  const env = process.env.NODE_ENV ?? 'development';
-  if (env === 'production') throw new Error('seed-demo is for development only');
+  // An unset NODE_ENV is not proof of a development machine: a production shell without it must not seed.
+  const env = process.env.NODE_ENV;
+  if (env !== 'development' && env !== 'test') {
+    throw new Error(
+      `seed-demo refused: NODE_ENV is ${env ? `"${env}"` : 'not set'}; it runs only with NODE_ENV=development ` +
+        'or NODE_ENV=test (set it in the repository-root .env, as .env.example shows)',
+    );
+  }
 
   const app = await NestFactory.createApplicationContext(AppModule, { logger: ['error', 'warn'] });
   try {
