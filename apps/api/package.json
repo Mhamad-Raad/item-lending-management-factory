@@ -26,11 +26,11 @@
     "reconcile": "node --enable-source-maps --env-file-if-exists=../../.env dist/scripts/reconcile.js"
   },
   "dependencies": {
-    "@nestjs/common": "11.2.3",
-    "@nestjs/core": "11.2.3",
+    "@nestjs/common": "11.2.6",
+    "@nestjs/core": "11.2.6",
     "@nestjs/jwt": "11.0.2",
-    "@nestjs/platform-express": "11.2.3",
-    "@nestjs/throttler": "6.5.0",
+    "@nestjs/platform-express": "11.2.6",
+    "@nestjs/throttler": "6.7.0",
     "@pallet/shared": "workspace:*",
     "@prisma/adapter-pg": "7.10.0",
     "@prisma/client": "7.10.0",
@@ -38,7 +38,7 @@
     "argon2": "0.45.1",
     "cookie-parser": "1.4.7",
     "dotenv": "17.4.2",
-    "multer": "2.3.0",
+    "multer": "2.4.0",
     "nestjs-pino": "4.6.1",
     "pino": "10.3.1",
     "pino-http": "11.0.0",
@@ -46,21 +46,21 @@
     "reflect-metadata": "0.2.2",
     "rxjs": "7.8.2",
     "sharp": "0.35.4",
-    "zod": "4.6.2"
+    "zod": "4.6.5"
   },
   "devDependencies": {
-    "@nestjs/testing": "11.2.3",
+    "@nestjs/testing": "11.2.6",
     "@swc/core": "1.16.2",
     "@types/cookie-parser": "1.4.10",
     "@types/express": "5.0.6",
     "@types/multer": "2.2.0",
-    "@types/node": "24.13.4",
+    "@types/node": "24.13.6",
     "@types/supertest": "7.2.1",
-    "@vitest/coverage-v8": "5.0.0",
-    "supertest": "7.2.2",
+    "@vitest/coverage-v8": "5.0.1",
+    "supertest": "7.3.0",
     "tsc-watch": "7.2.1",
     "typescript": "6.0.3",
     "unplugin-swc": "1.6.0",
-    "vitest": "5.0.0"
+    "vitest": "5.0.1"
   }
 }
