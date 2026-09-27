@@ -25,16 +25,25 @@
 		}
 	}
 
+	# Vite emits content-hashed files under /assets → cache forever. A file that is not there is a chunk
+	# an older page asked for after a deploy replaced it: a plain 404 that is never cached, never
+	# index.html (which a browser would cache forever under the chunk's name and fail to run as a
+	# script). The app reloads itself once on such a failure (Q81).
+	handle /assets/* {
+		root * /srv
+		@present file
+		header @present Cache-Control "public, max-age=31536000, immutable"
+		@missing not file
+		header @missing Cache-Control "no-store"
+		respond @missing 404
+		file_server
+	}
+
 	handle {
 		root * /srv
 
-		# Vite emits content-hashed files under /assets → cache forever.
-		@hashed path /assets/*
-		header @hashed Cache-Control "public, max-age=31536000, immutable"
-
 		# Everything else (index.html, boot-prefs.js, favicon) must revalidate so deploys show up.
-		@unhashed not path /assets/*
-		header @unhashed Cache-Control "no-cache"
+		header Cache-Control "no-cache"
 
 		# SPA fallback: unknown paths render index.html (TanStack Router handles the route).
 		try_files {path} /index.html

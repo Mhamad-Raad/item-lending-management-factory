@@ -15,9 +15,12 @@ import './styles/print.css';
 import './i18n';
 import { App } from './app';
 import { installZodI18n } from '@/lib/zod-i18n';
+import { installChunkReload } from '@/lib/chunk-reload';
 
 // Validation messages must be i18n keys before any schema is used.
 installZodI18n();
+// A tab open across a deploy asks for chunks that no longer exist: reload into the new version (Q81).
+installChunkReload();
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>

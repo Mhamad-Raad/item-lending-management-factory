@@ -23,7 +23,8 @@
       "delete": "Delete",
       "edit": "Edit",
       "title": "Actions",
-      "done": "Done"
+      "done": "Done",
+      "reload": "Reload"
     },
     "password": {
       "show": "Show password",
@@ -110,7 +111,13 @@
     "notifications": "Notifications",
     "errorReference": "Reference: {{id}}",
     "loading": "Loading…",
-    "appTagline": "Pallet lending"
+    "appTagline": "Pallet lending",
+    "pageError": {
+      "title": "This page could not be shown",
+      "body": "Something went wrong while opening it. Reload to try again; if it keeps happening, tell your administrator.",
+      "staleTitle": "A new version of the app is available",
+      "staleBody": "The app was updated while this page was open. Reload to continue with the new version."
+    }
   },
   "nav": {
     "primary": "Main navigation",

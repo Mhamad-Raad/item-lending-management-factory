@@ -63,10 +63,14 @@ export default defineConfig(
     },
   },
   {
-    // Security requirement (§10.1 S7): tokens live in memory only. Kept in storage: the preferences, and a
-    // flag that holds no secret — a sign-out the server missed (Q80).
+    // Security requirement (§10.1 S7): tokens live in memory only. Kept in storage: the preferences, and two
+    // values that hold no secret — a sign-out the server missed (Q80) and a one-time reload after a deploy (Q81).
     files: ['apps/web/src/**/*.{ts,tsx}'],
-    ignores: ['apps/web/src/lib/preferences.ts', 'apps/web/src/lib/pending-sign-out.ts'],
+    ignores: [
+      'apps/web/src/lib/preferences.ts',
+      'apps/web/src/lib/pending-sign-out.ts',
+      'apps/web/src/lib/chunk-reload.ts',
+    ],
     rules: {
       'no-restricted-properties': [
         'error',
