@@ -1,4 +1,4 @@
-import { Inject, Injectable, type OnModuleDestroy, type OnModuleInit } from '@nestjs/common';
+import { Inject, Injectable, type OnApplicationShutdown, type OnModuleInit } from '@nestjs/common';
 import { PrismaPg } from '@prisma/adapter-pg';
 import { PrismaClient } from '../generated/prisma/client';
 import { ENV, type Env } from '../config/env';
@@ -13,7 +13,7 @@ import { ENV, type Env } from '../config/env';
 export const API_POOL_MAX = 20;
 
 @Injectable()
-export class PrismaService extends PrismaClient implements OnModuleInit, OnModuleDestroy {
+export class PrismaService extends PrismaClient implements OnModuleInit, OnApplicationShutdown {
   constructor(@Inject(ENV) env: Env) {
     super({ adapter: new PrismaPg({ connectionString: env.DATABASE_URL, max: API_POOL_MAX }) });
   }
@@ -22,7 +22,11 @@ export class PrismaService extends PrismaClient implements OnModuleInit, OnModul
     await this.$connect();
   }
 
-  async onModuleDestroy(): Promise<void> {
+  /**
+   * The last shutdown step: Nest closes the HTTP server (letting the requests in flight finish) between
+   * `onModuleDestroy` and `onApplicationShutdown`, so disconnecting any earlier would fail those requests.
+   */
+  async onApplicationShutdown(): Promise<void> {
     await this.$disconnect();
   }
 }

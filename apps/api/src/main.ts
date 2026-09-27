@@ -1,5 +1,6 @@
 import './instrument';
 import 'reflect-metadata';
+import { Logger as NestLogger } from '@nestjs/common';
 import { NestFactory } from '@nestjs/core';
 import type { NestExpressApplication } from '@nestjs/platform-express';
 import { Logger } from 'nestjs-pino';
@@ -12,6 +13,12 @@ async function bootstrap(): Promise<void> {
   const env = app.get<Env>(ENV);
 
   app.useLogger(app.get(Logger));
+  // A promise nobody awaited that failed: a bug, but not one to take every other request down with it.
+  // Logged here through pino; when Sentry is configured its own unhandled-rejection integration reports it.
+  const processLogger = new NestLogger('Process');
+  process.on('unhandledRejection', (reason: unknown) => {
+    processLogger.error(reason instanceof Error ? reason : new Error(`unhandled rejection: ${String(reason)}`));
+  });
   configureApp(app, env);
   app.enableShutdownHooks();
 
