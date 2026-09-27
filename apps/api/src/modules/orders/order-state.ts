@@ -34,6 +34,28 @@ export function toOrderState(order: OrderWithLedgers): OrderState {
 }
 
 /**
+ * The cache a line is written with, ahead of `recomputeOrder`: nothing is returned yet, so all of it is
+ * out. `order_lines_out_quantity_matches_check` holds on every write, so the line cannot wait for the
+ * recompute to set it. With `cancelledMark`, the only cache values written outside `recomputeOrder`,
+ * and always the ones it would write itself.
+ */
+export function lineCacheSeed(quantity: number): { outQuantity: number } {
+  return { outQuantity: quantity };
+}
+
+/**
+ * The cancel mark. The status goes with the timestamp — `orders_cancel_consistent_check` refuses one
+ * without the other — so it is written here rather than left to `recomputeOrder`, which then writes
+ * the same status.
+ */
+export function cancelledMark(
+  at: Date,
+  userId: number,
+): { cancelledAt: Date; cancelledByUserId: number; status: 'CANCELLED' } {
+  return { cancelledAt: at, cancelledByUserId: userId, status: 'CANCELLED' };
+}
+
+/**
  * The only writer of the order cache (§4.6): reads everything the totals depend on, applies
  * `computeOrderTotals` from `@pallet/shared`, and writes back the lines that changed and the order.
  * `bumpVersion` is false only inside order creation (§6.5).

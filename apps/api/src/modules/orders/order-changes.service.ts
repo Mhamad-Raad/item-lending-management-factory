@@ -22,7 +22,7 @@ import { ledgerAuditEntry } from '../ledger/ledger.mapper';
 import { MoneyLedger } from '../ledger/money-ledger';
 import { StockLedger } from '../stock/stock-ledger';
 import { assertCreditAllows, type CreditOverride } from './credit-limit';
-import { recomputeOrder } from './order-state';
+import { cancelledMark, lineCacheSeed, recomputeOrder } from './order-state';
 import {
   ORDER_CHANGE_INCLUDE,
   assertDriverActive,
@@ -188,8 +188,7 @@ export class OrderChangesService {
 
       await tx.order.update({
         where: { id: order.id },
-        // The status goes with the timestamp: the table checks that one never stands without the other.
-        data: { cancelledAt: this.clock.now(), cancelledByUserId: actor.userId, status: 'CANCELLED' },
+        data: cancelledMark(this.clock.now(), actor.userId),
       });
       await recomputeOrder(tx, order.id, { bumpVersion: true });
 
@@ -314,7 +313,7 @@ export class OrderChangesService {
           quantity: line.quantity,
           unitDeposit: toDbMoney(line.unitDeposit),
           lineTotal: toDbMoney(line.lineTotal),
-          outQuantity: line.quantity,
+          ...lineCacheSeed(line.quantity),
         },
       });
     }
@@ -326,7 +325,7 @@ export class OrderChangesService {
           quantity: line.quantity,
           unitDeposit: toDbMoney(line.unitDeposit),
           lineTotal: toDbMoney(line.lineTotal),
-          outQuantity: line.quantity,
+          ...lineCacheSeed(line.quantity),
         })),
       });
     }

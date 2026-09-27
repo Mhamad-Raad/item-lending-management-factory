@@ -42,7 +42,7 @@ import {
   priceLine,
   type PricedLine,
 } from './order-rules';
-import { recomputeOrder } from './order-state';
+import { lineCacheSeed, recomputeOrder } from './order-state';
 import { ORDER_LIST_INCLUDE, toOrderListItemDto } from './orders.mapper';
 import { loadOrderDetail } from './orders.queries';
 
@@ -140,7 +140,7 @@ export class OrdersService {
                 quantity: line.quantity,
                 unitDeposit: toDbMoney(line.unitDeposit),
                 lineTotal: toDbMoney(line.lineTotal),
-                outQuantity: line.quantity,
+                ...lineCacheSeed(line.quantity),
               })),
             },
           },
