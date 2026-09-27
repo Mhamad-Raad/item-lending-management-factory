@@ -25,6 +25,7 @@ import { assertCreditAllows, type CreditOverride } from './credit-limit';
 import { recomputeOrder } from './order-state';
 import {
   ORDER_CHANGE_INCLUDE,
+  assertDriverActive,
   assertItemOrderable,
   assertMayPriceAndOverride,
   depositTotalOf,
@@ -73,7 +74,11 @@ export class OrderChangesService {
 
       const stored = { driverId: order.driverId, date: dbDateToBusiness(order.date), notes: order.notes };
       const fields = changedFields(body, stored, ['driverId', 'date', 'notes'] as const);
-      if (fields.includes('driverId')) await this.assertDriverActive(tx, body.driverId as number);
+      if (fields.includes('driverId')) {
+        const driverId = body.driverId as number;
+        const driver = await tx.driver.findUnique({ where: { id: driverId }, select: { archivedAt: true } });
+        assertDriverActive(driver, driverId);
+      }
       if (fields.includes('date') && activity.earliestDate && (body.date as string) > activity.earliestDate) {
         throw new ApiError('ORDER_DATE_AFTER_ACTIVITY', { earliestActivityDate: activity.earliestDate });
       }
@@ -214,12 +219,6 @@ export class OrderChangesService {
     const order = await tx.order.findUniqueOrThrow({ where: { id: orderId }, include: ORDER_CHANGE_INCLUDE });
     if (newItemIds !== null) await lockItems(tx, [...order.lines.map((line) => line.itemId), ...newItemIds]);
     return order;
-  }
-
-  private async assertDriverActive(tx: Prisma.TransactionClient, driverId: number): Promise<void> {
-    const driver = await tx.driver.findUnique({ where: { id: driverId }, select: { archivedAt: true } });
-    if (!driver) throw new ApiError('DRIVER_NOT_FOUND', { driverId });
-    if (driver.archivedAt) throw new ApiError('DRIVER_ARCHIVED', { driverId });
   }
 
   /**

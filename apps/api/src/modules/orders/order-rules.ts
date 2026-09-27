@@ -2,7 +2,7 @@ import { dbDateToBusiness } from '@pallet/shared';
 import type { AuthContext } from '../../common/auth-context';
 import { ApiError } from '../../common/errors/api-error';
 import { safeProduct } from '../../common/utils/money';
-import type { Item, Prisma } from '../../generated/prisma/client';
+import type { Customer, Driver, Item, Prisma } from '../../generated/prisma/client';
 
 /**
  * The checks an order request needs before any row (§6.19): supplying a unit deposit needs
@@ -79,6 +79,21 @@ export interface PricedLine {
   quantity: number;
   unitDeposit: number;
   lineTotal: number;
+}
+
+/** A customer an order may be written for: it exists and is not archived (§4.8.1 step 2). */
+export function assertCustomerActive(
+  customer: Pick<Customer, 'archivedAt'> | null,
+  customerId: number,
+): asserts customer {
+  if (!customer) throw new ApiError('CUSTOMER_NOT_FOUND', { customerId });
+  if (customer.archivedAt) throw new ApiError('CUSTOMER_ARCHIVED', { customerId });
+}
+
+/** A driver an order may be handed to: it exists and is not archived (§4.8.1 step 3, §4.8.2). */
+export function assertDriverActive(driver: Pick<Driver, 'archivedAt'> | null, driverId: number): asserts driver {
+  if (!driver) throw new ApiError('DRIVER_NOT_FOUND', { driverId });
+  if (driver.archivedAt) throw new ApiError('DRIVER_ARCHIVED', { driverId });
 }
 
 /** An item a line may hand out more of: it exists and is not archived (§6.19 step 8). */

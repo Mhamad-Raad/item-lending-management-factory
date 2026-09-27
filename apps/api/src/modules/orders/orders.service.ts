@@ -34,6 +34,8 @@ import { uploadUrl } from '../uploads/uploads.mapper';
 import { StockLedger } from '../stock/stock-ledger';
 import { assertCreditAllows, type CreditOverride } from './credit-limit';
 import {
+  assertCustomerActive,
+  assertDriverActive,
   assertItemOrderable,
   assertMayPriceAndOverride,
   depositTotalOf,
@@ -187,12 +189,10 @@ export class OrdersService {
   ): Promise<{ customer: Customer; driver: Driver }> {
     await lockCustomer(tx, body.customerId);
     const customer = await tx.customer.findUnique({ where: { id: body.customerId } });
-    if (!customer) throw new ApiError('CUSTOMER_NOT_FOUND', { customerId: body.customerId });
-    if (customer.archivedAt) throw new ApiError('CUSTOMER_ARCHIVED', { customerId: body.customerId });
+    assertCustomerActive(customer, body.customerId);
 
     const driver = await tx.driver.findUnique({ where: { id: body.driverId } });
-    if (!driver) throw new ApiError('DRIVER_NOT_FOUND', { driverId: body.driverId });
-    if (driver.archivedAt) throw new ApiError('DRIVER_ARCHIVED', { driverId: body.driverId });
+    assertDriverActive(driver, body.driverId);
     return { customer, driver };
   }
 
