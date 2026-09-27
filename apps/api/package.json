@@ -14,7 +14,7 @@
     "copy-assets": "mkdir -p dist/modules/auth && cp src/modules/auth/common-passwords.txt dist/modules/auth/",
     "dev": "pnpm run copy-assets && tsc-watch -p tsconfig.build.json --noClear --onSuccess \"node --enable-source-maps --env-file-if-exists=../../.env dist/main.js\"",
     "start": "node --enable-source-maps dist/main.js",
-    "typecheck": "tsc -p tsconfig.json",
+    "typecheck": "tsc -b ../../packages/shared && tsc -p tsconfig.json",
     "test": "vitest run",
     "test:integration": "vitest run --config vitest.integration.config.mts --coverage",
     "db:migrate": "prisma migrate dev && prisma db execute --file prisma/sql/grants.sql",
