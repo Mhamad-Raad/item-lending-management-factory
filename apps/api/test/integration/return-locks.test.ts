@@ -6,7 +6,14 @@ import { PrismaService } from '../../src/prisma/prisma.service';
 import { createTestApp } from '../helpers/app';
 import { asUser, login, type Session } from '../helpers/auth';
 import { disconnectDatabase, resetDatabase } from '../helpers/db';
-import { createCustomer, createDriver, createItem, createOrder, recordReturn } from '../helpers/factories';
+import {
+  createCustomer,
+  createDriver,
+  createItem,
+  createOrder,
+  recordPayment,
+  recordReturn,
+} from '../helpers/factories';
 
 const NOW = new Date('2026-09-11T09:00:00Z');
 const TODAY = '2026-09-11';
@@ -22,6 +29,7 @@ describe('return changes lock the customer (Q47)', () => {
   let prisma: PrismaService;
   let admin: Session;
   let customerId: number;
+  let orderId: number;
   let returnId: number;
 
   beforeAll(async () => {
@@ -48,6 +56,7 @@ describe('return changes lock the customer (Q47)', () => {
       lines: [{ itemId: item.id, quantity: 50 }],
     });
     customerId = customer.id;
+    orderId = order.id;
     returnId = await recordReturn(app, admin, {
       orderId: order.id,
       date: TODAY,
@@ -103,6 +112,18 @@ describe('return changes lock the customer (Q47)', () => {
     expect(
       await finishesWhileCustomerHeld(() =>
         http.post(`/api/returns/${returnId}/replace`).set(asUser(admin)).send(body),
+      ),
+    ).toBe(false);
+  }, 30_000);
+
+  // Q78: a reversed payment raises what is owed and can reopen a settled order, which archiving the
+  // customer checks for under the customer's lock.
+  it('a payment reversal waits for the customer', async () => {
+    const paymentId = await recordPayment(app, admin, { orderId, amount: 1_000, date: TODAY });
+    const http = request(app.getHttpServer());
+    expect(
+      await finishesWhileCustomerHeld(() =>
+        http.post(`/api/ledger-entries/${paymentId}/reverse`).set(asUser(admin)).send({}),
       ),
     ).toBe(false);
   }, 30_000);

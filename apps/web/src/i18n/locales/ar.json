@@ -570,7 +570,7 @@
     "STOCK_INSUFFICIENT": "المخزون غير كافٍ",
     "BATCH_NOT_FOUND": "دفعة الشراء غير موجودة",
     "CUSTOMER_NOT_FOUND": "الزبون غير موجود",
-    "CUSTOMER_ARCHIVED": "هذا الزبون مؤرشف",
+    "CUSTOMER_ARCHIVED": "هذا الزبون مؤرشف: لا يمكن تسليمه طبليات أخرى. ما زالت الإرجاعات والدفعات وتخفيض الكميات ممكنة.",
     "CUSTOMER_ALREADY_ARCHIVED": "هذا الزبون مؤرشف بالفعل",
     "CUSTOMER_PHONE_DUPLICATE": "زبون آخر يملك رقم الهاتف نفسه",
     "CUSTOMER_HAS_OPEN_ORDERS": "لدى هذا الزبون طلبات مفتوحة",

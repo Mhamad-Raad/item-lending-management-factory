@@ -570,7 +570,7 @@
     "STOCK_INSUFFICIENT": "There is not enough stock",
     "BATCH_NOT_FOUND": "Purchase batch not found",
     "CUSTOMER_NOT_FOUND": "Customer not found",
-    "CUSTOMER_ARCHIVED": "This customer is archived",
+    "CUSTOMER_ARCHIVED": "This customer is archived: no more pallets can go out to them. Returns, payments and lower quantities still work.",
     "CUSTOMER_ALREADY_ARCHIVED": "This customer is already archived",
     "CUSTOMER_PHONE_DUPLICATE": "Another customer already has this phone number",
     "CUSTOMER_HAS_OPEN_ORDERS": "This customer still has open orders",

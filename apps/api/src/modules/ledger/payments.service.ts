@@ -12,7 +12,7 @@ import { Clock } from '../../common/clock';
 import { ApiError } from '../../common/errors/api-error';
 import { assertNotInFuture } from '../../common/utils/dates';
 import { toSafeMoney } from '../../common/utils/money';
-import { lockOrder } from '../../prisma/locks';
+import { lockCustomer, lockOrder } from '../../prisma/locks';
 import { PrismaService } from '../../prisma/prisma.service';
 import { runInTransaction } from '../../prisma/transaction';
 import { AuditService } from '../audit/audit.service';
@@ -74,8 +74,14 @@ export class PaymentsService {
   /** Deleting a manual payment: a PAYMENT_REVERSAL of the same amount, dated today (§4.8.8). */
   reverse(entryId: number, body: LedgerEntryReverseBody, actor: AuthContext): Promise<PaymentResultDto> {
     return runInTransaction(this.prisma, async (tx) => {
-      const found = await tx.ledgerEntry.findUnique({ where: { id: entryId }, select: { orderId: true } });
+      const found = await tx.ledgerEntry.findUnique({
+        where: { id: entryId },
+        select: { orderId: true, order: { select: { customerId: true } } },
+      });
       if (!found) throw new ApiError('LEDGER_ENTRY_NOT_FOUND', { ledgerEntryId: entryId });
+      // Q78: a reversed payment can reopen a settled order, so it takes the customer's lock first
+      // (§6.6 order), as return changes do (Q47): archiving checks for open orders under that lock.
+      await lockCustomer(tx, found.order.customerId);
       await lockOrder(tx, found.orderId);
       const entry = await tx.ledgerEntry.findUniqueOrThrow({
         where: { id: entryId },

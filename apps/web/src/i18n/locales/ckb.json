@@ -570,7 +570,7 @@
     "STOCK_INSUFFICIENT": "کۆگا بەشی ناکات",
     "BATCH_NOT_FOUND": "کڕینەکە نەدۆزرایەوە",
     "CUSTOMER_NOT_FOUND": "کڕیار نەدۆزرایەوە",
-    "CUSTOMER_ARCHIVED": "ئەم کڕیارە ئەرشیف کراوە",
+    "CUSTOMER_ARCHIVED": "ئەم کڕیارە ئەرشیف کراوە: ئیتر پالێتی زیاتری پێ نادرێت. گەڕاندنەوە، پارەدان و کەمکردنەوەی ژمارە هێشتا دەکرێن.",
     "CUSTOMER_ALREADY_ARCHIVED": "ئەم کڕیارە پێشتر ئەرشیف کراوە",
     "CUSTOMER_PHONE_DUPLICATE": "کڕیارێکی تر هەمان ژمارەی تەلەفۆنی هەیە",
     "CUSTOMER_HAS_OPEN_ORDERS": "ئەم کڕیارە هێشتا داواکاری کراوەی هەیە",

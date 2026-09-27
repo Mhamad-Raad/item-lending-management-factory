@@ -81,6 +81,11 @@ export class OrderChangesService {
 
       if (body.lines) assertNoActivity(activity);
       const lines = body.lines ? await this.diffLines(tx, order, body.lines) : null;
+      // Q18/Q78: an archived customer's order may shrink, and its header may change, but no more
+      // pallets go out to them — a line added, or a quantity raised, is a movement out.
+      if (lines && order.customer.archivedAt && lines.movements.some((movement) => movement.quantity < 0)) {
+        throw new ApiError('CUSTOMER_ARCHIVED', { customerId: order.customerId });
+      }
       // Q37: an edit that changes nothing writes nothing — no version bump, no history row.
       if (fields.length === 0 && lines === null) return loadOrderDetail(tx, orderId);
 
