@@ -15,6 +15,7 @@ import { ApiError } from '../../common/errors/api-error';
 import { assertDateRange, assertNotInFuture, businessDateFilter } from '../../common/utils/dates';
 import { safeProduct, toDbMoney, toSafeMoney } from '../../common/utils/money';
 import { parseSort } from '../../common/utils/sort';
+import { assertVersion, changedFields } from '../../common/utils/versioning';
 import type { Prisma, PurchaseBatch } from '../../generated/prisma/client';
 import { lockBatch, lockItems } from '../../prisma/locks';
 import { PrismaService } from '../../prisma/prisma.service';
@@ -128,7 +129,7 @@ export class PurchasesService {
   async update(batchId: number, body: PurchaseBatchUpdateBody, actor: AuthContext): Promise<PurchaseBatchDto> {
     return runInTransaction(this.prisma, async (tx) => {
       const before = await this.lockLive(tx, batchId);
-      if (before.version !== body.version) throw new ApiError('VERSION_CONFLICT', { currentVersion: before.version });
+      assertVersion(before.version, body.version);
       if (body.date !== undefined) assertNotInFuture(this.clock, body.date, 'date');
 
       const current = {
@@ -138,9 +139,7 @@ export class PurchasesService {
         note: before.note,
       };
       // Field names only: `unitCost` may appear as a name, never as a value (§11.3).
-      const fields = (['date', 'quantity', 'unitCost', 'note'] as const).filter(
-        (field) => body[field] !== undefined && body[field] !== current[field],
-      );
+      const fields = changedFields(body, current, ['date', 'quantity', 'unitCost', 'note'] as const);
       // Q37: a correction that changes nothing writes nothing — no version bump, no history row.
       if (fields.length === 0) return toPurchaseBatchDto(before, actor.canViewCost);
 
@@ -186,7 +185,7 @@ export class PurchasesService {
   async remove(batchId: number, version: number, actor: AuthContext): Promise<void> {
     await runInTransaction(this.prisma, async (tx) => {
       const before = await this.lockLive(tx, batchId);
-      if (before.version !== version) throw new ApiError('VERSION_CONFLICT', { currentVersion: before.version });
+      assertVersion(before.version, version);
 
       await this.stock.apply(
         tx,

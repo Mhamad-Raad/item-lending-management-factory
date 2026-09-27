@@ -20,6 +20,7 @@ import { ApiError } from '../../common/errors/api-error';
 import { escapeLikePattern } from '../../common/utils/search';
 import { parseSort } from '../../common/utils/sort';
 import { isUniqueViolation } from '../../common/errors/prisma-errors';
+import { assertVersion, changedFields } from '../../common/utils/versioning';
 import type { Prisma, User } from '../../generated/prisma/client';
 import { lockActiveAdmins, lockUser } from '../../prisma/locks';
 import { PrismaService } from '../../prisma/prisma.service';
@@ -146,16 +147,11 @@ export class UsersService {
         include: { permissions: { select: { permissionKey: true } } },
       });
       if (!before) throw new ApiError('USER_NOT_FOUND', { userId });
-      if (before.version !== body.version) {
-        throw new ApiError('VERSION_CONFLICT', { currentVersion: before.version });
-      }
+      assertVersion(before.version, body.version);
 
       // Q37: a save that changes nothing writes nothing — no version bump, no history row.
-      const changes =
-        (body.displayName !== undefined && body.displayName !== before.displayName) ||
-        (body.role !== undefined && body.role !== before.role) ||
-        (body.isActive !== undefined && body.isActive !== before.isActive);
-      if (!changes) return toUserDto(before, await this.countActiveSessions(tx, userId));
+      const changes = changedFields(body, before, ['displayName', 'role', 'isActive'] as const);
+      if (changes.length === 0) return toUserDto(before, await this.countActiveSessions(tx, userId));
 
       if (userId === actor.userId && body.isActive === false) throw new ApiError('SELF_DEACTIVATE_FORBIDDEN');
       if (userId === actor.userId && body.role === 'EMPLOYEE' && before.role === 'ADMIN') {
@@ -204,9 +200,7 @@ export class UsersService {
         include: { permissions: { select: { permissionKey: true } } },
       });
       if (!before) throw new ApiError('USER_NOT_FOUND', { userId });
-      if (before.version !== body.version) {
-        throw new ApiError('VERSION_CONFLICT', { currentVersion: before.version });
-      }
+      assertVersion(before.version, body.version);
 
       // Unlike creation, which may name an admin with no permissions, setting them on an admin is
       // refused outright: there is no set to hold, so the request can only be a misunderstanding.

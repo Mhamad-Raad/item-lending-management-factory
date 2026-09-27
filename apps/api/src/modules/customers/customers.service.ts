@@ -18,6 +18,7 @@ import { Clock } from '../../common/clock';
 import { ApiError } from '../../common/errors/api-error';
 import { assertDateRange } from '../../common/utils/dates';
 import { toDbMoney, toSafeMoney } from '../../common/utils/money';
+import { assertVersion, changedFields } from '../../common/utils/versioning';
 import type { Customer, Prisma } from '../../generated/prisma/client';
 import { lockCustomer } from '../../prisma/locks';
 import { PrismaService } from '../../prisma/prisma.service';
@@ -147,10 +148,10 @@ export class CustomersService {
       const before = await tx.customer.findUnique({ where: { id: customerId } });
       if (!before) throw new ApiError('CUSTOMER_NOT_FOUND', { customerId });
       if (before.archivedAt) throw new ApiError('CUSTOMER_ARCHIVED', { customerId });
-      if (before.version !== body.version) throw new ApiError('VERSION_CONFLICT', { currentVersion: before.version });
+      assertVersion(before.version, body.version);
 
       const current = { ...before, creditLimit: before.creditLimit === null ? null : toSafeMoney(before.creditLimit) };
-      const changed = EDITABLE_FIELDS.filter((field) => body[field] !== undefined && body[field] !== current[field]);
+      const changed = changedFields(body, current, EDITABLE_FIELDS);
       // Q37: a save that changes nothing writes nothing — no version bump, no history row.
       if (changed.length === 0) return this.toDto(tx, before, actor);
       if (changed.includes('creditLimit')) assertMaySetCreditLimit(actor);
@@ -202,7 +203,7 @@ export class CustomersService {
       const before = await tx.customer.findUnique({ where: { id: customerId } });
       if (!before) throw new ApiError('CUSTOMER_NOT_FOUND', { customerId });
       if (before.archivedAt) throw new ApiError('CUSTOMER_ALREADY_ARCHIVED', { customerId });
-      if (before.version !== version) throw new ApiError('VERSION_CONFLICT', { currentVersion: before.version });
+      assertVersion(before.version, version);
       const openOrderCount = await tx.order.count({ where: { customerId, status: 'OPEN' } });
       if (openOrderCount > 0) throw new ApiError('CUSTOMER_HAS_OPEN_ORDERS', { openOrderCount });
 

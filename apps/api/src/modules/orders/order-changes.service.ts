@@ -11,6 +11,7 @@ import { Clock } from '../../common/clock';
 import { ApiError } from '../../common/errors/api-error';
 import { assertNotInFuture } from '../../common/utils/dates';
 import { toDbMoney, toSafeMoney } from '../../common/utils/money';
+import { assertVersion, changedFields } from '../../common/utils/versioning';
 import type { LedgerEntry, Prisma } from '../../generated/prisma/client';
 import { lockCustomer, lockItems, lockOrder } from '../../prisma/locks';
 import { PrismaService } from '../../prisma/prisma.service';
@@ -66,14 +67,12 @@ export class OrderChangesService {
 
     return runInTransaction(this.prisma, async (tx) => {
       const order = await this.lockChain(tx, orderId, body.lines?.map((line) => line.itemId) ?? null);
-      if (order.version !== body.version) throw new ApiError('VERSION_CONFLICT', { currentVersion: order.version });
+      assertVersion(order.version, body.version);
       if (order.cancelledAt) throw new ApiError('ORDER_CANCELLED', { orderId });
       const activity = orderActivity(order);
 
       const stored = { driverId: order.driverId, date: dbDateToBusiness(order.date), notes: order.notes };
-      const fields = (['driverId', 'date', 'notes'] as const).filter(
-        (field) => body[field] !== undefined && body[field] !== stored[field],
-      );
+      const fields = changedFields(body, stored, ['driverId', 'date', 'notes'] as const);
       if (fields.includes('driverId')) await this.assertDriverActive(tx, body.driverId as number);
       if (fields.includes('date') && activity.earliestDate && (body.date as string) > activity.earliestDate) {
         throw new ApiError('ORDER_DATE_AFTER_ACTIVITY', { earliestActivityDate: activity.earliestDate });
@@ -150,7 +149,7 @@ export class OrderChangesService {
   cancel(orderId: number, version: number, actor: AuthContext): Promise<OrderDetailDto> {
     return runInTransaction(this.prisma, async (tx) => {
       const order = await this.lockChain(tx, orderId, []);
-      if (order.version !== version) throw new ApiError('VERSION_CONFLICT', { currentVersion: order.version });
+      assertVersion(order.version, version);
       if (order.cancelledAt) throw new ApiError('ORDER_CANCELLED', { orderId });
       assertNoActivity(orderActivity(order));
 

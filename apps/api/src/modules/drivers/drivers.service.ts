@@ -5,6 +5,7 @@ import { Clock } from '../../common/clock';
 import { ApiError } from '../../common/errors/api-error';
 import { escapeLikePattern, phoneSearchPattern } from '../../common/utils/search';
 import { parseSort } from '../../common/utils/sort';
+import { assertVersion, changedFields } from '../../common/utils/versioning';
 import type { Prisma } from '../../generated/prisma/client';
 import { lockDriver } from '../../prisma/locks';
 import { PrismaService } from '../../prisma/prisma.service';
@@ -80,9 +81,9 @@ export class DriversService {
       const before = await tx.driver.findUnique({ where: { id: driverId } });
       if (!before) throw new ApiError('DRIVER_NOT_FOUND', { driverId });
       if (before.archivedAt) throw new ApiError('DRIVER_ARCHIVED', { driverId });
-      if (before.version !== body.version) throw new ApiError('VERSION_CONFLICT', { currentVersion: before.version });
+      assertVersion(before.version, body.version);
 
-      const changed = EDITABLE_FIELDS.filter((field) => body[field] !== undefined && body[field] !== before[field]);
+      const changed = changedFields(body, before, EDITABLE_FIELDS);
       // Q37: a save that changes nothing writes nothing — no version bump, no history row.
       if (changed.length === 0) return toDriverDto(before);
 
@@ -109,7 +110,7 @@ export class DriversService {
       const before = await tx.driver.findUnique({ where: { id: driverId } });
       if (!before) throw new ApiError('DRIVER_NOT_FOUND', { driverId });
       if (before.archivedAt) throw new ApiError('DRIVER_ALREADY_ARCHIVED', { driverId });
-      if (before.version !== version) throw new ApiError('VERSION_CONFLICT', { currentVersion: before.version });
+      assertVersion(before.version, version);
 
       const after = await tx.driver.update({
         where: { id: driverId },

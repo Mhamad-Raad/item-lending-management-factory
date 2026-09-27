@@ -17,6 +17,7 @@ import { assertNotInFuture } from '../../common/utils/dates';
 import { safeProduct, toDbMoney, toSafeMoney } from '../../common/utils/money';
 import { escapeLikePattern } from '../../common/utils/search';
 import { parseSort } from '../../common/utils/sort';
+import { assertVersion, changedFields } from '../../common/utils/versioning';
 import type { Prisma } from '../../generated/prisma/client';
 import { lockItems } from '../../prisma/locks';
 import { PrismaService } from '../../prisma/prisma.service';
@@ -142,13 +143,13 @@ export class ItemsService {
     return runInTransaction(this.prisma, async (tx) => {
       await lockItems(tx, [itemId]);
       const before = await this.findEditable(tx, itemId);
-      if (before.version !== body.version) throw new ApiError('VERSION_CONFLICT', { currentVersion: before.version });
+      assertVersion(before.version, body.version);
       if (body.imageUploadId !== undefined && body.imageUploadId !== null) {
         await this.uploads.assertKind(tx, body.imageUploadId, 'ITEM_IMAGE');
       }
 
       const current = { ...before, depositPrice: toSafeMoney(before.depositPrice) };
-      const changed = EDITABLE_FIELDS.filter((field) => body[field] !== undefined && body[field] !== current[field]);
+      const changed = changedFields(body, current, EDITABLE_FIELDS);
       // Q37: a save that changes nothing writes nothing — no version bump, no history row.
       if (changed.length === 0) return this.toDto(tx, before);
 
@@ -183,7 +184,7 @@ export class ItemsService {
       const before = await tx.item.findUnique({ where: { id: itemId }, include: WITH_IMAGE });
       if (!before) throw new ApiError('ITEM_NOT_FOUND', { itemId });
       if (before.archivedAt) throw new ApiError('ITEM_ALREADY_ARCHIVED', { itemId });
-      if (before.version !== version) throw new ApiError('VERSION_CONFLICT', { currentVersion: before.version });
+      assertVersion(before.version, version);
 
       const after = await tx.item.update({
         where: { id: itemId },

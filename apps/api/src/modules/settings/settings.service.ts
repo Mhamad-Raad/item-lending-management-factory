@@ -1,7 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import type { SettingsDto, SettingsUpdateBody } from '@pallet/shared';
 import type { AuthContext } from '../../common/auth-context';
-import { ApiError } from '../../common/errors/api-error';
+import { assertVersion } from '../../common/utils/versioning';
 import { lockSettings } from '../../prisma/locks';
 import { PrismaService } from '../../prisma/prisma.service';
 import { pickSnapshot, toAuditSnapshot } from '../audit/audit-snapshot';
@@ -35,9 +35,7 @@ export class SettingsService {
     return runInTransaction(this.prisma, async (tx) => {
       await lockSettings(tx);
       const before = await tx.factorySettings.findUniqueOrThrow({ where: { id: SETTINGS_ID }, include: WITH_LOGO });
-      if (before.version !== body.version) {
-        throw new ApiError('VERSION_CONFLICT', { currentVersion: before.version });
-      }
+      assertVersion(before.version, body.version);
       if (body.logoUploadId !== null) await this.uploads.assertKind(tx, body.logoUploadId, 'FACTORY_LOGO');
 
       const changed = EDITABLE_FIELDS.filter((field) => body[field] !== before[field]);
