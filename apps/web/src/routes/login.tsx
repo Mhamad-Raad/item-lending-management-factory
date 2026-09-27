@@ -56,6 +56,14 @@ function LoginPage() {
     <main className="flex min-h-dvh items-center justify-center p-4">
       <Card className="w-full max-w-sm">
         <CardHeader>
+          {/* The client's logo; decorative, the app's name is the description below. */}
+          <img
+            src="/brand/jiyan-logo.jpg"
+            alt=""
+            width={96}
+            height={96}
+            className="mx-auto mb-2 size-24 rounded-2xl shadow-sm"
+          />
           <div className="flex items-start justify-between gap-2">
             <div className="flex flex-col gap-1.5">
               <CardTitle className="text-xl">{t('auth.login.title')}</CardTitle>

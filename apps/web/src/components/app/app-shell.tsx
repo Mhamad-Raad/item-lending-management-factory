@@ -2,7 +2,6 @@ import { LANGUAGES, type Language, type PermissionKey } from '@pallet/shared';
 import { Link, useRouterState } from '@tanstack/react-router';
 import {
   BarChart3,
-  Boxes,
   Building2,
   ClipboardList,
   History,
@@ -219,9 +218,9 @@ function Brand({ collapsed = false }: { collapsed?: boolean }) {
   const { t } = useTranslation();
   return (
     <span className="flex min-w-0 items-center gap-3">
-      <span className="bg-primary text-primary-foreground flex size-9 shrink-0 items-center justify-center rounded-lg shadow-sm">
-        <Boxes className="size-5" aria-hidden />
-      </span>
+      {/* The client's own mark (Jiyan); decorative, since the name beside it says the same. */}
+      <img src="/brand/jiyan-mark.jpg" alt="" width={36} height={36} className="size-9 shrink-0 rounded-lg shadow-sm" />
+
       <span className={cn('flex min-w-0 flex-col', collapsed && 'sr-only')}>
         <span className="truncate text-base leading-tight font-semibold">{t('common.appName')}</span>
         <span className="text-muted-foreground truncate text-xs font-normal">{t('common.appTagline')}</span>
