@@ -1,6 +1,7 @@
-import { LANGUAGES, type Language, type PermissionKey } from '@pallet/shared';
+import { FONT_SIZES, LANGUAGES, type FontSize, type Language, type PermissionKey } from '@pallet/shared';
 import { Link, useRouterState } from '@tanstack/react-router';
 import {
+  ALargeSmall,
   BarChart3,
   Building2,
   ClipboardList,
@@ -362,6 +363,33 @@ function LanguageMenu() {
   );
 }
 
+/** The text size in two presses from any page, as in the management system; the settings page shows samples. */
+function TextSizeMenu() {
+  const { t } = useTranslation();
+  const { fontSize: current } = usePreferences();
+  return (
+    <DropdownMenu>
+      <DropdownMenuTrigger asChild>
+        <Button variant="ghost" size="icon" aria-label={t('settings.appearance.sizeTitle')}>
+          <ALargeSmall className="size-5" aria-hidden />
+        </Button>
+      </DropdownMenuTrigger>
+      <DropdownMenuContent align="end">
+        {FONT_SIZES.map((size: FontSize) => (
+          <DropdownMenuItem
+            key={size}
+            aria-current={size === current ? 'true' : undefined}
+            className={cn(size === current && 'text-primary font-semibold')}
+            onSelect={() => setPreferences({ fontSize: size })}
+          >
+            {t(`settings.appearance.sizes.${size}`)}
+          </DropdownMenuItem>
+        ))}
+      </DropdownMenuContent>
+    </DropdownMenu>
+  );
+}
+
 /**
  * The authenticated frame (§7.5): a fixed sidebar from `lg`, and a top bar at every width with the page title and
  * the quick light/dark and language switches; below `lg` its menu button opens the same navigation in a sheet.
@@ -441,6 +469,7 @@ export function AppShell({ children, onLogout }: { children: React.ReactNode; on
               {t(titleKey ?? 'common.appName')}
             </span>
             <LanguageMenu />
+            <TextSizeMenu />
             <ThemeToggle />
             <span className="lg:hidden">
               <UserMenu onLogout={onLogout} compact />
