@@ -68,7 +68,11 @@ export function DriverDialog({
         <DialogHeader>
           <DialogTitle>{t(driver ? 'drivers.dialog.editTitle' : 'drivers.dialog.newTitle')}</DialogTitle>
         </DialogHeader>
-        <form onSubmit={form.handleSubmit((values) => save.mutate(values))} className="flex flex-col gap-4" noValidate>
+        <form
+          onSubmit={(event) => void form.handleSubmit((values) => save.mutate(values))(event)}
+          className="flex flex-col gap-4"
+          noValidate
+        >
           {FIELDS.map((name) => (
             <Field key={name}>
               <FieldLabel htmlFor={`driver-${name}`}>{t(`drivers.fields.${name}`)}</FieldLabel>

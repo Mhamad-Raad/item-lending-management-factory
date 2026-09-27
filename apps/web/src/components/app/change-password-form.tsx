@@ -65,7 +65,7 @@ export function ChangePasswordForm({ onSuccess }: { onSuccess?: () => void | Pro
   });
 
   return (
-    <form onSubmit={onSubmit} className="flex flex-col gap-4" noValidate>
+    <form onSubmit={(event) => void onSubmit(event)} className="flex flex-col gap-4" noValidate>
       <Field>
         <FieldLabel htmlFor="currentPassword">{t('auth.changePassword.current')}</FieldLabel>
         <PasswordInput

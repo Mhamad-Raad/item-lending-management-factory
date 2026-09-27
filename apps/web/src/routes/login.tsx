@@ -66,7 +66,7 @@ function LoginPage() {
         </CardHeader>
 
         <CardContent>
-          <form onSubmit={onSubmit} className="flex flex-col gap-4" noValidate>
+          <form onSubmit={(event) => void onSubmit(event)} className="flex flex-col gap-4" noValidate>
             {formError ? (
               <Alert variant="destructive">
                 {/* RATE_LIMITED says how long to wait; the seconds travel in `details`. */}

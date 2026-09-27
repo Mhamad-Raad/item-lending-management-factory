@@ -29,6 +29,25 @@ export default defineConfig(
     },
   },
   {
+    // Type-aware, for these two rules only (recommendedTypeChecked would slow every file for rules the
+    // code does not need): a promise nobody awaits or handles loses its rejection, and one passed where a
+    // void callback is expected (an onClick, an event listener) does the same behind the caller's back.
+    files: ['apps/**/*.{ts,tsx}', 'packages/**/*.ts'],
+    // Shared's tests sit outside its tsconfig (they are not built); they hold no promise handling to check.
+    ignores: [
+      '**/*.config.{ts,mts}',
+      'apps/*/vitest*.mts',
+      'apps/web/playwright*.ts',
+      'apps/api/prisma.config.ts',
+      'packages/shared/src/**/*.test.ts',
+    ],
+    languageOptions: { parserOptions: { projectService: true, tsconfigRootDir: import.meta.dirname } },
+    rules: {
+      '@typescript-eslint/no-floating-promises': 'error',
+      '@typescript-eslint/no-misused-promises': 'error',
+    },
+  },
+  {
     files: ['apps/api/**/*.ts', 'packages/shared/**/*.ts', '*.mjs'],
     languageOptions: { globals: globals.node },
   },

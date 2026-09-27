@@ -69,7 +69,11 @@ function NewUserPage() {
     <>
       <PageHeader title={t('users.new.title')} />
 
-      <form onSubmit={form.handleSubmit((values) => create.mutate(values))} className="flex flex-col gap-6" noValidate>
+      <form
+        onSubmit={(event) => void form.handleSubmit((values) => create.mutate(values))(event)}
+        className="flex flex-col gap-6"
+        noValidate
+      >
         <Card>
           <CardHeader>
             <CardTitle>{t('users.new.profile')}</CardTitle>

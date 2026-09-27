@@ -149,7 +149,7 @@ export function CustomerForm({ customer }: { customer?: CustomerDto }) {
 
   return (
     <form
-      onSubmit={form.handleSubmit((values) => save.mutate({ values, confirm: false }))}
+      onSubmit={(event) => void form.handleSubmit((values) => save.mutate({ values, confirm: false }))(event)}
       className="flex max-w-2xl flex-col gap-6"
       noValidate
     >

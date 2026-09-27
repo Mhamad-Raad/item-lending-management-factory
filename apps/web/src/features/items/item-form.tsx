@@ -143,7 +143,7 @@ export function ItemForm({ item }: { item?: ItemDto }) {
 
   return (
     <form
-      onSubmit={form.handleSubmit((values) => save.mutate(values))}
+      onSubmit={(event) => void form.handleSubmit((values) => save.mutate(values))(event)}
       className="flex max-w-2xl flex-col gap-6"
       noValidate
     >

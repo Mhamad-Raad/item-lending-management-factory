@@ -123,7 +123,11 @@ export function BatchDialog({
         <DialogHeader>
           <DialogTitle>{t(batch ? 'purchases.editTitle' : 'purchases.newTitle')}</DialogTitle>
         </DialogHeader>
-        <form onSubmit={form.handleSubmit((values) => save.mutate(values))} className="flex flex-col gap-4" noValidate>
+        <form
+          onSubmit={(event) => void form.handleSubmit((values) => save.mutate(values))(event)}
+          className="flex flex-col gap-4"
+          noValidate
+        >
           <DateField
             control={form.control}
             name="date"

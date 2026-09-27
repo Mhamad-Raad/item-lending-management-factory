@@ -133,7 +133,7 @@ function SettingsForm({ settings }: { settings: SettingsDto }) {
   const onSubmit = form.handleSubmit((values) => save.mutate({ ...values, logoUploadId: logo?.id ?? null }));
 
   return (
-    <form onSubmit={onSubmit} className="flex max-w-xl flex-col gap-4" noValidate>
+    <form onSubmit={(event) => void onSubmit(event)} className="flex max-w-xl flex-col gap-4" noValidate>
       {TEXT_FIELDS.map((name) => (
         <Field key={name}>
           <FieldLabel htmlFor={name}>{t(`settings.fields.${name}`)}</FieldLabel>

@@ -69,7 +69,7 @@ export function AdjustStockDialog({
           </DialogDescription>
         </DialogHeader>
         <form
-          onSubmit={form.handleSubmit((values) => adjust.mutate(values))}
+          onSubmit={(event) => void form.handleSubmit((values) => adjust.mutate(values))(event)}
           className="flex flex-col gap-4"
           noValidate
         >

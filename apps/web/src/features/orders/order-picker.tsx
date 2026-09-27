@@ -63,19 +63,21 @@ export function OrderPicker({
   ].filter(eligible);
   // Chosen for the user only once every open order has been seen: an older one may qualify too.
   const only = autoSelect && !orders.hasNextPage && choices.length === 1 ? choices[0]?.id : undefined;
+  // A failed page lands in the query's error state (TanStack does not throw here), so nothing is lost by not awaiting.
+  const loadMore = async (): Promise<void> => {
+    const result = await orders.fetchNextPage();
+    const pages = result.data?.pages ?? [];
+    // Orders were created or settled since the first page: every row moved, so read the pages again from the start
+    // rather than skip or repeat the ones at the edge.
+    if (pages.some((page) => page.total !== pages[0]?.total)) await orders.refetch();
+  };
   const more = orders.hasNextPage ? (
     <Button
       type="button"
       variant="outline"
       className="self-start"
       disabled={orders.isFetchingNextPage}
-      onClick={async () => {
-        const result = await orders.fetchNextPage();
-        const pages = result.data?.pages ?? [];
-        // Orders were created or settled since the first page: every row moved, so read the pages again from the start
-        // rather than skip or repeat the ones at the edge.
-        if (pages.some((page) => page.total !== pages[0]?.total)) await orders.refetch();
-      }}
+      onClick={() => void loadMore()}
     >
       {t('orders.picker.more')}
     </Button>
