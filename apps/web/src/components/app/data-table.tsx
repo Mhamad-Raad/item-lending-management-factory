@@ -46,14 +46,18 @@ interface DataTableProps<T> {
   rowKey: (row: T) => string | number;
   /** Wraps the first cell in the row's link: the tab stop, and what a click anywhere on the row opens. */
   rowLink?: (row: T, children: React.ReactNode) => React.ReactNode;
-  total: number;
-  page: number;
-  pageSize: number;
+  /**
+   * The list's paging: the total before paging, the page shown and its size. A table given its whole
+   * list leaves all three out — it is one page of `rows.length` — and then needs no `onPageChange`.
+   */
+  total?: number;
+  page?: number;
+  pageSize?: number;
   /** The `sort` in effect; `defaultSort` is what the list uses when the URL names none. */
   sort?: string;
   defaultSort?: string;
   onSortChange?: (sort: string | undefined) => void;
-  onPageChange: (page: number) => void;
+  onPageChange?: (page: number) => void;
   /**
    * Called instead of `onPageChange` when the page is past the end and the table steps back to the last
    * one. A list whose page lives in the URL replaces the history entry here: a pushed one would bring the
@@ -67,6 +71,9 @@ interface DataTableProps<T> {
   /** Rendered instead of the table when the list has no records at all. */
   empty: React.ReactNode;
 }
+
+/** The page change of a table that is one page: there is nowhere else to go. */
+const STAY = (): void => undefined;
 
 /** A row motion can fade in and out. */
 const MotionTableRow = motion.create(TableRow);
@@ -112,13 +119,13 @@ export function DataTable<T>({
   rows,
   rowKey,
   rowLink,
-  total,
-  page,
-  pageSize,
+  total = rows.length,
+  page = 1,
+  pageSize = Math.max(rows.length, 1),
   sort,
   defaultSort,
   onSortChange,
-  onPageChange,
+  onPageChange = STAY,
   onPageOverflow = onPageChange,
   onPageSizeChange,
   toolbar,

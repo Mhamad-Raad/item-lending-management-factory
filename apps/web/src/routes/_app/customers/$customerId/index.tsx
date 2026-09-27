@@ -267,10 +267,6 @@ function CustomerProfilePage() {
           columns={HOLDING_COLUMNS}
           rows={data.holdings}
           rowKey={(holding) => holding.item.id}
-          total={data.holdings.length}
-          page={1}
-          pageSize={Math.max(data.holdings.length, 1)}
-          onPageChange={() => undefined}
           empty={<EmptyState icon={Package} title={t('customers.holdings.empty')} />}
         />
       </section>

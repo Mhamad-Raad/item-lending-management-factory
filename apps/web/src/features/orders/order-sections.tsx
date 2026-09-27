@@ -78,10 +78,6 @@ export function OrderLinesTable({ order }: { order: OrderDetailDto }) {
       columns={LINE_COLUMNS}
       rows={order.lines}
       rowKey={(line) => line.id}
-      total={order.lines.length}
-      page={1}
-      pageSize={Math.max(order.lines.length, 1)}
-      onPageChange={() => undefined}
       empty={null}
     />
   );
@@ -293,10 +289,6 @@ export function OrderMoney({
         columns={columns}
         rows={entries}
         rowKey={(entry) => entry.id}
-        total={entries.length}
-        page={1}
-        pageSize={Math.max(entries.length, 1)}
-        onPageChange={() => undefined}
         empty={<EmptyState title={t('orders.detail.noMoney')} />}
       />
     </section>
