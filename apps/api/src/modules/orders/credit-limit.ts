@@ -2,7 +2,8 @@ import { checkCreditLimit, type ErrorDetails } from '@pallet/shared';
 import type { AuthContext } from '../../common/auth-context';
 import { ApiError } from '../../common/errors/api-error';
 import { toSafeMoney } from '../../common/utils/money';
-import type { Customer, Prisma } from '../../generated/prisma/client';
+import { Prisma, type Customer } from '../../generated/prisma/client';
+import { openOrderTotalsByCustomer } from './open-order-totals';
 
 /** What an admin's override records, on the order and in its CREDIT_OVERRIDE history row. */
 export interface CreditOverride {
@@ -26,10 +27,9 @@ export async function assertCreditAllows(
 ): Promise<CreditOverride | null> {
   if (customer.creditLimit === null) return null;
 
-  // Open orders only: a settled order has no out value (`orders_settled_nothing_standing_check`, Q62).
+  // The customer's standing out value; no row when nothing is open.
   const [row] = await tx.$queryRaw<{ total: bigint }[]>`
-    SELECT COALESCE(SUM(out_value), 0)::bigint AS total
-    FROM orders WHERE customer_id = ${customer.id} AND status = 'OPEN'`;
+    SELECT t.out_value AS total FROM (${openOrderTotalsByCustomer(Prisma.sql`AND customer_id = ${customer.id}`)}) t`;
   const customerOutValue = toSafeMoney(row?.total ?? 0n);
   const creditLimit = toSafeMoney(customer.creditLimit);
   const { allowed, excess } = checkCreditLimit({ creditLimit, customerOutValue, depositDelta });

@@ -25,6 +25,7 @@ import { toDriverRef } from '../drivers/drivers.mapper';
 import { ITEM_REF_INCLUDE, toItemRef } from '../items/items.mapper';
 import { itemDerivedTotals } from '../items/items.queries';
 import { LEDGER_ENTRY_INCLUDE, toLedgerEntryDto } from '../ledger/ledger.mapper';
+import { openOrderTotalsByCustomer } from '../orders/open-order-totals';
 
 /** §12.1: each row array stops at 5,000; asking for one more tells whether it was cut. */
 export const ROW_CAP = 5_000;
@@ -59,17 +60,7 @@ export class ReportsService {
       const rows = await db.$queryRaw<
         { id: number; pallets_out: SqlAggregate; out_value: SqlAggregate; owed: SqlAggregate; held: SqlAggregate }[]
       >`
-        WITH per_customer AS (
-          -- Open orders only: a settled order has all four at zero (orders_settled_nothing_standing_check, Q62).
-          SELECT o.customer_id,
-                 SUM(o.out_quantity_total)::bigint AS pallets_out,
-                 SUM(o.out_value)::bigint AS out_value,
-                 SUM(o.owed)::bigint AS owed,
-                 SUM(o.held)::bigint AS held
-            FROM orders o
-           WHERE o.status = 'OPEN'
-           GROUP BY o.customer_id
-        )
+        WITH per_customer AS (${openOrderTotalsByCustomer()})
         SELECT c.id, pc.pallets_out, pc.out_value, pc.owed, pc.held
           FROM customers c
           LEFT JOIN per_customer pc ON pc.customer_id = c.id

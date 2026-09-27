@@ -3,6 +3,7 @@ import { toSafeMoney } from '../../common/utils/money';
 import { escapeLikePattern, phoneSearchPattern } from '../../common/utils/search';
 import { parseSort } from '../../common/utils/sort';
 import { Prisma } from '../../generated/prisma/client';
+import { openOrderTotalsByCustomer } from '../orders/open-order-totals';
 import { uploadUrl } from '../uploads/uploads.mapper';
 import type { OrderTotals } from './customers.mapper';
 
@@ -10,25 +11,14 @@ type Client = Pick<Prisma.TransactionClient, '$queryRaw'>;
 
 /**
  * Per customer, the sums of its orders that are not cancelled — per-order `held` is summed (§4.5, §6.17).
- * Pallets out, out value, owed and held are read from OPEN orders only: a SETTLED order has all four at
- * zero (`orders_settled_nothing_standing_check`), so the sums are the same and the work is proportional
- * to what is still standing, not to years of history (Q62). Compensation stays assessed after settlement,
- * so it is summed over the orders that carry any. `scope` narrows both to some customers.
+ * Pallets out, out value, owed and held are the standing totals of `openOrderTotalsByCustomer` (Q62).
+ * Compensation stays assessed after settlement, so it is summed over the orders that carry any. `scope`
+ * narrows both to some customers.
  */
 function fromCustomers(scope: Prisma.Sql = Prisma.empty): Prisma.Sql {
   return Prisma.sql`
     FROM customers c
-    LEFT JOIN (
-      SELECT customer_id,
-             SUM(out_quantity_total)::int AS pallets_out,
-             SUM(out_value)::bigint AS out_value,
-             SUM(owed)::bigint AS owed,
-             SUM(held)::bigint AS held,
-             COUNT(*)::int AS open_order_count
-      FROM orders
-      WHERE status = 'OPEN' ${scope}
-      GROUP BY customer_id
-    ) t ON t.customer_id = c.id
+    LEFT JOIN (${openOrderTotalsByCustomer(scope)}) t ON t.customer_id = c.id
     LEFT JOIN (
       SELECT customer_id, SUM(compensation)::bigint AS compensation
       FROM orders

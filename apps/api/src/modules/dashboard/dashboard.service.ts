@@ -11,6 +11,7 @@ import { fromAggregate, toSafeMoney, type SqlAggregate } from '../../common/util
 import { PrismaService } from '../../prisma/prisma.service';
 import { uploadUrl } from '../uploads/uploads.mapper';
 import { toCustomerRef } from '../customers/customers.mapper';
+import { openOrderTotalsByCustomer } from '../orders/open-order-totals';
 
 const RECENT = 10;
 const LOW_STOCK_LISTED = 10;
@@ -35,7 +36,7 @@ export class DashboardService {
   }
 
   private async positions(): Promise<NonNullable<DashboardDto['positions']>> {
-    // Open orders only: a settled order contributes zero to every sum (`orders_settled_nothing_standing_check`, Q62).
+    // Rolled up from the per-customer standing totals: one row per customer with an open order.
     const [row] = await this.prisma.$queryRaw<
       {
         pallets_out: SqlAggregate;
@@ -46,14 +47,13 @@ export class DashboardService {
         open_customers: SqlAggregate;
       }[]
     >`
-      SELECT COALESCE(SUM(out_quantity_total), 0)::bigint AS pallets_out,
-             COALESCE(SUM(out_value), 0)::bigint AS out_value,
-             COALESCE(SUM(owed), 0)::bigint AS owed,
-             COALESCE(SUM(held), 0)::bigint AS held,
-             COUNT(*)::bigint AS open_orders,
-             COUNT(DISTINCT customer_id)::bigint AS open_customers
-        FROM orders
-       WHERE status = 'OPEN'`;
+      SELECT COALESCE(SUM(t.pallets_out), 0)::bigint AS pallets_out,
+             COALESCE(SUM(t.out_value), 0)::bigint AS out_value,
+             COALESCE(SUM(t.owed), 0)::bigint AS owed,
+             COALESCE(SUM(t.held), 0)::bigint AS held,
+             COALESCE(SUM(t.open_order_count), 0)::bigint AS open_orders,
+             COUNT(*)::bigint AS open_customers
+        FROM (${openOrderTotalsByCustomer()}) t`;
     return {
       palletsOut: fromAggregate(row?.pallets_out ?? 0),
       outValue: fromAggregate(row?.out_value ?? 0),
