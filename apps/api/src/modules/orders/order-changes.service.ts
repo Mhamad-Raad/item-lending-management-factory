@@ -67,7 +67,9 @@ export class OrderChangesService {
     if (body.date !== undefined) assertNotInFuture(this.clock, body.date, 'date');
 
     return runInTransaction(this.prisma, async (tx) => {
-      const order = await this.lockChain(tx, orderId, body.lines?.map((line) => line.itemId) ?? null);
+      const order = await this.lockChain(tx, orderId, {
+        items: body.lines ? body.lines.map((line) => line.itemId) : 'none',
+      });
       assertVersion(order.version, body.version);
       if (order.cancelledAt) throw new ApiError('ORDER_CANCELLED', { orderId });
       const activity = orderActivity(order);
@@ -153,7 +155,7 @@ export class OrderChangesService {
   /** A cancelled order keeps its number; its pallets come back and a cash payment is reversed (§4.8.3). */
   cancel(orderId: number, version: number, actor: AuthContext): Promise<OrderDetailDto> {
     return runInTransaction(this.prisma, async (tx) => {
-      const order = await this.lockChain(tx, orderId, []);
+      const order = await this.lockChain(tx, orderId, { items: 'own' });
       assertVersion(order.version, version);
       if (order.cancelledAt) throw new ApiError('ORDER_CANCELLED', { orderId });
       assertNoActivity(orderActivity(order));
@@ -204,20 +206,23 @@ export class OrderChangesService {
 
   /**
    * Takes the order's locks in the global order (§6.6): its customer — read unlocked, as an order's
-   * customer never changes — then the order, then the items of its lines and of `newItemIds`.
-   * `newItemIds` null means the request does not touch lines, and no item is locked.
+   * customer never changes — then the order, then items: `'none'` when the request does not touch
+   * lines, `'own'` for the items of the order's lines, or a list of requested item ids, locked together
+   * with the order's own.
    */
   private async lockChain(
     tx: Prisma.TransactionClient,
     orderId: number,
-    newItemIds: number[] | null,
+    { items }: { items: 'none' | 'own' | number[] },
   ): Promise<ChangeableOrder> {
     const found = await tx.order.findUnique({ where: { id: orderId }, select: { customerId: true } });
     if (!found) throw new ApiError('ORDER_NOT_FOUND', { orderId });
     await lockCustomer(tx, found.customerId);
     await lockOrder(tx, orderId);
     const order = await tx.order.findUniqueOrThrow({ where: { id: orderId }, include: ORDER_CHANGE_INCLUDE });
-    if (newItemIds !== null) await lockItems(tx, [...order.lines.map((line) => line.itemId), ...newItemIds]);
+    if (items !== 'none') {
+      await lockItems(tx, [...order.lines.map((line) => line.itemId), ...(items === 'own' ? [] : items)]);
+    }
     return order;
   }
 
