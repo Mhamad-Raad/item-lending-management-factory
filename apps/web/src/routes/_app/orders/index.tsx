@@ -232,6 +232,7 @@ function OrdersPage() {
           defaultSort="-orderNumber"
           onSortChange={(sort) => setFilter({ sort })}
           onPageChange={(page) => void navigate({ search: (prev) => ({ ...prev, page }) })}
+          onPageOverflow={(page) => void navigate({ search: (prev) => ({ ...prev, page }), replace: true })}
           onPageSizeChange={(pageSize) => setFilter({ pageSize })}
           isFetching={orders.isFetching}
           empty={

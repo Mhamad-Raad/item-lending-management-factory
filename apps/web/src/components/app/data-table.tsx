@@ -54,6 +54,12 @@ interface DataTableProps<T> {
   defaultSort?: string;
   onSortChange?: (sort: string | undefined) => void;
   onPageChange: (page: number) => void;
+  /**
+   * Called instead of `onPageChange` when the page is past the end and the table steps back to the last
+   * one. A list whose page lives in the URL replaces the history entry here: a pushed one would bring the
+   * user straight back to the empty page on Back, which steps forward again — a Back-button trap.
+   */
+  onPageOverflow?: (lastPage: number) => void;
   onPageSizeChange?: (pageSize: number) => void;
   /** Search box and filters, above the table. */
   toolbar?: React.ReactNode;
@@ -113,6 +119,7 @@ export function DataTable<T>({
   defaultSort,
   onSortChange,
   onPageChange,
+  onPageOverflow = onPageChange,
   onPageSizeChange,
   toolbar,
   isFetching = false,
@@ -125,8 +132,8 @@ export function DataTable<T>({
   // A page past the end — the last row of the last page archived, an old bookmark — steps back to
   // the last page rather than reading as an empty list.
   useEffect(() => {
-    if (rows.length === 0 && page > lastPage) onPageChange(lastPage);
-  }, [rows.length, page, lastPage, onPageChange]);
+    if (rows.length === 0 && page > lastPage) onPageOverflow(lastPage);
+  }, [rows.length, page, lastPage, onPageOverflow]);
 
   // Rows and cards that arrive fade in and those that leave fade out (§7.14), on lists short enough for
   // it to stay smooth; a longer page renders plainly.

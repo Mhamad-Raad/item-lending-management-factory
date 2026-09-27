@@ -206,6 +206,7 @@ function CustomersPage() {
         defaultSort="name"
         onSortChange={(sort) => setFilter({ sort })}
         onPageChange={(page) => void navigate({ search: (prev) => ({ ...prev, page }) })}
+        onPageOverflow={(page) => void navigate({ search: (prev) => ({ ...prev, page }), replace: true })}
         onPageSizeChange={(pageSize) => setFilter({ pageSize })}
         isFetching={customers.isFetching}
         empty={
