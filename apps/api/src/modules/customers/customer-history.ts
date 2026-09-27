@@ -8,6 +8,7 @@ import {
   type PageDto,
 } from '@pallet/shared';
 import { toSafeMoney } from '../../common/utils/money';
+import { pageSqlLimit, toPage } from '../../common/utils/pagination';
 import { Prisma } from '../../generated/prisma/client';
 import { toDriverRef } from '../drivers/drivers.mapper';
 import { ITEM_REF_INCLUDE, toItemRef } from '../items/items.mapper';
@@ -47,7 +48,7 @@ export async function queryCustomerHistory(
     client.$queryRaw<{ kind: CustomerHistoryKind; id: number }[]>`
       SELECT t.kind, t.id ${entries}
       ORDER BY t.date DESC, t.created_at DESC, t.kind ASC, t.id DESC
-      LIMIT ${query.pageSize} OFFSET ${(query.page - 1) * query.pageSize}`,
+      ${pageSqlLimit(query)}`,
     client.$queryRaw<{ total: number }[]>`SELECT COUNT(*)::int AS total ${entries}`,
   ]);
 
@@ -132,13 +133,12 @@ export async function queryCustomerHistory(
     });
   }
 
-  return {
-    items: keys.flatMap((key) => {
+  return toPage(
+    keys.flatMap((key) => {
       const item = byKey.get(`${key.kind}:${key.id}`);
       return item ? [item] : [];
     }),
-    page: query.page,
-    pageSize: query.pageSize,
-    total: counted[0]?.total ?? 0,
-  };
+    query,
+    counted[0]?.total ?? 0,
+  );
 }

@@ -21,6 +21,7 @@ import { escapeLikePattern } from '../../common/utils/search';
 import { parseSort } from '../../common/utils/sort';
 import { isUniqueViolation } from '../../common/errors/prisma-errors';
 import { assertVersion, changedFields } from '../../common/utils/versioning';
+import { pageArgs, toPage } from '../../common/utils/pagination';
 import type { Prisma, User } from '../../generated/prisma/client';
 import { lockActiveAdmins, lockUser } from '../../prisma/locks';
 import { PrismaService } from '../../prisma/prisma.service';
@@ -79,12 +80,11 @@ export class UsersService {
       this.prisma.user.findMany({
         where,
         orderBy: [order, { id: 'asc' }],
-        skip: (query.page - 1) * query.pageSize,
-        take: query.pageSize,
+        ...pageArgs(query),
       }),
     ]);
 
-    return { items: rows.map(toUserListItemDto), page: query.page, pageSize: query.pageSize, total };
+    return toPage(rows.map(toUserListItemDto), query, total);
   }
 
   async get(userId: number): Promise<UserDto> {

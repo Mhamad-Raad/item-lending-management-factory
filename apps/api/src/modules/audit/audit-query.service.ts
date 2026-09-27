@@ -10,6 +10,7 @@ import {
 } from '@pallet/shared';
 import type { AuthContext } from '../../common/auth-context';
 import { ApiError } from '../../common/errors/api-error';
+import { pageArgs, toPage } from '../../common/utils/pagination';
 import type { Prisma } from '../../generated/prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
 import { toAuditLogDto } from './audit.mapper';
@@ -47,16 +48,14 @@ export class AuditQueryService {
         include: { user: { select: { id: true, username: true, displayName: true } } },
         // Fixed order (§6.24): newest first, and `id` alone is enough — it is monotonic.
         orderBy: { id: 'desc' },
-        skip: (query.page - 1) * query.pageSize,
-        take: query.pageSize,
+        ...pageArgs(query),
       }),
     ]);
 
-    return {
-      items: rows.map((row) => toAuditLogDto(row, viewer.canViewCost)),
-      page: query.page,
-      pageSize: query.pageSize,
+    return toPage(
+      rows.map((row) => toAuditLogDto(row, viewer.canViewCost)),
+      query,
       total,
-    };
+    );
   }
 }

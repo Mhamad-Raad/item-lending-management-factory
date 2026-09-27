@@ -6,6 +6,7 @@ import { ApiError } from '../../common/errors/api-error';
 import { escapeLikePattern, phoneSearchPattern } from '../../common/utils/search';
 import { parseSort } from '../../common/utils/sort';
 import { assertVersion, changedFields } from '../../common/utils/versioning';
+import { pageArgs, toPage } from '../../common/utils/pagination';
 import type { Prisma } from '../../generated/prisma/client';
 import { lockDriver } from '../../prisma/locks';
 import { PrismaService } from '../../prisma/prisma.service';
@@ -47,11 +48,10 @@ export class DriversService {
       this.prisma.driver.findMany({
         where,
         orderBy: [{ [SORT_FIELDS[field]]: direction }, { id: 'asc' }],
-        skip: (query.page - 1) * query.pageSize,
-        take: query.pageSize,
+        ...pageArgs(query),
       }),
     ]);
-    return { items: rows.map(toDriverDto), page: query.page, pageSize: query.pageSize, total };
+    return toPage(rows.map(toDriverDto), query, total);
   }
 
   /** Archived drivers are returned too: an old order still names its driver. */

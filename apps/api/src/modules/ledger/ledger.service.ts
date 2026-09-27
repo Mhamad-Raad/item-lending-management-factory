@@ -2,6 +2,7 @@ import { Injectable } from '@nestjs/common';
 import { businessDateToDb, type LedgerEntryDto, type LedgerEntryListQuery, type PageDto } from '@pallet/shared';
 import { assertDateRange } from '../../common/utils/dates';
 import { parseSort } from '../../common/utils/sort';
+import { pageSqlLimit, toPage } from '../../common/utils/pagination';
 import { Prisma } from '../../generated/prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
 import { LEDGER_ENTRY_INCLUDE, toLedgerEntryDto } from './ledger.mapper';
@@ -40,7 +41,7 @@ export class LedgerService {
       this.prisma.$queryRaw<{ id: number }[]>`
         SELECT le.id ${from} ${where}
         ORDER BY ${SORT_COLUMNS[field]} ${order}, le.id ${order}
-        LIMIT ${query.pageSize} OFFSET ${(query.page - 1) * query.pageSize}`,
+        ${pageSqlLimit(query)}`,
       this.prisma.$queryRaw<{ total: number }[]>`SELECT COUNT(*)::int AS total ${from} ${where}`,
     ]);
 
@@ -49,14 +50,13 @@ export class LedgerService {
       include: { ...LEDGER_ENTRY_INCLUDE, order: { include: { customer: true } } },
     });
     const byId = new Map(rows.map((row) => [row.id, row]));
-    return {
-      items: page.flatMap(({ id }) => {
+    return toPage(
+      page.flatMap(({ id }) => {
         const row = byId.get(id);
         return row ? [toLedgerEntryDto(row, row.order)] : [];
       }),
-      page: query.page,
-      pageSize: query.pageSize,
-      total: counted[0]?.total ?? 0,
-    };
+      query,
+      counted[0]?.total ?? 0,
+    );
   }
 }

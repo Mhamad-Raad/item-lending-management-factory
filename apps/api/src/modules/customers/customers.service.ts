@@ -19,6 +19,7 @@ import { ApiError } from '../../common/errors/api-error';
 import { assertDateRange } from '../../common/utils/dates';
 import { toDbMoney, toSafeMoney } from '../../common/utils/money';
 import { assertVersion, changedFields } from '../../common/utils/versioning';
+import { toPage } from '../../common/utils/pagination';
 import type { Customer, Prisma } from '../../generated/prisma/client';
 import { lockCustomer } from '../../prisma/locks';
 import { PrismaService } from '../../prisma/prisma.service';
@@ -54,15 +55,14 @@ export class CustomersService {
     const customers = await this.prisma.customer.findMany({ where: { id: { in: rows.map((row) => row.id) } } });
     const byId = new Map(customers.map((customer) => [customer.id, customer]));
 
-    return {
-      items: rows.flatMap(({ id, ...totals }) => {
+    return toPage(
+      rows.flatMap(({ id, ...totals }) => {
         const customer = byId.get(id);
         return customer ? [toCustomerDto(customer, totals, withMoney)] : [];
       }),
-      page: query.page,
-      pageSize: query.pageSize,
+      query,
       total,
-    };
+    );
   }
 
   /** The form's live warning (§7.3.11): the same comparison as the one a save makes. */

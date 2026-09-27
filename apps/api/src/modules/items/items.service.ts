@@ -18,6 +18,7 @@ import { safeProduct, toDbMoney, toSafeMoney } from '../../common/utils/money';
 import { escapeLikePattern } from '../../common/utils/search';
 import { parseSort } from '../../common/utils/sort';
 import { assertVersion, changedFields } from '../../common/utils/versioning';
+import { pageArgs, toPage } from '../../common/utils/pagination';
 import type { Prisma } from '../../generated/prisma/client';
 import { lockItems } from '../../prisma/locks';
 import { PrismaService } from '../../prisma/prisma.service';
@@ -68,8 +69,7 @@ export class ItemsService {
         where,
         include: WITH_IMAGE,
         orderBy: [{ [SORT_FIELDS[field]]: direction }, { id: 'asc' }],
-        skip: (query.page - 1) * query.pageSize,
-        take: query.pageSize,
+        ...pageArgs(query),
       }),
     ]);
     const derived = await queryItemDerived(
@@ -77,12 +77,11 @@ export class ItemsService {
       rows.map((row) => row.id),
     );
 
-    return {
-      items: rows.map((row) => toItemDto(row, derived.get(row.id) ?? NO_ACTIVITY)),
-      page: query.page,
-      pageSize: query.pageSize,
+    return toPage(
+      rows.map((row) => toItemDto(row, derived.get(row.id) ?? NO_ACTIVITY)),
+      query,
       total,
-    };
+    );
   }
 
   /** Archived items are returned too: an order that references one must still show it. */
@@ -248,7 +247,7 @@ export class ItemsService {
     if (!exists) throw new ApiError('ITEM_NOT_FOUND', { itemId });
 
     const { rows, total } = await queryStockMovements(this.prisma, itemId, query.reason, query.page, query.pageSize);
-    return { items: rows.map(toStockMovementDto), page: query.page, pageSize: query.pageSize, total };
+    return toPage(rows.map(toStockMovementDto), query, total);
   }
 
   /** An item that exists and is not archived, under the caller's lock. */

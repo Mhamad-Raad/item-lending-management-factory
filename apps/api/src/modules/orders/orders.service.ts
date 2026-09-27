@@ -20,6 +20,7 @@ import { assertDateRange, assertNotInFuture, businessDateFilter } from '../../co
 import { toDbMoney, toSafeMoney } from '../../common/utils/money';
 import { escapeLikePattern } from '../../common/utils/search';
 import { parseSort } from '../../common/utils/sort';
+import { pageArgs, toPage } from '../../common/utils/pagination';
 import type { Customer, Driver, LedgerEntry, Prisma } from '../../generated/prisma/client';
 import { lockCustomer, lockItems, lockOrderCounter } from '../../prisma/locks';
 import { PrismaService } from '../../prisma/prisma.service';
@@ -91,11 +92,10 @@ export class OrdersService {
         where,
         include: ORDER_LIST_INCLUDE,
         orderBy: [{ [SORT_FIELDS[field]]: direction }, { id: direction }],
-        skip: (query.page - 1) * query.pageSize,
-        take: query.pageSize,
+        ...pageArgs(query),
       }),
     ]);
-    return { items: rows.map(toOrderListItemDto), page: query.page, pageSize: query.pageSize, total };
+    return toPage(rows.map(toOrderListItemDto), query, total);
   }
 
   get(orderId: number): Promise<OrderDetailDto> {

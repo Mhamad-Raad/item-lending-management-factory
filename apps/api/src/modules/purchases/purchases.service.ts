@@ -16,6 +16,7 @@ import { assertDateRange, assertNotInFuture, businessDateFilter } from '../../co
 import { safeProduct, toDbMoney, toSafeMoney } from '../../common/utils/money';
 import { parseSort } from '../../common/utils/sort';
 import { assertVersion, changedFields } from '../../common/utils/versioning';
+import { pageArgs, toPage } from '../../common/utils/pagination';
 import type { Prisma, PurchaseBatch } from '../../generated/prisma/client';
 import { lockBatch, lockItems } from '../../prisma/locks';
 import { PrismaService } from '../../prisma/prisma.service';
@@ -59,17 +60,15 @@ export class PurchasesService {
         where,
         include: WITH_REFS,
         orderBy: [{ [SORT_FIELDS[field]]: direction }, { id: direction }],
-        skip: (query.page - 1) * query.pageSize,
-        take: query.pageSize,
+        ...pageArgs(query),
       }),
     ]);
 
-    return {
-      items: rows.map((row) => toPurchaseBatchDto(row, canViewCost)),
-      page: query.page,
-      pageSize: query.pageSize,
+    return toPage(
+      rows.map((row) => toPurchaseBatchDto(row, canViewCost)),
+      query,
       total,
-    };
+    );
   }
 
   /** Cost is write-without-read: a user may enter a cost they are not allowed to see back (§6.16). */

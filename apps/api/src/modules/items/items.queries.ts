@@ -1,4 +1,5 @@
 import type { StockMovementReason } from '@pallet/shared';
+import { pageSqlLimit } from '../../common/utils/pagination';
 import { Prisma } from '../../generated/prisma/client';
 import type { ItemDerived, StockMovementRow } from './items.mapper';
 
@@ -85,7 +86,7 @@ export async function queryStockMovements(
     LEFT JOIN orders o ON o.id = l.order_id
     WHERE TRUE ${reasonFilter}
     ORDER BY l.id DESC
-    LIMIT ${pageSize} OFFSET ${(page - 1) * pageSize}`;
+    ${pageSqlLimit({ page, pageSize })}`;
 
   const counted = await client.$queryRaw<{ total: number }[]>`
     SELECT COUNT(*)::int AS total FROM stock_movements l WHERE l.item_id = ${itemId} ${reasonFilter}`;

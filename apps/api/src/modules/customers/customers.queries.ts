@@ -2,6 +2,7 @@ import { dbDateToBusiness, type CustomerHoldingDto, type CustomerListQuery } fro
 import { toSafeMoney } from '../../common/utils/money';
 import { escapeLikePattern, phoneSearchPattern } from '../../common/utils/search';
 import { parseSort } from '../../common/utils/sort';
+import { pageSqlLimit } from '../../common/utils/pagination';
 import { Prisma } from '../../generated/prisma/client';
 import { openOrderTotalsByCustomer } from '../orders/open-order-totals';
 import { uploadUrl } from '../uploads/uploads.mapper';
@@ -111,7 +112,7 @@ export async function queryCustomerPage(
     client.$queryRaw<TotalsRow[]>`
       SELECT ${TOTAL_COLUMNS} ${fromCustomers()} ${where}
       ORDER BY ${order}
-      LIMIT ${query.pageSize} OFFSET ${(query.page - 1) * query.pageSize}`,
+      ${pageSqlLimit(query)}`,
     client.$queryRaw<{ total: number }[]>`SELECT COUNT(*)::int AS total ${fromCustomers()} ${where}`,
   ]);
   return { rows: rows.map((row) => ({ id: row.id, ...toTotals(row) })), total: counted[0]?.total ?? 0 };
