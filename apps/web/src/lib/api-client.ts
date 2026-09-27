@@ -1,5 +1,5 @@
-import type { ApiErrorBody, UploadDto, UploadKind } from '@pallet/shared';
-import { ApiError } from './api-error';
+import type { UploadDto, UploadKind } from '@pallet/shared';
+import { ApiError, apiErrorFromResponse } from './api-error';
 import { authStore } from './auth-store';
 import { refreshAccessToken } from './refresh-lock';
 
@@ -42,15 +42,6 @@ export function buildQueryString(query: Record<string, QueryValue> | undefined):
   return search ? `?${search}` : '';
 }
 
-async function toApiError(response: Response): Promise<ApiError> {
-  try {
-    const body = (await response.json()) as ApiErrorBody;
-    return new ApiError(body.error.code, response.status, body.error.details, body.error.fields, body.requestId);
-  } catch {
-    return new ApiError('UNKNOWN_ERROR', response.status);
-  }
-}
-
 async function send(path: string, options: ApiRequest): Promise<Response> {
   const method = options.method ?? 'GET';
   const headers: Record<string, string> = { Accept: 'application/json' };
@@ -81,24 +72,26 @@ async function send(path: string, options: ApiRequest): Promise<Response> {
  * Sends a request and, on a 401 that a refresh could fix, refreshes once and sends it once more —
  * the same request, idempotency key included, so a retried write is the same write (§7.7.2). A 401
  * that survives the refresh means the session is gone: the store is cleared and the shell told, or
- * the app would keep rendering as signed in while every request inside it fails.
+ * the app would keep rendering as signed in while every request inside it fails. A refresh that
+ * could not reach the server (offline, 502/503, rate limited) rejects with that error instead, and
+ * the session stays: the user keeps the page and can try again (Q79).
  */
 async function withAuthRetry(sendOnce: () => Promise<Response>, skipAuthRetry = false): Promise<Response> {
   let response = await sendOnce();
 
   if (response.status === 401 && !skipAuthRetry) {
-    const error = await toApiError(response.clone());
+    const error = await apiErrorFromResponse(response.clone());
     if (error.isAuthExpired) {
       response = (await refreshAccessToken()) ? await sendOnce() : response;
       if (response.status === 401) {
         authStore.clear();
         onSessionEnded?.();
-        throw await toApiError(response);
+        throw await apiErrorFromResponse(response);
       }
     }
   }
 
-  if (!response.ok) throw await toApiError(response);
+  if (!response.ok) throw await apiErrorFromResponse(response);
   return response;
 }
 

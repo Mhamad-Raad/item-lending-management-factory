@@ -15,6 +15,14 @@ const MIN_REFRESH_DELAY_MS = 10_000;
 let refreshTimer: ReturnType<typeof setTimeout> | undefined;
 let bootstrapped = false;
 
+/**
+ * A refresh ahead of expiry. A failure here says nothing the user must act on: a refusal surfaces on
+ * the next request (its 401 ends the session), and an unreachable server is retried by that request.
+ */
+function refreshQuietly(): void {
+  refreshAccessToken().catch(() => undefined);
+}
+
 function scheduleProactiveRefresh(): void {
   clearTimeout(refreshTimer);
   const { accessTokenExpiresAt } = authStore.getSnapshot();
@@ -23,7 +31,7 @@ function scheduleProactiveRefresh(): void {
   const delay = accessTokenExpiresAt - Date.now() - REFRESH_MARGIN_MS;
   refreshTimer = setTimeout(
     () => {
-      if (document.visibilityState === 'visible') void refreshAccessToken();
+      if (document.visibilityState === 'visible') refreshQuietly();
     },
     Math.max(MIN_REFRESH_DELAY_MS, delay),
   );
@@ -31,7 +39,8 @@ function scheduleProactiveRefresh(): void {
 
 /**
  * Restores the session on a full page load: the refresh cookie is the only thing that survives a
- * reload, so the app asks for a fresh access token before it renders anything.
+ * reload, so the app asks for a fresh access token before it renders anything. A refusal leaves the
+ * user signed out; a server out of reach rejects with its ApiError and the cookie stays (Q79).
  */
 export async function bootstrapAuth(): Promise<void> {
   // Once per page load. React's development double-effect would otherwise register the listeners
@@ -43,7 +52,7 @@ export async function bootstrapAuth(): Promise<void> {
     document.addEventListener('visibilitychange', () => {
       const { accessTokenExpiresAt, status } = authStore.getSnapshot();
       if (document.visibilityState !== 'visible' || status !== 'authenticated' || !accessTokenExpiresAt) return;
-      if (accessTokenExpiresAt - Date.now() < REFRESH_MARGIN_MS) void refreshAccessToken();
+      if (accessTokenExpiresAt - Date.now() < REFRESH_MARGIN_MS) refreshQuietly();
     });
   }
 

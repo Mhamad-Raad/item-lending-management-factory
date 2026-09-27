@@ -147,6 +147,62 @@ describe('apiFetch', () => {
     setSessionEndedHandler(() => undefined);
   });
 
+  describe('a refresh that could not reach the server keeps the session (Q79)', () => {
+    const signedIn = (): void =>
+      authStore.setSession({
+        accessToken: 'token-1',
+        accessTokenExpiresAt: new Date(Date.now() + 60_000).toISOString(),
+        user: {
+          id: 1,
+          username: 'admin',
+          displayName: 'Admin',
+          role: 'ADMIN',
+          mustChangePassword: false,
+          permissions: [],
+        },
+      });
+
+    it.each([
+      ['offline', () => Promise.reject(new TypeError('failed to fetch')), 'NETWORK_ERROR'],
+      [
+        'a proxy 502 without our body',
+        () => Promise.resolve(new Response('Bad Gateway', { status: 502 })),
+        'SERVICE_UNAVAILABLE',
+      ],
+      [
+        'a 503',
+        () => Promise.resolve(jsonResponse(503, { error: { code: 'SERVICE_UNAVAILABLE' } })),
+        'SERVICE_UNAVAILABLE',
+      ],
+      [
+        'a rate limit',
+        () =>
+          Promise.resolve(jsonResponse(429, { error: { code: 'RATE_LIMITED', details: { retryAfterSeconds: 5 } } })),
+        'RATE_LIMITED',
+      ],
+    ] as const)('%s surfaces as its own error, not a sign-out', async (_, refresh, code) => {
+      const sessionEnded = vi.fn();
+      setSessionEndedHandler(sessionEnded);
+      signedIn();
+      vi.spyOn(globalThis, 'fetch')
+        .mockResolvedValueOnce(jsonResponse(401, { error: { code: 'AUTH_TOKEN_EXPIRED' } }))
+        .mockImplementationOnce(refresh);
+
+      await expect(apiFetch('/users')).rejects.toMatchObject({ code });
+
+      expect(authStore.getSnapshot().status).toBe('authenticated');
+      expect(authStore.token).toBe('token-1');
+      expect(sessionEnded).not.toHaveBeenCalled();
+      setSessionEndedHandler(() => undefined);
+    });
+  });
+
+  it('reads a proxy error page on an ordinary request as SERVICE_UNAVAILABLE', async () => {
+    vi.spyOn(globalThis, 'fetch').mockResolvedValue(new Response('<html>502</html>', { status: 502 }));
+
+    await expect(apiFetch('/users')).rejects.toMatchObject({ code: 'SERVICE_UNAVAILABLE', status: 502 });
+  });
+
   it('gives up after one retry rather than looping', async () => {
     vi.spyOn(globalThis, 'fetch')
       .mockResolvedValueOnce(jsonResponse(401, { error: { code: 'AUTH_TOKEN_EXPIRED' } }))

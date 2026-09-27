@@ -1,4 +1,5 @@
 import type { AuthTokenDto } from '@pallet/shared';
+import { ApiError, apiErrorFromResponse } from './api-error';
 import { authStore } from './auth-store';
 
 const REFRESH_CHANNEL = 'pallet-auth';
@@ -28,14 +29,26 @@ export function listenForPeerRefreshes(): void {
   };
 }
 
+/**
+ * True when the session was renewed, false when the server refused it (a 401: the cookie is missing,
+ * expired, reused or revoked — the session is gone). Anything else — no connection, a 502 while the
+ * API restarts, a rate limit — says nothing about the session, so it rejects with that ApiError and
+ * the caller keeps the user signed in (Q79).
+ */
 async function doRefresh(): Promise<boolean> {
-  const response = await fetch('/api/auth/refresh', {
-    method: 'POST',
-    headers: { Accept: 'application/json', 'X-Requested-With': 'pallet-web' },
-    credentials: 'same-origin',
-  }).catch(() => null);
+  let response: Response;
+  try {
+    response = await fetch('/api/auth/refresh', {
+      method: 'POST',
+      headers: { Accept: 'application/json', 'X-Requested-With': 'pallet-web' },
+      credentials: 'same-origin',
+    });
+  } catch {
+    throw new ApiError('NETWORK_ERROR', 0);
+  }
 
-  if (!response?.ok) return false;
+  if (response.status === 401) return false;
+  if (!response.ok) throw await apiErrorFromResponse(response);
 
   authStore.setSession((await response.json()) as AuthTokenDto);
   return true;
@@ -61,7 +74,8 @@ async function refreshWithPeers(): Promise<boolean> {
 }
 
 /**
- * Refreshes the access token at most once at a time in this tab, and — through the Web Locks API
+ * Resolves true (renewed) or false (refused: the session is gone), and rejects with an ApiError when
+ * the server could not be asked. Refreshes the access token at most once at a time in this tab, and — through the Web Locks API
  * where it exists — one tab at a time across the whole browser, so rotating the refresh cookie
  * never races with itself. The server's 30 second grace window covers what the lock cannot.
  */

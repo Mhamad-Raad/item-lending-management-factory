@@ -1,4 +1,4 @@
-import type { ApiFieldError, ErrorCode } from '@pallet/shared';
+import type { ApiErrorBody, ApiFieldError, ErrorCode } from '@pallet/shared';
 
 /** Codes the client itself produces; the server never sends them. */
 export type ClientErrorCode = 'NETWORK_ERROR' | 'UNKNOWN_ERROR';
@@ -23,5 +23,24 @@ export class ApiError extends Error {
   /** True for the 401s that a token refresh might fix. */
   get isAuthExpired(): boolean {
     return this.code === 'AUTH_TOKEN_EXPIRED' || this.code === 'AUTH_TOKEN_INVALID' || this.code === 'AUTH_REQUIRED';
+  }
+}
+
+/** Statuses a proxy answers with, without our JSON body, while the API is restarting or down. */
+const UNAVAILABLE_STATUSES = new Set([502, 503, 504]);
+
+/**
+ * The ApiError a failed response stands for. A body without our error shape — Caddy's own 502 while
+ * the API restarts, say — still becomes a code the UI can translate rather than a raw status.
+ */
+export async function apiErrorFromResponse(response: Response): Promise<ApiError> {
+  try {
+    const body = (await response.json()) as ApiErrorBody;
+    return new ApiError(body.error.code, response.status, body.error.details, body.error.fields, body.requestId);
+  } catch {
+    return new ApiError(
+      UNAVAILABLE_STATUSES.has(response.status) ? 'SERVICE_UNAVAILABLE' : 'UNKNOWN_ERROR',
+      response.status,
+    );
   }
 }
