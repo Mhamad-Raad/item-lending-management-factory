@@ -4,7 +4,7 @@ import { toSafeMoney } from '../common/utils/money';
 import { ORDER_STATE_INCLUDE, type OrderWithLedgers, toOrderState } from '../modules/orders/order-state';
 
 export interface Discrepancy {
-  entity: 'item' | 'order' | 'orderLine' | 'orderCounter' | 'batch' | 'return';
+  entity: 'item' | 'order' | 'orderLine' | 'orderCounter' | 'batch' | 'return' | 'orderItem' | 'returnItem';
   id: number;
   field: string;
   stored: number | string;
@@ -24,7 +24,7 @@ export interface ReconcileOptions {
 }
 
 /**
- * The reconciliation of §4.9, R1–R7: every maintained total recomputed from the ledgers, and every
+ * The reconciliation of §4.9, R1–R9: every maintained total recomputed from the ledgers, and every
  * cross-row invariant the ledgers must keep. An empty result means the database is consistent.
  */
 export async function findLedgerDiscrepancies(
@@ -125,7 +125,7 @@ function checkOrderTotals(orders: readonly OrderWithLedgers[], out: Discrepancy[
   }
 }
 
-/** R3–R7: the invariants between rows that no single maintained column shows, appended to `out`. */
+/** R3–R9: the invariants between rows that no single maintained column shows, appended to `out`. */
 async function findInvariantBreaks(prisma: PrismaClient, out: Discrepancy[]): Promise<void> {
   // R3 (I6): a live cash order has one standing automatic payment of its deposit, and no manual one.
   const cash = await prisma.$queryRaw<
@@ -219,5 +219,98 @@ async function findInvariantBreaks(prisma: PrismaClient, out: Discrepancy[]): Pr
     const stored = `${row.refunds} × ${toSafeMoney(row.refunded)}`;
     const expected = cashRefund > 0 ? `1 × ${cashRefund}` : '0 × 0';
     if (stored !== expected) out.push({ entity: 'return', id: row.id, field: 'refund', stored, expected });
+  }
+
+  await findStockTrailBreaks(prisma, out);
+  await findRefundStandingBreaks(prisma, out);
+}
+
+/**
+ * R8 (I12), in two halves over the stock ledger's order and return rows, which R1 only sums per item:
+ * - per (live order, item): everything the order moved nets to −(quantity − returned accepted) — handed
+ *   over, less what came back — and to 0 for an item no longer on the order. Cancelled orders are R4's.
+ * - per (return, item): the return's own movements net to its accepted pallets while it stands, to 0 once
+ *   reversed (an edit or a deletion takes them back out); damaged pallets never move stock (§4.7.1).
+ * `entity`/`id` name the order or the return, `field` the item.
+ */
+async function findStockTrailBreaks(prisma: PrismaClient, out: Discrepancy[]): Promise<void> {
+  const orderItems = await prisma.$queryRaw<{ orderId: number; itemId: number; moved: bigint; expected: bigint }[]>`
+    WITH expected AS (
+      SELECT ol.order_id, ol.item_id, (ol.returned_accepted - ol.quantity)::bigint AS expected
+      FROM order_lines ol JOIN orders o ON o.id = ol.order_id
+      WHERE o.cancelled_at IS NULL
+    ), moved AS (
+      SELECT sm.order_id, sm.item_id, SUM(sm.quantity)::bigint AS moved
+      FROM stock_movements sm JOIN orders o ON o.id = sm.order_id
+      WHERE o.cancelled_at IS NULL
+      GROUP BY sm.order_id, sm.item_id
+    )
+    SELECT COALESCE(e.order_id, m.order_id) AS "orderId", COALESCE(e.item_id, m.item_id) AS "itemId",
+           COALESCE(m.moved, 0)::bigint AS moved, COALESCE(e.expected, 0)::bigint AS expected
+    FROM expected e FULL JOIN moved m ON m.order_id = e.order_id AND m.item_id = e.item_id
+    WHERE COALESCE(m.moved, 0) <> COALESCE(e.expected, 0)
+    ORDER BY 1, 2`;
+  for (const row of orderItems) {
+    out.push({
+      entity: 'orderItem',
+      id: row.orderId,
+      field: `stockMovements(item ${row.itemId})`,
+      stored: Number(row.moved),
+      expected: Number(row.expected),
+    });
+  }
+
+  const returnItems = await prisma.$queryRaw<{ returnId: number; itemId: number; moved: bigint; expected: bigint }[]>`
+    WITH expected AS (
+      SELECT rl.return_id, ol.item_id,
+             SUM(CASE WHEN pr.reversed_at IS NULL THEN rl.accepted_quantity ELSE 0 END)::bigint AS expected
+      FROM return_lines rl
+      JOIN returns pr ON pr.id = rl.return_id
+      JOIN order_lines ol ON ol.id = rl.order_line_id
+      GROUP BY rl.return_id, ol.item_id
+    ), moved AS (
+      SELECT sm.return_id, sm.item_id, SUM(sm.quantity)::bigint AS moved
+      FROM stock_movements sm
+      WHERE sm.return_id IS NOT NULL
+      GROUP BY sm.return_id, sm.item_id
+    )
+    SELECT COALESCE(e.return_id, m.return_id) AS "returnId", COALESCE(e.item_id, m.item_id) AS "itemId",
+           COALESCE(m.moved, 0)::bigint AS moved, COALESCE(e.expected, 0)::bigint AS expected
+    FROM expected e FULL JOIN moved m ON m.return_id = e.return_id AND m.item_id = e.item_id
+    WHERE COALESCE(m.moved, 0) <> COALESCE(e.expected, 0)
+    ORDER BY 1, 2`;
+  for (const row of returnItems) {
+    out.push({
+      entity: 'returnItem',
+      id: row.returnId,
+      field: `stockMovements(item ${row.itemId})`,
+      stored: Number(row.moved),
+      expected: Number(row.expected),
+    });
+  }
+}
+
+/**
+ * R9 (I13), R7's other half: a return's REFUND stands exactly while the return does. A REFUND with no
+ * REFUND_REVERSAL on a reversed return is money the customer still appears to have been paid for pallets
+ * the return no longer counts; a REFUND_REVERSAL on a standing return takes back a refund it still owes.
+ */
+async function findRefundStandingBreaks(prisma: PrismaClient, out: Discrepancy[]): Promise<void> {
+  const rows = await prisma.$queryRaw<{ id: number; returnReversed: boolean; refundReversed: boolean }[]>`
+    SELECT pr.id, pr.reversed_at IS NOT NULL AS "returnReversed", rr.id IS NOT NULL AS "refundReversed"
+    FROM returns pr
+    JOIN ledger_entries le ON le.return_id = pr.id AND le.type = 'REFUND'
+    LEFT JOIN ledger_entries rr ON rr.reverses_entry_id = le.id
+    WHERE (pr.reversed_at IS NOT NULL) <> (rr.id IS NOT NULL)
+    ORDER BY pr.id`;
+  const state = (reversed: boolean): string => (reversed ? 'reversed' : 'standing');
+  for (const row of rows) {
+    out.push({
+      entity: 'return',
+      id: row.id,
+      field: 'refundStanding',
+      stored: `refund ${state(row.refundReversed)}`,
+      expected: `refund ${state(row.returnReversed)}`,
+    });
   }
 }

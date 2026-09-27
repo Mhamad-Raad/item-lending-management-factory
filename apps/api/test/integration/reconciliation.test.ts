@@ -10,14 +10,14 @@ import { createTestApp } from '../helpers/app';
 import { asUser, login, type Session } from '../helpers/auth';
 import { disconnectDatabase, resetDatabase } from '../helpers/db';
 import { skipReconciliation } from '../helpers/reconciliation';
-import { createCustomer, createDriver, createItem, createOrder } from '../helpers/factories';
+import { createCustomer, createDriver, createItem, createOrder, recordReturn } from '../helpers/factories';
 import { recordManualPayment, recordReversedReturn } from '../helpers/ledger-fixtures';
 
 const NOW = new Date('2026-09-11T09:00:00Z');
 const TODAY = '2026-09-11';
 
 /**
- * Reconciliation (§4.9 R1–R7): each check is shown to find what it guards, by breaking that invariant
+ * Reconciliation (§4.9 R1–R9): each check is shown to find what it guards, by breaking that invariant
  * on purpose. A clean database reports nothing.
  */
 skipReconciliation('every test breaks an invariant on purpose');
@@ -164,5 +164,68 @@ describe('reconciliation', () => {
     });
 
     expect(await checks()).toContain('return:refund');
+  });
+
+  // R8's halves and R9 (Q86) come from the stock and ledger rows R1 and R7 only total per item or per return.
+  const plantMovement = async (data: { orderId: number; returnId?: number; quantity: number }): Promise<void> => {
+    const admins = await prisma.user.findFirstOrThrow({ where: { role: 'ADMIN' } });
+    await prisma.stockMovement.create({
+      data: {
+        itemId,
+        quantity: data.quantity,
+        reason: data.returnId ? 'RETURN_ACCEPTED' : 'ORDER_LINE_EDIT',
+        orderId: data.orderId,
+        returnId: data.returnId ?? null,
+        createdByUserId: admins.id,
+      },
+    });
+  };
+
+  it('R8 — an order whose movements do not net to what is still out', async () => {
+    const lent = await order('LENT');
+    await plantMovement({ orderId: lent.id, quantity: 3 });
+
+    expect(await checks()).toContain(`orderItem:stockMovements(item ${itemId})`);
+  });
+
+  it('R8 — a return whose movements do not match its accepted pallets', async () => {
+    const lent = await order('LENT');
+    const returnId = await recordReturn(app, admin, {
+      orderId: lent.id,
+      date: TODAY,
+      lines: [{ orderLineId: lent.lines[0]?.id ?? 0, acceptedQuantity: 4 }],
+    });
+    expect(await checks()).toEqual([]);
+    await plantMovement({ orderId: lent.id, returnId, quantity: 2 });
+
+    expect(await checks()).toContain(`returnItem:stockMovements(item ${itemId})`);
+  });
+
+  it('R9 — a standing return whose refund was reversed', async () => {
+    const cash = await order('CASH');
+    const returnId = await recordReturn(app, admin, {
+      orderId: cash.id,
+      date: TODAY,
+      lines: [{ orderLineId: cash.lines[0]?.id ?? 0, acceptedQuantity: 5 }],
+    });
+    const refund = await prisma.ledgerEntry.findFirstOrThrow({ where: { returnId, type: 'REFUND' } });
+    const admins = await prisma.user.findFirstOrThrow({ where: { role: 'ADMIN' } });
+    await runInTransaction(prisma, (tx) =>
+      app.get(MoneyLedger).record(
+        tx,
+        {
+          orderId: cash.id,
+          type: 'REFUND_REVERSAL',
+          source: 'RETURN_DELETE',
+          amount: Number(refund.amount),
+          date: TODAY,
+          returnId,
+          reversesEntryId: refund.id,
+        },
+        admins.id,
+      ),
+    );
+
+    expect(await checks()).toContain('return:refundStanding');
   });
 });
