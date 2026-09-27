@@ -128,7 +128,12 @@ export function PaymentForm({ order }: { order: OrderDetailDto }) {
                 )}
               />
               <div className="flex flex-wrap gap-2">
-                <Button type="button" variant="outline" size="sm" onClick={() => form.setValue('amount', order.owed)}>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={() => form.setValue('amount', order.owed, { shouldValidate: true, shouldDirty: true })}
+                >
                   {t('payments.new.full')}
                 </Button>
                 {order.owed >= 2 ? (
@@ -136,7 +141,9 @@ export function PaymentForm({ order }: { order: OrderDetailDto }) {
                     type="button"
                     variant="outline"
                     size="sm"
-                    onClick={() => form.setValue('amount', Math.floor(order.owed / 2))}
+                    onClick={() =>
+                      form.setValue('amount', Math.floor(order.owed / 2), { shouldValidate: true, shouldDirty: true })
+                    }
                   >
                     {t('payments.new.half')}
                   </Button>
