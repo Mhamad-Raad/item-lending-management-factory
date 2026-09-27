@@ -4944,7 +4944,7 @@ The list lives in `AUDIT_READ_REDACTIONS` (`apps/api/src/modules/audit/audit-red
 
 ### 12.1 Common rules
 
-- Implementation: `apps/api/src/modules/reports/` — `reports.controller.ts`, `reports.service.ts`, `reports.repository.ts`. Every report is one or a few SQL aggregate queries via `tx.$queryRaw` tagged templates; optional filters are composed with `Prisma.sql` / `Prisma.empty` fragments; no in-memory loops over all orders.
+- Implementation: `apps/api/src/modules/reports/` — `reports.controller.ts`, `reports.service.ts` (the request checks, then the report in one REPEATABLE READ snapshot, `runInSnapshot` of `prisma/transaction.ts`) and one file per report: `positions-report.ts`, `purchases-report.ts`, `activity-report.ts`, `stock-report.ts`. Every report is one or a few SQL aggregate queries via `tx.$queryRaw` tagged templates; optional filters are composed with `Prisma.sql` / `Prisma.empty` fragments; no in-memory loops over all orders.
 - Every `SUM()` over money or quantity is cast `::bigint`; the repository converts results with `toSafeMoney()` / `toSafeInt()`.
 - Every query touching orders filters `o.cancelled_at IS NULL`; every query touching returns filters `r.reversed_at IS NULL`; batches filter `pb.deleted_at IS NULL`.
 - Ledger effective date = `COALESCE(le.date, o.date)` (the automatic hand-over payment has no stored date).
