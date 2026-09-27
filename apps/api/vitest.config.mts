@@ -8,7 +8,8 @@ export default defineConfig({
   oxc: false,
   plugins: [swc.vite({ module: { type: 'es6' } })],
   test: {
-    include: ['src/**/*.test.ts'],
+    // test/helpers holds pure checks of the integration harness itself (no database).
+    include: ['src/**/*.test.ts', 'test/helpers/**/*.test.ts'],
     environment: 'node',
     // Nest decorators write their metadata through reflect-metadata, which `main.ts` imports
     // in production and the test entry points do not.

@@ -2,6 +2,7 @@ import argon2 from 'argon2';
 import { createPrismaClient } from '../../src/prisma/create-client';
 import { ARGON2_OPTIONS } from '../../src/modules/auth/password.constants';
 import { Prisma, type PrismaClient } from '../../src/generated/prisma/client';
+import { assertSafeTestDatabase } from './test-database-guard';
 
 /**
  * Every table, truncated between tests as the owner role. The append-only triggers fire on
@@ -35,6 +36,8 @@ export const TEST_ADMIN = { username: 'admin', displayName: 'Administrator', pas
 
 let ownerClient: PrismaClient | undefined;
 let adminPasswordHash: string | undefined;
+/** Checked once per test file (each runs in its own worker), before its first TRUNCATE. */
+let targetChecked: Promise<void> | undefined;
 
 function owner(): PrismaClient {
   if (!ownerClient) {
@@ -58,6 +61,8 @@ async function assertTableListIsComplete(db: PrismaClient): Promise<void> {
  * counter, factory settings and one admin (as `pnpm db:seed` would).
  */
 export async function resetDatabase(): Promise<void> {
+  targetChecked ??= assertSafeTestDatabase();
+  await targetChecked;
   const db = owner();
   await assertTableListIsComplete(db);
   // Prisma.raw is safe here: TABLES is a literal list in this file, never user input.
