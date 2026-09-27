@@ -1,7 +1,6 @@
 import { FONT_SIZES, LANGUAGES, type FontSize, type Language, type PermissionKey } from '@pallet/shared';
 import { Link, useRouterState } from '@tanstack/react-router';
 import {
-  ALargeSmall,
   BarChart3,
   Building2,
   ClipboardList,
@@ -14,6 +13,7 @@ import {
   Settings,
   Sun,
   Truck,
+  Type,
   UserCircle,
   Users,
 } from 'lucide-react';
@@ -371,7 +371,7 @@ function TextSizeMenu() {
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
         <Button variant="ghost" size="icon" aria-label={t('settings.appearance.sizeTitle')}>
-          <ALargeSmall className="size-5" aria-hidden />
+          <Type className="size-5" aria-hidden />
         </Button>
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end">
