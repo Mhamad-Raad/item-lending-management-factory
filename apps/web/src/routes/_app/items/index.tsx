@@ -1,8 +1,7 @@
-import type { ItemDto, PageDto } from '@pallet/shared';
-import { keepPreviousData, useQuery } from '@tanstack/react-query';
-import { Link, createFileRoute, useNavigate } from '@tanstack/react-router';
+import type { ItemDto } from '@pallet/shared';
+import { useQuery } from '@tanstack/react-query';
+import { Link, createFileRoute } from '@tanstack/react-router';
 import { Package, Plus } from 'lucide-react';
-import { useCallback } from 'react';
 import { useTranslation } from 'react-i18next';
 import { z } from 'zod';
 import { ArchivedBadge } from '@/components/app/archived-badge';
@@ -15,13 +14,12 @@ import { QuantityText } from '@/components/app/quantity-text';
 import { PageSkeleton, QueryErrorState } from '@/components/app/states';
 import { Thumbnail } from '@/components/app/thumbnail';
 import { Button } from '@/components/ui/button';
+import { itemListQuery } from '@/features/items/api';
 import { LowStockBadge } from '@/features/items/item-badges';
 import { usePageTitle } from '@/hooks/use-page-title';
-import { useSearchInput } from '@/hooks/use-search-input';
-import { apiFetch } from '@/lib/api-client';
+import { useListRoute } from '@/hooks/use-list-route';
 import { useCan } from '@/lib/auth';
 import { flagSearch, listSearch, sortSearch } from '@/lib/list-search';
-import { qk } from '@/lib/query-keys';
 import { requirePermission } from '@/lib/route-guards';
 
 const SearchSchema = z.object({
@@ -114,18 +112,11 @@ const COLUMNS: DataColumn<ItemDto>[] = [
 
 function ItemsPage() {
   const { t } = useTranslation();
-  const navigate = useNavigate({ from: Route.fullPath });
   const search = Route.useSearch();
   const canCreate = useCan('items.create');
   usePageTitle('items.list.title');
 
-  const commitSearch = useCallback(
-    (q: string | undefined) => void navigate({ search: (prev) => ({ ...prev, q, page: 1 }), replace: true }),
-    [navigate],
-  );
-  const [term, setTerm] = useSearchInput(search.q, commitSearch);
-  const setFilter = (patch: Partial<typeof search>): void =>
-    void navigate({ search: (prev) => ({ ...prev, ...patch, page: 1 }), replace: true });
+  const { term, setTerm, setFilter, clearFilters, pageProps } = useListRoute(Route.fullPath, search);
 
   const params = {
     q: search.q,
@@ -135,11 +126,7 @@ function ItemsPage() {
     page: search.page,
     pageSize: search.pageSize,
   };
-  const items = useQuery({
-    queryKey: qk.items.list(params),
-    queryFn: () => apiFetch<PageDto<ItemDto>>('/items', { query: params }),
-    placeholderData: keepPreviousData,
-  });
+  const items = useQuery(itemListQuery(params));
 
   if (items.isPending) return <PageSkeleton />;
   if (items.isError) return <QueryErrorState error={items.error} onRetry={() => void items.refetch()} />;
@@ -191,15 +178,12 @@ function ItemsPage() {
         pageSize={items.data.pageSize}
         sort={search.sort}
         defaultSort="name"
-        onSortChange={(sort) => setFilter({ sort })}
-        onPageChange={(page) => void navigate({ search: (prev) => ({ ...prev, page }) })}
-        onPageOverflow={(page) => void navigate({ search: (prev) => ({ ...prev, page }), replace: true })}
-        onPageSizeChange={(pageSize) => setFilter({ pageSize })}
+        {...pageProps}
         isFetching={items.isFetching}
         empty={
           <ListEmpty
             filtered={Boolean(search.q || search.lowStockOnly || search.includeArchived)}
-            onClearFilters={() => void navigate({ search: {}, replace: true })}
+            onClearFilters={() => clearFilters()}
             icon={Package}
             title={t('items.list.empty')}
             action={newItem}

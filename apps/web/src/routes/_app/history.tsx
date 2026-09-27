@@ -9,10 +9,9 @@ import {
   type AuditAction,
   type AuditEntityType,
   type AuditLogDto,
-  type PageDto,
 } from '@pallet/shared';
-import { keepPreviousData, useQuery } from '@tanstack/react-query';
-import { Link, createFileRoute, useNavigate } from '@tanstack/react-router';
+import { useQuery } from '@tanstack/react-query';
+import { Link, createFileRoute } from '@tanstack/react-router';
 import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { dynamicKey } from '@/i18n/keys';
@@ -26,11 +25,11 @@ import { EmptyState, PageSkeleton, QueryErrorState } from '@/components/app/stat
 import { Button } from '@/components/ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
+import { auditLogListQuery } from '@/features/history/api';
+import { useListRoute } from '@/hooks/use-list-route';
 import { usePageTitle } from '@/hooks/use-page-title';
-import { apiFetch } from '@/lib/api-client';
 import { translateSummaryParams } from '@/lib/audit-summary';
 import { authStore, useAuth, useCan } from '@/lib/auth';
-import { qk } from '@/lib/query-keys';
 import { requirePermission } from '@/lib/route-guards';
 
 const ALL = 'all';
@@ -145,8 +144,8 @@ function AuditSummary({ row, expanded, onToggle }: { row: AuditLogDto; expanded:
 
 function HistoryPage() {
   const { t } = useTranslation();
-  const navigate = useNavigate({ from: Route.fullPath });
   const search = Route.useSearch();
+  const { setFilter, pageProps } = useListRoute(Route.fullPath, search);
   const [expanded, setExpanded] = useState<number | null>(null);
   const toggle = (id: number): void => setExpanded((open) => (open === id ? null : id));
   // The user filter lists users, which only an admin may read (§7.3.18).
@@ -168,13 +167,7 @@ function HistoryPage() {
     page: search.page,
     pageSize: 50,
   };
-  const logs = useQuery({
-    queryKey: qk.audit.list(params),
-    queryFn: () => apiFetch<PageDto<AuditLogDto>>('/audit-logs', { query: params }),
-    enabled: !rangeInvalid,
-    // The filters stay put while new rows load: no skeleton, no lost focus.
-    placeholderData: keepPreviousData,
-  });
+  const logs = useQuery({ ...auditLogListQuery(params), enabled: !rangeInvalid });
 
   const activeFilters = [
     search.action,
@@ -182,8 +175,6 @@ function HistoryPage() {
     isAdmin ? search.userId : undefined,
     search.dateFrom ?? search.dateTo,
   ].filter(Boolean).length;
-  const setFilter = (patch: Partial<typeof search>): void =>
-    void navigate({ search: (prev) => ({ ...prev, ...patch, page: 1 }), replace: true });
 
   return (
     <>
@@ -331,7 +322,7 @@ function HistoryPage() {
             page={logs.data.page}
             pageSize={logs.data.pageSize}
             total={logs.data.total}
-            onPageChange={(page) => void navigate({ search: (prev) => ({ ...prev, page }) })}
+            onPageChange={pageProps.onPageChange}
           />
         </>
       )}

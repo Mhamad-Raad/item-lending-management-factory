@@ -4,6 +4,7 @@ import type { TFunction } from 'i18next';
 import { apiFetch } from '@/lib/api-client';
 import { ApiError, detailsOf } from '@/lib/api-error';
 import { qk } from '@/lib/query-keys';
+import { pageQuery, type ListParams } from '@/lib/page-query';
 
 export function itemQuery(itemId: number) {
   return queryOptions({ queryKey: qk.items.detail(itemId), queryFn: () => apiFetch<ItemDto>(`/items/${itemId}`) });
@@ -33,4 +34,8 @@ export function stockShortageMessage(error: unknown, t: TFunction): string | nul
     requested: formatNumber(short.requested),
     available: formatNumber(short.available),
   });
+}
+
+export function itemListQuery(params: ListParams) {
+  return pageQuery<ItemDto>(qk.items.list(params), '/items', params);
 }

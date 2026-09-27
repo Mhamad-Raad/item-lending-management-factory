@@ -1,7 +1,8 @@
-import type { OrderDetailDto } from '@pallet/shared';
+import type { OrderDetailDto, OrderListItemDto } from '@pallet/shared';
 import { queryOptions, type QueryClient } from '@tanstack/react-query';
 import { apiFetch } from '@/lib/api-client';
 import { qk } from '@/lib/query-keys';
+import { pageQuery, type ListParams } from '@/lib/page-query';
 
 export function orderQuery(orderId: number) {
   return queryOptions({
@@ -42,4 +43,8 @@ export async function invalidateAfterPayment(
       qk.reports.all(),
     ].map((queryKey) => queryClient.invalidateQueries({ queryKey })),
   );
+}
+
+export function orderListQuery(params: ListParams) {
+  return pageQuery<OrderListItemDto>(qk.orders.list(params), '/orders', params);
 }

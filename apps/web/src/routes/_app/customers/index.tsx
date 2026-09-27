@@ -1,8 +1,7 @@
-import type { CustomerDto, PageDto } from '@pallet/shared';
-import { keepPreviousData, useQuery } from '@tanstack/react-query';
-import { Link, createFileRoute, useNavigate } from '@tanstack/react-router';
+import type { CustomerDto } from '@pallet/shared';
+import { useQuery } from '@tanstack/react-query';
+import { Link, createFileRoute } from '@tanstack/react-router';
 import { Building2, Plus } from 'lucide-react';
-import { useCallback } from 'react';
 import { useTranslation } from 'react-i18next';
 import { z } from 'zod';
 import { ArchivedBadge } from '@/components/app/archived-badge';
@@ -14,12 +13,11 @@ import { PageHeader } from '@/components/app/page-header';
 import { QuantityText } from '@/components/app/quantity-text';
 import { PageSkeleton, QueryErrorState } from '@/components/app/states';
 import { Button } from '@/components/ui/button';
+import { customerListQuery } from '@/features/customers/api';
 import { usePageTitle } from '@/hooks/use-page-title';
-import { useSearchInput } from '@/hooks/use-search-input';
-import { apiFetch } from '@/lib/api-client';
+import { useListRoute } from '@/hooks/use-list-route';
 import { useCan } from '@/lib/auth';
 import { flagSearch, listSearch, sortSearch } from '@/lib/list-search';
-import { qk } from '@/lib/query-keys';
 import { requirePermission } from '@/lib/route-guards';
 
 const SearchSchema = z.object({
@@ -119,7 +117,6 @@ const COLUMNS: DataColumn<CustomerDto>[] = [
 
 function CustomersPage() {
   const { t } = useTranslation();
-  const navigate = useNavigate({ from: Route.fullPath });
   const search = Route.useSearch();
   const canCreate = useCan('customers.create');
   const canViewOrders = useCan('orders.view');
@@ -128,13 +125,7 @@ function CustomersPage() {
   const sort = !canViewOrders && MONEY_COLUMNS.has(search.sort?.replace(/^-/, '') ?? '') ? undefined : search.sort;
   const columns = canViewOrders ? COLUMNS : COLUMNS.filter((column) => !MONEY_COLUMNS.has(column.id));
 
-  const commitSearch = useCallback(
-    (q: string | undefined) => void navigate({ search: (prev) => ({ ...prev, q, page: 1 }), replace: true }),
-    [navigate],
-  );
-  const [term, setTerm] = useSearchInput(search.q, commitSearch);
-  const setFilter = (patch: Partial<typeof search>): void =>
-    void navigate({ search: (prev) => ({ ...prev, ...patch, page: 1 }), replace: true });
+  const { term, setTerm, setFilter, clearFilters, pageProps } = useListRoute(Route.fullPath, search);
 
   const params = {
     q: search.q,
@@ -144,11 +135,7 @@ function CustomersPage() {
     page: search.page,
     pageSize: search.pageSize,
   };
-  const customers = useQuery({
-    queryKey: qk.customers.list(params),
-    queryFn: () => apiFetch<PageDto<CustomerDto>>('/customers', { query: params }),
-    placeholderData: keepPreviousData,
-  });
+  const customers = useQuery(customerListQuery(params));
 
   if (customers.isPending) return <PageSkeleton />;
   if (customers.isError) return <QueryErrorState error={customers.error} onRetry={() => void customers.refetch()} />;
@@ -204,15 +191,12 @@ function CustomersPage() {
         pageSize={customers.data.pageSize}
         sort={sort}
         defaultSort="name"
-        onSortChange={(sort) => setFilter({ sort })}
-        onPageChange={(page) => void navigate({ search: (prev) => ({ ...prev, page }) })}
-        onPageOverflow={(page) => void navigate({ search: (prev) => ({ ...prev, page }), replace: true })}
-        onPageSizeChange={(pageSize) => setFilter({ pageSize })}
+        {...pageProps}
         isFetching={customers.isFetching}
         empty={
           <ListEmpty
             filtered={Boolean(search.q || search.hasOpenOrders || search.includeArchived)}
-            onClearFilters={() => void navigate({ search: {}, replace: true })}
+            onClearFilters={() => clearFilters()}
             icon={Building2}
             title={t('customers.list.empty')}
             action={newCustomer}

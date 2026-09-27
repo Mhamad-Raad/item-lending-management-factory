@@ -1,7 +1,8 @@
-import type { CustomerDetailDto } from '@pallet/shared';
+import type { CustomerDetailDto, CustomerDto } from '@pallet/shared';
 import { queryOptions, type QueryClient } from '@tanstack/react-query';
 import { apiFetch } from '@/lib/api-client';
 import { qk } from '@/lib/query-keys';
+import { pageQuery, type ListParams } from '@/lib/page-query';
 
 export function customerQuery(customerId: number) {
   return queryOptions({
@@ -13,4 +14,8 @@ export function customerQuery(customerId: number) {
 /** A customer create, edit or archive can change any customer view (§7.8.4). */
 export function invalidateCustomers(queryClient: QueryClient): Promise<void> {
   return queryClient.invalidateQueries({ queryKey: qk.customers.all() });
+}
+
+export function customerListQuery(params: ListParams) {
+  return pageQuery<CustomerDto>(qk.customers.list(params), '/customers', params);
 }

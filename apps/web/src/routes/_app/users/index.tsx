@@ -1,8 +1,7 @@
-import { ROLES, type PageDto, type Role, type UserListItemDto } from '@pallet/shared';
-import { keepPreviousData, useQuery } from '@tanstack/react-query';
-import { Link, createFileRoute, useNavigate } from '@tanstack/react-router';
+import { ROLES, type Role, type UserListItemDto } from '@pallet/shared';
+import { useQuery } from '@tanstack/react-query';
+import { Link, createFileRoute } from '@tanstack/react-router';
 import { CircleCheck, CircleSlash, Plus, Users } from 'lucide-react';
-import { useCallback } from 'react';
 import { useTranslation } from 'react-i18next';
 import { z } from 'zod';
 import { DataTable, type DataColumn } from '@/components/app/data-table';
@@ -13,11 +12,10 @@ import { PageSkeleton, QueryErrorState } from '@/components/app/states';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { userListQuery } from '@/features/users/api';
 import { usePageTitle } from '@/hooks/use-page-title';
-import { useSearchInput } from '@/hooks/use-search-input';
-import { apiFetch } from '@/lib/api-client';
+import { useListRoute } from '@/hooks/use-list-route';
 import { listSearch, sortSearch } from '@/lib/list-search';
-import { qk } from '@/lib/query-keys';
 import { requireAdmin } from '@/lib/route-guards';
 
 const ALL = 'all';
@@ -76,17 +74,10 @@ function ActiveBadge({ active }: { active: boolean }) {
 
 function UsersPage() {
   const { t } = useTranslation();
-  const navigate = useNavigate({ from: Route.fullPath });
   const search = Route.useSearch();
   usePageTitle('users.list.title');
 
-  const commitSearch = useCallback(
-    (q: string | undefined) => void navigate({ search: (prev) => ({ ...prev, q, page: 1 }), replace: true }),
-    [navigate],
-  );
-  const [term, setTerm] = useSearchInput(search.q, commitSearch);
-  const setFilter = (patch: Partial<typeof search>): void =>
-    void navigate({ search: (prev) => ({ ...prev, ...patch, page: 1 }), replace: true });
+  const { term, setTerm, setFilter, clearFilters, pageProps } = useListRoute(Route.fullPath, search);
 
   const params = {
     q: search.q,
@@ -96,11 +87,7 @@ function UsersPage() {
     page: search.page,
     pageSize: search.pageSize,
   };
-  const users = useQuery({
-    queryKey: qk.users.list(params),
-    queryFn: () => apiFetch<PageDto<UserListItemDto>>('/users', { query: params }),
-    placeholderData: keepPreviousData,
-  });
+  const users = useQuery(userListQuery(params));
 
   if (users.isPending) return <PageSkeleton />;
   if (users.isError) return <QueryErrorState error={users.error} onRetry={() => void users.refetch()} />;
@@ -137,10 +124,7 @@ function UsersPage() {
         pageSize={users.data.pageSize}
         sort={search.sort}
         defaultSort="username"
-        onSortChange={(sort) => setFilter({ sort })}
-        onPageChange={(page) => void navigate({ search: (prev) => ({ ...prev, page }) })}
-        onPageOverflow={(page) => void navigate({ search: (prev) => ({ ...prev, page }), replace: true })}
-        onPageSizeChange={(pageSize) => setFilter({ pageSize })}
+        {...pageProps}
         isFetching={users.isFetching}
         toolbar={
           <ListFilters
@@ -184,7 +168,7 @@ function UsersPage() {
         empty={
           <ListEmpty
             filtered={Boolean(search.q) || activeFilters > 0}
-            onClearFilters={() => void navigate({ search: {}, replace: true })}
+            onClearFilters={() => clearFilters()}
             icon={Users}
             title={t('users.list.empty')}
             action={newUser}

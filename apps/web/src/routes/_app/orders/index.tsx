@@ -1,8 +1,8 @@
-import { BusinessDate, PAYMENT_TYPES, type OrderListItemDto, type PageDto, type PaymentType } from '@pallet/shared';
-import { keepPreviousData, useQuery } from '@tanstack/react-query';
-import { Link, createFileRoute, useNavigate } from '@tanstack/react-router';
+import { BusinessDate, PAYMENT_TYPES, type PaymentType } from '@pallet/shared';
+import { useQuery } from '@tanstack/react-query';
+import { Link, createFileRoute } from '@tanstack/react-router';
 import { ClipboardList, Plus } from 'lucide-react';
-import { useCallback, useState } from 'react';
+import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { z } from 'zod';
 import { DataTable } from '@/components/app/data-table';
@@ -14,14 +14,13 @@ import { TabSelect } from '@/components/app/tab-select';
 import { Button } from '@/components/ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Tabs, TabsTrigger } from '@/components/ui/tabs';
+import { orderListQuery } from '@/features/orders/api';
 import { ORDER_COLUMNS, orderRowLink } from '@/features/orders/order-columns';
 import { MD_QUERY } from '@/hooks/use-media-query';
 import { usePageTitle } from '@/hooks/use-page-title';
-import { useSearchInput } from '@/hooks/use-search-input';
-import { apiFetch } from '@/lib/api-client';
+import { useListRoute } from '@/hooks/use-list-route';
 import { useCan } from '@/lib/auth';
 import { listSearch, sortSearch } from '@/lib/list-search';
-import { qk } from '@/lib/query-keys';
 import { requirePermission } from '@/lib/route-guards';
 
 // "All" leads the tabs and is where the list opens (Q55, amended by Q64).
@@ -49,18 +48,11 @@ export const Route = createFileRoute('/_app/orders/')({
 
 function OrdersPage() {
   const { t } = useTranslation();
-  const navigate = useNavigate({ from: Route.fullPath });
   const search = Route.useSearch();
   const canCreate = useCan('orders.create');
   usePageTitle('orders.list.title');
 
-  const commitSearch = useCallback(
-    (q: string | undefined) => void navigate({ search: (prev) => ({ ...prev, q, page: 1 }), replace: true }),
-    [navigate],
-  );
-  const [term, setTerm] = useSearchInput(search.q, commitSearch);
-  const setFilter = (patch: Partial<typeof search>): void =>
-    void navigate({ search: (prev) => ({ ...prev, ...patch, page: 1 }), replace: true });
+  const { term, setTerm, setFilter, clearFilters, pageProps } = useListRoute(Route.fullPath, search);
 
   // A range typed back to front is not sent: the API would refuse it (§6.2).
   const rangeInvalid = Boolean(search.dateFrom && search.dateTo && search.dateFrom > search.dateTo);
@@ -77,12 +69,7 @@ function OrdersPage() {
     page: search.page,
     pageSize: search.pageSize,
   };
-  const orders = useQuery({
-    queryKey: qk.orders.list(params),
-    queryFn: () => apiFetch<PageDto<OrderListItemDto>>('/orders', { query: params }),
-    placeholderData: keepPreviousData,
-    enabled: !rangeInvalid,
-  });
+  const orders = useQuery({ ...orderListQuery(params), enabled: !rangeInvalid });
 
   const newOrder = canCreate ? (
     <Button asChild>
@@ -230,15 +217,12 @@ function OrdersPage() {
           pageSize={orders.data.pageSize}
           sort={search.sort}
           defaultSort="-orderNumber"
-          onSortChange={(sort) => setFilter({ sort })}
-          onPageChange={(page) => void navigate({ search: (prev) => ({ ...prev, page }) })}
-          onPageOverflow={(page) => void navigate({ search: (prev) => ({ ...prev, page }), replace: true })}
-          onPageSizeChange={(pageSize) => setFilter({ pageSize })}
+          {...pageProps}
           isFetching={orders.isFetching}
           empty={
             <ListEmpty
               filtered={filtered}
-              onClearFilters={() => void navigate({ search: { status: search.status }, replace: true })}
+              onClearFilters={() => clearFilters({ status: search.status })}
               icon={ClipboardList}
               title={t('orders.list.empty')}
               action={newOrder}

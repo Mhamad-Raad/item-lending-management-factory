@@ -1,8 +1,8 @@
-import type { DriverDto, PageDto } from '@pallet/shared';
-import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { createFileRoute, useNavigate } from '@tanstack/react-router';
+import type { DriverDto } from '@pallet/shared';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { createFileRoute } from '@tanstack/react-router';
 import { Archive, EllipsisVertical, Pencil, Plus, Truck } from 'lucide-react';
-import { useCallback, useState } from 'react';
+import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { toast } from 'sonner';
 import { z } from 'zod';
@@ -20,10 +20,11 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
+import { driverListQuery } from '@/features/drivers/api';
 import { DriverDialog } from '@/features/drivers/driver-dialog';
 import { useDialogState } from '@/hooks/use-dialog-state';
 import { usePageTitle } from '@/hooks/use-page-title';
-import { useSearchInput } from '@/hooks/use-search-input';
+import { useListRoute } from '@/hooks/use-list-route';
 import { isolate } from '@/lib/bidi';
 import { apiFetch } from '@/lib/api-client';
 import { useCan } from '@/lib/auth';
@@ -46,20 +47,13 @@ type Open = { kind: 'new' } | { kind: 'edit'; driver: DriverDto } | { kind: 'arc
 function DriversPage() {
   const { t } = useTranslation();
   const queryClient = useQueryClient();
-  const navigate = useNavigate({ from: Route.fullPath });
   const search = Route.useSearch();
   const can = { create: useCan('drivers.create'), edit: useCan('drivers.edit'), archive: useCan('drivers.delete') };
   const [open, setOpen] = useState<Open>(null);
   const editor = useDialogState(open?.kind === 'new' || open?.kind === 'edit' ? open : null);
   usePageTitle('drivers.list.title');
 
-  const commitSearch = useCallback(
-    (q: string | undefined) => void navigate({ search: (prev) => ({ ...prev, q, page: 1 }), replace: true }),
-    [navigate],
-  );
-  const [term, setTerm] = useSearchInput(search.q, commitSearch);
-  const setFilter = (patch: Partial<typeof search>): void =>
-    void navigate({ search: (prev) => ({ ...prev, ...patch, page: 1 }), replace: true });
+  const { term, setTerm, setFilter, clearFilters, pageProps } = useListRoute(Route.fullPath, search);
 
   const params = {
     q: search.q,
@@ -68,11 +62,7 @@ function DriversPage() {
     page: search.page,
     pageSize: search.pageSize,
   };
-  const drivers = useQuery({
-    queryKey: qk.drivers.list(params),
-    queryFn: () => apiFetch<PageDto<DriverDto>>('/drivers', { query: params }),
-    placeholderData: keepPreviousData,
-  });
+  const drivers = useQuery(driverListQuery(params));
 
   const archive = useMutation({
     mutationFn: (driver: DriverDto) =>
@@ -214,15 +204,12 @@ function DriversPage() {
         pageSize={drivers.data.pageSize}
         sort={search.sort}
         defaultSort="name"
-        onSortChange={(sort) => setFilter({ sort })}
-        onPageChange={(page) => void navigate({ search: (prev) => ({ ...prev, page }) })}
-        onPageOverflow={(page) => void navigate({ search: (prev) => ({ ...prev, page }), replace: true })}
-        onPageSizeChange={(pageSize) => setFilter({ pageSize })}
+        {...pageProps}
         isFetching={drivers.isFetching}
         empty={
           <ListEmpty
             filtered={Boolean(search.q || search.includeArchived)}
-            onClearFilters={() => void navigate({ search: {}, replace: true })}
+            onClearFilters={() => clearFilters()}
             icon={Truck}
             title={t('drivers.list.empty')}
             action={newDriver}
