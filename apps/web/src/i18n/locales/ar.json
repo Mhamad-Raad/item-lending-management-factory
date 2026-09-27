@@ -528,7 +528,12 @@
     "paymentExceedsOwed": "المستحق {{owed}} على الأكثر",
     "returnExceedsOut": "{{out}} على الأكثر لدى الزبون",
     "damagedRefundTooHigh": "{{maximum}} على الأكثر",
-    "returnEmpty": "أدخل طبلية مرتجعة واحدة على الأقل"
+    "returnEmpty": "أدخل طبلية مرتجعة واحدة على الأقل",
+    "unattached": "في حقل {{field}}: {{message}}",
+    "fieldNames": {
+      "other": "غير معروف",
+      "inLine": "{{field}} (السطر {{line}})"
+    }
   },
   "errors": {
     "VALIDATION_FAILED": "يرجى مراجعة الحقول المحددة",

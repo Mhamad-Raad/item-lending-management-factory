@@ -528,7 +528,12 @@
     "paymentExceedsOwed": "زۆرترین قەرز {{owed}}ە",
     "returnExceedsOut": "زۆرترین {{out}} لایانە",
     "damagedRefundTooHigh": "زۆرترین {{maximum}}",
-    "returnEmpty": "لانیکەم یەک پالێتی گەڕاوە بنووسە"
+    "returnEmpty": "لانیکەم یەک پالێتی گەڕاوە بنووسە",
+    "unattached": "لە خانەی {{field}}: {{message}}",
+    "fieldNames": {
+      "other": "نەناسراو",
+      "inLine": "{{field}} (دێڕی {{line}})"
+    }
   },
   "errors": {
     "VALIDATION_FAILED": "تکایە خانە نیشانکراوەکان بپشکنە",

@@ -4049,7 +4049,7 @@ Proactive refresh: `auth.ts` schedules `refreshAccessToken()` 60 s before `acces
 
 #### 7.7.4 Error handling (`src/lib/errors.ts`, `src/hooks/use-api-error-handler.ts`)
 `handleApiError(error, { form?, fieldMap? })` applies these rules in order:
-1. `VALIDATION_FAILED` with `fields` → `form.setError(path, { type: code, message: 'validation.' + code })` for every field whose path is registered in the form; the remaining ones go into one toast.
+1. `VALIDATION_FAILED` with `fields` → `form.setError(path, { type: code, message: 'validation.' + code })` for every field whose path is registered in the form; the first remaining one becomes one toast that names the field (the label the forms use for the path's last named segment, `validation.fieldNames.other` otherwise, plus its line number in a list) and translates its message with its params (`validation.unattached`).
 2. When `fieldMap[code]` exists (per form; the change-password form uses `{ CURRENT_PASSWORD_INCORRECT: 'currentPassword' }`) → `form.setError(fieldMap[code], { message: 'errors.' + code })`.
 3. `VERSION_CONFLICT` → opens the global `VersionConflictDialog` ("This record was changed by someone else. Reload to see the latest version.") with the actions "Reload" (invalidate the entity's detail query and reset the form from fresh data) and "Keep editing" (close).
 4. `PASSWORD_CHANGE_REQUIRED` → navigate to `/change-password`.

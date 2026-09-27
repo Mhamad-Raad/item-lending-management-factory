@@ -32,3 +32,25 @@ describe('handleApiError toasts', () => {
     expect(vi.mocked(toast.error).mock.calls[0]).toEqual(['This order is cancelled']);
   });
 });
+
+describe('handleApiError validation errors with no field on the form', () => {
+  beforeAll(async () => {
+    await i18n.changeLanguage('en');
+  });
+  beforeEach(() => vi.mocked(toast.error).mockClear());
+
+  it('names the field, its line and the limit in one message', () => {
+    handleApiError(
+      new ApiError('VALIDATION_FAILED', 400, undefined, [
+        { path: 'lines.1.quantity', code: 'too_small', params: { minimum: 1 } },
+      ]),
+      { fields: ['date'] },
+    );
+    expect(vi.mocked(toast.error).mock.calls[0]?.[0]).toBe('Quantity (line 2): Must be at least 1');
+  });
+
+  it('says "A field" for a name it does not know, rather than an internal path', () => {
+    handleApiError(new ApiError('VALIDATION_FAILED', 400, undefined, [{ path: 'version', code: 'required' }]));
+    expect(vi.mocked(toast.error).mock.calls[0]?.[0]).toBe('A field: This field is required');
+  });
+});

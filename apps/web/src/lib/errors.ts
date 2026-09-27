@@ -1,11 +1,12 @@
-import { formatNumber } from '@pallet/shared';
+import { formatNumber, type ApiFieldError } from '@pallet/shared';
 import type { FieldValues, UseFormSetError, Path } from 'react-hook-form';
 import { toast } from 'sonner';
 import i18n from '@/i18n';
+import { dynamicKey, type TranslationKey } from '@/i18n/keys';
 import { ApiError } from './api-error';
 import { isolate } from './bidi';
 import { refreshMe } from './auth';
-import { fieldErrorMessage } from './validation-message';
+import { decodeValidationMessage, fieldErrorMessage } from './validation-message';
 import { versionConflictStore } from './version-conflict';
 
 export interface ErrorContext<T extends FieldValues = FieldValues> {
@@ -39,8 +40,9 @@ export function handleApiError<T extends FieldValues>(error: unknown, context: E
       }
       return !known;
     });
-    if (unattached.length === 0) return;
-    toast.error(i18n.t(`validation.${unattached[0]?.code ?? 'invalid_type'}`));
+    const [first] = unattached;
+    if (!first) return;
+    toast.error(unattachedFieldMessage(first));
     return;
   }
 
@@ -72,6 +74,57 @@ export function handleApiError<T extends FieldValues>(error: unknown, context: E
   } else {
     toast.error(message);
   }
+}
+
+/**
+ * The last named segment of an API field path → the label the forms already use for it, so a field
+ * error that has no field on screen to sit under still says which value it is about (`Quantity (line 2):
+ * Must be at least 1`). A name missing here reads as "A field".
+ */
+const FIELD_LABELS: Partial<Record<string, TranslationKey>> = {
+  customerId: 'orders.fields.customer',
+  driverId: 'orders.fields.driver',
+  paymentType: 'orders.fields.paymentType',
+  date: 'orders.fields.date',
+  notes: 'orders.fields.notes',
+  note: 'payments.fields.note',
+  lines: 'orders.lines.title',
+  itemId: 'orders.lines.item',
+  quantity: 'orders.lines.quantity',
+  unitDeposit: 'orders.lines.unitDeposit',
+  acceptedQuantity: 'returns.fields.accepted',
+  damagedQuantity: 'returns.fields.damaged',
+  damagedRefund: 'returns.fields.damagedRefund',
+  amount: 'payments.fields.amount',
+  name: 'customers.fields.name',
+  phone: 'customers.fields.phone',
+  altPhone: 'customers.fields.altPhone',
+  address: 'customers.fields.address',
+  creditLimit: 'customers.fields.creditLimit',
+  carNumber: 'drivers.fields.carNumber',
+  depositPrice: 'items.fields.depositPrice',
+  minStock: 'items.fields.minStock',
+  unitCost: 'purchases.fields.unitCost',
+  username: 'users.fields.username',
+  displayName: 'users.fields.displayName',
+  role: 'users.fields.role',
+  factoryName: 'settings.fields.factoryName',
+};
+
+/** A field error the form has no field for, as one sentence naming the field (and its line, when in a list). */
+function unattachedFieldMessage(field: ApiFieldError): string {
+  const segments = field.path.split('.');
+  const name = [...segments].reverse().find((segment) => !/^\d+$/.test(segment)) ?? '';
+  const index = segments.find((segment) => /^\d+$/.test(segment));
+  const labelKey = FIELD_LABELS[name];
+  const label = labelKey ? i18n.t(labelKey) : i18n.t('validation.fieldNames.other');
+  const named =
+    index === undefined ? label : i18n.t('validation.fieldNames.inLine', { field: label, line: Number(index) + 1 });
+  const { key, params } = decodeValidationMessage(fieldErrorMessage(field));
+  return i18n.t('validation.unattached', {
+    field: named,
+    message: i18n.t(dynamicKey(key), formatDetails(params)),
+  });
 }
 
 const SERVER_FAILURES = new Set<string>(['INTERNAL_ERROR', 'SERVICE_UNAVAILABLE', 'UNKNOWN_ERROR']);
