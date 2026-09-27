@@ -6,6 +6,7 @@ import { PrismaService } from '../../src/prisma/prisma.service';
 import { createTestApp } from '../helpers/app';
 import { CSRF_HEADER, asUser, login, refreshCookie } from '../helpers/auth';
 import { disconnectDatabase, resetDatabase } from '../helpers/db';
+import { errorCode } from '../helpers/errors';
 
 const START = new Date('2026-09-12T08:00:00Z');
 const clock = new FixedClock(START);
@@ -132,6 +133,6 @@ describe('refresh token rotation', () => {
       .get('/api/auth/me')
       .set('Authorization', `Bearer ${third.accessToken}`)
       .expect(401)
-      .expect(({ body }) => expect((body as { error: { code: string } }).error.code).toBe('AUTH_TOKEN_INVALID'));
+      .expect(({ body }) => expect(errorCode(body)).toBe('AUTH_TOKEN_INVALID'));
   });
 });

@@ -8,6 +8,22 @@ import { createTestApp } from '../helpers/app';
 import { CSRF_HEADER } from '../helpers/auth';
 import { TEST_ADMIN, disconnectDatabase, resetDatabase } from '../helpers/db';
 
+/** Sessions of this database, other than the asking one, blocked on a lock right now. */
+async function waitingOnLocks(db: PrismaClient): Promise<number> {
+  const [row] = await db.$queryRaw<{ waiting: number }[]>`
+    SELECT COUNT(*)::int AS waiting FROM pg_stat_activity
+    WHERE datname = current_database() AND wait_event_type = 'Lock' AND pid <> pg_backend_pid()`;
+  return row?.waiting ?? 0;
+}
+
+async function waitUntil(condition: () => Promise<boolean>, timeoutMs = 10_000): Promise<void> {
+  const deadline = Date.now() + timeoutMs;
+  while (!(await condition())) {
+    if (Date.now() > deadline) throw new Error('the login neither waited for the lock nor answered in time');
+    await new Promise((resolve) => setTimeout(resolve, 20));
+  }
+}
+
 /**
  * A login must not overtake a password reset that commits while it is verifying. Were the account
  * row read without its lock, the old password would still open a fresh session after the reset —
@@ -51,14 +67,21 @@ describe('a login racing a password reset', () => {
     );
 
     await locked;
+    let settled = false;
     const login = request(app.getHttpServer())
       .post('/api/auth/login')
       .set(CSRF_HEADER)
       .send({ username: TEST_ADMIN.username, password: TEST_ADMIN.password })
-      .then((response) => response);
+      .then((response) => {
+        settled = true;
+        return response;
+      });
 
-    // Long enough for an unlocked login to read the old hash and verify it before the commit.
-    await new Promise((resolve) => setTimeout(resolve, 500));
+    // Release only once the login is either waiting for the reset's row lock (the correct behaviour) or
+    // already answered (an unlocked login that read the old hash) — never after a guessed delay.
+    await waitUntil(async () => settled || (await waitingOnLocks(other)) > 0);
+    // It waited: it had not answered while the reset still held the row.
+    expect(settled).toBe(false);
     release();
     await reset;
 

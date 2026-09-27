@@ -6,6 +6,7 @@ import { PrismaService } from '../../src/prisma/prisma.service';
 import { createTestApp } from '../helpers/app';
 import { asUser, login, type Session } from '../helpers/auth';
 import { disconnectDatabase, resetDatabase } from '../helpers/db';
+import { errorCode } from '../helpers/errors';
 import { EMPLOYEE_PASSWORD, createEmployee } from '../helpers/factories';
 
 /** Recursively: does any key of this JSON body carry that name? */
@@ -72,7 +73,7 @@ describe('GET /api/audit-logs', () => {
     const range = await request(app.getHttpServer())
       .get('/api/audit-logs?dateFrom=2026-09-12&dateTo=2026-09-01')
       .set(asUser(admin));
-    expect([range.status, (range.body as { error: { code: string } }).error.code]).toEqual([400, 'DATE_RANGE_INVALID']);
+    expect([range.status, errorCode(range.body)]).toEqual([400, 'DATE_RANGE_INVALID']);
   });
 
   it('S-14: hides batch cost from a viewer without items.viewCost, and shows it to one with it', async () => {
@@ -164,9 +165,6 @@ describe('GET /api/audit-logs', () => {
     const session = await login(app, employee.username, EMPLOYEE_PASSWORD);
 
     const denied = await request(app.getHttpServer()).get('/api/audit-logs').set(asUser(session));
-    expect([denied.status, (denied.body as { error: { code: string } }).error.code]).toEqual([
-      403,
-      'PERMISSION_DENIED',
-    ]);
+    expect([denied.status, errorCode(denied.body)]).toEqual([403, 'PERMISSION_DENIED']);
   });
 });

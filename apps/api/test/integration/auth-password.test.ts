@@ -9,6 +9,7 @@ import { PrismaService } from '../../src/prisma/prisma.service';
 import { createTestApp } from '../helpers/app';
 import { CSRF_HEADER, asUser, login } from '../helpers/auth';
 import { TEST_ADMIN, disconnectDatabase, resetDatabase } from '../helpers/db';
+import { errorCode } from '../helpers/errors';
 
 const NEW_PASSWORD = 'a-considered-new-password';
 
@@ -76,7 +77,7 @@ describe('change password', () => {
 
     for (const [body, code] of cases) {
       const response = await changePassword(session, body).expect(400);
-      expect((response.body as { error: { code: string } }).error.code, JSON.stringify(body)).toBe(code);
+      expect(errorCode(response.body), JSON.stringify(body)).toBe(code);
     }
   });
 
@@ -86,7 +87,7 @@ describe('change password', () => {
 
     for (let i = 0; i < 4; i++) {
       const response = await changePassword(session, wrong).expect(400);
-      expect((response.body as { error: { code: string } }).error.code).toBe('CURRENT_PASSWORD_INCORRECT');
+      expect(errorCode(response.body)).toBe('CURRENT_PASSWORD_INCORRECT');
     }
     // The fifth wrong guess locks the pair and says for how long.
     const locked = await changePassword(session, wrong).expect(429);
@@ -162,7 +163,7 @@ describe('change password on the account ceiling (Q69)', () => {
       const response = await changePassword(stolen, `198.51.100.${Math.floor(i / 4) + 1}`, `wrong-${i}`);
       if (i < 19) {
         expect(response.status, `guess ${i + 1}`).toBe(400);
-        expect((response.body as { error: { code: string } }).error.code).toBe('CURRENT_PASSWORD_INCORRECT');
+        expect(errorCode(response.body)).toBe('CURRENT_PASSWORD_INCORRECT');
       } else {
         // The twentieth reaches the account's ceiling.
         expect(response.status).toBe(429);

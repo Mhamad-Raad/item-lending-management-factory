@@ -7,6 +7,7 @@ import { PrismaService } from '../../src/prisma/prisma.service';
 import { createTestApp } from '../helpers/app';
 import { CSRF_HEADER, login } from '../helpers/auth';
 import { TEST_ADMIN, disconnectDatabase, resetDatabase } from '../helpers/db';
+import { errorCode } from '../helpers/errors';
 
 const clock = new FixedClock(new Date('2026-09-12T08:00:00Z'));
 const IP_A = '203.0.113.1';
@@ -188,7 +189,7 @@ describe('login', () => {
       .post('/api/auth/login')
       .send({ username: TEST_ADMIN.username, password: TEST_ADMIN.password })
       .expect(403)
-      .expect(({ body }) => expect((body as { error: { code: string } }).error.code).toBe('CSRF_HEADER_MISSING'));
+      .expect(({ body }) => expect(errorCode(body)).toBe('CSRF_HEADER_MISSING'));
 
     // GET is unaffected.
     await request(app.getHttpServer()).get('/api/health').expect(200);

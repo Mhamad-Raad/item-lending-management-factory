@@ -8,12 +8,9 @@ import { PrismaService } from '../../src/prisma/prisma.service';
 import { createTestApp } from '../helpers/app';
 import { asUser, login, type Session } from '../helpers/auth';
 import { disconnectDatabase, resetDatabase } from '../helpers/db';
+import { errorCode } from '../helpers/errors';
 import { EMPLOYEE_PASSWORD, createEmployee } from '../helpers/factories';
 import { binaryBody, jpegWithExif, pngImage, uploadImage } from '../helpers/images';
-
-function errorCode(body: unknown): string | undefined {
-  return (body as { error?: { code?: string } }).error?.code;
-}
 
 describe('uploads', () => {
   let app: INestApplication;

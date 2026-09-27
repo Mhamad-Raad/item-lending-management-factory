@@ -6,11 +6,8 @@ import { PrismaService } from '../../src/prisma/prisma.service';
 import { createTestApp } from '../helpers/app';
 import { asUser, login, type Session } from '../helpers/auth';
 import { TEST_ADMIN, disconnectDatabase, resetDatabase } from '../helpers/db';
+import { errorCode } from '../helpers/errors';
 import { EMPLOYEE_PASSWORD, createEmployee, createUser } from '../helpers/factories';
-
-function errorCode(body: unknown): string {
-  return (body as { error: { code: string } }).error.code;
-}
 
 describe('user management', () => {
   let app: INestApplication;
