@@ -90,6 +90,38 @@ describe('apiFetch', () => {
     await expect(apiFetch('/users')).rejects.toMatchObject({ code: 'NETWORK_ERROR', status: 0 });
   });
 
+  it('gives up on a server that never answers with REQUEST_TIMEOUT (Q88)', async () => {
+    vi.useFakeTimers();
+    try {
+      vi.spyOn(globalThis, 'fetch').mockImplementation(
+        (_, init) =>
+          new Promise((_resolve, reject) => {
+            init?.signal?.addEventListener('abort', () => reject(new DOMException('aborted', 'AbortError')));
+          }),
+      );
+      const pending = apiFetch('/users');
+      const settled = expect(pending).rejects.toMatchObject({ code: 'REQUEST_TIMEOUT', status: 0 });
+      await vi.advanceTimersByTimeAsync(30_000);
+      await settled;
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('still lets a caller cancel its own request without an error code', async () => {
+    const controller = new AbortController();
+    vi.spyOn(globalThis, 'fetch').mockImplementation(
+      (_, init) =>
+        new Promise((_resolve, reject) => {
+          init?.signal?.addEventListener('abort', () => reject(new DOMException('aborted', 'AbortError')));
+        }),
+    );
+    const pending = apiFetch('/users', { signal: controller.signal });
+    controller.abort();
+
+    await expect(pending).rejects.toMatchObject({ name: 'AbortError' });
+  });
+
   it('refreshes once on an expired token and retries the request exactly once', async () => {
     const fetchMock = vi
       .spyOn(globalThis, 'fetch')

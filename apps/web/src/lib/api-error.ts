@@ -1,7 +1,7 @@
 import type { ApiErrorBody, ApiFieldError, ErrorCode } from '@pallet/shared';
 
 /** Codes the client itself produces; the server never sends them. */
-export type ClientErrorCode = 'NETWORK_ERROR' | 'UNKNOWN_ERROR';
+export type ClientErrorCode = 'NETWORK_ERROR' | 'REQUEST_TIMEOUT' | 'UNKNOWN_ERROR';
 
 /**
  * Every failed request becomes one of these, so callers never branch on HTTP status or parse a

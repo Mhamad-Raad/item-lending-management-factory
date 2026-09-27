@@ -2,6 +2,7 @@ import type { AuthTokenDto } from '@pallet/shared';
 import { ApiError, apiErrorFromResponse } from './api-error';
 import { authStore } from './auth-store';
 import { hasPendingSignOut } from './pending-sign-out';
+import { REQUEST_TIMEOUT_MS, timedSignal } from './request-timeout';
 
 const REFRESH_CHANNEL = 'pallet-auth';
 const PEER_BUSY_MS = 3_000;
@@ -40,14 +41,18 @@ async function doRefresh(): Promise<boolean> {
   // Signed out in some tab while the server was out of reach (Q80): the cookie is not to be used.
   if (hasPendingSignOut()) return false;
   let response: Response;
+  const timer = timedSignal(REQUEST_TIMEOUT_MS);
   try {
     response = await fetch('/api/auth/refresh', {
       method: 'POST',
       headers: { Accept: 'application/json', 'X-Requested-With': 'pallet-web' },
       credentials: 'same-origin',
+      signal: timer.signal,
     });
   } catch {
-    throw new ApiError('NETWORK_ERROR', 0);
+    throw new ApiError(timer.timedOut() ? 'REQUEST_TIMEOUT' : 'NETWORK_ERROR', 0);
+  } finally {
+    timer.clear();
   }
 
   if (response.status === 401) return false;

@@ -2,6 +2,7 @@ import type { UploadDto, UploadKind } from '@pallet/shared';
 import { ApiError, apiErrorFromResponse } from './api-error';
 import { authStore } from './auth-store';
 import { refreshAccessToken } from './refresh-lock';
+import { REQUEST_TIMEOUT_MS, UPLOAD_TIMEOUT_MS, timedSignal } from './request-timeout';
 
 /**
  * What to do when a 401 survives a refresh: clear the session, drop cached data and send the user
@@ -51,6 +52,7 @@ async function send(path: string, options: ApiRequest): Promise<Response> {
   if (authStore.token) headers.Authorization = `Bearer ${authStore.token}`;
   if (options.idempotencyKey) headers['Idempotency-Key'] = options.idempotencyKey;
 
+  const timer = timedSignal(REQUEST_TIMEOUT_MS, options.signal);
   try {
     return await fetch(`/api${path}${buildQueryString(options.query)}`, {
       method,
@@ -58,13 +60,18 @@ async function send(path: string, options: ApiRequest): Promise<Response> {
       // The refresh cookie is path-scoped to /api/auth, so it only travels to the auth endpoints.
       credentials: 'same-origin',
       body: options.body === undefined ? undefined : JSON.stringify(options.body),
-      signal: options.signal,
+      signal: timer.signal,
     });
   } catch (error) {
+    // A server that never answers is told apart from one that cannot be reached: a write may have
+    // gone through, and the message says to check before trying again (Q88).
+    if (timer.timedOut()) throw new ApiError('REQUEST_TIMEOUT', 0);
     // A cancelled request is not a failure; letting it through as NETWORK_ERROR would have the
     // query client retry something the caller deliberately abandoned.
     if (options.signal?.aborted || (error instanceof Error && error.name === 'AbortError')) throw error;
     throw new ApiError('NETWORK_ERROR', 0);
+  } finally {
+    timer.clear();
   }
 }
 
@@ -135,6 +142,8 @@ function sendUpload(kind: UploadKind, file: File, onProgress?: (fraction: number
       );
     };
     xhr.onerror = () => reject(new ApiError('NETWORK_ERROR', 0));
+    xhr.timeout = UPLOAD_TIMEOUT_MS;
+    xhr.ontimeout = () => reject(new ApiError('REQUEST_TIMEOUT', 0));
 
     const form = new FormData();
     form.append('file', file);

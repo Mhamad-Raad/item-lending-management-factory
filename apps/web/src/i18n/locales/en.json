@@ -610,6 +610,7 @@
     "IDEMPOTENCY_KEY_INVALID": "The safety key of the request is not valid",
     "IDEMPOTENCY_KEY_REUSED": "This key was used for a different request",
     "NETWORK_ERROR": "No connection to the server. Check the connection and try again.",
+    "REQUEST_TIMEOUT": "The server did not answer in time. If you were saving, the change may have gone through: reload the page to check before trying again.",
     "UNKNOWN_ERROR": "Something went wrong. Try again.",
     "ORDER_LINE_HAS_RETURNS": "This line has returns in its history and cannot be removed; lower its quantity instead"
   },

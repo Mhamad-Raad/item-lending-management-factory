@@ -38,7 +38,7 @@ const LATIN_ALLOWED_KEYS = new Set<string>([]);
 const PLACEHOLDER = /\{\{[^}]*\}\}/g;
 
 /** The client-only codes of §7.7.1, which the server never sends but the UI must still name. */
-const CLIENT_ERROR_CODES = ['NETWORK_ERROR', 'UNKNOWN_ERROR'];
+const CLIENT_ERROR_CODES = ['NETWORK_ERROR', 'REQUEST_TIMEOUT', 'UNKNOWN_ERROR'];
 
 describe('translation files', () => {
   it('have identical key sets in ckb, ar and en', () => {
