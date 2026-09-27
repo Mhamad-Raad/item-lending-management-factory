@@ -71,6 +71,7 @@ pnpm comes from corepack (`corepack enable --install-directory ~/.local/bin` was
 | `pnpm dev`                                                                  | Shared watch + API (:3000) + web (:5175, proxies `/api`)      |
 | `pnpm lint` · `pnpm typecheck` · `pnpm test` · `pnpm build` · `pnpm format` | Quality gates (all must pass)                                 |
 | `pnpm test:integration`                                                     | API integration tests against real Postgres (+ coverage gate) |
+| `pnpm db:check-drift` (needs `SHADOW_DATABASE_URL`, an empty database)      | Fails when `schema.prisma` and the migrations disagree (Q85)  |
 | `pnpm test:e2e`                                                             | Playwright (Chromium), mocked API                             |
 | `pnpm test:e2e:live` (after `pnpm build`)                                   | E1–E8 against the built API on `pallet_test` (reset + seeded) |
 

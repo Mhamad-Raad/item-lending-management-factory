@@ -14,5 +14,8 @@ export default defineConfig({
   },
   datasource: {
     url: process.env.DATABASE_MIGRATE_URL ?? '',
+    // Only `pnpm db:check-drift` (and `migrate dev`, when set) use it: an EMPTY scratch database that Prisma
+    // wipes and replays the migrations into. Never point it at a database holding data (Q85).
+    shadowDatabaseUrl: process.env.SHADOW_DATABASE_URL || undefined,
   },
 });

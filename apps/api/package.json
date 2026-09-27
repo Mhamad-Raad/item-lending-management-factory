@@ -19,6 +19,7 @@
     "test:integration": "vitest run --config vitest.integration.config.mts --coverage --passWithNoTests",
     "db:migrate": "prisma migrate dev && prisma db execute --file prisma/sql/grants.sql",
     "db:deploy": "prisma migrate deploy && prisma db execute --file prisma/sql/grants.sql",
+    "db:check-drift": "prisma migrate diff --from-migrations prisma/migrations --to-schema prisma/schema.prisma --exit-code",
     "db:seed": "node --enable-source-maps --env-file-if-exists=../../.env dist/scripts/migrate.js --seed-only",
     "db:seed:demo": "node --enable-source-maps --env-file-if-exists=../../.env dist/scripts/seed-demo.js",
     "db:studio": "prisma studio",

@@ -74,6 +74,7 @@ jobs:
       DATABASE_MIGRATE_URL: postgresql://pallet_owner:pallet_owner_ci@localhost:5432/pallet?schema=public
       DATABASE_TEST_URL: postgresql://pallet_app:pallet_app_ci@localhost:5432/pallet_test?schema=public
       DATABASE_TEST_MIGRATE_URL: postgresql://pallet_owner:pallet_owner_ci@localhost:5432/pallet_test?schema=public
+      SHADOW_DATABASE_URL: postgresql://pallet_owner:pallet_owner_ci@localhost:5432/pallet_shadow?schema=public
       JWT_ACCESS_SECRET: ci-only-secret-ci-only-secret-ci-only-secret-ci-only-secret-0000000
       COOKIE_SECURE: 'false'
       TRUST_PROXY_SUBNET: loopback
@@ -97,6 +98,12 @@ jobs:
             -e DB_OWNER_PASSWORD=pallet_owner_ci -e DB_APP_PASSWORD=pallet_app_ci \
             -e PALLET_CREATE_TEST_DB=true \
             ${{ job.services.postgres.id }} bash /tmp/01-roles.sh
+          # An empty scratch database for the drift check below (Q85).
+          docker exec ${{ job.services.postgres.id }} \
+            psql -v ON_ERROR_STOP=1 -U postgres -c "CREATE DATABASE pallet_shadow OWNER pallet_owner"
+      # schema.prisma and the migrations must describe the same database: replays the migrations into the
+      # shadow database and fails (exit 2) on any difference (Q85).
+      - run: pnpm db:check-drift
       - run: pnpm build
       # Non-interactive: prisma migrate deploy + grants.sql (never `migrate dev` in CI).
       - run: pnpm db:deploy
