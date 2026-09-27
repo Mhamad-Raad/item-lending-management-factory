@@ -6,7 +6,7 @@ import {
   type ReturnCreateBody,
   type ReturnResultDto,
 } from '@pallet/shared';
-import { useMutation, useQueryClient } from '@tanstack/react-query';
+import { useQueryClient } from '@tanstack/react-query';
 import { useNavigate } from '@tanstack/react-router';
 import { HandCoins, Loader2 } from 'lucide-react';
 import { Controller, useForm, useWatch } from 'react-hook-form';
@@ -23,10 +23,10 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Textarea } from '@/components/ui/textarea';
 import { invalidateAfterOrderChange } from '@/features/orders/api';
+import { useFlowMutation } from '@/hooks/use-flow-mutation';
 import { apiFetch } from '@/lib/api-client';
-import { ApiError, detailsOf } from '@/lib/api-error';
+import { detailsOf, isApiError } from '@/lib/api-error';
 import { handleApiError } from '@/lib/errors';
-import { useIdempotencyKey } from '@/lib/idempotency';
 import { qk } from '@/lib/query-keys';
 import { encodeValidationMessage } from '@/lib/validation-message';
 import { returnBaseline, returnSummary } from './return-math';
@@ -58,7 +58,6 @@ export function ReturnForm({ order, replaceReturnId }: { order: OrderDetailDto; 
   const { t } = useTranslation();
   const navigate = useNavigate();
   const queryClient = useQueryClient();
-  const idempotency = useIdempotencyKey();
   const replaced = order.returns.find((pr) => pr.id === replaceReturnId);
   const base = returnBaseline(order, replaced?.id);
   // One form row per order line, found by the line's id: a reloaded order (another return recorded,
@@ -112,26 +111,26 @@ export function ReturnForm({ order, replaceReturnId }: { order: OrderDetailDto; 
     encodeValidationMessage('damagedRefundTooHigh', { maximum: formatMoney(maximum) });
   const hasLine = (orderLineId: number): boolean => order.lines.some((line) => line.id === orderLineId);
 
-  const record = useMutation({
-    mutationFn: (body: ReturnCreateBody) =>
+  const record = useFlowMutation({
+    request: (body: ReturnCreateBody, idempotencyKey) =>
       replaced
         ? apiFetch<ReturnResultDto>(`/returns/${replaced.id}/replace`, { method: 'POST', body })
         : apiFetch<ReturnResultDto>(`/orders/${order.id}/returns`, {
             method: 'POST',
             body,
-            idempotencyKey: idempotency.getKey(body),
+            idempotencyKey: idempotencyKey(),
           }),
-    onSuccess: async (result) => {
-      idempotency.reset();
-      const orderNumber = formatOrderNumber(result.order.orderNumber);
-      toast.success(t(replaced ? 'returns.new.replaced' : 'returns.new.created', { orderNumber }));
-      // Leave first: refreshed here, the order would show this page's "cannot be corrected" or
-      // "nothing out" state for a moment before the navigation.
-      await navigate({ to: '/orders/$orderId', params: { orderId: String(order.id) } });
-      void invalidateAfterOrderChange(queryClient);
-    },
+    successMessage: (result) =>
+      t(replaced ? 'returns.new.replaced' : 'returns.new.created', {
+        orderNumber: formatOrderNumber(result.order.orderNumber),
+      }),
+    invalidate: () => invalidateAfterOrderChange(queryClient),
+    // Leave first: refreshed here, the order would show this page's "cannot be corrected" or
+    // "nothing out" state for a moment before the navigation.
+    refresh: 'after-navigate',
+    destination: () => ({ to: '/orders/$orderId', params: { orderId: String(order.id) } }),
     onError: async (error) => {
-      if (error instanceof ApiError && error.code === 'RETURN_ALREADY_REVERSED') {
+      if (isApiError(error, 'RETURN_ALREADY_REVERSED')) {
         // Corrected or deleted from another screen meanwhile: the order shows what stands now.
         toast.error(t('errors.RETURN_ALREADY_REVERSED'));
         await invalidateAfterOrderChange(queryClient);

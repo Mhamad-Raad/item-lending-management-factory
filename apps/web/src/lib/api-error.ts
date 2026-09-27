@@ -53,3 +53,8 @@ export function detailsOf<C extends keyof ErrorDetailsByCode>(error: unknown, co
   if (!(error instanceof ApiError) || error.code !== code || !error.details) return null;
   return error.details as unknown as ErrorDetailsByCode[C];
 }
+
+/** Whether `error` is an ApiError with one of `codes`. */
+export function isApiError(error: unknown, ...codes: (ErrorCode | ClientErrorCode)[]): error is ApiError {
+  return error instanceof ApiError && codes.includes(error.code);
+}

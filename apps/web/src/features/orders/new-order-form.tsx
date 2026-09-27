@@ -6,13 +6,11 @@ import {
   type OrderCreateBody,
   type OrderDetailDto,
 } from '@pallet/shared';
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { useNavigate } from '@tanstack/react-router';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Banknote, HandCoins, Loader2 } from 'lucide-react';
 import { useState } from 'react';
 import { Controller, useForm, useWatch } from 'react-hook-form';
 import { useTranslation } from 'react-i18next';
-import { toast } from 'sonner';
 import { ConfirmDialog } from '@/components/app/confirm-dialog';
 import { EntityCombobox } from '@/components/app/entity-combobox';
 import { Field, FieldError, FieldLabel } from '@/components/app/field';
@@ -22,12 +20,12 @@ import { SummaryPanel } from '@/components/app/summary-panel';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { customerQuery } from '@/features/customers/api';
+import { useFlowMutation } from '@/hooks/use-flow-mutation';
 import { useUnsavedChangesGuard } from '@/hooks/use-unsaved-changes-guard';
 import { apiFetch } from '@/lib/api-client';
-import { ApiError, detailsOf } from '@/lib/api-error';
+import { detailsOf, isApiError } from '@/lib/api-error';
 import { useAuth, useCan } from '@/lib/auth';
 import { handleApiError } from '@/lib/errors';
-import { useIdempotencyKey } from '@/lib/idempotency';
 import { qk } from '@/lib/query-keys';
 import { encodeValidationMessage } from '@/lib/validation-message';
 import { invalidateAfterOrderChange } from './api';
@@ -41,11 +39,9 @@ import { CreditCheckUnavailable, OrderDateField, OrderDriverField, OrderNotesFie
 /** Daily flow 1 (§7.4.1): a hand-over on one screen, with its totals and the credit rule live. */
 export function NewOrderForm({ initialCustomerId }: { initialCustomerId?: number }) {
   const { t } = useTranslation();
-  const navigate = useNavigate();
   const queryClient = useQueryClient();
   const isAdmin = useAuth().user?.role === 'ADMIN';
   const canPrice = useCan('orders.editUnitDeposit');
-  const idempotency = useIdempotencyKey();
   // A refusal the server reported: a concurrent order may have used the headroom since the page loaded.
   const [serverCredit, setServerCredit] = useState<ServerCreditRefusal | null>(null);
   const [confirmingOverride, setConfirmingOverride] = useState(false);
@@ -90,16 +86,18 @@ export function NewOrderForm({ initialCustomerId }: { initialCustomerId?: number
     return limit !== undefined && row.quantity !== null && row.quantity > limit;
   });
 
-  const create = useMutation({
-    mutationFn: (body: OrderCreateBody) =>
-      apiFetch<OrderDetailDto>('/orders', { method: 'POST', body, idempotencyKey: idempotency.getKey(body) }),
-    onSuccess: async (order) => {
-      idempotency.reset();
-      toast.success(t('orders.new.created', { orderNumber: formatOrderNumber(order.orderNumber) }));
-      await invalidateAfterOrderChange(queryClient);
-      guard.allowLeave();
-      await navigate({ to: '/orders/$orderId', params: { orderId: String(order.id) }, search: { created: true } });
-    },
+  const create = useFlowMutation({
+    request: (body: OrderCreateBody, idempotencyKey) =>
+      apiFetch<OrderDetailDto>('/orders', { method: 'POST', body, idempotencyKey: idempotencyKey() }),
+    successMessage: (order) => t('orders.new.created', { orderNumber: formatOrderNumber(order.orderNumber) }),
+    invalidate: () => invalidateAfterOrderChange(queryClient),
+    refresh: 'before-navigate',
+    beforeLeave: () => guard.allowLeave(),
+    destination: (order) => ({
+      to: '/orders/$orderId',
+      params: { orderId: String(order.id) },
+      search: { created: true },
+    }),
     onError: (error, body) => {
       const credit = detailsOf(error, 'CREDIT_LIMIT_EXCEEDED');
       if (credit) {
@@ -124,7 +122,7 @@ export function NewOrderForm({ initialCustomerId }: { initialCustomerId?: number
         void queryClient.invalidateQueries({ queryKey: qk.items.all() });
         return;
       }
-      if (error instanceof ApiError && ['CUSTOMER_ARCHIVED', 'DRIVER_ARCHIVED', 'ITEM_ARCHIVED'].includes(error.code)) {
+      if (isApiError(error, 'CUSTOMER_ARCHIVED', 'DRIVER_ARCHIVED', 'ITEM_ARCHIVED')) {
         void Promise.all(
           [qk.customers.all(), qk.drivers.all(), qk.items.all()].map((queryKey) =>
             queryClient.invalidateQueries({ queryKey }),

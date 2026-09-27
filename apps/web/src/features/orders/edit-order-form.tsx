@@ -1,7 +1,6 @@
 import { zodResolver } from '@hookform/resolvers/zod';
 import { checkCreditLimit, type OrderDetailDto, type OrderUpdateBody } from '@pallet/shared';
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { useNavigate } from '@tanstack/react-router';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Loader2 } from 'lucide-react';
 import { useState } from 'react';
 import { useForm, useWatch } from 'react-hook-form';
@@ -15,9 +14,10 @@ import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { customerQuery } from '@/features/customers/api';
+import { useFlowMutation } from '@/hooks/use-flow-mutation';
 import { useUnsavedChangesGuard } from '@/hooks/use-unsaved-changes-guard';
 import { apiFetch } from '@/lib/api-client';
-import { ApiError, detailsOf } from '@/lib/api-error';
+import { detailsOf, isApiError } from '@/lib/api-error';
 import { useAuth, useCan } from '@/lib/auth';
 import { handleApiError } from '@/lib/errors';
 import { qk } from '@/lib/query-keys';
@@ -42,7 +42,6 @@ function lineKey(
 /** Edit an order (§7.3.7): header fields always; lines only until something has happened on it. */
 export function EditOrderForm({ order }: { order: OrderDetailDto }) {
   const { t } = useTranslation();
-  const navigate = useNavigate();
   const queryClient = useQueryClient();
   const isAdmin = useAuth().user?.role === 'ADMIN';
   const canPrice = useCan('orders.editUnitDeposit');
@@ -121,14 +120,13 @@ export function EditOrderForm({ order }: { order: OrderDetailDto }) {
   };
   const anyChange = Object.values(changed).some(Boolean);
 
-  const save = useMutation({
-    mutationFn: (body: OrderUpdateBody) => apiFetch<OrderDetailDto>(`/orders/${order.id}`, { method: 'PATCH', body }),
-    onSuccess: async (saved) => {
-      toast.success(t('orders.edit.saved'));
-      await invalidateAfterOrderChange(queryClient);
-      guard.allowLeave();
-      await navigate({ to: '/orders/$orderId', params: { orderId: String(saved.id) } });
-    },
+  const save = useFlowMutation({
+    request: (body: OrderUpdateBody) => apiFetch<OrderDetailDto>(`/orders/${order.id}`, { method: 'PATCH', body }),
+    successMessage: () => t('orders.edit.saved'),
+    invalidate: () => invalidateAfterOrderChange(queryClient),
+    refresh: 'before-navigate',
+    beforeLeave: () => guard.allowLeave(),
+    destination: (saved) => ({ to: '/orders/$orderId', params: { orderId: String(saved.id) } }),
     onError: (error) => {
       const reload = () => void queryClient.invalidateQueries({ queryKey: qk.orders.detail(order.id) });
       const credit = detailsOf(error, 'CREDIT_LIMIT_EXCEEDED');
@@ -139,7 +137,7 @@ export function EditOrderForm({ order }: { order: OrderDetailDto }) {
         if (canOverride) setConfirmingOverride(true);
         return;
       }
-      if (error instanceof ApiError && error.code === 'ORDER_HAS_ACTIVITY') {
+      if (isApiError(error, 'ORDER_HAS_ACTIVITY')) {
         // Something was recorded on the order meanwhile: its lines are locked now.
         toast.error(t('errors.ORDER_HAS_ACTIVITY'));
         reload();

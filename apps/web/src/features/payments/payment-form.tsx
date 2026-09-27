@@ -6,12 +6,10 @@ import {
   type PaymentCreateBody,
   type PaymentResultDto,
 } from '@pallet/shared';
-import { useMutation, useQueryClient } from '@tanstack/react-query';
-import { useNavigate } from '@tanstack/react-router';
+import { useQueryClient } from '@tanstack/react-query';
 import { Loader2 } from 'lucide-react';
 import { Controller, useForm, useWatch } from 'react-hook-form';
 import { useTranslation } from 'react-i18next';
-import { toast } from 'sonner';
 import { DateField } from '@/components/app/date-field';
 import { Field, FieldError, FieldLabel } from '@/components/app/field';
 import { MoneyText } from '@/components/app/money-text';
@@ -21,10 +19,10 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { invalidateAfterPayment } from '@/features/orders/api';
+import { useFlowMutation } from '@/hooks/use-flow-mutation';
 import { apiFetch } from '@/lib/api-client';
 import { detailsOf } from '@/lib/api-error';
 import { handleApiError } from '@/lib/errors';
-import { useIdempotencyKey } from '@/lib/idempotency';
 import { qk } from '@/lib/query-keys';
 import { encodeValidationMessage } from '@/lib/validation-message';
 
@@ -37,9 +35,7 @@ interface PaymentValues {
 /** Daily flow 3 (§7.4.3): a payment on a credit order, with what it leaves owing live. */
 export function PaymentForm({ order }: { order: OrderDetailDto }) {
   const { t } = useTranslation();
-  const navigate = useNavigate();
   const queryClient = useQueryClient();
-  const idempotency = useIdempotencyKey();
   const form = useForm<PaymentValues>({
     mode: 'onTouched',
     defaultValues: { amount: order.owed, date: businessToday(), note: '' },
@@ -49,20 +45,18 @@ export function PaymentForm({ order }: { order: OrderDetailDto }) {
   const owedAfter = Math.max(0, order.owed - amount);
   const exceedsOwed = (owed: number) => encodeValidationMessage('paymentExceedsOwed', { owed: formatMoney(owed) });
 
-  const record = useMutation({
-    mutationFn: (body: PaymentCreateBody) =>
+  const record = useFlowMutation({
+    request: (body: PaymentCreateBody, idempotencyKey) =>
       apiFetch<PaymentResultDto>(`/orders/${order.id}/payments`, {
         method: 'POST',
         body,
-        idempotencyKey: idempotency.getKey(body),
+        idempotencyKey: idempotencyKey(),
       }),
-    onSuccess: async (result) => {
-      idempotency.reset();
-      toast.success(t('payments.new.created', { orderNumber: formatOrderNumber(result.order.orderNumber) }));
-      // Leave first: refreshed here, a paid-off order would show "nothing owed" before the navigation.
-      await navigate({ to: '/orders/$orderId', params: { orderId: String(order.id) } });
-      void invalidateAfterPayment(queryClient, result.order);
-    },
+    successMessage: (result) => t('payments.new.created', { orderNumber: formatOrderNumber(result.order.orderNumber) }),
+    invalidate: (result) => invalidateAfterPayment(queryClient, result.order),
+    // Leave first: refreshed here, a paid-off order would show "nothing owed" before the navigation.
+    refresh: 'after-navigate',
+    destination: () => ({ to: '/orders/$orderId', params: { orderId: String(order.id) } }),
     onError: (error) => {
       const exceeded = detailsOf(error, 'PAYMENT_EXCEEDS_OWED');
       if (exceeded) {
