@@ -44,7 +44,7 @@ function EditOrderPage() {
         </Alert>
       ) : (
         // Keyed by version: a change recorded elsewhere remounts the form with what is stored.
-        <EditOrderForm key={order.data.version} order={order.data} />
+        <EditOrderForm key={`${order.data.id}-${order.data.version}`} order={order.data} />
       )}
     </>
   );

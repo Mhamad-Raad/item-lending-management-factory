@@ -44,7 +44,7 @@ function EditItemPage() {
         </Alert>
       ) : (
         // Keyed by version: a save elsewhere remounts the form with what is stored.
-        <ItemForm key={item.data.version} item={item.data} />
+        <ItemForm key={`${item.data.id}-${item.data.version}`} item={item.data} />
       )}
     </>
   );

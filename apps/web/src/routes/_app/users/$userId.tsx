@@ -85,8 +85,13 @@ function UserDetailPage() {
       />
 
       {/* Keyed by version: a save elsewhere remounts the cards with what the server now stores. */}
-      <ProfileCard key={`profile-${user.data.version}`} user={user.data} isSelf={isSelf} onSaved={invalidate} />
-      <PermissionsCard key={`permissions-${user.data.version}`} user={user.data} onSaved={invalidate} />
+      <ProfileCard
+        key={`profile-${user.data.id}-${user.data.version}`}
+        user={user.data}
+        isSelf={isSelf}
+        onSaved={invalidate}
+      />
+      <PermissionsCard key={`permissions-${user.data.id}-${user.data.version}`} user={user.data} onSaved={invalidate} />
       <SecurityCard user={user.data} onDone={invalidate} />
 
       <p className="text-muted-foreground text-sm">

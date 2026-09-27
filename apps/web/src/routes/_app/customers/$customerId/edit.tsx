@@ -43,7 +43,7 @@ function EditCustomerPage() {
           <AlertDescription>{t('customers.detail.archivedBanner')}</AlertDescription>
         </Alert>
       ) : (
-        <CustomerForm key={customer.data.version} customer={customer.data} />
+        <CustomerForm key={`${customer.data.id}-${customer.data.version}`} customer={customer.data} />
       )}
     </>
   );
