@@ -29,6 +29,7 @@ import { PurchasesService } from '../purchases/purchases.service';
 import { StockLedger } from '../stock/stock-ledger';
 import { UploadsService } from '../uploads/uploads.service';
 import { NO_ACTIVITY, toItemDto, toStockMovementDto, type ItemRow } from './items.mapper';
+import { lowStockWhere } from './low-stock';
 import { queryItemDerived, queryStockMovements } from './items.queries';
 import { runInTransaction } from '../../prisma/transaction';
 
@@ -56,10 +57,7 @@ export class ItemsService {
     const where: Prisma.ItemWhereInput = {
       ...(query.includeArchived ? {} : { archivedAt: null }),
       ...(query.q ? { name: { contains: escapeLikePattern(query.q), mode: 'insensitive' } } : {}),
-      // A column compared with another column: Prisma's field reference, not a literal.
-      ...(query.lowStockOnly
-        ? { minStock: { not: null }, quantityOnHand: { lte: this.prisma.item.fields.minStock } }
-        : {}),
+      ...(query.lowStockOnly ? lowStockWhere(this.prisma.item.fields.minStock) : {}),
     };
     const { field, direction } = parseSort<keyof typeof SORT_FIELDS>(query.sort);
 

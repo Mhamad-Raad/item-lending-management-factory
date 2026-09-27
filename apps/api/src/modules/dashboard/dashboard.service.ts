@@ -11,6 +11,7 @@ import { fromAggregate, toSafeMoney, type SqlAggregate } from '../../common/util
 import { PrismaService } from '../../prisma/prisma.service';
 import { uploadUrl } from '../uploads/uploads.mapper';
 import { toCustomerRef } from '../customers/customers.mapper';
+import { LOW_STOCK_SQL } from '../items/low-stock';
 import { openOrderTotalsByCustomer } from '../orders/open-order-totals';
 
 const RECENT = 10;
@@ -67,12 +68,11 @@ export class DashboardService {
   private async lowStock(): Promise<NonNullable<DashboardDto['lowStock']>> {
     const [counted, rows] = await Promise.all([
       this.prisma.$queryRaw<{ count: SqlAggregate }[]>`
-        SELECT COUNT(*)::bigint AS count FROM items
-         WHERE archived_at IS NULL AND min_stock IS NOT NULL AND quantity_on_hand <= min_stock`,
+        SELECT COUNT(*)::bigint AS count FROM items i WHERE ${LOW_STOCK_SQL}`,
       this.prisma.$queryRaw<{ id: number }[]>`
-        SELECT id FROM items
-         WHERE archived_at IS NULL AND min_stock IS NOT NULL AND quantity_on_hand <= min_stock
-         ORDER BY quantity_on_hand - min_stock ASC, name ASC, id ASC
+        SELECT i.id FROM items i
+         WHERE ${LOW_STOCK_SQL}
+         ORDER BY i.quantity_on_hand - i.min_stock ASC, i.name ASC, i.id ASC
          LIMIT ${LOW_STOCK_LISTED}`,
     ]);
     const items = await this.prisma.item.findMany({

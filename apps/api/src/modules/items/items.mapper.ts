@@ -2,6 +2,7 @@ import type { ItemDto, ItemRefDto, StockMovementDto, StockMovementReason } from 
 import { toSafeMoney } from '../../common/utils/money';
 import type { Item, Upload } from '../../generated/prisma/client';
 import { uploadUrl } from '../uploads/uploads.mapper';
+import { isLowStock } from './low-stock';
 
 export type ItemRow = Item & { image: Pick<Upload, 'fileName'> | null };
 
@@ -23,7 +24,7 @@ export function toItemDto(row: ItemRow, derived: ItemDerived): ItemDto {
     depositPrice: toSafeMoney(row.depositPrice),
     quantityOnHand: row.quantityOnHand,
     minStock: row.minStock,
-    isLowStock: row.minStock !== null && row.quantityOnHand <= row.minStock,
+    isLowStock: isLowStock(row, { archivedNeverLow: false }),
     quantityOut: derived.quantityOut,
     damagedTotal: derived.damagedTotal,
     archivedAt: row.archivedAt?.toISOString() ?? null,

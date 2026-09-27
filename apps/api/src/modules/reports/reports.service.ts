@@ -24,6 +24,7 @@ import { toCustomerRef } from '../customers/customers.mapper';
 import { toDriverRef } from '../drivers/drivers.mapper';
 import { ITEM_REF_INCLUDE, toItemRef } from '../items/items.mapper';
 import { itemDerivedTotals } from '../items/items.queries';
+import { isLowStock, LOW_STOCK_SQL } from '../items/low-stock';
 import { LEDGER_ENTRY_INCLUDE, toLedgerEntryDto } from '../ledger/ledger.mapper';
 import { openOrderTotalsByCustomer } from '../orders/open-order-totals';
 
@@ -461,9 +462,7 @@ export class ReportsService {
   stock(query: StockReportQuery): Promise<StockReportDto> {
     return this.snapshot(async (db) => {
       const archived = query.includeArchived ? Prisma.empty : Prisma.sql`AND i.archived_at IS NULL`;
-      const lowOnly = query.lowStockOnly
-        ? Prisma.sql`AND i.archived_at IS NULL AND i.min_stock IS NOT NULL AND i.quantity_on_hand <= i.min_stock`
-        : Prisma.empty;
+      const lowOnly = query.lowStockOnly ? Prisma.sql`AND ${LOW_STOCK_SQL}` : Prisma.empty;
       const rows = await db.$queryRaw<{ id: number; quantity_out: SqlAggregate; damaged_total: SqlAggregate }[]>`
         SELECT i.id, d.quantity_out, d.damaged_total
           FROM items i
@@ -485,7 +484,7 @@ export class ReportsService {
             damagedTotal: fromAggregate(row.damaged_total),
             minStock: item.minStock,
             // An archived item is no longer restocked, so it is never low (§12.5).
-            isLowStock: item.archivedAt === null && item.minStock !== null && item.quantityOnHand <= item.minStock,
+            isLowStock: isLowStock(item, { archivedNeverLow: true }),
           },
         ];
       });
