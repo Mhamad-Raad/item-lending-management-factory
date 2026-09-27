@@ -13,6 +13,24 @@ export interface CreditExcess {
   excess: number;
 }
 
+/** A credit refusal the server reported on a new order, with the customer it was reported for. */
+export interface ServerCreditRefusal extends CreditExcess {
+  customerId: number;
+}
+
+/**
+ * The server's refusal while it still describes the form: the same customer and the same total. Once
+ * either changes — another customer picked, a line edited — the live check decides again; a refusal
+ * for one customer must never block, or show its figures on, another's order.
+ */
+export function standingCreditRefusal(
+  refusal: ServerCreditRefusal | null,
+  customerId: number | null,
+  depositTotal: number,
+): ServerCreditRefusal | null {
+  return refusal && refusal.customerId === customerId && refusal.depositDelta === depositTotal ? refusal : null;
+}
+
 /** The four figures the credit alert and the override dialog show, formatted. */
 export function creditMessageParams(credit: CreditExcess): {
   limit: string;

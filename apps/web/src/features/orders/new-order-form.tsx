@@ -32,7 +32,7 @@ import { qk } from '@/lib/query-keys';
 import { encodeValidationMessage } from '@/lib/validation-message';
 import { invalidateAfterOrderChange } from './api';
 import { CreditAlert } from './credit-alert';
-import { creditMessageParams, type CreditExcess } from './order-text';
+import { creditMessageParams, standingCreditRefusal, type CreditExcess, type ServerCreditRefusal } from './order-text';
 import { OrderFormSchema, useOrderItems, type OrderFormValues } from './order-form';
 import { OrderLinesEditor } from './order-lines-editor';
 import { EMPTY_LINE, asOrderLines, depositTotalOf, toRequestLines } from './order-lines';
@@ -47,7 +47,7 @@ export function NewOrderForm({ initialCustomerId }: { initialCustomerId?: number
   const canPrice = useCan('orders.editUnitDeposit');
   const idempotency = useIdempotencyKey();
   // A refusal the server reported: a concurrent order may have used the headroom since the page loaded.
-  const [serverCredit, setServerCredit] = useState<CreditExcess | null>(null);
+  const [serverCredit, setServerCredit] = useState<ServerCreditRefusal | null>(null);
   const [confirmingOverride, setConfirmingOverride] = useState(false);
 
   const form = useForm<OrderFormValues>({
@@ -78,8 +78,8 @@ export function NewOrderForm({ initialCustomerId }: { initialCustomerId?: number
   const creditLimit = customer.data?.creditLimit ?? null;
   const currentOutValue = customer.data?.summary.outValue ?? 0;
   const liveCredit = checkCreditLimit({ creditLimit, customerOutValue: currentOutValue, depositDelta: depositTotal });
-  // A server refusal holds only for the total it refused; once the lines change, the live check decides.
-  const standingRefusal = serverCredit?.depositDelta === depositTotal ? serverCredit : null;
+  // A server refusal holds only for the customer and total it refused; after either changes, the live check decides.
+  const standingRefusal = standingCreditRefusal(serverCredit, customerId, depositTotal);
   const credit: CreditExcess | null =
     standingRefusal ??
     (liveCredit.allowed || creditLimit === null
@@ -100,10 +100,10 @@ export function NewOrderForm({ initialCustomerId }: { initialCustomerId?: number
       guard.allowLeave();
       await navigate({ to: '/orders/$orderId', params: { orderId: String(order.id) }, search: { created: true } });
     },
-    onError: (error) => {
+    onError: (error, body) => {
       if (error instanceof ApiError && error.code === 'CREDIT_LIMIT_EXCEEDED') {
         const details = error.details as unknown as CreditExcess & { canOverride: boolean };
-        setServerCredit(details);
+        setServerCredit({ ...details, customerId: body.customerId });
         // The out value moved under the page; show the figures the server used.
         void queryClient.invalidateQueries({ queryKey: qk.customers.all() });
         if (details.canOverride) setConfirmingOverride(true);
