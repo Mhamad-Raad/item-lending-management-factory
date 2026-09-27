@@ -9,6 +9,10 @@ set -Eeuo pipefail
 APP_DIR="${APP_DIR:-/opt/pallet}"
 NEW_SHA="${1:?usage: deploy.sh <git-sha>}"
 HEALTH_TIMEOUT_SECONDS=60
+# A dump of the database taken right before each migration (Q84); the newest PRE_MIGRATE_KEEP are kept.
+PRE_MIGRATE_DIR="${PRE_MIGRATE_DIR:-/var/backups/pallet/pre-migrate}"
+PRE_MIGRATE_KEEP=5
+PRE_MIGRATE_DUMP=""
 
 cd "$APP_DIR"
 [[ -f .env ]] || { echo "missing $APP_DIR/.env" >&2; exit 1; }
@@ -72,6 +76,10 @@ echo "deploy: ${PREV_SHA:-<none>} -> $NEW_SHA"
 rollback() {
   trap - ERR
   echo "deploy: FAILED — rolling back to $PREV_SHA" >&2
+  if [[ -n "$PRE_MIGRATE_DUMP" ]]; then
+    echo "deploy: the database as it was before the migration is in $PRE_MIGRATE_DUMP. If the migration" \
+      "itself failed, see \"A failed migration\" in docs/runbooks/deploy.md before deploying again." >&2
+  fi
   if [[ -n "$PREV_SHA" ]]; then
     git checkout --quiet --detach "$PREV_SHA"
     set_version "$PREV_SHA"
@@ -95,6 +103,29 @@ trap rollback ERR
 
 docker compose pull caddy api
 docker compose --profile migrate pull migrate
+
+# The nightly backup can be up to a day old: dump the database right before the migration touches it, so a
+# migration that goes wrong can be undone without losing today's work (docs/runbooks/deploy.md). The API is
+# stopped first, so nothing is written after the dump; Caddy answers 502 meanwhile, which the web app shows as
+# "unavailable, try again" without signing anyone out. A rollback starts it again.
+docker compose stop api
+docker compose up -d --wait postgres
+install -d -m 700 "$PRE_MIGRATE_DIR"
+dump_file="$PRE_MIGRATE_DIR/pre-migrate-$(date -u +%Y%m%dT%H%M%SZ)-${NEW_SHA:0:12}.dump"
+docker compose exec -T postgres pg_dump -U pallet_owner -d pallet -Fc > "$dump_file"
+if [[ ! -s "$dump_file" ]]; then
+  rm -f -- "$dump_file"
+  echo "deploy: the pre-migration dump came out empty — nothing was migrated" >&2
+  false
+fi
+PRE_MIGRATE_DUMP="$dump_file"
+echo "deploy: database saved to $PRE_MIGRATE_DUMP"
+# Newest first; everything after the newest PRE_MIGRATE_KEEP goes. The names are ours and hold no spaces.
+# shellcheck disable=SC2012
+ls -1t -- "$PRE_MIGRATE_DIR"/pre-migrate-*.dump | tail -n +$((PRE_MIGRATE_KEEP + 1)) | while read -r old_dump; do
+  rm -f -- "$old_dump"
+done
+
 docker compose --profile migrate run --rm migrate
 docker compose up -d --remove-orphans
 
