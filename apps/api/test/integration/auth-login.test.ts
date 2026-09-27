@@ -34,7 +34,7 @@ describe('login', () => {
     await resetDatabase();
   });
 
-  it('S-1: answers identically for every kind of failure, verifying exactly one hash each time', async () => {
+  it('S-1: answers identically for every kind of failure outside a lock, verifying exactly one hash each time', async () => {
     const passwords = app.get(PasswordService);
     const prisma = app.get(PrismaService);
     await prisma.user.create({
@@ -72,11 +72,21 @@ describe('login', () => {
     expect(bodies[2]).toEqual(bodies[0]);
   });
 
-  it('S-2: locks the (ip, username) pair after five failures, and only that pair', async () => {
-    for (let i = 0; i < 5; i++) await attempt(app, { username: TEST_ADMIN.username, password: 'wrong' }).expect(401);
+  it('S-2: locks the (ip, username) pair after five failures, and only that pair, saying how long', async () => {
+    for (let i = 0; i < 4; i++) await attempt(app, { username: TEST_ADMIN.username, password: 'wrong' }).expect(401);
 
-    // The correct password is refused while the pair is locked.
-    await attempt(app, { username: TEST_ADMIN.username, password: TEST_ADMIN.password }).expect(401);
+    // The fifth failure locks the pair, and its answer already names the wait (Q93).
+    const locking = await attempt(app, { username: TEST_ADMIN.username, password: 'wrong' }).expect(429);
+    expect(locking.body).toMatchObject({
+      error: { code: 'LOGIN_THROTTLED', details: { retryAfterSeconds: 60, retryAfterMinutes: 1 } },
+    });
+
+    // The correct password is refused while the pair is locked, with the time left.
+    clock.advance(15_000);
+    const refused = await attempt(app, { username: TEST_ADMIN.username, password: TEST_ADMIN.password }).expect(429);
+    expect(refused.body).toMatchObject({
+      error: { code: 'LOGIN_THROTTLED', details: { retryAfterSeconds: 45, retryAfterMinutes: 1 } },
+    });
 
     // The same account from another address, and another account from the locked address, are fine.
     await attempt(app, { username: TEST_ADMIN.username, password: TEST_ADMIN.password }, IP_B).expect(200);
@@ -84,18 +94,27 @@ describe('login', () => {
     const prisma = app.get(PrismaService);
     const lockout = await prisma.auditLog.findFirst({ where: { action: 'LOCKOUT' } });
     expect(lockout).toMatchObject({ ip: IP_A, usernameAttempt: TEST_ADMIN.username });
-    expect(lockout?.summaryParams).toMatchObject({ lockedMinutes: 1 });
+    expect(lockout?.summaryParams).toMatchObject({ lockedMinutes: 1, scope: 'ADDRESS' });
+    // The attempt during the lock is still recorded as such.
+    const locked = await prisma.auditLog.findFirstOrThrow({
+      where: { action: 'LOGIN_FAILURE', summaryParams: { path: ['reason'], equals: 'LOCKED' } },
+    });
+    expect(locked).toMatchObject({ ip: IP_A, usernameAttempt: TEST_ADMIN.username });
   });
 
   it('S-2: backs the lockout off, and a success clears the pair', async () => {
     const prisma = app.get(PrismaService);
-    const fail = async (): Promise<void> => {
-      for (let i = 0; i < 5; i++) await attempt(app, { username: TEST_ADMIN.username, password: 'wrong' }).expect(401);
+    const fail = async (minutes: number): Promise<void> => {
+      for (let i = 0; i < 4; i++) await attempt(app, { username: TEST_ADMIN.username, password: 'wrong' }).expect(401);
+      const locking = await attempt(app, { username: TEST_ADMIN.username, password: 'wrong' }).expect(429);
+      expect(locking.body).toMatchObject({
+        error: { code: 'LOGIN_THROTTLED', details: { retryAfterSeconds: minutes * 60, retryAfterMinutes: minutes } },
+      });
     };
 
-    await fail();
+    await fail(1);
     clock.advance(61_000);
-    await fail();
+    await fail(2);
 
     const throttle = await prisma.loginThrottle.findUniqueOrThrow({
       where: { ip_username: { ip: IP_A, username: TEST_ADMIN.username } },
@@ -110,6 +129,107 @@ describe('login', () => {
     expect(
       await prisma.loginThrottle.findUnique({ where: { ip_username: { ip: IP_A, username: TEST_ADMIN.username } } }),
     ).toBeNull();
+  });
+
+  describe('the pair lock names its wait without revealing anything (Q93)', () => {
+    /** Each attempt's body without its request id, and how many Argon2 verifications it ran. */
+    const probe = async (
+      body: { username: string; password: string },
+      status: number,
+    ): Promise<{ body: unknown; verifications: number; realVerifications: number }> => {
+      const passwords = app.get(PasswordService);
+      const verify = vi.spyOn(passwords, 'verify');
+      const verifyDummy = vi.spyOn(passwords, 'verifyDummy');
+      try {
+        const response = await attempt(app, body).expect(status);
+        return {
+          body: { ...(response.body as { error: unknown; requestId: string }), requestId: undefined },
+          verifications: verify.mock.calls.length + verifyDummy.mock.calls.length,
+          realVerifications: verify.mock.calls.length,
+        };
+      } finally {
+        vi.restoreAllMocks();
+      }
+    };
+
+    it('answers an unknown username exactly as an existing one, from the locking failure on', async () => {
+      const existing: unknown[] = [];
+      const unknown: unknown[] = [];
+      for (let i = 0; i < 5; i++) {
+        const status = i < 4 ? 401 : 429;
+        existing.push((await probe({ username: TEST_ADMIN.username, password: 'wrong' }, status)).body);
+        unknown.push((await probe({ username: 'nobody-here', password: 'wrong' }, status)).body);
+      }
+      // Locked: the right password for the admin, anything for the name nobody has.
+      existing.push((await probe({ username: TEST_ADMIN.username, password: TEST_ADMIN.password }, 429)).body);
+      unknown.push((await probe({ username: 'nobody-here', password: TEST_ADMIN.password }, 429)).body);
+
+      expect(unknown).toEqual(existing);
+      expect(existing[4]).toEqual({
+        error: { code: 'LOGIN_THROTTLED', details: { retryAfterSeconds: 60, retryAfterMinutes: 1 } },
+        requestId: undefined,
+      });
+      expect(existing[5]).toEqual(existing[4]);
+
+      // Both locks are recorded, the unknown name's without a user.
+      const prisma = app.get(PrismaService);
+      const lockouts = await prisma.auditLog.findMany({ where: { action: 'LOCKOUT' }, orderBy: { id: 'asc' } });
+      expect(lockouts.map((row) => [row.usernameAttempt, row.userId === null])).toEqual([
+        [TEST_ADMIN.username, false],
+        ['nobody-here', true],
+      ]);
+    });
+
+    it('answers a right and a wrong password identically while locked, each after one dummy verification', async () => {
+      for (let i = 0; i < 4; i++) await attempt(app, { username: TEST_ADMIN.username, password: 'wrong' }).expect(401);
+      const locking = await probe({ username: TEST_ADMIN.username, password: 'wrong' }, 429);
+      // The locking failure verified the real hash, once, as any wrong password does.
+      expect(locking).toMatchObject({ verifications: 1, realVerifications: 1 });
+
+      const right = await probe({ username: TEST_ADMIN.username, password: TEST_ADMIN.password }, 429);
+      const wrong = await probe({ username: TEST_ADMIN.username, password: 'still-wrong' }, 429);
+
+      expect(right.body).toEqual(wrong.body);
+      expect(right.body).toEqual(locking.body);
+      // One verification each, against the dummy hash: the time taken cannot tell the password apart.
+      expect(right).toMatchObject({ verifications: 1, realVerifications: 0 });
+      expect(wrong).toMatchObject({ verifications: 1, realVerifications: 0 });
+
+      const prisma = app.get(PrismaService);
+      expect(
+        await prisma.auditLog.count({
+          where: { action: 'LOGIN_FAILURE', summaryParams: { path: ['reason'], equals: 'LOCKED' } },
+        }),
+      ).toBe(2);
+    });
+
+    it('answers the pair’s wait when the account’s ceiling also holds', async () => {
+      // Five failures lock this address's pair for a minute; fifteen more from elsewhere reach the ceiling.
+      for (let i = 0; i < 4; i++) await attempt(app, { username: TEST_ADMIN.username, password: 'wrong' }).expect(401);
+      await attempt(app, { username: TEST_ADMIN.username, password: 'wrong' }).expect(429);
+      for (let i = 0; i < 15; i++) {
+        await attempt(app, { username: TEST_ADMIN.username, password: `wrong-${i}` }, `198.51.100.${i + 1}`).expect(
+          401,
+        );
+      }
+      const prisma = app.get(PrismaService);
+      expect(
+        await prisma.auditLog.count({
+          where: { action: 'LOCKOUT', summaryParams: { path: ['scope'], equals: 'ACCOUNT' } },
+        }),
+      ).toBe(1);
+
+      // The pair is checked first, so its one-minute wait is the answer, not the ceiling's five.
+      const refused = await attempt(app, { username: TEST_ADMIN.username, password: TEST_ADMIN.password }).expect(429);
+      expect(refused.body).toMatchObject({
+        error: { code: 'LOGIN_THROTTLED', details: { retryAfterSeconds: 60, retryAfterMinutes: 1 } },
+      });
+
+      // Once the pair opens, the ceiling still holds this address back with its own code.
+      clock.advance(61_000);
+      const held = await attempt(app, { username: TEST_ADMIN.username, password: TEST_ADMIN.password }).expect(429);
+      expect(held.body).toMatchObject({ error: { code: 'LOGIN_ACCOUNT_THROTTLED' } });
+    });
   });
 
   describe('account-wide ceiling (Q68)', () => {

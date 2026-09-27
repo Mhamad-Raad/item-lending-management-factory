@@ -97,12 +97,13 @@ describe('change password', () => {
 
     // While locked even the right password is refused.
     await changePassword(session, { currentPassword: TEST_ADMIN.password, newPassword: NEW_PASSWORD }).expect(429);
-    // The pair is the login's: signing in from the same address is locked too.
-    await request(app.getHttpServer())
+    // The pair is the login's: signing in from the same address is locked too, and says so (Q93).
+    const signIn = await request(app.getHttpServer())
       .post('/api/auth/login')
       .set(CSRF_HEADER)
       .send({ username: TEST_ADMIN.username, password: TEST_ADMIN.password })
-      .expect(401);
+      .expect(429);
+    expect(errorCode(signIn.body)).toBe('LOGIN_THROTTLED');
 
     const lockout = await prisma.auditLog.findFirstOrThrow({ where: { action: 'LOCKOUT' } });
     expect(lockout.summaryParams).toMatchObject({ lockedMinutes: 1, scope: 'ADDRESS' });

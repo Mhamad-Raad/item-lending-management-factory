@@ -69,7 +69,7 @@ function LoginPage() {
           <form onSubmit={(event) => void onSubmit(event)} className="flex flex-col gap-4" noValidate>
             {formError ? (
               <Alert variant="destructive">
-                {/* RATE_LIMITED says how long to wait; the seconds travel in `details`. */}
+                {/* RATE_LIMITED and the LOGIN_*THROTTLED codes say how long to wait; the wait travels in `details`. */}
                 <AlertDescription>{t(`errors.${formError.code}`, { ...formError.details })}</AlertDescription>
               </Alert>
             ) : null}

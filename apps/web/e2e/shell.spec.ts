@@ -36,3 +36,21 @@ test('an empty sign-in form reports both fields', async ({ page }) => {
 
   await expect(page.getByRole('alert').first()).toBeVisible();
 });
+
+test('a locked sign-in says to wait, and for how long (Q93)', async ({ page }) => {
+  await page.route('**/api/auth/login', (route) =>
+    route.fulfill({
+      status: 429,
+      json: { error: { code: 'LOGIN_THROTTLED', details: { retryAfterSeconds: 480, retryAfterMinutes: 8 } } },
+    }),
+  );
+  await page.goto('/login');
+
+  await page.getByLabel('ناوی بەکارهێنەر').fill('karwan');
+  await page.getByLabel('وشەی تێپەڕ', { exact: true }).fill('whatever-it-is');
+  await page.getByRole('button', { name: 'چوونەژوورەوە', exact: true }).click();
+
+  await expect(page.getByRole('alert')).toHaveText(
+    'وشەی تێپەڕ چەند جارێک بە هەڵە نووسرا. چاوەڕێ بکە، پاشان دووبارە هەوڵ بدەوە. ماوەی چاوەڕوانی (خولەک): 8',
+  );
+});

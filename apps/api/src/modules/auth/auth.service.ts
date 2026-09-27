@@ -1,6 +1,6 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
-import type { AuthTokenDto, ChangePasswordBody, LoginBody, MeDto } from '@pallet/shared';
+import type { AuthTokenDto, ChangePasswordBody, ErrorDetails, LoginBody, MeDto } from '@pallet/shared';
 import { Clock } from '../../common/clock';
 import { ApiError } from '../../common/errors/api-error';
 import type { Prisma, User } from '../../generated/prisma/client';
@@ -25,8 +25,9 @@ export interface AuthResult {
   refresh: IssuedToken;
 }
 
-/** A login refused because the account's ceiling holds back unknown addresses (Q68). */
-interface AccountThrottled {
+/** A login refused with a wait: the (ip, username) pair is locked (Q93) or the account's ceiling holds (Q68). */
+interface Throttled {
+  code: 'LOGIN_THROTTLED' | 'LOGIN_ACCOUNT_THROTTLED';
   retryAfterSeconds: number;
 }
 
@@ -46,14 +47,17 @@ export class AuthService {
 
   /**
    * §6.8.2. Every path — unknown username, inactive user, locked pair, wrong password — performs
-   * exactly one Argon2 verification and answers the same `AUTH_INVALID_CREDENTIALS`. The one other
-   * answer, `LOGIN_ACCOUNT_THROTTLED` (Q68), does not depend on the password or on whether the
-   * username exists, so it reveals neither.
+   * exactly one Argon2 verification. A wrong password, an unknown username and an inactive user all
+   * answer the same `AUTH_INVALID_CREDENTIALS`. A locked pair answers `LOGIN_THROTTLED` with the wait
+   * (Q93), as does the failure that locks it, and the account's ceiling `LOGIN_ACCOUNT_THROTTLED`
+   * (Q68). Neither depends on the password or on whether the username exists — the pair is keyed on
+   * the typed username and locks an unknown one the same way — so neither reveals them. The pair is
+   * checked first, so when both hold the answer is the pair's.
    */
   async login(body: LoginBody, origin: RequestOrigin): Promise<AuthResult> {
     // A failed attempt still writes: its throttle counter and its audit row. Those must commit,
     // so the refusal is returned from the transaction and thrown only after it (§6.8.2 step 5).
-    const result = await runInTransaction(this.prisma, async (tx): Promise<AuthResult | AccountThrottled | null> => {
+    const result = await runInTransaction(this.prisma, async (tx): Promise<AuthResult | Throttled | null> => {
       const { username, password } = body;
       // Lock order: the pair, the account-wide row, then the user.
       const throttle = await this.throttle.lock(tx, origin.ip, username);
@@ -68,10 +72,12 @@ export class AuthService {
         include: { permissions: { select: { permissionKey: true } } },
       });
 
-      if (this.throttle.isLocked(throttle)) {
+      // Keyed on the typed username whether or not it exists, so the wait reveals no account (Q93).
+      const pairRetryAfter = this.throttle.retryAfterSeconds(throttle);
+      if (pairRetryAfter !== null) {
         await this.passwords.verifyDummy(password);
         await this.auditLoginFailure(tx, user, username, 'LOCKED');
-        return null;
+        return { code: 'LOGIN_THROTTLED', retryAfterSeconds: pairRetryAfter };
       }
 
       // Past the account's ceiling only an address that has signed in to it before may try (Q68).
@@ -79,7 +85,7 @@ export class AuthService {
       if (retryAfterSeconds !== null && !(user && (await this.throttle.isKnownAddress(tx, user.id, origin.ip)))) {
         await this.passwords.verifyDummy(password);
         await this.auditLoginFailure(tx, user, username, 'ACCOUNT_THROTTLED');
-        return { retryAfterSeconds };
+        return { code: 'LOGIN_ACCOUNT_THROTTLED', retryAfterSeconds };
       }
 
       const valid = user?.isActive ? await this.passwords.verify(user.passwordHash, password) : false;
@@ -100,7 +106,10 @@ export class AuthService {
               `minutes (see LOCKOUT in the history)`,
           );
         }
-        return null;
+        // The failure that locks the pair already says how long, as every attempt during the lock will.
+        return lockout.lockedMinutes !== null
+          ? { code: 'LOGIN_THROTTLED', retryAfterSeconds: lockout.lockedMinutes * 60 }
+          : null;
       }
 
       await this.throttle.clear(tx, origin.ip, username);
@@ -130,11 +139,11 @@ export class AuthService {
 
     if (!result) throw new ApiError('AUTH_INVALID_CREDENTIALS');
     if (!('token' in result)) {
-      const { retryAfterSeconds } = result;
-      throw new ApiError('LOGIN_ACCOUNT_THROTTLED', {
+      const { code, retryAfterSeconds } = result;
+      throw new ApiError(code, {
         retryAfterSeconds,
         retryAfterMinutes: Math.ceil(retryAfterSeconds / 60),
-      });
+      } satisfies ErrorDetails<'LOGIN_THROTTLED'>);
     }
     return result;
   }

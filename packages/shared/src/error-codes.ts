@@ -22,6 +22,7 @@ export const ERROR_CODES = {
   AUTH_TOKEN_EXPIRED: 401,
   AUTH_TOKEN_INVALID: 401,
   AUTH_INVALID_CREDENTIALS: 401,
+  LOGIN_THROTTLED: 429,
   LOGIN_ACCOUNT_THROTTLED: 429,
   AUTH_REFRESH_INVALID: 401,
   PASSWORD_CHANGE_REQUIRED: 403,
@@ -112,7 +113,8 @@ export const ERROR_CODE_LIST = Object.keys(ERROR_CODES) as ErrorCode[];
 
 /**
  * The `details` the API sends with the codes whose details a client reads beyond interpolating them into
- * the message (§6.3.2). The web reads them through `detailsOf(error, code)` instead of casting.
+ * the message (§6.3.2), and with `LOGIN_THROTTLED`, whose wait the API's throw site and the login page's
+ * message must agree on. The web reads them through `detailsOf(error, code)` instead of casting.
  */
 export interface ErrorDetailsByCode {
   CREDIT_LIMIT_EXCEEDED: {
@@ -130,6 +132,8 @@ export interface ErrorDetailsByCode {
   PAYMENT_EXCEEDS_OWED: { owed: number; amount: number };
   RETURN_EXCEEDS_OUT: { lines: { orderLineId: number; requested: number; outQuantity: number }[] };
   DAMAGED_REFUND_TOO_HIGH: { orderLineId: number; maximum: number };
+  /** The wait the login page names (Q93); `LOGIN_ACCOUNT_THROTTLED` sends the same shape. */
+  LOGIN_THROTTLED: { retryAfterSeconds: number; retryAfterMinutes: number };
 }
 
 export type ErrorDetails<C extends keyof ErrorDetailsByCode> = ErrorDetailsByCode[C];
