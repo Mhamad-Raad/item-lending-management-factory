@@ -2,7 +2,7 @@ import { formatNumber, type ItemDto } from '@pallet/shared';
 import { queryOptions, type QueryClient } from '@tanstack/react-query';
 import type { TFunction } from 'i18next';
 import { apiFetch } from '@/lib/api-client';
-import { ApiError } from '@/lib/api-error';
+import { ApiError, detailsOf } from '@/lib/api-error';
 import { qk } from '@/lib/query-keys';
 
 export function itemQuery(itemId: number) {
@@ -27,7 +27,7 @@ export async function invalidateStock(queryClient: QueryClient): Promise<void> {
  */
 export function stockShortageMessage(error: unknown, t: TFunction): string | null {
   if (!(error instanceof ApiError) || error.code !== 'STOCK_INSUFFICIENT') return null;
-  const [short] = (error.details?.items as { requested: number; available: number }[] | undefined) ?? [];
+  const [short] = detailsOf(error, 'STOCK_INSUFFICIENT')?.items ?? [];
   if (!short) return t('errors.STOCK_INSUFFICIENT');
   return t('items.stock.insufficient', {
     requested: formatNumber(short.requested),

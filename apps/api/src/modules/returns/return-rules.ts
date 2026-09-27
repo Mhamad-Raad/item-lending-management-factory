@@ -1,4 +1,4 @@
-import { returnMoney, returnRefundDue, type ReturnCreateBody } from '@pallet/shared';
+import { returnMoney, returnRefundDue, type ErrorDetails, type ReturnCreateBody } from '@pallet/shared';
 import { ApiError } from '../../common/errors/api-error';
 
 /** An order line as a return is checked against it: its price, and how many of its pallets are still out. */
@@ -48,7 +48,10 @@ export function validateReturnAgainstOrder(
   for (const { entry, line } of priced) {
     const maximum = entry.damagedQuantity * line.unitDeposit;
     if (entry.damagedRefund > maximum) {
-      throw new ApiError('DAMAGED_REFUND_TOO_HIGH', { orderLineId: entry.orderLineId, maximum });
+      throw new ApiError('DAMAGED_REFUND_TOO_HIGH', {
+        orderLineId: entry.orderLineId,
+        maximum,
+      } satisfies ErrorDetails<'DAMAGED_REFUND_TOO_HIGH'>);
     }
   }
 
@@ -59,7 +62,8 @@ export function validateReturnAgainstOrder(
       requested: entry.acceptedQuantity + entry.damagedQuantity,
       outQuantity: line.outQuantity,
     }));
-  if (over.length > 0) throw new ApiError('RETURN_EXCEEDS_OUT', { lines: over });
+  if (over.length > 0)
+    throw new ApiError('RETURN_EXCEEDS_OUT', { lines: over } satisfies ErrorDetails<'RETURN_EXCEEDS_OUT'>);
 
   return priced.map(({ entry, line }) => ({
     orderLineId: entry.orderLineId,

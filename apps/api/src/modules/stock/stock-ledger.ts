@@ -1,4 +1,5 @@
 import { Injectable } from '@nestjs/common';
+import type { ErrorDetails } from '@pallet/shared';
 import { ApiError } from '../../common/errors/api-error';
 import type { Prisma } from '../../generated/prisma/client';
 
@@ -77,7 +78,8 @@ export class StockLedger {
     const short = [...net]
       .filter(([itemId, change]) => (onHand.get(itemId) ?? 0) + change < 0)
       .map(([itemId, change]) => ({ itemId, requested: -change, available: onHand.get(itemId) ?? 0 }));
-    if (short.length > 0) throw new ApiError('STOCK_INSUFFICIENT', { items: short });
+    if (short.length > 0)
+      throw new ApiError('STOCK_INSUFFICIENT', { items: short } satisfies ErrorDetails<'STOCK_INSUFFICIENT'>);
     return net;
   }
 }

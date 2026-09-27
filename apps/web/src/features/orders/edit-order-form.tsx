@@ -17,7 +17,7 @@ import { Card, CardContent } from '@/components/ui/card';
 import { customerQuery } from '@/features/customers/api';
 import { useUnsavedChangesGuard } from '@/hooks/use-unsaved-changes-guard';
 import { apiFetch } from '@/lib/api-client';
-import { ApiError } from '@/lib/api-error';
+import { ApiError, detailsOf } from '@/lib/api-error';
 import { useAuth, useCan } from '@/lib/auth';
 import { handleApiError } from '@/lib/errors';
 import { qk } from '@/lib/query-keys';
@@ -131,11 +131,12 @@ export function EditOrderForm({ order }: { order: OrderDetailDto }) {
     },
     onError: (error) => {
       const reload = () => void queryClient.invalidateQueries({ queryKey: qk.orders.detail(order.id) });
-      if (error instanceof ApiError && error.code === 'CREDIT_LIMIT_EXCEEDED') {
-        const details = error.details as unknown as CreditExcess & { canOverride: boolean };
+      const credit = detailsOf(error, 'CREDIT_LIMIT_EXCEEDED');
+      if (credit) {
+        const { canOverride, ...details } = credit;
         setServerCredit(details);
         void queryClient.invalidateQueries({ queryKey: qk.customers.all() });
-        if (details.canOverride) setConfirmingOverride(true);
+        if (canOverride) setConfirmingOverride(true);
         return;
       }
       if (error instanceof ApiError && error.code === 'ORDER_HAS_ACTIVITY') {

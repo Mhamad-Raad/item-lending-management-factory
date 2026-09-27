@@ -11,6 +11,7 @@ import type {
   CustomerPhoneMatchDto,
   CustomerUpdateBody,
   PageDto,
+  ErrorDetails,
 } from '@pallet/shared';
 import type { AuthContext } from '../../common/auth-context';
 import { Clock } from '../../common/clock';
@@ -229,7 +230,8 @@ export class CustomersService {
     const wanted = phones.filter((phone): phone is string => phone !== null);
     if (wanted.length === 0) return;
     const matches = await this.findPhoneMatches(client, wanted, excludeId);
-    if (matches.length > 0) throw new ApiError('CUSTOMER_PHONE_DUPLICATE', { matches });
+    if (matches.length > 0)
+      throw new ApiError('CUSTOMER_PHONE_DUPLICATE', { matches } satisfies ErrorDetails<'CUSTOMER_PHONE_DUPLICATE'>);
   }
 
   /** Every other customer, archived ones included, holding one of `phones` as either number (Q13). */

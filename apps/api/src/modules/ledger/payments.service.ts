@@ -6,6 +6,7 @@ import {
   type LedgerEntryReverseBody,
   type PaymentCreateBody,
   type PaymentResultDto,
+  type ErrorDetails,
 } from '@pallet/shared';
 import type { AuthContext } from '../../common/auth-context';
 import { Clock } from '../../common/clock';
@@ -54,7 +55,11 @@ export class PaymentsService {
         if (body.date < orderDate) throw new ApiError('PAYMENT_DATE_BEFORE_ORDER_DATE', { orderDate });
         // Read from the rows under the lock, not the stored total: the cap is what the ledger says now.
         const { owed } = computeOrderTotals(toOrderState(order));
-        if (body.amount > owed) throw new ApiError('PAYMENT_EXCEEDS_OWED', { owed, amount: body.amount });
+        if (body.amount > owed)
+          throw new ApiError('PAYMENT_EXCEEDS_OWED', {
+            owed,
+            amount: body.amount,
+          } satisfies ErrorDetails<'PAYMENT_EXCEEDS_OWED'>);
 
         const entry = await this.money.record(
           tx,

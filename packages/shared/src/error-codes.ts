@@ -110,6 +110,30 @@ export type ErrorCode = keyof typeof ERROR_CODES;
 
 export const ERROR_CODE_LIST = Object.keys(ERROR_CODES) as ErrorCode[];
 
+/**
+ * The `details` the API sends with the codes whose details a client reads beyond interpolating them into
+ * the message (§6.3.2). The web reads them through `detailsOf(error, code)` instead of casting.
+ */
+export interface ErrorDetailsByCode {
+  CREDIT_LIMIT_EXCEEDED: {
+    creditLimit: number;
+    customerOutValue: number;
+    depositDelta: number;
+    excess: number;
+    /** True when the caller is an admin and may confirm an override. */
+    canOverride: boolean;
+  };
+  STOCK_INSUFFICIENT: { items: { itemId: number; requested: number; available: number }[] };
+  CUSTOMER_PHONE_DUPLICATE: {
+    matches: { customerId: number; name: string; archived: boolean; matchedField: 'phone' | 'altPhone' }[];
+  };
+  PAYMENT_EXCEEDS_OWED: { owed: number; amount: number };
+  RETURN_EXCEEDS_OUT: { lines: { orderLineId: number; requested: number; outQuantity: number }[] };
+  DAMAGED_REFUND_TOO_HIGH: { orderLineId: number; maximum: number };
+}
+
+export type ErrorDetails<C extends keyof ErrorDetailsByCode> = ErrorDetailsByCode[C];
+
 /** Shape of every non-2xx JSON response body. */
 export interface ApiErrorBody {
   error: {

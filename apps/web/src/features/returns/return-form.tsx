@@ -24,7 +24,7 @@ import { Card, CardContent } from '@/components/ui/card';
 import { Textarea } from '@/components/ui/textarea';
 import { invalidateAfterOrderChange } from '@/features/orders/api';
 import { apiFetch } from '@/lib/api-client';
-import { ApiError } from '@/lib/api-error';
+import { ApiError, detailsOf } from '@/lib/api-error';
 import { handleApiError } from '@/lib/errors';
 import { useIdempotencyKey } from '@/lib/idempotency';
 import { qk } from '@/lib/query-keys';
@@ -138,9 +138,9 @@ export function ReturnForm({ order, replaceReturnId }: { order: OrderDetailDto; 
         await navigate({ to: '/orders/$orderId', params: { orderId: String(order.id) } });
         return;
       }
-      if (error instanceof ApiError && error.code === 'RETURN_EXCEEDS_OUT') {
-        const over = (error.details?.lines as { orderLineId: number; outQuantity: number }[] | undefined) ?? [];
-        for (const line of over) {
+      const over = detailsOf(error, 'RETURN_EXCEEDS_OUT');
+      if (over) {
+        for (const line of over.lines) {
           if (hasLine(line.orderLineId)) {
             form.setError(`rows.${rowKey(line.orderLineId)}.accepted`, { message: exceedsOut(line.outQuantity) });
           }
@@ -148,11 +148,11 @@ export function ReturnForm({ order, replaceReturnId }: { order: OrderDetailDto; 
         void queryClient.invalidateQueries({ queryKey: qk.orders.detail(order.id) });
         return;
       }
-      if (error instanceof ApiError && error.code === 'DAMAGED_REFUND_TOO_HIGH') {
-        const orderLineId = Number(error.details?.orderLineId);
-        if (hasLine(orderLineId)) {
-          form.setError(`rows.${rowKey(orderLineId)}.damagedRefund`, {
-            message: refundTooHigh(Number(error.details?.maximum ?? 0)),
+      const refund = detailsOf(error, 'DAMAGED_REFUND_TOO_HIGH');
+      if (refund) {
+        if (hasLine(refund.orderLineId)) {
+          form.setError(`rows.${rowKey(refund.orderLineId)}.damagedRefund`, {
+            message: refundTooHigh(refund.maximum),
           });
           return;
         }

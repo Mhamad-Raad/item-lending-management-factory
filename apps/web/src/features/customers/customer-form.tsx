@@ -23,7 +23,7 @@ import { Input } from '@/components/ui/input';
 import { useDebouncedValue } from '@/hooks/use-debounced-value';
 import { useUnsavedChangesGuard } from '@/hooks/use-unsaved-changes-guard';
 import { apiFetch } from '@/lib/api-client';
-import { ApiError } from '@/lib/api-error';
+import { detailsOf } from '@/lib/api-error';
 import { useAuth } from '@/lib/auth';
 import { handleApiError } from '@/lib/errors';
 import { qk } from '@/lib/query-keys';
@@ -116,8 +116,9 @@ export function CustomerForm({ customer }: { customer?: CustomerDto }) {
     },
     onError: (error, { values }) => {
       // Another customer holds the number: ask once, then save anyway if the user says so (A13).
-      if (error instanceof ApiError && error.code === 'CUSTOMER_PHONE_DUPLICATE') {
-        setDuplicates({ matches: (error.details?.matches as CustomerPhoneMatchDto[] | undefined) ?? [], values });
+      const duplicate = detailsOf(error, 'CUSTOMER_PHONE_DUPLICATE');
+      if (duplicate) {
+        setDuplicates({ matches: duplicate.matches, values });
         return;
       }
       setDuplicates(null);

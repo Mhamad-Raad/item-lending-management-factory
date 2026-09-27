@@ -1,4 +1,4 @@
-import type { ApiErrorBody, ApiFieldError, ErrorCode } from '@pallet/shared';
+import type { ApiErrorBody, ApiFieldError, ErrorCode, ErrorDetailsByCode } from '@pallet/shared';
 
 /** Codes the client itself produces; the server never sends them. */
 export type ClientErrorCode = 'NETWORK_ERROR' | 'REQUEST_TIMEOUT' | 'UNKNOWN_ERROR';
@@ -43,4 +43,13 @@ export async function apiErrorFromResponse(response: Response): Promise<ApiError
       response.status,
     );
   }
+}
+
+/**
+ * The typed `details` of `error` when it is an ApiError with `code`, else null: one checked place for
+ * what each code carries (`ErrorDetailsByCode` in @pallet/shared) instead of a cast at every call site.
+ */
+export function detailsOf<C extends keyof ErrorDetailsByCode>(error: unknown, code: C): ErrorDetailsByCode[C] | null {
+  if (!(error instanceof ApiError) || error.code !== code || !error.details) return null;
+  return error.details as unknown as ErrorDetailsByCode[C];
 }

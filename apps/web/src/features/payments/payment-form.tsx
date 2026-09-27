@@ -22,7 +22,7 @@ import { Card, CardContent } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { invalidateAfterPayment } from '@/features/orders/api';
 import { apiFetch } from '@/lib/api-client';
-import { ApiError } from '@/lib/api-error';
+import { detailsOf } from '@/lib/api-error';
 import { handleApiError } from '@/lib/errors';
 import { useIdempotencyKey } from '@/lib/idempotency';
 import { qk } from '@/lib/query-keys';
@@ -64,9 +64,10 @@ export function PaymentForm({ order }: { order: OrderDetailDto }) {
       void invalidateAfterPayment(queryClient, result.order);
     },
     onError: (error) => {
-      if (error instanceof ApiError && error.code === 'PAYMENT_EXCEEDS_OWED') {
+      const exceeded = detailsOf(error, 'PAYMENT_EXCEEDS_OWED');
+      if (exceeded) {
         // Something was paid or returned since the page loaded: say what is owed now, and reload it.
-        form.setError('amount', { message: exceedsOwed(Number(error.details?.owed ?? 0)) });
+        form.setError('amount', { message: exceedsOwed(exceeded.owed) });
         void queryClient.invalidateQueries({ queryKey: qk.orders.detail(order.id) });
         return;
       }

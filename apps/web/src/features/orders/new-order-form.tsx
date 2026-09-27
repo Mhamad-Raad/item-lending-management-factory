@@ -24,7 +24,7 @@ import { Card, CardContent } from '@/components/ui/card';
 import { customerQuery } from '@/features/customers/api';
 import { useUnsavedChangesGuard } from '@/hooks/use-unsaved-changes-guard';
 import { apiFetch } from '@/lib/api-client';
-import { ApiError } from '@/lib/api-error';
+import { ApiError, detailsOf } from '@/lib/api-error';
 import { useAuth, useCan } from '@/lib/auth';
 import { handleApiError } from '@/lib/errors';
 import { useIdempotencyKey } from '@/lib/idempotency';
@@ -101,18 +101,19 @@ export function NewOrderForm({ initialCustomerId }: { initialCustomerId?: number
       await navigate({ to: '/orders/$orderId', params: { orderId: String(order.id) }, search: { created: true } });
     },
     onError: (error, body) => {
-      if (error instanceof ApiError && error.code === 'CREDIT_LIMIT_EXCEEDED') {
-        const details = error.details as unknown as CreditExcess & { canOverride: boolean };
+      const credit = detailsOf(error, 'CREDIT_LIMIT_EXCEEDED');
+      if (credit) {
+        const { canOverride, ...details } = credit;
         setServerCredit({ ...details, customerId: body.customerId });
         // The out value moved under the page; show the figures the server used.
         void queryClient.invalidateQueries({ queryKey: qk.customers.all() });
-        if (details.canOverride) setConfirmingOverride(true);
+        if (canOverride) setConfirmingOverride(true);
         return;
       }
-      if (error instanceof ApiError && error.code === 'STOCK_INSUFFICIENT') {
+      const stock = detailsOf(error, 'STOCK_INSUFFICIENT');
+      if (stock) {
         // Someone took the pallets first: point at the rows, and let the stock figures refresh.
-        const short = (error.details?.items as { itemId: number; available: number }[] | undefined) ?? [];
-        for (const shortage of short) {
+        for (const shortage of stock.items) {
           const index = form.getValues('lines').findIndex((row) => row.itemId === shortage.itemId);
           if (index >= 0) {
             form.setError(`lines.${index}.quantity`, {

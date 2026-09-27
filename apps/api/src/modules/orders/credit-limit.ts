@@ -1,4 +1,4 @@
-import { checkCreditLimit } from '@pallet/shared';
+import { checkCreditLimit, type ErrorDetails } from '@pallet/shared';
 import type { AuthContext } from '../../common/auth-context';
 import { ApiError } from '../../common/errors/api-error';
 import { toSafeMoney } from '../../common/utils/money';
@@ -37,5 +37,8 @@ export async function assertCreditAllows(
 
   const details = { creditLimit, customerOutValue, depositDelta, excess };
   if (actor.isAdmin && confirmOverride) return details;
-  throw new ApiError('CREDIT_LIMIT_EXCEEDED', { ...details, canOverride: actor.isAdmin });
+  throw new ApiError('CREDIT_LIMIT_EXCEEDED', {
+    ...details,
+    canOverride: actor.isAdmin,
+  } satisfies ErrorDetails<'CREDIT_LIMIT_EXCEEDED'>);
 }
