@@ -4,6 +4,7 @@ import { captureException } from '@sentry/nestjs';
 import type { Request, Response } from 'express';
 import { JSON_BODY_LIMIT_BYTES } from '../../bootstrap';
 import { ApiError } from '../errors/api-error';
+import { isDatabaseUnavailable } from '../errors/prisma-errors';
 
 /**
  * What body-parser throws before a request reaches any handler: a plain error carrying an HTTP
@@ -44,14 +45,25 @@ export class ApiExceptionFilter implements ExceptionFilter {
     } else if (isBodyParserError(exception)) {
       status = exception.status;
       error = bodyParserErrorToBody(exception);
+    } else if (isDatabaseUnavailable(exception)) {
+      // The database is down, restarting or out of connections: a condition of the moment the client
+      // may retry, not a bug (Q82).
+      status = 503;
+      error = { code: 'SERVICE_UNAVAILABLE' };
+      this.logger.warn(`database unavailable: ${describe(exception)}`);
     } else {
       status = 500;
       error = { code: 'INTERNAL_ERROR' };
       this.logger.error(exception);
     }
 
-    // Server errors only (§10.6 D9); a no-op unless `instrument.ts` initialised Sentry.
-    if (status >= 500) captureException(exception);
+    // Server errors only (§10.6 D9); a no-op unless `instrument.ts` initialised Sentry. An outage is
+    // reported once per kind as a warning, grouped under one issue, rather than as a new bug per request.
+    if (status === 503) {
+      captureException(exception, { level: 'warning', fingerprint: ['service-unavailable'] });
+    } else if (status >= 500) {
+      captureException(exception);
+    }
 
     const body: ApiErrorBody = { error, requestId };
     res.status(status).json(body);
@@ -66,8 +78,16 @@ function bodyParserErrorToBody(exception: BodyParserError): ApiErrorBody['error'
   return { code: httpStatusToCode(exception.status) };
 }
 
+/** The error's class and code, without its message: a driver message can quote SQL or a connection string. */
+function describe(exception: unknown): string {
+  const { name, code } = (exception ?? {}) as { name?: unknown; code?: unknown };
+  return [typeof name === 'string' ? name : 'Error', typeof code === 'string' ? code : null].filter(Boolean).join(' ');
+}
+
 function httpStatusToCode(status: number): ErrorCode {
   switch (status) {
+    case 503:
+      return 'SERVICE_UNAVAILABLE';
     case 404:
       return 'ROUTE_NOT_FOUND';
     case 413:
