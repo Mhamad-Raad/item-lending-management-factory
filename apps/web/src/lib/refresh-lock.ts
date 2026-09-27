@@ -31,11 +31,14 @@ export function listenForPeerRefreshes(): void {
   };
 }
 
+/** Answers that say nothing about the session: ask again later (with 5xx). */
+const TRANSIENT_STATUSES = new Set([408, 429]);
+
 /**
  * True when the session was renewed, false when the server refused it (a 401: the cookie is missing,
- * expired, reused or revoked — the session is gone). Anything else — no connection, a 502 while the
- * API restarts, a rate limit — says nothing about the session, so it rejects with that ApiError and
- * the caller keeps the user signed in (Q79).
+ * expired, reused or revoked — the session is gone; or another 4xx no retry would change). No
+ * connection, a timeout, a 5xx while the API restarts or a rate limit say nothing about the session,
+ * so they reject with that ApiError and the caller keeps the user signed in (Q79).
  */
 async function doRefresh(): Promise<boolean> {
   // Signed out in some tab while the server was out of reach (Q80): the cookie is not to be used.
@@ -55,8 +58,12 @@ async function doRefresh(): Promise<boolean> {
     timer.clear();
   }
 
-  if (response.status === 401) return false;
-  if (!response.ok) throw await apiErrorFromResponse(response);
+  if (!response.ok) {
+    // Worth trying again later: the server is restarting, overloaded or throttling (Q79).
+    if (TRANSIENT_STATUSES.has(response.status) || response.status >= 500) throw await apiErrorFromResponse(response);
+    // Any other answer is the server's last word on this cookie — 401 AUTH_REFRESH_INVALID above all.
+    return false;
+  }
 
   authStore.setSession((await response.json()) as AuthTokenDto);
   return true;

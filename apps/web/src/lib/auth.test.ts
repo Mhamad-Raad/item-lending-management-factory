@@ -17,6 +17,15 @@ describe('bootstrapAuth (Q79)', () => {
     expect(authStore.getSnapshot().status).toBe('booting');
   });
 
+  it('starts signed out when the refresh endpoint answers a 4xx no retry would change', async () => {
+    vi.spyOn(globalThis, 'fetch').mockResolvedValueOnce(
+      new Response(JSON.stringify({ error: { code: 'ROUTE_NOT_FOUND' } }), { status: 404 }),
+    );
+
+    await expect(bootstrapAuth()).resolves.toBeUndefined();
+    expect(authStore.getSnapshot().status).toBe('anonymous');
+  });
+
   it('signs out when the server refuses the refresh cookie', async () => {
     vi.spyOn(globalThis, 'fetch').mockResolvedValueOnce(
       new Response(JSON.stringify({ error: { code: 'AUTH_REFRESH_INVALID' } }), { status: 401 }),
