@@ -384,9 +384,8 @@ model StockMovement {
   return    PalletReturn?  @relation(fields: [returnId], references: [id], onDelete: Restrict)
   createdBy User           @relation("StockMovementCreatedBy", fields: [createdByUserId], references: [id])
 
-  @@index([itemId, createdAt])
-  // The item ledger page walks one item's movements in id order (running balance, newest first).
-  @@index([itemId, id])
+  // The item ledger page walks one item's movements in id order: stock_movements_item_ledger_idx, with
+  // INCLUDE (quantity, reason), in the migrations and constraints.sql (Q102).
   @@index([batchId])
   @@index([orderId])
   @@index([returnId])

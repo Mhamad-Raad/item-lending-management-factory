@@ -278,6 +278,11 @@ CREATE INDEX ledger_entries_manual_payments_created_at_id_idx
 CREATE INDEX ledger_entries_refunds_created_at_id_idx
   ON ledger_entries (created_at, id) WHERE type = 'REFUND';
 
+-- An item's ledger page and its balances, index-only (Q102, migration 20260928000300_stock_movements_item_ledger).
+-- The predicate always holds; it keeps the index partial, which Prisma's schema diff leaves alone.
+CREATE INDEX stock_movements_item_ledger_idx
+  ON stock_movements (item_id, id) INCLUDE (quantity, reason) WHERE item_id IS NOT NULL;
+
 -- The automatic payments, read through their order's date (Q98, migration 20260928000000_ledger_effective_date),
 -- covering what the activity report reads of them (Q99, migration 20260928000100_ledger_undated_covering).
 CREATE INDEX ledger_entries_undated_order_id_idx

@@ -8,7 +8,15 @@ import { findLedgerDiscrepancies } from '../../src/prisma/reconciliation';
 import { createTestApp } from '../helpers/app';
 import { asUser, login, type Session } from '../helpers/auth';
 import { disconnectDatabase, resetDatabase } from '../helpers/db';
-import { EMPLOYEE_PASSWORD, createEmployee, createItem } from '../helpers/factories';
+import {
+  EMPLOYEE_PASSWORD,
+  createCustomer,
+  createDriver,
+  createEmployee,
+  createItem,
+  createOrder,
+  recordReturn,
+} from '../helpers/factories';
 
 /** Midday in Baghdad: "today" is 2026-09-12 for every business date below. */
 const NOW = new Date('2026-09-12T09:00:00Z');
@@ -332,6 +340,49 @@ describe('items and the stock ledger', () => {
 
     const missing = await http().get('/api/items/999999/stock-movements').set(asUser(admin)).expect(404);
     expect(missing.body).toMatchObject({ error: { code: 'ITEM_NOT_FOUND' } });
+  });
+
+  it('Q102: every page, page size and reason shows the balance the whole ledger left, as a running total did', async () => {
+    const item = await createItem(app, admin, { stock: 100 });
+    const customer = await createCustomer(app, admin);
+    const driver = await createDriver(app, admin);
+    for (const quantity of [-7, 12, -3]) await adjust(admin, item.id, quantity).expect(201);
+    const order = await createOrder(app, admin, {
+      customerId: customer.id,
+      driverId: driver.id,
+      date: '2026-09-10',
+      lines: [{ itemId: item.id, quantity: 20 }],
+    });
+    for (const quantity of [5, -1]) await adjust(admin, item.id, quantity).expect(201);
+    await recordReturn(app, admin, {
+      orderId: order.id,
+      date: '2026-09-10',
+      lines: [{ orderLineId: order.lines[0]!.id, acceptedQuantity: 6, damagedQuantity: 2 }],
+    });
+    await adjust(admin, item.id, 4).expect(201);
+
+    // The ledger's running total, as the list computed it before Q102.
+    const reference = await prisma.$queryRaw<{ id: number; reason: string; balance_after: number }[]>`
+      SELECT sm.id, sm.reason::text AS reason, SUM(sm.quantity) OVER (ORDER BY sm.id)::int AS balance_after
+        FROM stock_movements sm WHERE sm.item_id = ${item.id} ORDER BY sm.id DESC`;
+    expect(new Set(reference.map((row) => row.reason)).size).toBeGreaterThanOrEqual(4);
+
+    for (const reason of [undefined, 'MANUAL_ADJUSTMENT', 'BATCH_ADD', 'ORDER_CREATE', 'RETURN_ACCEPTED']) {
+      const expected = reference.filter((row) => reason === undefined || row.reason === reason);
+      for (const pageSize of [1, 2, 3, 100]) {
+        for (let page = 1; page <= Math.ceil(expected.length / pageSize) + 1; page += 1) {
+          const query = `?page=${page}&pageSize=${pageSize}${reason ? `&reason=${reason}` : ''}`;
+          const listed = (
+            await http().get(`/api/items/${item.id}/stock-movements${query}`).set(asUser(admin)).expect(200)
+          ).body as PageDto<StockMovementDto>;
+          expect([query, listed.total, listed.items.map((row) => [row.id, row.balanceAfter])]).toEqual([
+            query,
+            expected.length,
+            expected.slice((page - 1) * pageSize, page * pageSize).map((row) => [row.id, row.balance_after]),
+          ]);
+        }
+      }
+    }
   });
 
   it('lets a viewer read items but not change them', async () => {
