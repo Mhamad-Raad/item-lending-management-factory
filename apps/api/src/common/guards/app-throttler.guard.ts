@@ -33,10 +33,10 @@ function onlyScoped(scope: ThrottleScopeName): (context: ExecutionContext) => bo
 }
 
 /**
- * The throttlers of §6.8.8 (`global` per user once signed in, Q124). Skipping is configured per throttler here, not in the guard:
- * `ThrottlerGuard.shouldSkip` is not told which throttler it is being asked about, so overriding
- * it can only skip all of them or none. The per-user `upload` limit needs the authenticated user,
- * so it is a route guard of its own, `UploadThrottleGuard`, counting in the same storage.
+ * The throttlers of §6.8.8 (`global` counts per user once signed in, Q124). Skipping is configured per
+ * throttler here, not in the guard: `ThrottlerGuard.shouldSkip` is not told which throttler it is being
+ * asked about, so overriding it can only skip all of them or none. The per-user `upload` limit needs the
+ * authenticated user, so it is a route guard of its own, `UploadThrottleGuard`, counting in the same storage.
  */
 export const THROTTLER_DEFINITIONS: ThrottlerModuleOptions = {
   throttlers: [
