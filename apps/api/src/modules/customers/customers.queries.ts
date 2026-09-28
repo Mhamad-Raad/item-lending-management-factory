@@ -13,19 +13,27 @@ type Client = Pick<Prisma.TransactionClient, '$queryRaw'>;
 /**
  * Per customer, the sums of its orders that are not cancelled — per-order `held` is summed (§4.5, §6.17).
  * Pallets out, out value, owed and held are the standing totals of `openOrderTotalsByCustomer` (Q62).
- * Compensation stays assessed after settlement, so it is summed over the orders that carry any. `scope`
- * narrows both to some customers.
+ * `scope` narrows them to some customers.
  */
 function fromCustomers(scope: Prisma.Sql = Prisma.empty): Prisma.Sql {
   return Prisma.sql`
     FROM customers c
-    LEFT JOIN (${openOrderTotalsByCustomer(scope)}) t ON t.customer_id = c.id
-    LEFT JOIN (
-      SELECT customer_id, SUM(compensation)::bigint AS compensation
+    LEFT JOIN (${openOrderTotalsByCustomer(scope)}) t ON t.customer_id = c.id`;
+}
+
+/**
+ * Compensation stays assessed after settlement, so it is summed over the orders that carry any. It is
+ * never a sort or a filter, so a list page reads it for its own customers only, after the page is cut:
+ * summing it for every customer first cost the list most of its time at ten years (Q104).
+ */
+async function queryCompensation(client: Client, customerIds: readonly number[]): Promise<Map<number, bigint>> {
+  if (customerIds.length === 0) return new Map();
+  const rows = await client.$queryRaw<{ customerId: number; compensation: bigint }[]>`
+    SELECT customer_id AS "customerId", SUM(compensation)::bigint AS compensation
       FROM orders
-      WHERE compensation > 0 AND status <> 'CANCELLED' ${scope}
-      GROUP BY customer_id
-    ) k ON k.customer_id = c.id`;
+     WHERE compensation > 0 AND status <> 'CANCELLED' AND customer_id = ANY(${[...customerIds]}::int[])
+     GROUP BY customer_id`;
+  return new Map(rows.map((row) => [row.customerId, row.compensation]));
 }
 
 /** A customer without orders has no `t` or `k` row, and zeros. */
@@ -35,7 +43,6 @@ const TOTAL_COLUMNS = Prisma.sql`
   COALESCE(t.out_value, 0)::bigint AS "outValue",
   COALESCE(t.owed, 0)::bigint AS "owed",
   COALESCE(t.held, 0)::bigint AS "held",
-  COALESCE(k.compensation, 0)::bigint AS "compensation",
   COALESCE(t.open_order_count, 0)::int AS "openOrderCount"`;
 
 /** Output names or plain columns, never input: the sort field is picked from this map. */
@@ -54,17 +61,16 @@ interface TotalsRow {
   outValue: bigint;
   owed: bigint;
   held: bigint;
-  compensation: bigint;
   openOrderCount: number;
 }
 
-function toTotals(row: TotalsRow): OrderTotals {
+function toTotals(row: TotalsRow, compensation: bigint = 0n): OrderTotals {
   return {
     palletsOut: row.palletsOut,
     outValue: toSafeMoney(row.outValue),
     owed: toSafeMoney(row.owed),
     held: toSafeMoney(row.held),
-    compensation: toSafeMoney(row.compensation),
+    compensation: toSafeMoney(compensation),
     openOrderCount: row.openOrderCount,
   };
 }
@@ -78,7 +84,8 @@ export async function queryCustomerTotals(
   const rows = await client.$queryRaw<TotalsRow[]>`
     SELECT ${TOTAL_COLUMNS} ${fromCustomers(Prisma.sql`AND customer_id = ANY(${ids}::int[])`)}
     WHERE c.id = ANY(${ids}::int[])`;
-  return new Map(rows.map((row) => [row.id, toTotals(row)]));
+  const compensation = await queryCompensation(client, ids);
+  return new Map(rows.map((row) => [row.id, toTotals(row, compensation.get(row.id))]));
 }
 
 /** One page of customers with their totals, filtered and sorted in SQL: the sort may be a total. */
@@ -115,7 +122,14 @@ export async function queryCustomerPage(
       ${pageSqlLimit(query)}`,
     client.$queryRaw<{ total: number }[]>`SELECT COUNT(*)::int AS total ${fromCustomers()} ${where}`,
   ]);
-  return { rows: rows.map((row) => ({ id: row.id, ...toTotals(row) })), total: counted[0]?.total ?? 0 };
+  const compensation = await queryCompensation(
+    client,
+    rows.map((row) => row.id),
+  );
+  return {
+    rows: rows.map((row) => ({ id: row.id, ...toTotals(row, compensation.get(row.id)) })),
+    total: counted[0]?.total ?? 0,
+  };
 }
 
 interface HoldingRow {
