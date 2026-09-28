@@ -14,6 +14,7 @@ import { LoginThrottleService, type LockoutResult } from './login-throttle.servi
 import { checkPasswordPolicy } from './password-policy';
 import { PasswordService } from './password.service';
 import { SessionService, type IssuedToken } from './session.service';
+import { VerificationGate } from './verification-gate';
 import { runInTransaction } from '../../prisma/transaction';
 import { assertVersion, changedFields } from '../../common/utils/versioning';
 import { assertDisplayNameFree } from '../users/display-name';
@@ -46,6 +47,7 @@ export class AuthService {
     private readonly throttle: LoginThrottleService,
     private readonly sessions: SessionService,
     private readonly audit: AuditService,
+    private readonly gate: VerificationGate,
   ) {}
 
   /**
@@ -60,7 +62,7 @@ export class AuthService {
   async login(body: LoginBody, origin: RequestOrigin): Promise<AuthResult> {
     // A failed attempt still writes: its throttle counter and its audit row. Those must commit,
     // so the refusal is returned from the transaction and thrown only after it (§6.8.2 step 5).
-    const result = await runInTransaction(this.prisma, async (tx): Promise<AuthResult | Throttled | null> => {
+    const attempt = async (tx: Prisma.TransactionClient): Promise<AuthResult | Throttled | null> => {
       const { username, password } = body;
       // Lock order: the pair, the account-wide row, then the user.
       const throttle = await this.throttle.lock(tx, origin.ip, username);
@@ -140,7 +142,9 @@ export class AuthService {
       });
 
       return { token: this.issueAccessToken(user, toMeDto(user)), refresh };
-    });
+    };
+    // The gate is passed before the transaction opens, so a waiting attempt holds no connection (Q123).
+    const result = await this.gate.run(() => runInTransaction(this.prisma, attempt));
 
     if (!result) throw new ApiError('AUTH_INVALID_CREDENTIALS');
     if (!('token' in result)) {
@@ -217,7 +221,7 @@ export class AuthService {
     });
 
     // A wrong guess must still commit its count, so the refusal leaves the transaction as a value.
-    const result = await runInTransaction(this.prisma, async (tx): Promise<AuthResult | ApiError> => {
+    const attempt = async (tx: Prisma.TransactionClient): Promise<AuthResult | ApiError> => {
       // Login's lock order: the pair, the account-wide row, then the user.
       const throttle = await this.throttle.lock(tx, origin.ip, username);
       const account = await this.throttle.lockAccount(tx, username);
@@ -282,7 +286,9 @@ export class AuthService {
       });
 
       return { token: this.issueAccessToken(updated, toMeDto(updated)), refresh };
-    });
+    };
+    // As at the login: queued before the transaction, verifying inside it (Q123).
+    const result = await this.gate.run(() => runInTransaction(this.prisma, attempt));
 
     if (result instanceof ApiError) throw result;
     return result;
