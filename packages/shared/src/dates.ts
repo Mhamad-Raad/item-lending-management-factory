@@ -43,8 +43,6 @@ export function formatTimestamp(value: string | Date): string {
   return format(new TZDate(ms, BUSINESS_TIME_ZONE), 'dd/MM/yyyy HH:mm');
 }
 
-const MS_PER_DAY = 24 * 60 * 60 * 1000;
-
 /**
  * The UTC instant at which a Baghdad calendar day begins. The offset comes from the timezone
  * database rather than a constant: Baghdad is UTC+3 today, but observed DST until 2008 and
@@ -65,7 +63,15 @@ export function businessDayRangeToUtc(dateFrom?: string, dateTo?: string): { gte
 
   return {
     ...(dateFrom ? { gte: businessDayStartUtc(dateFrom) } : {}),
-    // Inclusive of the whole `dateTo` day: the interval ends when the next day begins.
-    ...(dateTo ? { lt: new Date(businessDayStartUtc(dateTo).getTime() + MS_PER_DAY) } : {}),
+    // Inclusive of the whole `dateTo` day: the interval ends when the next day begins — not 24 hours
+    // after this one began, since a day that changed its clock (Baghdad, until 2008) was 23 or 25 long.
+    ...(dateTo ? { lt: businessDayStartUtc(nextBusinessDate(dateTo)) } : {}),
   };
+}
+
+/** The calendar day after `value`, as `YYYY-MM-DD`. */
+export function nextBusinessDate(value: string): string {
+  const day = businessDateToDb(value);
+  day.setUTCDate(day.getUTCDate() + 1);
+  return dbDateToBusiness(day);
 }

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { businessDayRangeToUtc, businessDayStartUtc, businessToday } from './dates.js';
+import { businessDayRangeToUtc, businessDayStartUtc, businessToday, nextBusinessDate } from './dates.js';
 
 describe('Baghdad business days', () => {
   it('U13: rolls over at 21:00 UTC', () => {
@@ -22,6 +22,18 @@ describe('Baghdad business days', () => {
       gte: new Date('2026-09-11T21:00:00.000Z'),
       lt: new Date('2026-09-12T21:00:00.000Z'),
     });
+  });
+
+  it('ends a day where the next one begins, also on the days the clock changed', () => {
+    // 1 April 2007 lost an hour (UTC+3 → +4) and 1 October 2007 gained one (+4 → +3).
+    expect(businessDayRangeToUtc(undefined, '2007-04-01')).toEqual({ lt: new Date('2007-04-01T20:00:00.000Z') });
+    expect(businessDayRangeToUtc(undefined, '2007-10-01')).toEqual({ lt: new Date('2007-10-01T21:00:00.000Z') });
+  });
+
+  it('steps to the next calendar day across months, years and leap days', () => {
+    expect(nextBusinessDate('2026-09-30')).toBe('2026-10-01');
+    expect(nextBusinessDate('2026-12-31')).toBe('2027-01-01');
+    expect(nextBusinessDate('2028-02-28')).toBe('2028-02-29');
   });
 
   it('leaves an open end open, and reports no filter at all when neither bound is given', () => {
