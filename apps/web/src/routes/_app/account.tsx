@@ -44,8 +44,8 @@ function AccountPage() {
           <CardTitle>{t('account.profile.title')}</CardTitle>
         </CardHeader>
         <CardContent>
-          {/* Keyed by version: a save, here or elsewhere, remounts the form with what the server now holds. */}
-          {user ? <ProfileForm key={`${user.id}-${user.version}`} user={user} /> : null}
+          {/* Keyed by user only: a refresh must not remount the form over what is being typed (Q105). */}
+          {user ? <ProfileForm key={user.id} user={user} /> : null}
         </CardContent>
       </Card>
 

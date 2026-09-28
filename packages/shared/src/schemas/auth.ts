@@ -34,7 +34,11 @@ export const PASSWORD_MAX_LENGTH = 128;
  * the admin's user form validates it. Username, role and active state stay with the administrators.
  */
 export const MeUpdateBody = z.strictObject({
-  version: z.number().int().positive(),
   displayName: DisplayName,
+  /**
+   * The name the form started from (Q105): a save is refused when the stored name is no longer it. The user
+   * row's version would also refuse a save after an unrelated change, such as an admin editing permissions.
+   */
+  expectedDisplayName: z.string().max(100),
 });
 export type MeUpdateBody = z.infer<typeof MeUpdateBody>;

@@ -18,7 +18,6 @@ export function toMeDto(user: UserWithPermissions): MeDto {
     role: user.role,
     mustChangePassword: user.mustChangePassword,
     permissions: [...permissions].sort(),
-    version: user.version,
   };
 }
 
@@ -31,6 +30,5 @@ export function contextToMeDto(auth: AuthContext): MeDto {
     role: auth.role,
     mustChangePassword: auth.mustChangePassword,
     permissions: [...auth.permissions].sort(),
-    version: auth.version,
   };
 }

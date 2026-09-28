@@ -38,7 +38,6 @@ export const ADMIN: MeDto = {
   role: 'ADMIN',
   mustChangePassword: false,
   permissions: [],
-  version: 1,
 };
 
 export const ITEM: ItemDto = {
@@ -499,11 +498,11 @@ export async function mockApi(
   for (const [pattern, json] of routes) {
     await page.route(pattern, (route) => route.fulfill({ json }));
   }
-  // The one write every signed-in user has on their own page (Q94): the saved name, one version on.
+  // The one write every signed-in user has on their own page (Q94): the saved name.
   await page.route(/\/api\/auth\/me$/, (route) => {
     if (route.request().method() !== 'PATCH') return route.fallback();
     const body = route.request().postDataJSON() as { displayName: string };
-    const saved: MeDto = { ...user, displayName: body.displayName, version: user.version + 1 };
+    const saved: MeDto = { ...user, displayName: body.displayName };
     return route.fulfill({ json: saved });
   });
 }

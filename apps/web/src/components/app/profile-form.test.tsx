@@ -27,7 +27,6 @@ const ME: MeDto = {
   role: 'EMPLOYEE',
   mustChangePassword: false,
   permissions: ['orders.view'],
-  version: 3,
 };
 
 function nameInput(): HTMLInputElement {
@@ -45,7 +44,7 @@ async function save(): Promise<void> {
   });
 }
 
-describe('own profile form (Q94)', () => {
+describe('own profile form (Q94, Q105)', () => {
   beforeEach(async () => {
     await i18n.changeLanguage('en');
     apiFetch.mockReset();
@@ -65,7 +64,7 @@ describe('own profile form (Q94)', () => {
     fireEvent.change(nameInput(), { target: { value: ' Karwan ' } });
     expect(saveButton().disabled).toBe(true);
 
-    const saved: MeDto = { ...ME, displayName: 'Karwan Aziz', version: 4 };
+    const saved: MeDto = { ...ME, displayName: 'Karwan Aziz' };
     apiFetch.mockResolvedValue(saved);
     fireEvent.change(nameInput(), { target: { value: '  Karwan Aziz ' } });
     expect(saveButton().disabled).toBe(false);
@@ -73,10 +72,36 @@ describe('own profile form (Q94)', () => {
 
     expect(apiFetch).toHaveBeenCalledWith('/auth/me', {
       method: 'PATCH',
-      body: { version: 3, displayName: 'Karwan Aziz' },
+      body: { displayName: 'Karwan Aziz', expectedDisplayName: 'Karwan' },
     });
     expect(setUser).toHaveBeenCalledWith(saved);
     expect(toast.success).toHaveBeenCalledWith('Your name is saved');
+  });
+
+  it('keeps typed text when the signed-in user is refreshed, and names the name it started from (Q105)', async () => {
+    const { rerender } = render(<ProfileForm user={ME} />);
+    fireEvent.change(nameInput(), { target: { value: 'Karwan A' } });
+
+    // An admin changed the permissions: the user is refreshed with the same name.
+    rerender(<ProfileForm user={{ ...ME, permissions: ['audit.view', 'orders.view'] }} />);
+    expect(nameInput().value).toBe('Karwan A');
+    // Another tab saved a new name: typed text still wins, and the save names where it started.
+    rerender(<ProfileForm user={{ ...ME, displayName: 'Karwan from elsewhere' }} />);
+    expect(nameInput().value).toBe('Karwan A');
+
+    apiFetch.mockResolvedValue({ ...ME, displayName: 'Karwan A' });
+    await save();
+    expect(apiFetch).toHaveBeenCalledWith('/auth/me', {
+      method: 'PATCH',
+      body: { displayName: 'Karwan A', expectedDisplayName: 'Karwan' },
+    });
+  });
+
+  it('follows a name saved elsewhere while nothing is typed', () => {
+    const { rerender } = render(<ProfileForm user={ME} />);
+    rerender(<ProfileForm user={{ ...ME, displayName: 'Karwan Aziz' }} />);
+    expect(nameInput().value).toBe('Karwan Aziz');
+    expect(saveButton().disabled).toBe(true);
   });
 
   it('refuses an empty name before sending it', async () => {

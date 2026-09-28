@@ -39,7 +39,9 @@ describe('own display name', () => {
       .send(body as object);
 
   it('renames the caller, answers the new MeDto and records the change with before and after', async () => {
-    const response = await patch({ version: 1, displayName: '  Karwan Aziz  ' }).expect(200);
+    const response = await patch({ expectedDisplayName: employee.username, displayName: '  Karwan Aziz  ' }).expect(
+      200,
+    );
 
     const me = response.body as MeDto;
     expect(me).toMatchObject({
@@ -48,7 +50,6 @@ describe('own display name', () => {
       displayName: 'Karwan Aziz',
       role: 'EMPLOYEE',
       permissions: ['orders.view'],
-      version: 2,
     });
     const reread = await request(app.getHttpServer()).get('/api/auth/me').set(asUser(session)).expect(200);
     expect(reread.body).toEqual(me);
@@ -68,8 +69,8 @@ describe('own display name', () => {
     const other = await createUser(app, { username: 'other.worker' });
 
     for (const body of [
-      { version: 1, displayName: 'Taken over', id: other.id },
-      { version: 1, displayName: 'Taken over', userId: other.id },
+      { expectedDisplayName: employee.username, displayName: 'Taken over', id: other.id },
+      { expectedDisplayName: employee.username, displayName: 'Taken over', userId: other.id },
     ]) {
       const response = await patch(body).expect(400);
       expect(errorCode(response.body)).toBe('VALIDATION_FAILED');
@@ -77,7 +78,7 @@ describe('own display name', () => {
     await request(app.getHttpServer())
       .patch(`/api/auth/me/${other.id}`)
       .set(asUser(session))
-      .send({ version: 1, displayName: 'Taken over' })
+      .send({ expectedDisplayName: 'other.worker', displayName: 'Taken over' })
       .expect(404);
 
     const rows = await prisma.user.findMany({ where: { id: { in: [employee.id, other.id] } }, orderBy: { id: 'asc' } });
@@ -96,7 +97,9 @@ describe('own display name', () => {
       { mustChangePassword: false },
       { permissions: ['users.manage'] },
     ]) {
-      const response = await patch({ version: 1, displayName: 'Karwan', ...extra }).expect(400);
+      const response = await patch({ expectedDisplayName: employee.username, displayName: 'Karwan', ...extra }).expect(
+        400,
+      );
       expect(response.body, JSON.stringify(extra)).toMatchObject({
         error: { code: 'VALIDATION_FAILED', fields: [{ path: Object.keys(extra)[0], code: 'unknown_key' }] },
       });
@@ -108,10 +111,12 @@ describe('own display name', () => {
 
   it('validates the name as the admin form does', async () => {
     const cases: [unknown, string, string][] = [
-      [{ version: 1, displayName: '   ' }, 'displayName', 'too_short'],
-      [{ version: 1, displayName: 'x'.repeat(101) }, 'displayName', 'too_long'],
-      [{ version: 1 }, 'displayName', 'required'],
-      [{ displayName: 'Karwan' }, 'version', 'required'],
+      [{ expectedDisplayName: 'x', displayName: '   ' }, 'displayName', 'too_short'],
+      [{ expectedDisplayName: 'x', displayName: 'x'.repeat(101) }, 'displayName', 'too_long'],
+      [{ expectedDisplayName: 'x' }, 'displayName', 'required'],
+      [{ displayName: 'Karwan' }, 'expectedDisplayName', 'required'],
+      // The version no longer decides (Q105): naming it is an unknown field.
+      [{ version: 1, expectedDisplayName: 'x', displayName: 'Karwan' }, 'version', 'unknown_key'],
     ];
     for (const [body, path, code] of cases) {
       const response = await patch(body).expect(400);
@@ -121,18 +126,36 @@ describe('own display name', () => {
     }
   });
 
-  it('answers a stale version with VERSION_CONFLICT and the version stored now', async () => {
-    await patch({ version: 1, displayName: 'First' }).expect(200);
+  it('answers a form started from a name changed since with VERSION_CONFLICT (Q105)', async () => {
+    await patch({ expectedDisplayName: employee.username, displayName: 'First' }).expect(200);
 
-    const response = await patch({ version: 1, displayName: 'Second' }).expect(409);
+    const response = await patch({ expectedDisplayName: employee.username, displayName: 'Second' }).expect(409);
     expect(response.body).toMatchObject({ error: { code: 'VERSION_CONFLICT', details: { currentVersion: 2 } } });
     expect((await prisma.user.findUniqueOrThrow({ where: { id: employee.id } })).displayName).toBe('First');
   });
 
-  it('writes nothing for an unchanged name (Q37)', async () => {
-    const response = await patch({ version: 1, displayName: ` ${employee.username} ` }).expect(200);
+  it('is not refused because an admin changed the permissions or role meanwhile (Q105)', async () => {
+    const admin = await login(app);
+    await request(app.getHttpServer())
+      .put(`/api/users/${employee.id}/permissions`)
+      .set(asUser(admin))
+      .send({ version: 1, permissions: ['audit.view'] })
+      .expect(200);
+    const bumped = await prisma.user.findUniqueOrThrow({ where: { id: employee.id } });
+    expect(bumped.version).toBeGreaterThan(1);
 
-    expect((response.body as MeDto).version).toBe(1);
+    const response = await patch({ expectedDisplayName: employee.username, displayName: 'Karwan' }).expect(200);
+    expect(response.body).toMatchObject({ displayName: 'Karwan', permissions: ['audit.view'] });
+    expect((await prisma.user.findUniqueOrThrow({ where: { id: employee.id } })).version).toBe(bumped.version + 1);
+  });
+
+  it('writes nothing for an unchanged name (Q37)', async () => {
+    const response = await patch({
+      expectedDisplayName: employee.username,
+      displayName: ` ${employee.username} `,
+    }).expect(200);
+
+    expect((response.body as MeDto).displayName).toBe(employee.username);
     expect((await prisma.user.findUniqueOrThrow({ where: { id: employee.id } })).version).toBe(1);
     expect(await prisma.auditLog.count({ where: { entityType: 'USER', action: 'UPDATE' } })).toBe(0);
   });
@@ -141,7 +164,9 @@ describe('own display name', () => {
     const fresh = await createUser(app, { username: 'fresh.start', mustChangePassword: true });
     const freshSession = await login(app, fresh.username, fresh.password);
 
-    const response = await patch({ version: 1, displayName: 'Fresh' }, freshSession).expect(403);
+    const response = await patch({ expectedDisplayName: 'fresh.start', displayName: 'Fresh' }, freshSession).expect(
+      403,
+    );
     expect(errorCode(response.body)).toBe('PASSWORD_CHANGE_REQUIRED');
     expect((await prisma.user.findUniqueOrThrow({ where: { id: fresh.id } })).displayName).toBe('fresh.start');
   });

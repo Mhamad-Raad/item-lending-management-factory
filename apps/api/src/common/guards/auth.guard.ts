@@ -55,7 +55,6 @@ export class AuthGuard implements CanActivate {
       role: user.role,
       isAdmin,
       mustChangePassword: user.mustChangePassword,
-      version: user.version,
       permissions,
       canViewCost: isAdmin || permissions.has('items.viewCost'),
       ip: req.ip ?? '',

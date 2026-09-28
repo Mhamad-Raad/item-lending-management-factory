@@ -15,7 +15,7 @@ import { checkPasswordPolicy } from './password-policy';
 import { PasswordService } from './password.service';
 import { SessionService, type IssuedToken } from './session.service';
 import { runInTransaction } from '../../prisma/transaction';
-import { assertVersion, changedFields } from '../../common/utils/versioning';
+import { changedFields } from '../../common/utils/versioning';
 
 export interface RequestOrigin {
   ip: string;
@@ -299,7 +299,11 @@ export class AuthService {
       });
       // Deactivated between the guard and the lock: the session is no longer good for anything.
       if (!before?.isActive) throw new ApiError('AUTH_TOKEN_INVALID');
-      assertVersion(before.version, body.version);
+      // Q105: a lost update of the name is what to refuse. The row's version also moves when an admin changes
+      // the user's permissions or role, which the user's own form has not overwritten.
+      if (before.displayName !== body.expectedDisplayName) {
+        throw new ApiError('VERSION_CONFLICT', { currentVersion: before.version });
+      }
 
       // Q37: a save that changes nothing writes nothing — no version bump, no history row.
       if (changedFields(body, before, ['displayName'] as const).length === 0) return toMeDto(before);

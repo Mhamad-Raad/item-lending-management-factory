@@ -1,5 +1,6 @@
 import { zodResolver } from '@hookform/resolvers/zod';
 import { MeUpdateBody, type MeDto } from '@pallet/shared';
+import { useEffect } from 'react';
 import { useForm, useWatch } from 'react-hook-form';
 import { useTranslation } from 'react-i18next';
 import { toast } from 'sonner';
@@ -11,14 +12,15 @@ import { apiFetch } from '@/lib/api-client';
 import { authStore, refreshMe } from '@/lib/auth';
 import { handleApiError } from '@/lib/errors';
 
-/** The request schema without the version, which comes from the signed-in user rather than the form. */
+/** The request schema without the name the form started from, which the form itself remembers. */
 const ProfileFormSchema = MeUpdateBody.pick({ displayName: true });
 
 /**
  * The signed-in user's own profile (§7.3.21, Q94): the display name is theirs to change; the username
  * (the sign-in name) and the role stay with the administrators and are shown read-only. The saved name
- * goes straight into the auth store, so the sidebar and the greeting change at once. The page keys this
- * form by the user's version, so a save — here or anywhere else — remounts it with what the server holds.
+ * goes straight into the auth store, so the sidebar and the greeting change at once. A save names the name
+ * the form started from (Q105): an admin changing the user's permissions meanwhile is no conflict, a new
+ * name is. When the signed-in user is refreshed, the form follows a new name only while nothing is typed.
  */
 export function ProfileForm({ user }: { user: MeDto }) {
   const { t } = useTranslation();
@@ -31,11 +33,18 @@ export function ProfileForm({ user }: { user: MeDto }) {
   const guard = useUnsavedChangesGuard(form.formState.isDirty);
   const unchanged = useWatch({ control: form.control, name: 'displayName' }).trim() === user.displayName;
 
+  // A name saved elsewhere (another tab, an admin) replaces an untouched field; typed text is never lost.
+  useEffect(() => {
+    if (!form.formState.isDirty && form.formState.defaultValues?.displayName !== user.displayName) {
+      form.reset({ displayName: user.displayName });
+    }
+  }, [form, user.displayName]);
+
   const onSubmit = form.handleSubmit(async (values) => {
     try {
       const me = await apiFetch<MeDto>('/auth/me', {
         method: 'PATCH',
-        body: { version: user.version, displayName: values.displayName },
+        body: { displayName: values.displayName, expectedDisplayName: form.formState.defaultValues?.displayName ?? '' },
       });
       form.reset({ displayName: me.displayName });
       authStore.setUser(me);
@@ -44,7 +53,11 @@ export function ProfileForm({ user }: { user: MeDto }) {
       handleApiError(error, {
         setError: form.setError,
         fields: ['displayName'],
-        onReload: () => void refreshMe().catch((reloadError: unknown) => handleApiError(reloadError)),
+        // Reloading takes the stored name, over what was typed: the user chose to.
+        onReload: () =>
+          void refreshMe()
+            .then((me) => form.reset({ displayName: me.displayName }))
+            .catch((reloadError: unknown) => handleApiError(reloadError)),
       });
     }
   });

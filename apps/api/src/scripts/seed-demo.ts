@@ -350,7 +350,6 @@ async function main(): Promise<void> {
       role: adminRow.role,
       isAdmin: true,
       mustChangePassword: adminRow.mustChangePassword,
-      version: adminRow.version,
       permissions: new Set(PERMISSION_KEYS),
       canViewCost: true,
       ip: '127.0.0.1',

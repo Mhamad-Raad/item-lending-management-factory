@@ -39,7 +39,7 @@ test('renames the signed-in user and shows the new name in the shell at once', a
   await save.click();
 
   await expect(page.getByText('Your name is saved')).toBeVisible();
-  expect(sent).toEqual([{ version: ADMIN.version, displayName: 'Karwan Aziz' }]);
+  expect(sent).toEqual([{ displayName: 'Karwan Aziz', expectedDisplayName: ADMIN.displayName }]);
   await expect(page.getByRole('button', { name: 'Karwan Aziz' }).first()).toBeVisible();
   await expect(page.getByLabel('Display name')).toHaveValue('Karwan Aziz');
   await expect(save).toBeDisabled();
