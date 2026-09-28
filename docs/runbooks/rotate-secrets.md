@@ -36,7 +36,9 @@ There are two keys (Q70, `backup-keys.md`): the VPS's **append-only** key (no `d
 
 ## Deploy SSH key
 
-Replace `VPS_SSH_KEY` in GitHub secrets and `~/.ssh/authorized_keys` on the VPS.
+Generate a new key pair (`ssh-keygen -t ed25519 -N '' -f pallet-deploy`), put the public key in `~/.ssh/authorized_keys` on the VPS
+with the same `restrict,command="…"` prefix as the old one (`deploy.md`, "The deploy key"), replace `VPS_SSH_KEY` in the
+`production` environment's secrets, deploy once, then delete the old line from `authorized_keys`.
 
 ## GHCR token (the VPS pulls the images with it)
 

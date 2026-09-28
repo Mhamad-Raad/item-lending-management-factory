@@ -40,8 +40,41 @@ Rules:
 - Migrations must be expand-only for one release (add columns/tables; drop only in the release after the code stops using them). This keeps rollback safe.
 - A short restart is acceptable (zero downtime is not required). Deploy outside factory working hours when possible.
 
-One-time VPS prerequisites: `/opt/pallet` is a git clone of the repository; `/opt/pallet/.env` exists (from `.env.example`); `docker login ghcr.io` done with a classic GitHub token that has only `read:packages` and an expiry you have written down (`rotate-secrets.md`, "GHCR token") — or both GHCR packages set to public; GitHub repository secrets `VPS_HOST`, `VPS_USER`, `VPS_SSH_KEY`, `VPS_HOST_FINGERPRINT` and environment `production` exist; the backup bucket has Object Lock and the VPS an append-only key (`backup-keys.md`).
+One-time VPS prerequisites: `/opt/pallet` is a git clone of the repository; `/opt/pallet/.env` exists (from `.env.example`); `docker login ghcr.io` done with a classic GitHub token that has only `read:packages` and an expiry you have written down (`rotate-secrets.md`, "GHCR token") — or both GHCR packages set to public; the `production` environment exists with the secrets `VPS_HOST`, `VPS_USER`, `VPS_SSH_KEY` and `VPS_KNOWN_HOSTS` ("The deploy key" below); the backup bucket has Object Lock and the VPS an append-only key (`backup-keys.md`).
 
 Repository settings (by hand, GitHub → Settings → Environments → `production`): add yourself as a required reviewer, and under "Deployment branches and tags" allow only `main` and tags matching `v*`. The workflow also refuses any other ref on its own (ARCHITECTURE.md Q76).
 
 Servers set up before 2026-09-26 gave the owner role `CREATEDB`, which production never needs. Remove it once: `docker compose exec -T postgres psql -U postgres -c "ALTER ROLE pallet_owner NOCREATEDB;"`.
+
+## The deploy key
+
+The `Deploy` workflow connects with the runner's own `ssh` (ARCHITECTURE.md Q128). It trusts the server only through the
+`VPS_KNOWN_HOSTS` secret, and on the server the key may run `deploy.sh` and nothing else.
+
+Set up once (and again after rotating the key, `rotate-secrets.md`):
+
+1. On the VPS, print the host key's fingerprint: `ssh-keygen -lf /etc/ssh/ssh_host_ed25519_key.pub`.
+2. On your own machine, fetch the host-key line and check that its fingerprint is the same as in step 1:
+
+   ```bash
+   ssh-keyscan -t ed25519 <vps-host> 2>/dev/null | tee known_hosts.line
+   ssh-keygen -lf known_hosts.line
+   ```
+
+   Only when the two fingerprints match: GitHub → Settings → Environments → `production` → add the secret
+   `VPS_KNOWN_HOSTS` with the content of `known_hosts.line`. (A custom SSH port: `ssh-keyscan -p <port>` writes
+   `[host]:port`, and `VPS_HOST` must then be written the same way — or leave the port at 22.)
+
+3. On the VPS, as the deploy user, prefix the CI key's line in `~/.ssh/authorized_keys` so it can only run the deploy:
+
+   ```text
+   restrict,command="/opt/pallet/deploy/deploy.sh" ssh-ed25519 AAAA… pallet-ci-deploy
+   ```
+
+   `deploy.sh` reads the requested SHA from `SSH_ORIGINAL_COMMAND` and refuses anything but a full 40-character SHA.
+   Check it from your machine with the CI key: `ssh -i pallet-deploy <user>@<vps> 'id'` must answer
+   `deploy: refused — this key may only run deploy.sh …`. Keep your own login key on a separate, unrestricted line.
+
+4. Delete the old secret `VPS_HOST_FINGERPRINT`; the workflow no longer reads it.
+
+If the server is rebuilt or its host key changes, the deploy stops at `Host key verification failed` — repeat steps 1–2.

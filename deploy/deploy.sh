@@ -6,6 +6,23 @@
 # migration has run — which makes the automatic image rollback below safe.
 set -Eeuo pipefail
 
+# Forced-command form (docs/runbooks/deploy.md, "The deploy key"): the CI key's authorized_keys line is
+# `restrict,command="/opt/pallet/deploy/deploy.sh"`, so sshd runs this script whatever the client asked for and
+# passes the request in SSH_ORIGINAL_COMMAND. Only "<40-hex sha>" or "<path>/deploy.sh <40-hex sha>" is
+# accepted — a stolen key can deploy a commit of this repository, and nothing else (Q128).
+if (( $# == 0 )) && [[ -n "${SSH_ORIGINAL_COMMAND:-}" ]]; then
+  read -r -a requested <<< "$SSH_ORIGINAL_COMMAND"
+  if (( ${#requested[@]} == 2 )) && [[ "${requested[0]}" == */deploy.sh ]]; then
+    requested=("${requested[1]}")
+  fi
+  if (( ${#requested[@]} != 1 )) || [[ ! "${requested[0]}" =~ ^[0-9a-f]{40}$ ]]; then
+    echo "deploy: refused — this key may only run deploy.sh with a full 40-character commit SHA" >&2
+    exit 1
+  fi
+  set -- "${requested[0]}"
+  unset requested
+fi
+
 APP_DIR="${APP_DIR:-/opt/pallet}"
 NEW_SHA="${1:?usage: deploy.sh <git-sha>}"
 HEALTH_TIMEOUT_SECONDS=60
