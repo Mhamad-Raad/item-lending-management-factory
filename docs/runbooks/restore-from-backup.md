@@ -19,7 +19,7 @@ If the old server was compromised, first follow "If the VPS was compromised" in 
 
    Every step until the swap leaves `pallet` exactly as it was; if the script stops there, `cd /opt/pallet && docker compose up -d` brings the app back on the old data. The script says which case applies.
 
-5. Verify: `docker compose exec -T api node dist/scripts/reconcile.js` prints `0 differences`; log in; open three recent orders and the dashboard; open one item image.
+5. Verify: `docker compose exec -T api node --max-old-space-size=256 dist/scripts/reconcile.js` prints `0 differences`; log in; open three recent orders and the dashboard; open one item image.
 
 ## After a restore
 

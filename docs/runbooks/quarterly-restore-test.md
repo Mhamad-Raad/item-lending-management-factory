@@ -10,7 +10,7 @@ Checklist:
 - [ ] 4. From the password manager only: write `/opt/pallet/.env` (production values, `APP_DOMAIN` = a test hostname) and `/etc/pallet/backup.env`.
 - [ ] 5. `docker login ghcr.io` and `docker compose pull`.
 - [ ] 6. `sudo /opt/pallet/deploy/backup/restore.sh --yes latest`.
-- [ ] 7. `docker compose exec -T api node dist/scripts/reconcile.js` → `0 differences`.
+- [ ] 7. `docker compose exec -T api node --max-old-space-size=256 dist/scripts/reconcile.js` → `0 differences`.
 - [ ] 8. Log in as an admin; compare dashboard totals, the newest order number and one customer's owed/held with production.
 - [ ] 9. Open an item image and the receipt of the newest order.
 - [ ] 10. Destroy the temporary VPS; delete its DNS record.

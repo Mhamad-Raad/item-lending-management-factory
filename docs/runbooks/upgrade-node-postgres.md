@@ -16,7 +16,7 @@
 4. Keep a copy of the old data volume (Docker cannot rename volumes): `docker compose stop postgres && docker run --rm -v pallet_pgdata:/from:ro -v pallet_pgdata_pg18:/to alpine:3.22 cp -a /from/. /to/`, then `docker compose rm -f postgres && docker volume rm pallet_pgdata`.
 5. Change the image tag to the new major in `docker-compose.yml`, `docker-compose.dev.yml`, CI; `docker compose up -d postgres` (init script recreates roles on the empty volume).
 6. `docker compose exec -T postgres pg_restore -U pallet_owner -d pallet --exit-on-error < /var/backups/pallet/pre-upgrade.dump`.
-7. `docker compose --profile migrate run --rm migrate && docker compose up -d`; run `node dist/scripts/reconcile.js`.
+7. `docker compose --profile migrate run --rm migrate && docker compose up -d`; run `node --max-old-space-size=256 dist/scripts/reconcile.js`.
 8. Keep `pallet_pgdata_pg18` for 30 days, then remove it.
 
 ## Major library upgrades (NestJS 12, TypeScript 7, Prisma 8)

@@ -22,9 +22,11 @@ DUMP_FILE="$DUMP_DIR/pallet-$STAMP.dump"
 ping /start
 install -d -m 700 "$DUMP_DIR"
 
-# 1) Database (custom format, compressed). Local socket inside the container → no password needed.
+# 1) Database (custom format, uncompressed: -Z0). Local socket inside the container → no password needed.
+#    restic compresses and deduplicates what it stores; a compressed dump changes as a whole every night,
+#    so each snapshot would add the full database again instead of the day's changes (Q104).
 cd "$APP_DIR"
-docker compose exec -T postgres pg_dump -U pallet_owner -d pallet -Fc > "$DUMP_FILE"
+docker compose exec -T postgres pg_dump -U pallet_owner -d pallet -Fc -Z0 > "$DUMP_FILE"
 [[ -s "$DUMP_FILE" ]] || { echo "empty dump" >&2; exit 1; }
 
 # 2) Uploads volume (read directly from its mountpoint on the host).

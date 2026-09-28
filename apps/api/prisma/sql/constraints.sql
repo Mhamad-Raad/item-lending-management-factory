@@ -289,6 +289,14 @@ CREATE INDEX ledger_entries_undated_order_id_idx
   ON ledger_entries (order_id) INCLUDE (amount, created_at, type) WHERE date IS NULL;
 
 -- ═══════════════════════════════════════════════════════════════════════════════════════
+-- Autovacuum on the append-only ledgers (Q104, migration 20260928000400_append_only_autovacuum)
+-- Vacuumed after 1 % new rows instead of 20 %, so their index-only reads stay index-only.
+-- ═══════════════════════════════════════════════════════════════════════════════════════
+ALTER TABLE audit_logs SET (autovacuum_vacuum_insert_scale_factor = 0.01);
+ALTER TABLE stock_movements SET (autovacuum_vacuum_insert_scale_factor = 0.01);
+ALTER TABLE ledger_entries SET (autovacuum_vacuum_insert_scale_factor = 0.01);
+
+-- ═══════════════════════════════════════════════════════════════════════════════════════
 -- Seed rows required by the schema itself
 -- ═══════════════════════════════════════════════════════════════════════════════════════
 INSERT INTO order_counter (id, last_number) VALUES (1, 0) ON CONFLICT (id) DO NOTHING;

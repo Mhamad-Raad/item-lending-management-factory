@@ -44,7 +44,7 @@ finishes the job. Work as `deploy` in `/opt/pallet` unless a step says otherwise
 
 ## `reconcile` reports differences
 
-`docker compose exec api node dist/scripts/reconcile.js` must print `0 discrepancies` (§4.9). If it does not:
+`docker compose exec api node --max-old-space-size=256 dist/scripts/reconcile.js` must print `0 discrepancies` (§4.9). If it does not:
 
 1. Stop taking new entries (tell the office), keep the API running for reading.
 2. Note every line it prints; each names the entity, id, field, the stored value and the recomputed one.
