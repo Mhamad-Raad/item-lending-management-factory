@@ -132,7 +132,12 @@ docker compose stop api
 docker compose up -d --wait postgres
 install -d -m 700 "$PRE_MIGRATE_DIR"
 dump_file="$PRE_MIGRATE_DIR/pre-migrate-$(date -u +%Y%m%dT%H%M%SZ)-${NEW_SHA:0:12}.dump"
+# The dump holds every customer and password hash: owner-only from the moment it exists, not after a chmod.
+# Scoped to the dump — the checkout above must keep the modes the containers need to read their files.
+saved_umask="$(umask)"
+umask 077
 docker compose exec -T postgres pg_dump -U pallet_owner -d pallet -Fc > "$dump_file"
+umask "$saved_umask"
 if [[ ! -s "$dump_file" ]]; then
   rm -f -- "$dump_file"
   echo "deploy: the pre-migration dump came out empty — nothing was migrated" >&2

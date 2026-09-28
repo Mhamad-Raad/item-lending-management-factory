@@ -2,7 +2,7 @@
 # API image (also used by the one-shot `migrate` service). Build context = repository root:
 #   docker build -f apps/api/Dockerfile -t ghcr.io/mhamad-raad/pallet-api:<sha> .
 
-FROM node:24.21.0-bookworm-slim AS build
+FROM node:24.21.0-trixie-slim AS build
 ENV PNPM_HOME=/pnpm \
     PATH=/pnpm:$PATH \
     CI=true \
@@ -29,7 +29,7 @@ RUN pnpm --filter "@pallet/api..." build
 RUN --mount=type=cache,id=pnpm-store,target=/pnpm/store \
     pnpm --filter @pallet/api deploy --legacy --prod /out
 
-FROM node:24.21.0-bookworm-slim AS runtime
+FROM node:24.21.0-trixie-slim AS runtime
 ENV NODE_ENV=production \
     CHECKPOINT_DISABLE=1 \
     PRISMA_HIDE_UPDATE_MESSAGE=1
