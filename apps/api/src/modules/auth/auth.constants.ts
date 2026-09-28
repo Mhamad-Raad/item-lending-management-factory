@@ -33,6 +33,11 @@ export function lockoutDurationMs(lockoutCount: number): number {
 export const ACCOUNT_THROTTLE_IP = '*';
 export const ACCOUNT_FAILURE_WINDOW_MS = 60 * 60 * 1000;
 export const ACCOUNT_MAX_FAILURES = 20;
+/**
+ * The ceiling is reached only while failures come from at least this many addresses (Q122): one address
+ * alone is already limited by its pair lock, and must not be able to hold every account's ceiling by itself.
+ */
+export const ACCOUNT_MIN_DISTINCT_ADDRESSES = 3;
 export const ACCOUNT_THROTTLE_BASE_MS = 5 * 60 * 1000;
 export const ACCOUNT_THROTTLE_MAX_MS = 60 * 60 * 1000;
 

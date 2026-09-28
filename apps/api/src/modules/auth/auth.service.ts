@@ -83,9 +83,11 @@ export class AuthService {
         return { code: 'LOGIN_THROTTLED', retryAfterSeconds: pairRetryAfter };
       }
 
-      // Past the account's ceiling only an address that has signed in to it before may try (Q68).
+      // Past the account's ceiling only an address that has signed in to it before may try (Q68). For a name
+      // with no account, an address any account signed in from counts as known, so that from the factory's
+      // address a real and an invented name are both let through to the same wrong-password answer (Q122).
       const retryAfterSeconds = this.throttle.retryAfterSeconds(account);
-      if (retryAfterSeconds !== null && !(user && (await this.throttle.isKnownAddress(tx, user.id, origin.ip)))) {
+      if (retryAfterSeconds !== null && !(await this.isKnownAddress(tx, user, origin.ip))) {
         await this.passwords.verifyDummy(password);
         await this.auditLoginFailure(tx, user, username, 'ACCOUNT_THROTTLED');
         return { code: 'LOGIN_ACCOUNT_THROTTLED', retryAfterSeconds };
@@ -324,6 +326,10 @@ export class AuthService {
 
       return toMeDto(after);
     });
+  }
+
+  private isKnownAddress(tx: Prisma.TransactionClient, user: User | null, ip: string): Promise<boolean> {
+    return user ? this.throttle.isKnownAddress(tx, user.id, ip) : this.throttle.isAddressKnownToAnyAccount(tx, ip);
   }
 
   private issueAccessToken(user: User, me: MeDto): AuthTokenDto {

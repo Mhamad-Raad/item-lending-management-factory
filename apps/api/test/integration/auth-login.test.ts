@@ -296,6 +296,87 @@ describe('login', () => {
       });
     });
 
+    it('Q122: is not reached by one or two addresses alone, however many failures they make', async () => {
+      // Their own addresses: the in-memory `login` throttler (60 a minute) outlives the reset between tests.
+      const LONE_IP = '203.0.113.50';
+      const SECOND_IP = '203.0.113.51';
+      // One address makes twenty failures within the hour, waiting out each of its pair locks (1, 2, 4, 8 min).
+      for (let lock = 0; lock < 4; lock++) {
+        for (let i = 0; i < 4; i++)
+          await attempt(app, { username: TEST_ADMIN.username, password: 'x' }, LONE_IP).expect(401);
+        await attempt(app, { username: TEST_ADMIN.username, password: 'x' }, LONE_IP).expect(429);
+        clock.advance(2 ** lock * 60_000 + 1_000);
+      }
+      // A second address adds more; the account still has no ceiling, so a new address signs in.
+      for (let i = 0; i < 4; i++)
+        await attempt(app, { username: TEST_ADMIN.username, password: 'x' }, SECOND_IP).expect(401);
+      await attempt(app, { username: TEST_ADMIN.username, password: TEST_ADMIN.password }, NEW_IP).expect(200);
+
+      const prisma = app.get(PrismaService);
+      const scope = { action: 'LOCKOUT' as const, summaryParams: { path: ['scope'], equals: 'ACCOUNT' } };
+      expect(await prisma.auditLog.count({ where: scope })).toBe(0);
+
+      // A third address failing brings the count, already past twenty, to the ceiling at once.
+      await attempt(app, { username: TEST_ADMIN.username, password: 'x' }, '198.51.100.77').expect(401);
+      expect(await prisma.auditLog.count({ where: scope })).toBe(1);
+      await attempt(app, { username: TEST_ADMIN.username, password: TEST_ADMIN.password }, '192.0.2.203').expect(429);
+    });
+
+    describe('Q122: under a holding ceiling an unknown username answers as an existing one would', () => {
+      /** The body without its request id, and how many verifications it ran. */
+      const probe = async (username: string, ip: string, status: number) => {
+        const passwords = app.get(PasswordService);
+        const verify = vi.spyOn(passwords, 'verify');
+        const verifyDummy = vi.spyOn(passwords, 'verifyDummy');
+        try {
+          const response = await attempt(app, { username, password: 'wrong-guess' }, ip).expect(status);
+          return {
+            body: { ...(response.body as object), requestId: undefined },
+            verifications: verify.mock.calls.length + verifyDummy.mock.calls.length,
+          };
+        } finally {
+          vi.restoreAllMocks();
+        }
+      };
+
+      beforeEach(async () => {
+        // The admin signs in from KNOWN_IP (the factory's address), then both names reach their ceilings.
+        await attempt(app, { username: TEST_ADMIN.username, password: TEST_ADMIN.password }, KNOWN_IP).expect(200);
+        await spreadFailures(TEST_ADMIN.username, 20);
+        await spreadFailures('nobody-here', 20, 20);
+      });
+
+      it('from an address people sign in from: the plain wrong-password answer, one verification each', async () => {
+        const real = await probe(TEST_ADMIN.username, KNOWN_IP, 401);
+        const invented = await probe('nobody-here', KNOWN_IP, 401);
+        expect(invented).toEqual(real);
+        expect(real).toEqual({
+          body: { error: { code: 'AUTH_INVALID_CREDENTIALS' }, requestId: undefined },
+          verifications: 1,
+        });
+      });
+
+      it('from an address nobody signed in from: the ceiling’s answer for both', async () => {
+        const real = await probe(TEST_ADMIN.username, NEW_IP, 429);
+        const invented = await probe('nobody-here', NEW_IP, 429);
+        expect(invented).toEqual(real);
+        expect(real.body).toMatchObject({ error: { code: 'LOGIN_ACCOUNT_THROTTLED' } });
+        expect(real.verifications).toBe(1);
+      });
+
+      it('from the known address once its pair locks: the pair’s wait for both, from the locking failure on', async () => {
+        const real: unknown[] = [];
+        const invented: unknown[] = [];
+        for (let i = 0; i < 6; i++) {
+          const status = i < 4 ? 401 : 429;
+          real.push(await probe(TEST_ADMIN.username, KNOWN_IP, status));
+          invented.push(await probe('nobody-here', KNOWN_IP, status));
+        }
+        expect(invented).toEqual(real);
+        expect(real[5]).toMatchObject({ body: { error: { code: 'LOGIN_THROTTLED' } }, verifications: 1 });
+      });
+    });
+
     it('forgets failures older than the one-hour window', async () => {
       await spreadFailures(TEST_ADMIN.username, 19);
       clock.advance(60 * 60_000 + 1_000);
