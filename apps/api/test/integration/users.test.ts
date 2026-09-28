@@ -163,6 +163,64 @@ describe('user management', () => {
       .expect(409);
   });
 
+  describe('Q121: display names cannot pass for someone else', () => {
+    const create = (displayName: string, username = 'newcomer') =>
+      request(app.getHttpServer())
+        .post('/api/users')
+        .set(asUser(admin))
+        .send({ username, displayName, role: 'EMPLOYEE', password: 'a-perfectly-fine-password' });
+    const rename = (id: number, body: object) =>
+      request(app.getHttpServer()).patch(`/api/users/${id}`).set(asUser(admin)).send(body);
+
+    it('refuses on create a name an active user has, whatever its case, spacing or compatibility form', async () => {
+      await createEmployee(app, [], 'karwan');
+      await prisma.user.update({ where: { username: 'karwan' }, data: { displayName: 'Karwan Aziz' } });
+
+      for (const clash of ['karwan aziz', 'KARWAN   AZIZ', 'Ｋａｒｗａｎ Aziz', 'Kar\u200Cwan Aziz']) {
+        const refused = await create(clash).expect(409);
+        expect(errorCode(refused.body)).toBe('DISPLAY_NAME_TAKEN');
+      }
+      expect(await prisma.user.count()).toBe(2);
+      await create('Karwan Aziz 2').expect(201);
+    });
+
+    it('refuses hidden characters as a field error, on create and on edit', async () => {
+      const refused = await create('Admin\u202Eistrator').expect(400);
+      expect(refused.body).toMatchObject({
+        error: { code: 'VALIDATION_FAILED', fields: [{ path: 'displayName', code: 'invisible_characters' }] },
+      });
+      const clerk = await createEmployee(app, [], 'clerk');
+      const edited = await rename(clerk.id, { version: 1, displayName: 'clerk\u200B' }).expect(400);
+      expect(edited.body).toMatchObject({ error: { fields: [{ path: 'displayName', code: 'invisible_characters' }] } });
+    });
+
+    it('refuses a rename onto another active user, but not onto an inactive one or the user’s own name', async () => {
+      const clerk = await createEmployee(app, [], 'clerk');
+      await createUser(app, { username: 'gone', isActive: false });
+
+      const refused = await rename(clerk.id, { version: 1, displayName: TEST_ADMIN.displayName.toUpperCase() });
+      expect(refused.status).toBe(409);
+      expect(errorCode(refused.body)).toBe('DISPLAY_NAME_TAKEN');
+      await rename(clerk.id, { version: 1, displayName: 'Clerk' }).expect(200);
+      await rename(clerk.id, { version: 2, displayName: 'gone' }).expect(200);
+    });
+
+    it('refuses to reactivate a user whose name an active user has taken meanwhile', async () => {
+      const gone = await createUser(app, { username: 'gone', isActive: false });
+      await createEmployee(app, [], 'Gone'.toLowerCase() + '2');
+      await prisma.user.update({ where: { username: 'gone2' }, data: { displayName: 'GONE' } });
+
+      const refused = await rename(gone.id, { version: 1, isActive: true }).expect(409);
+      expect(errorCode(refused.body)).toBe('DISPLAY_NAME_TAKEN');
+      await rename(gone.id, { version: 1, isActive: true, displayName: 'Gone (returned)' }).expect(200);
+    });
+
+    it('lets exactly one of two concurrent creates take a name', async () => {
+      const answers = await Promise.all([create('Twin', 'twin.one'), create('Twin', 'twin.two')]);
+      expect(answers.map((answer) => answer.status).sort()).toEqual([201, 409]);
+    });
+  });
+
   it('S-15: refuses self-deactivation, self-demotion and removing the last admin', async () => {
     const self = await prisma.user.findUniqueOrThrow({ where: { username: TEST_ADMIN.username } });
 

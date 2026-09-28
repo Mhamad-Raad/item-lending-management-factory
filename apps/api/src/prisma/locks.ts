@@ -67,3 +67,14 @@ export async function lockOrderCounter(tx: Prisma.TransactionClient): Promise<nu
   if (!row) throw new Error('order_counter has no row; constraints.sql inserts it');
   return row.last_number;
 }
+
+/**
+ * Serialises every write that gives an active user a display name (Q121): create, rename, reactivate. Two
+ * such writes checking "is this name free?" at once would otherwise both pass. A transaction-scoped advisory
+ * lock rather than a unique index, because names that clash may already exist; taken after any user row lock.
+ */
+const DISPLAY_NAME_LOCK_KEY = 0x70616c6c_6e616d65n;
+
+export async function lockDisplayNames(tx: Prisma.TransactionClient): Promise<void> {
+  await tx.$queryRaw`SELECT 1 AS locked FROM pg_advisory_xact_lock(${DISPLAY_NAME_LOCK_KEY})`;
+}

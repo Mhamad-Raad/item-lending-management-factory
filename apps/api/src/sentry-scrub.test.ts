@@ -1,6 +1,6 @@
 import type { ErrorEvent } from '@sentry/nestjs';
 import { describe, expect, it } from 'vitest';
-import { scrubEvent } from './sentry-scrub';
+import { scrubErrorForLog, scrubEvent } from './sentry-scrub';
 
 /** §10.6 D9: an error report carries no personal data — a search term is a customer's name or phone. */
 describe('scrubEvent', () => {
@@ -100,5 +100,40 @@ describe('scrubEvent: breadcrumbs and database errors (Q75)', () => {
       exception: { values: [{ type: 'PrismaClientValidationError', value: 'Argument name: "Karwan"' }] },
     } as ErrorEvent);
     expect(event.exception?.values?.[0]?.value).toBe('PrismaClientValidationError');
+  });
+});
+
+/** Q125: the server's own log line for an unexpected error quotes no data. */
+describe('scrubErrorForLog', () => {
+  it('replaces a database error’s message with its type and code', () => {
+    const error = Object.assign(new Error('Unique constraint failed: Key (phone)=(07501234567)'), {
+      name: 'PrismaClientKnownRequestError',
+      code: 'P2002',
+    });
+    expect(scrubErrorForLog(error)).toMatchObject({
+      type: 'PrismaClientKnownRequestError',
+      code: 'P2002',
+      message: 'PrismaClientKnownRequestError P2002',
+    });
+  });
+
+  it('keeps a plain bug’s message, masking connection strings and cutting it short', () => {
+    const error = new TypeError(`cannot reach postgresql://pallet_app:secret@db:5432/pallet ${'x'.repeat(300)}`);
+    const scrubbed = scrubErrorForLog(error);
+    expect(scrubbed.message.startsWith('cannot reach <url> xxx')).toBe(true);
+    expect(scrubbed.message).not.toContain('secret');
+    expect(scrubbed.message).toHaveLength(200);
+  });
+
+  it('keeps only the stack’s code locations, never a message line', () => {
+    const error = new Error('first line\nsecond line with 0750 555 1234');
+    const { frames } = scrubErrorForLog(error);
+    expect(frames.length).toBeGreaterThan(0);
+    expect(frames.every((frame) => frame.startsWith('at '))).toBe(true);
+    expect(frames.join('\n')).not.toContain('0750');
+  });
+
+  it('describes something that is not an error at all', () => {
+    expect(scrubErrorForLog('boom')).toEqual({ type: 'string', message: '', frames: [] });
   });
 });

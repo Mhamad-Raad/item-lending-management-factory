@@ -392,7 +392,7 @@ function TextSizeMenu() {
 
 /**
  * The authenticated frame (§7.5): a fixed sidebar from `lg`, and a top bar at every width with the page title and
- * the quick light/dark and language switches; below `lg` its menu button opens the same navigation in a sheet.
+ * the quick language, text-size and light/dark switches; below `lg` its menu button opens the same navigation in a sheet.
  * Navigation is filtered by permission, so nobody is invited to a page they would be refused.
  */
 export function AppShell({ children, onLogout }: { children: React.ReactNode; onLogout: () => void }) {

@@ -4,6 +4,7 @@ import type { LoginThrottle, Prisma } from '../../generated/prisma/client';
 import {
   ACCOUNT_FAILURE_WINDOW_MS,
   ACCOUNT_MAX_FAILURES,
+  ACCOUNT_MIN_DISTINCT_ADDRESSES,
   ACCOUNT_THROTTLE_IP,
   LOGIN_FAILURE_WINDOW_MS,
   LOGIN_MAX_FAILURES,
@@ -77,11 +78,43 @@ export class LoginThrottleService {
   }
 
   /**
+   * What stands in for "has this address signed in to the account before?" when the typed username has no
+   * account (Q122): whether it has signed in to any account. Answering an unknown username as an unknown
+   * address everywhere would tell someone at the factory — an address every real account knows — which names
+   * exist, since the real ones would let them try. This way the factory's address, and any other address
+   * people sign in from, gets the same answer for a real and an invented name.
+   */
+  async isAddressKnownToAnyAccount(tx: Prisma.TransactionClient, ip: string): Promise<boolean> {
+    const family = await tx.sessionFamily.findFirst({ where: { createdIp: ip }, select: { id: true } });
+    return family !== null;
+  }
+
+  /**
    * Counts one failure against the account from any address; at the ceiling, holds back unknown
    * addresses with a doubling delay. The count restarts after the window or a hold.
    */
-  registerAccountFailure(tx: Prisma.TransactionClient, row: LoginThrottle): Promise<LockoutResult> {
-    return this.countFailure(tx, row, ACCOUNT_FAILURE_WINDOW_MS, ACCOUNT_MAX_FAILURES, accountThrottleDurationMs);
+  async registerAccountFailure(tx: Prisma.TransactionClient, row: LoginThrottle): Promise<LockoutResult> {
+    const addresses = await this.failingAddresses(tx, row.username);
+    return this.countFailure(tx, row, ACCOUNT_FAILURE_WINDOW_MS, ACCOUNT_MAX_FAILURES, accountThrottleDurationMs, {
+      mayLock: addresses >= ACCOUNT_MIN_DISTINCT_ADDRESSES,
+    });
+  }
+
+  /**
+   * How many addresses have failed at `username` within the account's window (Q122): its pair rows with a
+   * failure or a lock whose last failure (`updated_at`, written from the injected clock by `countFailure`)
+   * falls inside it. The caller's own failure has been counted on its pair already.
+   */
+  private async failingAddresses(tx: Prisma.TransactionClient, username: string): Promise<number> {
+    const since = new Date(this.clock.now().getTime() - ACCOUNT_FAILURE_WINDOW_MS);
+    return tx.loginThrottle.count({
+      where: {
+        username,
+        ip: { not: ACCOUNT_THROTTLE_IP },
+        updatedAt: { gt: since },
+        OR: [{ failureCount: { gt: 0 } }, { lockedUntil: { not: null } }],
+      },
+    });
   }
 
   /** A successful login clears the pair's history, including its backoff. */
@@ -95,16 +128,20 @@ export class LoginThrottleService {
     windowMs: number,
     maxFailures: number,
     durationMs: (lockoutCount: number) => number,
+    { mayLock }: { mayLock: boolean } = { mayLock: true },
   ): Promise<LockoutResult> {
     const now = this.clock.now();
     const where = { ip_username: { ip: row.ip, username: row.username } };
     const windowExpired = now.getTime() - row.windowStartedAt.getTime() > windowMs;
     const failureCount = windowExpired ? 1 : row.failureCount + 1;
 
-    if (failureCount < maxFailures) {
+    // `updatedAt` is set here from the injected clock rather than left to Prisma's wall clock: it is when this
+    // row last failed, which `failingAddresses` compares against the same clock. Short of the threshold — or at
+    // it while the lock is not allowed yet — the count grows and the lock waits for the next failure.
+    if (failureCount < maxFailures || !mayLock) {
       await tx.loginThrottle.update({
         where,
-        data: { failureCount, windowStartedAt: windowExpired ? now : row.windowStartedAt },
+        data: { failureCount, windowStartedAt: windowExpired ? now : row.windowStartedAt, updatedAt: now },
       });
       return { lockedMinutes: null, lockoutCount: row.lockoutCount };
     }
@@ -117,6 +154,7 @@ export class LoginThrottleService {
         windowStartedAt: now,
         lockedUntil: new Date(now.getTime() + lockMs),
         lockoutCount: row.lockoutCount + 1,
+        updatedAt: now,
       },
     });
     return { lockedMinutes: lockMs / 60_000, lockoutCount: row.lockoutCount + 1 };

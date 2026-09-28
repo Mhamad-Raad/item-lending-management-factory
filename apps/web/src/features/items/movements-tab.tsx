@@ -9,6 +9,7 @@ import { DateText } from '@/components/app/date-text';
 import { EmptyState, PageSkeleton, QueryErrorState } from '@/components/app/states';
 import { apiFetch } from '@/lib/api-client';
 import { qk } from '@/lib/query-keys';
+import { ActorName } from '@/components/app/actor-name';
 
 /** In and out by colour, and by sign character and icon as well (§7.15). */
 function SignedQuantity({ value }: { value: number }) {
@@ -92,7 +93,7 @@ export function MovementsTab({ itemId }: { itemId: number }) {
     {
       id: 'user',
       header: 'items.movements.user',
-      cell: (movement) => movement.createdBy.displayName,
+      cell: (movement) => <ActorName user={movement.createdBy} />,
       hideBelow: 'md',
       wrap: true,
     },

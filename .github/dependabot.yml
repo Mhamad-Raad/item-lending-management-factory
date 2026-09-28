@@ -25,7 +25,11 @@ updates:
     ignore:
       - dependency-name: '@nestjs/*'
         update-types: ['version-update:semver-major']
+      # typescript-eslint supports TypeScript < 6.1: a minor bump breaks the lint (CLAUDE.md, pinned majors).
       - dependency-name: typescript
+        update-types: ['version-update:semver-major', 'version-update:semver-minor']
+      # nestjs-pino majors follow pino/pino-http majors and change the logger contract; upgrade by hand.
+      - dependency-name: nestjs-pino
         update-types: ['version-update:semver-major']
       - dependency-name: prisma
         update-types: ['version-update:semver-major']

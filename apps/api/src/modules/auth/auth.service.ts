@@ -7,15 +7,17 @@ import type { Prisma, User } from '../../generated/prisma/client';
 import { lockUser, lockUserByUsername } from '../../prisma/locks';
 import { PrismaService } from '../../prisma/prisma.service';
 import { toAuditSnapshot } from '../audit/audit-snapshot';
-import { AuditService } from '../audit/audit.service';
+import { AuditService, recordableUsernameAttempt } from '../audit/audit.service';
 import { ACCESS_TOKEN_TTL_MS } from './auth.constants';
 import { toMeDto, USER_WITH_PERMISSIONS } from './auth.mapper';
 import { LoginThrottleService, type LockoutResult } from './login-throttle.service';
 import { checkPasswordPolicy } from './password-policy';
 import { PasswordService } from './password.service';
 import { SessionService, type IssuedToken } from './session.service';
+import { VerificationGate } from './verification-gate';
 import { runInTransaction } from '../../prisma/transaction';
 import { changedFields } from '../../common/utils/versioning';
+import { assertDisplayNameFree } from '../users/display-name';
 
 export interface RequestOrigin {
   ip: string;
@@ -45,6 +47,7 @@ export class AuthService {
     private readonly throttle: LoginThrottleService,
     private readonly sessions: SessionService,
     private readonly audit: AuditService,
+    private readonly gate: VerificationGate,
   ) {}
 
   /**
@@ -59,7 +62,7 @@ export class AuthService {
   async login(body: LoginBody, origin: RequestOrigin): Promise<AuthResult> {
     // A failed attempt still writes: its throttle counter and its audit row. Those must commit,
     // so the refusal is returned from the transaction and thrown only after it (§6.8.2 step 5).
-    const result = await runInTransaction(this.prisma, async (tx): Promise<AuthResult | Throttled | null> => {
+    const attempt = async (tx: Prisma.TransactionClient): Promise<AuthResult | Throttled | null> => {
       const { username, password } = body;
       // Lock order: the pair, the account-wide row, then the user.
       const throttle = await this.throttle.lock(tx, origin.ip, username);
@@ -82,9 +85,11 @@ export class AuthService {
         return { code: 'LOGIN_THROTTLED', retryAfterSeconds: pairRetryAfter };
       }
 
-      // Past the account's ceiling only an address that has signed in to it before may try (Q68).
+      // Past the account's ceiling only an address that has signed in to it before may try (Q68). For a name
+      // with no account, an address any account signed in from counts as known, so that from the factory's
+      // address a real and an invented name are both let through to the same wrong-password answer (Q122).
       const retryAfterSeconds = this.throttle.retryAfterSeconds(account);
-      if (retryAfterSeconds !== null && !(user && (await this.throttle.isKnownAddress(tx, user.id, origin.ip)))) {
+      if (retryAfterSeconds !== null && !(await this.isKnownAddress(tx, user, origin.ip))) {
         await this.passwords.verifyDummy(password);
         await this.auditLoginFailure(tx, user, username, 'ACCOUNT_THROTTLED');
         return { code: 'LOGIN_ACCOUNT_THROTTLED', retryAfterSeconds };
@@ -137,7 +142,9 @@ export class AuthService {
       });
 
       return { token: this.issueAccessToken(user, toMeDto(user)), refresh };
-    });
+    };
+    // The gate is passed before the transaction opens, so a waiting attempt holds no connection (Q123).
+    const result = await this.gate.run(() => runInTransaction(this.prisma, attempt));
 
     if (!result) throw new ApiError('AUTH_INVALID_CREDENTIALS');
     if (!('token' in result)) {
@@ -214,7 +221,7 @@ export class AuthService {
     });
 
     // A wrong guess must still commit its count, so the refusal leaves the transaction as a value.
-    const result = await runInTransaction(this.prisma, async (tx): Promise<AuthResult | ApiError> => {
+    const attempt = async (tx: Prisma.TransactionClient): Promise<AuthResult | ApiError> => {
       // Login's lock order: the pair, the account-wide row, then the user.
       const throttle = await this.throttle.lock(tx, origin.ip, username);
       const account = await this.throttle.lockAccount(tx, username);
@@ -279,7 +286,9 @@ export class AuthService {
       });
 
       return { token: this.issueAccessToken(updated, toMeDto(updated)), refresh };
-    });
+    };
+    // As at the login: queued before the transaction, verifying inside it (Q123).
+    const result = await this.gate.run(() => runInTransaction(this.prisma, attempt));
 
     if (result instanceof ApiError) throw result;
     return result;
@@ -307,6 +316,8 @@ export class AuthService {
 
       // Q37: a save that changes nothing writes nothing — no version bump, no history row.
       if (changedFields(body, before, ['displayName'] as const).length === 0) return toMeDto(before);
+      // Q121: nobody may take a colleague's name, the way an admin could not give it to them.
+      await assertDisplayNameFree(tx, body.displayName, userId);
 
       const after = await tx.user.update({
         where: { id: userId },
@@ -325,6 +336,10 @@ export class AuthService {
 
       return toMeDto(after);
     });
+  }
+
+  private isKnownAddress(tx: Prisma.TransactionClient, user: User | null, ip: string): Promise<boolean> {
+    return user ? this.throttle.isKnownAddress(tx, user.id, ip) : this.throttle.isAddressKnownToAnyAccount(tx, ip);
   }
 
   private issueAccessToken(user: User, me: MeDto): AuthTokenDto {
@@ -352,7 +367,8 @@ export class AuthService {
       entityId: user ? String(user.id) : null,
       userId: user?.id ?? null,
       usernameAttempt,
-      summaryParams: { usernameAttempt, reason },
+      // What the history shows is what the column keeps: a typed password never lands in either (Q126).
+      summaryParams: { usernameAttempt: recordableUsernameAttempt(usernameAttempt) ?? '—', reason },
     });
   }
 
@@ -371,7 +387,7 @@ export class AuthService {
       userId: user?.id ?? null,
       usernameAttempt,
       summaryParams: {
-        usernameAttempt,
+        usernameAttempt: recordableUsernameAttempt(usernameAttempt) ?? '—',
         lockedMinutes: lockout.lockedMinutes,
         lockoutCount: lockout.lockoutCount,
         scope,

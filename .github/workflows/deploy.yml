@@ -21,6 +21,8 @@ jobs:
     uses: ./.github/workflows/ci.yml
     with:
       skip_docker: true
+      # A new advisory warns here instead of blocking an unrelated fix (ARCHITECTURE.md Q133).
+      audit_advisory: true
 
   images:
     needs: ci
@@ -62,10 +64,37 @@ jobs:
     timeout-minutes: 15
     environment: production
     steps:
-      - uses: appleboy/ssh-action@0ff4204d59e8e51228ff73bce53f80d53301dee2 # v1.2.5
-        with:
-          host: ${{ secrets.VPS_HOST }}
-          username: ${{ secrets.VPS_USER }}
-          key: ${{ secrets.VPS_SSH_KEY }}
-          fingerprint: ${{ secrets.VPS_HOST_FINGERPRINT }}
-          script: /opt/pallet/deploy/deploy.sh ${{ github.sha }}
+      # The runner's own OpenSSH, not a third-party action: nothing outside GitHub and this file sees the key.
+      # The host key is pinned by the VPS_KNOWN_HOSTS secret (StrictHostKeyChecking=yes, no keyscan), so a
+      # machine answering at VPS_HOST without the server's key is refused before the key is offered. On the VPS
+      # the key is restricted to deploy.sh (docs/runbooks/deploy.md, "The deploy key"; Q128).
+      - name: Deploy over SSH
+        env:
+          VPS_HOST: ${{ secrets.VPS_HOST }}
+          VPS_USER: ${{ secrets.VPS_USER }}
+          VPS_SSH_KEY: ${{ secrets.VPS_SSH_KEY }}
+          VPS_KNOWN_HOSTS: ${{ secrets.VPS_KNOWN_HOSTS }}
+          DEPLOY_SHA: ${{ github.sha }}
+        run: |
+          set -euo pipefail
+          for name in VPS_HOST VPS_USER VPS_SSH_KEY VPS_KNOWN_HOSTS; do
+            if [ -z "${!name}" ]; then
+              echo "::error::Secret $name is missing from the production environment (docs/runbooks/deploy.md)."
+              exit 1
+            fi
+          done
+          umask 077
+          ssh_dir="$RUNNER_TEMP/deploy-ssh"
+          mkdir -p "$ssh_dir"
+          trap 'rm -rf "$ssh_dir"' EXIT
+          printf '%s\n' "$VPS_KNOWN_HOSTS" > "$ssh_dir/known_hosts"
+          printf '%s\n' "$VPS_SSH_KEY" > "$ssh_dir/key"
+          ssh -i "$ssh_dir/key" \
+            -o IdentitiesOnly=yes \
+            -o BatchMode=yes \
+            -o StrictHostKeyChecking=yes \
+            -o UserKnownHostsFile="$ssh_dir/known_hosts" \
+            -o GlobalKnownHostsFile=/dev/null \
+            -o ConnectTimeout=30 \
+            -o ServerAliveInterval=30 \
+            "$VPS_USER@$VPS_HOST" "/opt/pallet/deploy/deploy.sh $DEPLOY_SHA"

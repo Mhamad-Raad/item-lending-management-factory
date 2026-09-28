@@ -33,6 +33,20 @@ describe('ApiExceptionFilter error reporting', () => {
     ]);
   });
 
+  it('logs an unexpected error by type, code and request id, never its data (Q125)', () => {
+    const logged = vi.spyOn(Logger.prototype, 'error').mockImplementation(() => undefined);
+    const leak = Object.assign(new Error('Key (phone)=(07501234567) already exists'), {
+      name: 'DriverAdapterError',
+      code: '23505',
+    });
+    new ApiExceptionFilter().catch(leak, hostFor().host);
+    expect(logged).toHaveBeenCalledWith(
+      expect.objectContaining({ errorType: 'DriverAdapterError', errorCode: '23505', requestId: 'req-1' }),
+      'unexpected DriverAdapterError: DriverAdapterError 23505',
+    );
+    expect(JSON.stringify(logged.mock.calls)).not.toContain('0750');
+  });
+
   it('does not report a client error', () => {
     const filter = new ApiExceptionFilter();
     filter.catch(new ApiError('ORDER_NOT_FOUND'), hostFor().host);

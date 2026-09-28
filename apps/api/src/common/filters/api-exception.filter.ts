@@ -5,6 +5,7 @@ import type { Request, Response } from 'express';
 import { JSON_BODY_LIMIT_BYTES } from '../../bootstrap';
 import { ApiError } from '../errors/api-error';
 import { isDatabaseUnavailable } from '../errors/prisma-errors';
+import { scrubErrorForLog } from '../../sentry-scrub';
 
 /**
  * What body-parser throws before a request reaches any handler: a plain error carrying an HTTP
@@ -54,7 +55,10 @@ export class ApiExceptionFilter implements ExceptionFilter {
     } else {
       status = 500;
       error = { code: 'INTERNAL_ERROR' };
-      this.logger.error(exception);
+      // Never the raw error: a driver or validation message can quote a customer's data or a connection
+      // string, and stdout is kept for weeks (Q125). The request id ties the line to the client's reference.
+      const { type, code, message, frames } = scrubErrorForLog(exception);
+      this.logger.error({ errorType: type, errorCode: code, requestId, frames }, `unexpected ${type}: ${message}`);
     }
 
     // Server errors only (§10.6 D9); a no-op unless `instrument.ts` initialised Sentry. An outage is

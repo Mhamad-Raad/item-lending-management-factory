@@ -26,13 +26,13 @@ import { Tip } from '@/components/app/tip';
 import { OrderLinesTable, OrderMoney, OrderReturns } from '@/features/orders/order-sections';
 import { orderLabel } from '@/features/orders/order-text';
 import { usePageTitle } from '@/hooks/use-page-title';
-import { isolate } from '@/lib/bidi';
 import { apiFetch } from '@/lib/api-client';
 import { useCan } from '@/lib/auth';
 import { handleApiError } from '@/lib/errors';
 import { qk } from '@/lib/query-keys';
 import { requirePermission } from '@/lib/route-guards';
 import { prefetch } from '@/lib/prefetch';
+import { actorLabel } from '@/lib/actor-label';
 
 const SearchSchema = z.object({ created: z.boolean().optional().catch(undefined) });
 
@@ -206,7 +206,7 @@ function OrderDetailPage() {
       {cancelled ? (
         <Alert>
           <AlertDescription>
-            {t('orders.detail.cancelledBanner', { name: isolate(data.cancelledBy?.displayName ?? '') })}{' '}
+            {t('orders.detail.cancelledBanner', { name: data.cancelledBy ? actorLabel(data.cancelledBy) : '' })}{' '}
             <DateText value={data.cancelledAt ?? ''} withTime />
           </AlertDescription>
         </Alert>
@@ -220,7 +220,7 @@ function OrderDetailPage() {
             {data.creditOverride ? (
               <Badge variant="outline">
                 <ShieldAlert aria-hidden />
-                {t('orders.detail.creditOverridden', { name: isolate(data.creditOverride.by.displayName) })}{' '}
+                {t('orders.detail.creditOverridden', { name: actorLabel(data.creditOverride.by) })}{' '}
                 <DateText value={data.creditOverride.at} withTime />
               </Badge>
             ) : null}

@@ -9,6 +9,11 @@ on:
       skip_docker:
         type: boolean
         default: false
+      # The deploy workflow passes true: a new advisory then warns instead of blocking the deploy (ARCHITECTURE.md
+      # Q133). Pushes and pull requests always block on it.
+      audit_advisory:
+        type: boolean
+        default: false
 
 permissions:
   contents: read
@@ -49,7 +54,18 @@ jobs:
       - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
         with:
           node-version: ${{ env.NODE_VERSION }}
-      - run: pnpm audit --audit-level=high
+      - name: pnpm audit --audit-level=high
+        id: audit
+        continue-on-error: ${{ inputs.audit_advisory == true }}
+        run: pnpm audit --audit-level=high
+      - name: Warn about the advisory without blocking the deploy
+        if: steps.audit.outcome == 'failure'
+        run: |
+          echo "::warning title=Dependency audit::pnpm audit reports a high or critical advisory. This deploy goes ahead (ARCHITECTURE.md Q133); update the dependency in the next change - CI on main and pull requests fails until then."
+          {
+            echo "### Dependency audit: advisory found (deploy not blocked)"
+            echo "Run \`pnpm audit --audit-level=high\` locally, update or override the dependency, and deploy again."
+          } >> "$GITHUB_STEP_SUMMARY"
 
   integration-e2e:
     name: Integration + Playwright e2e

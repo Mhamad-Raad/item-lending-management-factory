@@ -53,6 +53,7 @@ export function ProfileForm({ user }: { user: MeDto }) {
       handleApiError(error, {
         setError: form.setError,
         fields: ['displayName'],
+        fieldMap: { DISPLAY_NAME_TAKEN: 'displayName' },
         // Reloading takes the stored name, over what was typed: the user chose to.
         onReload: () =>
           void refreshMe()

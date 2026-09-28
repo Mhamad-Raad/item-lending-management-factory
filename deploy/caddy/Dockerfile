@@ -2,7 +2,7 @@
 # Builds the web app and bakes it into the Caddy image. Build context = repository root:
 #   docker build -f deploy/caddy/Dockerfile -t ghcr.io/mhamad-raad/pallet-caddy:<sha> .
 
-FROM node:24.21.0-bookworm-slim AS build
+FROM node:24.21.0-trixie-slim AS build
 ENV PNPM_HOME=/pnpm \
     PATH=/pnpm:$PATH \
     CI=true

@@ -1,29 +1,52 @@
 # Runbook — recover when the last admin is locked out
 
-Use when no active admin can log in (forgotten password, admin deactivated through the database, departed staff).
+Use when no active admin can sign in: a forgotten password, an admin deactivated or demoted by mistake, departed staff.
+While another admin can still sign in, use the app instead (Users → the person → Reset password).
+
+The `recover-admin` script (ARCHITECTURE.md Q130) does what an admin's password reset does, from the server: it sets a
+**temporary password** that must be changed at the next sign-in, reactivates the user, signs them out of every device
+(sessions revoked, access tokens invalidated), clears their login locks, and records it all in the history. With
+`--promote` it also makes the user an admin. The password is read from the keyboard (typed twice, not shown) — never
+put it on the command line, where the shell history would keep it.
+
+## On the server
 
 1. SSH to the VPS; `cd /opt/pallet`.
-2. Generate an Argon2id hash for a temporary password with the API image (same parameters as the app):
+2. Run it for the admin's username (add `--promote` if the user is not, or is no longer, an admin):
+
    ```bash
-   docker compose run --rm --no-deps -e TEMP_PASSWORD='<temporary-password-min-10>' api \
-     node -e "require('argon2').hash(process.env.TEMP_PASSWORD,{type:2,memoryCost:19456,timeCost:2,parallelism:1}).then(console.log)"
+   docker compose --profile migrate run --rm migrate node dist/scripts/recover-admin.js <username>
+   # or: docker compose --profile migrate run --rm migrate node dist/scripts/recover-admin.js <username> --promote
    ```
-3. Apply it as the owner role (the audit row documents the manual intervention):
-   ```bash
-   docker compose exec -T postgres psql -v ON_ERROR_STOP=1 -U pallet_owner -d pallet <<'SQL'
-   BEGIN;
-   UPDATE users SET password_hash = '<hash-from-step-2>', is_active = true, role = 'ADMIN',
-          must_change_password = true, token_version = token_version + 1, version = version + 1
-    WHERE username = '<admin-username>';
-   UPDATE session_families SET revoked_at = now(), revoked_reason = 'PASSWORD_RESET'
-    WHERE user_id = (SELECT id FROM users WHERE username = '<admin-username>') AND revoked_at IS NULL;
-   DELETE FROM login_throttles WHERE username = '<admin-username>';
-   INSERT INTO audit_logs (action, entity_type, entity_id, summary_key, summary_params)
-   SELECT 'PASSWORD_RESET', 'USER', id::text, 'audit.summary.USER.PASSWORD_RESET',
-          jsonb_build_object('username', username, 'via', 'db-runbook')
-     FROM users WHERE username = '<admin-username>';
-   COMMIT;
-   SQL
-   ```
-4. Log in with the temporary password; you are forced to set a new one.
-5. If no admin row exists at all: set `ADMIN_*` in `.env` only works on an empty users table — instead, run step 3 against an existing employee username (it promotes them to ADMIN).
+
+   It runs in the one-shot `migrate` container: the same API image and database settings. Running it in the `api`
+   service instead does not work while the API is up: that service has a fixed network address, which the running
+   container already holds (Docker answers `Address already in use`).
+
+   Type a temporary password of at least 10 characters (not a common one, not the username) twice. The script prints
+   what it did, for example `"karwan" (ADMIN) has the new temporary password … and was signed out of 2 session(s)`.
+   It refuses, changing nothing, when no user has that name or the password is too weak — read the message and run
+   it again.
+
+3. Sign in with the temporary password; you are asked to choose a new one straight away.
+4. In the app, check History: the reset (and the reactivation or promotion) appear without a user, because nobody was
+   signed in when they happened. Then fix what caused the lock-out (for example reactivate or add a second admin).
+
+No admin row at all (every admin deleted or demoted)? Run step 2 with an existing employee's username and `--promote`.
+No users at all? The first admin is created from `ADMIN_*` in `.env` by the next deploy (§13.4).
+
+## In development
+
+```bash
+pnpm --filter @pallet/api build
+pnpm --filter @pallet/api recover-admin <username>            # add --promote to make them an admin
+```
+
+It reads `DATABASE_URL` from the repository's `.env`. In scripts and tests the password can be piped instead:
+`printf '%s\n' "$NEW_PASSWORD" | pnpm --filter @pallet/api recover-admin <username>` (only the first line is read).
+
+## If the script cannot run
+
+Only when the API image itself is broken (the script is part of it). Deploy a working version first (`rollback.md`);
+editing the `users` table by hand skips the password policy, the session revocation and the history, so it is the very
+last resort — if you must, ask for help before doing it.

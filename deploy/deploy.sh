@@ -6,6 +6,23 @@
 # migration has run — which makes the automatic image rollback below safe.
 set -Eeuo pipefail
 
+# Forced-command form (docs/runbooks/deploy.md, "The deploy key"): the CI key's authorized_keys line is
+# `restrict,command="/opt/pallet/deploy/deploy.sh"`, so sshd runs this script whatever the client asked for and
+# passes the request in SSH_ORIGINAL_COMMAND. Only "<40-hex sha>" or "<path>/deploy.sh <40-hex sha>" is
+# accepted — a stolen key can deploy a commit of this repository, and nothing else (Q128).
+if (( $# == 0 )) && [[ -n "${SSH_ORIGINAL_COMMAND:-}" ]]; then
+  read -r -a requested <<< "$SSH_ORIGINAL_COMMAND"
+  if (( ${#requested[@]} == 2 )) && [[ "${requested[0]}" == */deploy.sh ]]; then
+    requested=("${requested[1]}")
+  fi
+  if (( ${#requested[@]} != 1 )) || [[ ! "${requested[0]}" =~ ^[0-9a-f]{40}$ ]]; then
+    echo "deploy: refused — this key may only run deploy.sh with a full 40-character commit SHA" >&2
+    exit 1
+  fi
+  set -- "${requested[0]}"
+  unset requested
+fi
+
 APP_DIR="${APP_DIR:-/opt/pallet}"
 NEW_SHA="${1:?usage: deploy.sh <git-sha>}"
 HEALTH_TIMEOUT_SECONDS=60
@@ -53,6 +70,26 @@ if [[ -n "$jwt_problem" ]]; then
   exit 1
 fi
 unset jwt_problem
+# The first admin is seeded from ADMIN_PASSWORD while the users table is empty (Q120). The .env.example
+# placeholder is public, so it is refused here as the migrate step would refuse it — before anything changes.
+# The full policy (the common-password list) is the migrate step's; this catches the placeholder and length.
+admin_password="$(env_value ADMIN_PASSWORD)"
+if [[ -n "$admin_password" ]]; then
+  if [[ "$(printf '%s' "$admin_password" | tr '[:upper:]' '[:lower:]')" == *change-me* ]]; then
+    admin_problem="is still the .env.example placeholder"
+  elif (( ${#admin_password} < 10 )); then
+    admin_problem="is shorter than 10 characters"
+  else
+    admin_problem=""
+  fi
+  if [[ -n "$admin_problem" ]]; then
+    echo "deploy: refused — ADMIN_PASSWORD in $APP_DIR/.env $admin_problem." >&2
+    echo "deploy: before the first deploy set a long random one (\`openssl rand -hex 16\`); after the first" \
+      "sign-in delete the ADMIN_PASSWORD line (it is ignored once a user exists). Nothing was changed." >&2
+    exit 1
+  fi
+fi
+unset admin_password admin_problem
 for name in POSTGRES_PASSWORD DB_OWNER_PASSWORD DB_APP_PASSWORD; do
   if [[ "$(env_value "$name")" == *change-me* ]]; then
     echo "deploy: WARNING — $name in .env is still the .env.example placeholder; rotate it" \
@@ -112,7 +149,12 @@ docker compose stop api
 docker compose up -d --wait postgres
 install -d -m 700 "$PRE_MIGRATE_DIR"
 dump_file="$PRE_MIGRATE_DIR/pre-migrate-$(date -u +%Y%m%dT%H%M%SZ)-${NEW_SHA:0:12}.dump"
+# The dump holds every customer and password hash: owner-only from the moment it exists, not after a chmod.
+# Scoped to the dump — the checkout above must keep the modes the containers need to read their files.
+saved_umask="$(umask)"
+umask 077
 docker compose exec -T postgres pg_dump -U pallet_owner -d pallet -Fc > "$dump_file"
+umask "$saved_umask"
 if [[ ! -s "$dump_file" ]]; then
   rm -f -- "$dump_file"
   echo "deploy: the pre-migration dump came out empty — nothing was migrated" >&2

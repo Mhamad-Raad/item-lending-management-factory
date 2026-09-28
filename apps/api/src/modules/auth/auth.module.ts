@@ -7,6 +7,7 @@ import { AuthService } from './auth.service';
 import { LoginThrottleService } from './login-throttle.service';
 import { PasswordService } from './password.service';
 import { SessionService } from './session.service';
+import { VerificationGate } from './verification-gate';
 
 @Module({
   imports: [
@@ -20,7 +21,7 @@ import { SessionService } from './session.service';
     }),
   ],
   controllers: [AuthController],
-  providers: [AuthService, PasswordService, LoginThrottleService, SessionService],
+  providers: [AuthService, PasswordService, LoginThrottleService, SessionService, VerificationGate],
   exports: [JwtModule, PasswordService, SessionService],
 })
 export class AuthModule {}

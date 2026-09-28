@@ -30,6 +30,7 @@ import { AuditService } from '../audit/audit.service';
 import { checkPasswordPolicy } from '../auth/password-policy';
 import { PasswordService } from '../auth/password.service';
 import { SessionService } from '../auth/session.service';
+import { assertDisplayNameFree } from './display-name';
 import { toUserDto, toUserListItemDto } from './users.mapper';
 import { runInTransaction } from '../../prisma/transaction';
 import { USER_WITH_PERMISSIONS } from '../auth/auth.mapper';
@@ -122,6 +123,8 @@ export class UsersService {
           if (isUniqueViolation(error, USERNAME_UNIQUE)) throw new ApiError('USERNAME_TAKEN');
           throw error;
         });
+      // After the insert, so a taken username is still the answer when both clash (Q121).
+      await assertDisplayNameFree(tx, created.displayName, created.id);
 
       await this.audit.record(tx, {
         action: 'CREATE',
@@ -166,6 +169,14 @@ export class UsersService {
           where: { role: 'ADMIN', isActive: true, id: { not: userId } },
         });
         if (otherAdmins === 0) throw new ApiError('LAST_ADMIN_GUARD');
+      }
+
+      // Q121: an active user's name must not be another active user's — when it changes, or when a user whose
+      // name was taken meanwhile comes back.
+      const staysActive = body.isActive ?? before.isActive;
+      const namesSomeoneNew = changes.includes('displayName') || (body.isActive === true && !before.isActive);
+      if (staysActive && namesSomeoneNew) {
+        await assertDisplayNameFree(tx, body.displayName ?? before.displayName, userId);
       }
 
       const roleChanged = body.role !== undefined && body.role !== before.role;
