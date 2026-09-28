@@ -47,7 +47,9 @@ const COLUMNS = Prisma.sql`le.created_at AS entry_created_at, le.amount AS entry
 function datedHalf(scope: LedgerRowScope, cut: LedgerRowCut | undefined): Prisma.Sql {
   const orderConditions = scope.orderConditions ?? [];
   const joinsOrder = orderConditions.length > 0;
-  const conditions = [Prisma.sql`le.date IS NOT NULL`, ...rowConditions(scope), ...orderConditions];
+  const conditions = [Prisma.sql`le.date IS NOT NULL`, ...(scope.rowConditions ?? []), ...orderConditions];
+  // The enum compared as the enum, so the (type, date) index applies; `type::text` hid it.
+  if (scope.types) conditions.push(Prisma.sql`le.type = ANY(${[...scope.types]}::ledger_entry_type[])`);
   if (scope.dateFrom) conditions.push(Prisma.sql`le.date >= ${scope.dateFrom}::date`);
   if (scope.dateTo) conditions.push(Prisma.sql`le.date <= ${scope.dateTo}::date`);
   if (scope.liveOrdersOnly) {
@@ -67,7 +69,9 @@ function datedHalf(scope: LedgerRowScope, cut: LedgerRowCut | undefined): Prisma
 }
 
 function undatedHalf(scope: LedgerRowScope, cut: LedgerRowCut | undefined): Prisma.Sql {
-  const conditions = [...rowConditions(scope), ...(scope.orderConditions ?? [])];
+  // No type condition: every undated row is an automatic PAYMENT, and this half is read only when the
+  // types include PAYMENT. Naming the type anyway made the planner expect half the rows to match.
+  const conditions = [...(scope.rowConditions ?? []), ...(scope.orderConditions ?? [])];
   if (scope.dateFrom) conditions.push(Prisma.sql`o.date >= ${scope.dateFrom}::date`);
   if (scope.dateTo) conditions.push(Prisma.sql`o.date <= ${scope.dateTo}::date`);
   if (scope.liveOrdersOnly) conditions.push(Prisma.sql`o.cancelled_at IS NULL`);
@@ -77,13 +81,6 @@ function undatedHalf(scope: LedgerRowScope, cut: LedgerRowCut | undefined): Pris
      ${conditions.length > 0 ? Prisma.sql`WHERE ${Prisma.join(conditions, ' AND ')}` : Prisma.empty}`,
     cut,
   );
-}
-
-function rowConditions(scope: LedgerRowScope): Prisma.Sql[] {
-  const conditions = [...(scope.rowConditions ?? [])];
-  // The enum compared as the enum, so the (type, date) index applies; `type::text` hid it.
-  if (scope.types) conditions.push(Prisma.sql`le.type = ANY(${[...scope.types]}::ledger_entry_type[])`);
-  return conditions;
 }
 
 function withCut(half: Prisma.Sql, cut: LedgerRowCut | undefined): Prisma.Sql {
