@@ -21,6 +21,8 @@ jobs:
     uses: ./.github/workflows/ci.yml
     with:
       skip_docker: true
+      # A new advisory warns here instead of blocking an unrelated fix (ARCHITECTURE.md Q133).
+      audit_advisory: true
 
   images:
     needs: ci

@@ -8,7 +8,10 @@ Normal path (automatic):
 4. `deploy.sh` checks out `<sha>` in `/opt/pallet`, sets `APP_VERSION`, pulls images, stops the API, dumps the database to `/var/backups/pallet/pre-migrate/pre-migrate-<time>-<sha>.dump` (the newest five are kept), runs the `migrate` one-shot (migrations + grants + first-run seed), `docker compose up -d`, waits ≤ 60 s for the API health check, and rolls back automatically to the previous SHA on failure.
 5. Verify: open `https://<APP_DOMAIN>`, log in, open the dashboard; check `https://<APP_DOMAIN>/api/health` returns `{"status":"ok","db":"ok","version":"<sha>"}`.
 
-Manual path (Actions unavailable):
+A red `Dependency audit` no longer stops a deploy: the deploy run shows it as a warning and carries on (ARCHITECTURE.md
+Q133), while CI on `main` stays red until the dependency is updated — do that in the next change.
+
+Manual path — only when GitHub Actions itself is unavailable, never to get around a failing test:
 
 1. Build and push images from a workstation: `docker build -f apps/api/Dockerfile -t ghcr.io/mhamad-raad/pallet-api:<sha> . && docker push …` (same for `deploy/caddy/Dockerfile`).
 2. `ssh <user>@<vps>` then `sudo /opt/pallet/deploy/deploy.sh <sha>`.
