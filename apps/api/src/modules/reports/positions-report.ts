@@ -99,7 +99,11 @@ export async function queryPositionsReport(
     return [
       {
         customer: toCustomerRef(customer),
-        palletsOutByItem: columns.map((item) => ({ itemId: item.id, quantityOut: quantityOf(id, item.id) })),
+        // Only the items this customer has out (Q103): a zero for every other column was most of the answer.
+        palletsOutByItem: columns.flatMap((item) => {
+          const quantityOut = quantityOf(id, item.id);
+          return quantityOut > 0 ? [{ itemId: item.id, quantityOut }] : [];
+        }),
         ...sums,
       },
     ];

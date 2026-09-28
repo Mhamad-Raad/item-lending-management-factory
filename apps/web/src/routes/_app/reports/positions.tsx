@@ -125,7 +125,9 @@ function PositionsReportPage() {
   ];
 
   const data = report.data;
-  const itemName = (itemId: number) => data?.columns.find((item) => item.id === itemId)?.name ?? '';
+  // The API sends only the items a customer has out (Q103); the names come from the columns, looked up once.
+  const itemNames = new Map(data?.columns.map((item) => [item.id, item.name]));
+  const itemName = (itemId: number) => itemNames.get(itemId) ?? '';
   const perItem = (cells: { itemId: number; quantityOut: number }[]) => (
     <ul className="text-muted-foreground flex flex-wrap gap-x-4 gap-y-1 text-sm font-normal">
       {cells

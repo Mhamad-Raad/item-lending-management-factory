@@ -169,10 +169,8 @@ describe('reports and dashboard (§6.22, §6.23, §12)', () => {
     expect(report.rows).toEqual([
       {
         customer: { id: ashti.id, name: 'Ashti Blocks', phone: '07501111111', archived: false },
-        palletsOutByItem: [
-          { itemId: a.id, quantityOut: 50 },
-          { itemId: b.id, quantityOut: 0 },
-        ],
+        // Only what the customer has out (Q103): nothing of B.
+        palletsOutByItem: [{ itemId: a.id, quantityOut: 50 }],
         palletsOut: 50,
         outValue: 50_000,
         owed: 10_000,

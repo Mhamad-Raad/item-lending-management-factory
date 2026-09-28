@@ -22,10 +22,7 @@ const POSITIONS: PositionsReportDto = {
   rows: [
     {
       customer: ASHTI,
-      palletsOutByItem: [
-        { itemId: 5, quantityOut: 50 },
-        { itemId: 6, quantityOut: 0 },
-      ],
+      palletsOutByItem: [{ itemId: 5, quantityOut: 50 }],
       palletsOut: 50,
       outValue: 50_000,
       owed: 10_000,

@@ -495,7 +495,7 @@ export interface PositionsReportDto {
   columns: ItemRefDto[];
   rows: {
     customer: CustomerRefDto;
-    /** One entry per column, 0 allowed. */
+    /** The items this customer has out, in column order; an item missing here has 0 out (Q103). */
     palletsOutByItem: { itemId: number; quantityOut: number }[];
     palletsOut: number;
     outValue: number;
