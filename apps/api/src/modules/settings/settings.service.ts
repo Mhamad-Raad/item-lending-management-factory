@@ -1,7 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import type { SettingsDto, SettingsUpdateBody } from '@pallet/shared';
 import type { AuthContext } from '../../common/auth-context';
-import { assertVersion } from '../../common/utils/versioning';
+import { assertVersion, changedFields } from '../../common/utils/versioning';
 import { lockSettings } from '../../prisma/locks';
 import { PrismaService } from '../../prisma/prisma.service';
 import { pickSnapshot, toAuditSnapshot } from '../audit/audit-snapshot';
@@ -38,7 +38,7 @@ export class SettingsService {
       assertVersion(before.version, body.version);
       if (body.logoUploadId !== null) await this.uploads.assertKind(tx, body.logoUploadId, 'FACTORY_LOGO');
 
-      const changed = EDITABLE_FIELDS.filter((field) => body[field] !== before[field]);
+      const changed = changedFields(body, before, EDITABLE_FIELDS);
       // Saving an unchanged form is not an edit (Q36): no new version, no history row.
       if (changed.length === 0) return toSettingsDto(before);
 

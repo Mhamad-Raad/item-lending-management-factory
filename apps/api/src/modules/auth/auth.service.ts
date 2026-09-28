@@ -9,7 +9,7 @@ import { PrismaService } from '../../prisma/prisma.service';
 import { toAuditSnapshot } from '../audit/audit-snapshot';
 import { AuditService } from '../audit/audit.service';
 import { ACCESS_TOKEN_TTL_MS } from './auth.constants';
-import { toMeDto } from './auth.mapper';
+import { toMeDto, USER_WITH_PERMISSIONS } from './auth.mapper';
 import { LoginThrottleService, type LockoutResult } from './login-throttle.service';
 import { checkPasswordPolicy } from './password-policy';
 import { PasswordService } from './password.service';
@@ -71,7 +71,7 @@ export class AuthService {
 
       const user = await tx.user.findUnique({
         where: { username },
-        include: { permissions: { select: { permissionKey: true } } },
+        include: USER_WITH_PERMISSIONS,
       });
 
       // Keyed on the typed username whether or not it exists, so the wait reveals no account (Q93).
@@ -164,7 +164,7 @@ export class AuthService {
       const family = await tx.sessionFamily.findUniqueOrThrow({ where: { id: rotation.token.familyId } });
       const user = await tx.user.findUniqueOrThrow({
         where: { id: family.userId },
-        include: { permissions: { select: { permissionKey: true } } },
+        include: USER_WITH_PERMISSIONS,
       });
 
       return { token: this.issueAccessToken(user, toMeDto(user)), refresh: rotation.token };
@@ -221,7 +221,7 @@ export class AuthService {
       await lockUser(tx, userId);
       const user = await tx.user.findUniqueOrThrow({
         where: { id: userId },
-        include: { permissions: { select: { permissionKey: true } } },
+        include: USER_WITH_PERMISSIONS,
       });
 
       // A locked pair refuses, as at the login. Past the account's ceiling nobody may try, known
@@ -267,7 +267,7 @@ export class AuthService {
           mustChangePassword: false,
           tokenVersion: { increment: 1 },
         },
-        include: { permissions: { select: { permissionKey: true } } },
+        include: USER_WITH_PERMISSIONS,
       });
 
       const refresh = await this.sessions.createFamily(tx, userId, origin.ip, origin.userAgent);
@@ -295,7 +295,7 @@ export class AuthService {
       await lockUser(tx, userId);
       const before = await tx.user.findUnique({
         where: { id: userId },
-        include: { permissions: { select: { permissionKey: true } } },
+        include: USER_WITH_PERMISSIONS,
       });
       // Deactivated between the guard and the lock: the session is no longer good for anything.
       if (!before?.isActive) throw new ApiError('AUTH_TOKEN_INVALID');
@@ -311,7 +311,7 @@ export class AuthService {
       const after = await tx.user.update({
         where: { id: userId },
         data: { displayName: body.displayName, version: { increment: 1 } },
-        include: { permissions: { select: { permissionKey: true } } },
+        include: USER_WITH_PERMISSIONS,
       });
 
       await this.audit.record(tx, {

@@ -8,6 +8,7 @@ import { RequestContext } from '../context/request-context';
 import { getAccessRules } from '../decorators/access.decorators';
 import { ApiError } from '../errors/api-error';
 import { PrismaService } from '../../prisma/prisma.service';
+import { USER_WITH_PERMISSIONS } from '../../modules/auth/auth.mapper';
 
 interface AccessTokenPayload {
   sub: string;
@@ -39,7 +40,7 @@ export class AuthGuard implements CanActivate {
     const payload = this.verify(header.slice('Bearer '.length));
     const user = await this.prisma.user.findUnique({
       where: { id: Number(payload.sub) },
-      include: { permissions: { select: { permissionKey: true } } },
+      include: USER_WITH_PERMISSIONS,
     });
     if (!user || !user.isActive || user.tokenVersion !== payload.tv) throw new ApiError('AUTH_TOKEN_INVALID');
 

@@ -1,6 +1,11 @@
 import { PERMISSION_KEYS, type MeDto, type PermissionKey } from '@pallet/shared';
 import type { AuthContext } from '../../common/auth-context';
-import type { User, UserPermission } from '../../generated/prisma/client';
+import type { Prisma, User, UserPermission } from '../../generated/prisma/client';
+
+/** Loads what `toMeDto` and the guard read of a user's permissions: the keys, nothing else. */
+export const USER_WITH_PERMISSIONS = {
+  permissions: { select: { permissionKey: true } },
+} as const satisfies Prisma.UserInclude;
 
 type UserWithPermissions = User & { permissions: Pick<UserPermission, 'permissionKey'>[] };
 

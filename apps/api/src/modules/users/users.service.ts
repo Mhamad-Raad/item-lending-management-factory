@@ -32,6 +32,7 @@ import { PasswordService } from '../auth/password.service';
 import { SessionService } from '../auth/session.service';
 import { toUserDto, toUserListItemDto } from './users.mapper';
 import { runInTransaction } from '../../prisma/transaction';
+import { USER_WITH_PERMISSIONS } from '../auth/auth.mapper';
 
 /** The unique constraint behind `users.username`, named for both driver error shapes. */
 const USERNAME_UNIQUE = { index: 'users_username_key', columns: ['username'] } as const;
@@ -90,7 +91,7 @@ export class UsersService {
   async get(userId: number): Promise<UserDto> {
     const user = await this.prisma.user.findUnique({
       where: { id: userId },
-      include: { permissions: { select: { permissionKey: true } } },
+      include: USER_WITH_PERMISSIONS,
     });
     if (!user) throw new ApiError('USER_NOT_FOUND', { userId });
 
@@ -115,7 +116,7 @@ export class UsersService {
             mustChangePassword: true,
             permissions: { create: permissions.map((permissionKey) => ({ permissionKey })) },
           },
-          include: { permissions: { select: { permissionKey: true } } },
+          include: USER_WITH_PERMISSIONS,
         })
         .catch((error: unknown) => {
           if (isUniqueViolation(error, USERNAME_UNIQUE)) throw new ApiError('USERNAME_TAKEN');
@@ -144,7 +145,7 @@ export class UsersService {
 
       const before = await tx.user.findUnique({
         where: { id: userId },
-        include: { permissions: { select: { permissionKey: true } } },
+        include: USER_WITH_PERMISSIONS,
       });
       if (!before) throw new ApiError('USER_NOT_FOUND', { userId });
       assertVersion(before.version, body.version);
@@ -184,7 +185,7 @@ export class UsersService {
           version: { increment: 1 },
           ...(deactivating ? { tokenVersion: { increment: 1 } } : {}),
         },
-        include: { permissions: { select: { permissionKey: true } } },
+        include: USER_WITH_PERMISSIONS,
       });
 
       await this.auditUpdate(tx, before, after, body);
@@ -197,7 +198,7 @@ export class UsersService {
       await lockUser(tx, userId);
       const before = await tx.user.findUnique({
         where: { id: userId },
-        include: { permissions: { select: { permissionKey: true } } },
+        include: USER_WITH_PERMISSIONS,
       });
       if (!before) throw new ApiError('USER_NOT_FOUND', { userId });
       assertVersion(before.version, body.version);
@@ -216,7 +217,7 @@ export class UsersService {
       const after = await tx.user.update({
         where: { id: userId },
         data: { version: { increment: 1 } },
-        include: { permissions: { select: { permissionKey: true } } },
+        include: USER_WITH_PERMISSIONS,
       });
 
       await this.audit.record(tx, {
