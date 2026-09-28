@@ -607,7 +607,7 @@ model LedgerEntry {
 
   @@index([orderId])
   @@index([type, date])
-  @@index([date])
+  @@index([date, id])
   @@index([returnId])
   @@index([createdByUserId])
   @@map("ledger_entries")

@@ -260,6 +260,7 @@ Every item below is an ambiguity, contradiction or gap in the brief. The builder
 | Q94 | The maintainer asked that every user can change their own information on `/account` — "the fields that make sense". The user row holds `username`, `display_name`, the password, `role`, the permission set and `is_active`; until now `/account` showed the profile read-only and only an admin could change any of it. Which fields are the user's own? | **The display name only**, through `PATCH /api/auth/me` (`@Authenticated()`, body `MeUpdateBody = z.strictObject({ version, displayName })`, the admin form's `DisplayName` rule: trimmed, 1–100 characters). The password already has its own form on the page (§6.8.6). The **username** stays admin-managed: it is the sign-in identity, the key of the login throttle (§6.8.2, Q68, Q93) and of every audit row's `usernameAttempt`, and the name a colleague is known by in the user list — renaming it from one's own account would let a user step out from under a lock or muddy the history, for no daily need. **Role, permissions and active state** stay admin-only (§3.2). The route edits the caller's own row only (the body names no user; the strict schema refuses `id` and every other field), under `lockUser`, with the usual version check (`VERSION_CONFLICT`) and Q37 no-op; the change is audited as the admin's rename is (`UPDATE` on `USER`, `fields: ['displayName']`, before/after), with the user as actor. It is **not** on the `mustChangePassword` allow-list (§6.8.7): a new or reset account sets its password first. `MeDto` gains `version` so the client can name it; the access token carries only `sub` and `tv`, so nothing is re-issued — the response is the new `MeDto`, which the web app puts into the auth store, so the sidebar and the dashboard greeting change at once. |
 | Q95 | The 2026-09-28 scale review (iteration 8a) found the purchases, positions and activity reports sending their queries through `Promise.all` on the `runInSnapshot` transaction client, and the integration run printing pg's "client.query() when the client is already executing a query" notice, which pg 9 turns into an error. Which queries may overlap on a transaction? | None of ours: a transaction is one connection that runs one statement at a time, so every query inside `runInTransaction`/`runInSnapshot` awaits the one before it (the reports now do; nothing else ran in parallel on a transaction client). Queries on the pool (`this.prisma`) may still run side by side, each on its own connection. A detector on the pg client showed that every overlap left in the integration run is Prisma 7 itself loading an `include`'s relations side by side on the transaction connection (for example an order's lines, returns and ledger rows): not ours to serialise, and harmless on pg 8. Before moving to pg 9 (it arrives with `@prisma/adapter-pg`), check that the Prisma release serialises them, or load those relations with `relationLoadStrategy: 'join'`. |
 | Q96 | The 2026-09-28 bug review (iteration 8a): a full database disk made every write fail as `500 INTERNAL_ERROR`, each reported to Sentry as a new bug, although Q82 answers the other "the database cannot serve right now" conditions 503; and `UploadsService.create` wrote the image before its `try`, so a disk that filled during the write left a half-written file that no row references and nothing cleans up. What holds? | PostgreSQL's `53100 disk_full` joins Q82's list: `isDatabaseUnavailable()` recognises it, so a failed write answers `503 SERVICE_UNAVAILABLE` and reaches Sentry as the `service-unavailable` warning (reads still work; the health check's `disk` probe and the incident runbook cover freeing space). The upload's `writeFile` moved inside the `try` whose `catch` removes the file, so a failed write, like a failed insert, leaves nothing on disk — except when `writeFile` itself refused with `EEXIST` (the `wx` flag): that name belongs to another upload's file, which is never removed. Unit tests: `api-exception.filter.test.ts`, `uploads.service.test.ts`. |
+| Q98 | The 2026-09-28 scale review (iteration 8a) measured the money ledger at ten years (300,000 orders, 385,000 ledger rows): every list and activity-report query on the effective date `COALESCE(le.date, o.date)` read the whole ledger and probed an order per row, and the type filter compared `le.type::text`, which no index serves — the list's default page 136 ms, a year of refunds 173 ms, each activity money section about 110 ms, past Q87's 150 ms bar together. Q87's two ways out were giving the automatic payment its order's date (then indexing `(date, id)`) or a `UNION ALL` of two indexable halves. Which? | **The `UNION ALL`; no stored row changes.** Dating the automatic payment would need every existing one backfilled — an `UPDATE` on an append-only ledger, which the trigger and the grants forbid and which only the owner could force in a migration — and afterwards an order-date edit would have to reverse and re-issue its automatic payment, adding rows the order's history and the activity report would then show; the effective date would stop being derived and could drift from the order. The halves need neither: `ledgerRowsOnEffectiveDate()` (`modules/ledger/effective-date.ts`) reads the dated rows by `le.date` from `ledger_entries (date, id)` (which replaces `(date)`) and the automatic payments by `o.date` through `ledger_entries_undated_order_id_idx (order_id) WHERE date IS NULL`; cancelled orders are an anti-join on their partial index; the type is compared as `ledger_entry_type`, and a type filter without `PAYMENT` skips the automatic half (`ledger_entries_automatic_only_payment_check`). A page sorts and cuts each half at `page × pageSize` before cutting the page from both, so a first page reads 25 rows per half. Migration `20260928000000_ledger_effective_date` adds only indexes. `ledger-effective-date.test.ts` compares every filter, sort and small page against the old `COALESCE` query on a fixture holding all four types, dated and undated rows and a cancelled order; at ten years the saved responses of fourteen list queries were byte-identical before and after. Measured there (p50): default page 136 → 50 ms (the remainder is the unfiltered count), one month 98 → 12 ms, one year 80 → 27 ms, a year of refunds 173 → 13 ms, page 1,000 97 → 65 ms. The customer history's timeline keeps its `COALESCE` inside one customer's rows (25 ms). |
 
 ## 3. Actors, roles and permissions
 
@@ -430,7 +431,7 @@ Remaining headroom = `creditLimit − outValue` when `creditLimit` is set (may b
 | `purchase_batches.total_cost`, `order_lines.line_total`, `return_lines.unit_deposit` | Stored copies | Creating services | CHECK constraints |
 | Item `quantityOut`, `damagedTotal`, `isLowStock` | Computed on read (SQL) | — | — |
 | Customer `outValue`, `owed`, `held`, `compensation`, per-item holdings | Computed on read (SQL sums of maintained order columns) | — | — |
-| Ledger effective date | Computed on read: `COALESCE(le.date, o.date)` | — | — |
+| Ledger effective date | Computed on read: `COALESCE(le.date, o.date)`, filtered and sorted as two indexable halves (Q98) | — | — |
 | Order number | Allocated from `order_counter` | Order creation only | Reconciliation R5 |
 
 `recomputeOrder(tx, orderId, { bumpVersion })` — the only writer of the order cache:
@@ -1067,7 +1068,8 @@ Non-unique:
 | returns | returns_order_id_idx, returns_date_idx, returns_reversed_by_user_id_idx, returns_created_by_user_id_idx | FK / report | |
 | return_lines | return_lines_order_line_id_idx | order_line_id | FK |
 | ledger_entries | ledger_entries_order_id_idx | order_id | per-order ledger |
-| ledger_entries | ledger_entries_type_date_idx, ledger_entries_date_idx | type, date / date | activity report |
+| ledger_entries | ledger_entries_type_date_idx, ledger_entries_date_id_idx | type, date / date, id | activity report, ledger list: the dated rows by effective date (Q98) |
+| ledger_entries | ledger_entries_undated_order_id_idx (partial, constraints.sql) | order_id WHERE date IS NULL | the automatic payments, by their order's date (Q98) |
 | ledger_entries | ledger_entries_return_id_idx, ledger_entries_created_by_user_id_idx | FK | |
 | idempotency_keys | idempotency_keys_expires_at_idx | expires_at | purge |
 | audit_logs | audit_logs_created_at_idx, audit_logs_user_id_created_at_idx, audit_logs_entity_type_entity_id_idx, audit_logs_action_created_at_idx | filters | history page |
@@ -1775,7 +1777,7 @@ model LedgerEntry {
 
   @@index([orderId])
   @@index([type, date])
-  @@index([date])
+  @@index([date, id])
   @@index([returnId])
   @@index([createdByUserId])
   @@map("ledger_entries")
@@ -2109,6 +2111,9 @@ CREATE INDEX ledger_entries_manual_payments_created_at_id_idx
   ON ledger_entries (created_at, id) WHERE type = 'PAYMENT' AND source = 'MANUAL';
 CREATE INDEX ledger_entries_refunds_created_at_id_idx
   ON ledger_entries (created_at, id) WHERE type = 'REFUND';
+
+-- The automatic payments, read through their order's date (Q98, migration 20260928000000_ledger_effective_date).
+CREATE INDEX ledger_entries_undated_order_id_idx ON ledger_entries (order_id) WHERE date IS NULL;
 
 -- ═══════════════════════════════════════════════════════════════════════════════════════
 -- Seed rows required by the schema itself
@@ -3441,6 +3446,7 @@ LedgerEntryListQuery = z.strictObject({
 })
 ```
 - **Response:** 200 `PageDto<LedgerEntryDto>`. The customer profile uses `type=PAYMENT,PAYMENT_REVERSAL` (payments list) and `type=REFUND,REFUND_REVERSAL` (refunds list).
+- **Strategy (Q98):** `ledgerRowsOnEffectiveDate()` (`modules/ledger/effective-date.ts`) — a `UNION ALL` of the dated rows (by `le.date`, `ledger_entries (date, id)`) and the automatic payments (by `o.date`, `ledger_entries_undated_order_id_idx`), the type compared as `ledger_entry_type`, cancelled orders left out by an anti-join; each half sorted and cut at `page × pageSize` before the page is cut from both.
 - **Errors:** `DATE_RANGE_INVALID`.
 
 ### 6.22 Dashboard (`apps/api/src/modules/dashboard/dashboard.controller.ts`)

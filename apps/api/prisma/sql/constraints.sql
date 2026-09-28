@@ -278,6 +278,9 @@ CREATE INDEX ledger_entries_manual_payments_created_at_id_idx
 CREATE INDEX ledger_entries_refunds_created_at_id_idx
   ON ledger_entries (created_at, id) WHERE type = 'REFUND';
 
+-- The automatic payments, read through their order's date (Q98, migration 20260928000000_ledger_effective_date).
+CREATE INDEX ledger_entries_undated_order_id_idx ON ledger_entries (order_id) WHERE date IS NULL;
+
 -- ═══════════════════════════════════════════════════════════════════════════════════════
 -- Seed rows required by the schema itself
 -- ═══════════════════════════════════════════════════════════════════════════════════════
