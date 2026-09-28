@@ -39,7 +39,7 @@ const day = (n: number): string => {
  * date of their own) on CASH orders, manual payments and their reversals, cash refunds and the
  * reversals a deleted return writes, and a cancelled order's rows — over three weeks, three customers.
  */
-export async function buildLedgerFixture(
+async function buildLedgerFixture(
   app: INestApplication,
   admin: Session,
 ): Promise<{
