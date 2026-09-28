@@ -8,9 +8,11 @@
 import { execFileSync } from 'node:child_process';
 import path from 'node:path';
 import argon2 from 'argon2';
+import { PASSWORD_MAX_LENGTH, PASSWORD_MIN_LENGTH } from '@pallet/shared';
 import { toAuditSnapshot } from '../modules/audit/audit-snapshot';
 import { AuditService } from '../modules/audit/audit.service';
 import { ARGON2_OPTIONS } from '../modules/auth/password.constants';
+import { checkPasswordPolicy } from '../modules/auth/password-policy';
 import { createPrismaClient } from '../prisma/create-client';
 
 const API_ROOT = path.resolve(__dirname, '..', '..');
@@ -32,12 +34,47 @@ interface AdminSeed {
   passwordHash: string;
 }
 
+/**
+ * Passwords published in this (public) repository: the `.env.example` placeholder's marker, and the
+ * development, CI and live-e2e values. The placeholder is refused everywhere; the others only under
+ * production, where they would make the first admin's password a matter of public record (Q120).
+ */
+const PLACEHOLDER_MARKER = 'change-me';
+const PUBLIC_PASSWORDS = new Set(['admin-dev-password', 'ci-admin-password-123', 'e2e-admin-password-2026']);
+
+/**
+ * Why `ADMIN_PASSWORD` cannot seed the first admin, or null. The admin must change it at the first sign-in,
+ * but until then the account is open to anyone who knows it: a public value, or one the login's own policy
+ * would refuse (length, the bundled common-password list, the username itself), is refused before anything
+ * is written. Wording is for the operator reading the migrate container's log.
+ */
+export function adminPasswordProblem(password: string, username: string, nodeEnv: string | undefined): string | null {
+  const lower = password.toLowerCase();
+  if (lower.includes(PLACEHOLDER_MARKER)) {
+    return 'is still the .env.example placeholder; set a long random one (`openssl rand -hex 16`) and run again';
+  }
+  if (nodeEnv === 'production' && PUBLIC_PASSWORDS.has(lower)) {
+    return 'is a development/CI value published in the repository; set a long random one and run again';
+  }
+  switch (checkPasswordPolicy(password, username)) {
+    case 'PASSWORD_TOO_SHORT':
+      return `must be at least ${PASSWORD_MIN_LENGTH} characters`;
+    case 'PASSWORD_TOO_LONG':
+      return `must be at most ${PASSWORD_MAX_LENGTH} characters`;
+    case 'PASSWORD_TOO_COMMON':
+      return 'is a commonly used password or equals ADMIN_USERNAME; choose a long random one';
+    default:
+      return null;
+  }
+}
+
 /** Validates the ADMIN_* variables and hashes the password outside the seeding transaction (Argon2id is slow). */
 async function prepareAdmin(): Promise<AdminSeed> {
   const username = requireEnv('ADMIN_USERNAME').trim().toLowerCase();
   const password = requireEnv('ADMIN_PASSWORD');
   if (!/^[a-z0-9._-]{3,32}$/.test(username)) throw new Error('ADMIN_USERNAME must match ^[a-z0-9._-]{3,32}$');
-  if (password.length < 10) throw new Error('ADMIN_PASSWORD must be at least 10 characters');
+  const problem = adminPasswordProblem(password, username, process.env.NODE_ENV);
+  if (problem) throw new Error(`ADMIN_PASSWORD ${problem}`);
   return {
     username,
     displayName: process.env.ADMIN_DISPLAY_NAME?.trim() || 'Administrator',
