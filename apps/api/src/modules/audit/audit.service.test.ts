@@ -68,6 +68,26 @@ describe('AuditService.record', () => {
     expect(created()).toMatchObject({ ip: null, requestId: null, userId: null, usernameAttempt: 'admin' });
   });
 
+  it('keeps a typed username only when it could be one (Q126)', async () => {
+    for (const [typed, kept] of [
+      ['  Karwan.A  ', 'karwan.a'],
+      ['My Secret Pass!', null],
+      ['ab', null],
+      ['x'.repeat(33), null],
+      ['پاسۆرد١٢٣', null],
+    ] as const) {
+      const { tx, created } = fakeTx();
+      await new AuditService().record(tx, {
+        action: 'LOGIN_FAILURE',
+        entityType: 'USER',
+        entityId: null,
+        userId: null,
+        usernameAttempt: typed,
+      });
+      expect(created()).toMatchObject({ usernameAttempt: kept });
+    }
+  });
+
   it('strips password, token and secret keys recursively before insert', async () => {
     const { tx, created } = fakeTx();
 

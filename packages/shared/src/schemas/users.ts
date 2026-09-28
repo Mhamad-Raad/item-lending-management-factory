@@ -2,12 +2,11 @@ import { z } from 'zod';
 import { ROLES } from '../enums.js';
 import { AT_LEAST_ONE_FIELD_ERROR, PageQuery, SearchQuery, hasFieldBesidesVersion, sortParam } from './common.js';
 
+/** What a username may be, after trimming and lower-casing. */
+export const USERNAME_PATTERN = /^[a-z0-9._-]{3,32}$/;
+
 /** Usernames are lower-cased on the way in; the pattern is what `POST /api/users` enforces. */
-export const Username = z
-  .string()
-  .trim()
-  .toLowerCase()
-  .regex(/^[a-z0-9._-]{3,32}$/);
+export const Username = z.string().trim().toLowerCase().regex(USERNAME_PATTERN);
 
 /**
  * Control (Cc) and format (Cf) characters a display name may not hold (Q121): bidi overrides and isolates can

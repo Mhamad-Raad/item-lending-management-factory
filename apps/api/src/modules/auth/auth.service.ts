@@ -7,7 +7,7 @@ import type { Prisma, User } from '../../generated/prisma/client';
 import { lockUser, lockUserByUsername } from '../../prisma/locks';
 import { PrismaService } from '../../prisma/prisma.service';
 import { toAuditSnapshot } from '../audit/audit-snapshot';
-import { AuditService } from '../audit/audit.service';
+import { AuditService, recordableUsernameAttempt } from '../audit/audit.service';
 import { ACCESS_TOKEN_TTL_MS } from './auth.constants';
 import { toMeDto } from './auth.mapper';
 import { LoginThrottleService, type LockoutResult } from './login-throttle.service';
@@ -363,7 +363,8 @@ export class AuthService {
       entityId: user ? String(user.id) : null,
       userId: user?.id ?? null,
       usernameAttempt,
-      summaryParams: { usernameAttempt, reason },
+      // What the history shows is what the column keeps: a typed password never lands in either (Q126).
+      summaryParams: { usernameAttempt: recordableUsernameAttempt(usernameAttempt) ?? '—', reason },
     });
   }
 
@@ -382,7 +383,7 @@ export class AuthService {
       userId: user?.id ?? null,
       usernameAttempt,
       summaryParams: {
-        usernameAttempt,
+        usernameAttempt: recordableUsernameAttempt(usernameAttempt) ?? '—',
         lockedMinutes: lockout.lockedMinutes,
         lockoutCount: lockout.lockoutCount,
         scope,

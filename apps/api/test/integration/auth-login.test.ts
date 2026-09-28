@@ -427,6 +427,15 @@ describe('login', () => {
     expect(row.summaryParams).toMatchObject({ reason: 'INACTIVE' });
   });
 
+  it('Q126: never keeps a typed password that cannot be a username, in the column or the summary', async () => {
+    await attempt(app, { username: 'Correct Horse!9', password: 'x' }, '203.0.113.60').expect(401);
+    const prisma = app.get(PrismaService);
+    const row = await prisma.auditLog.findFirstOrThrow({ where: { action: 'LOGIN_FAILURE' } });
+    expect(row.usernameAttempt).toBeNull();
+    expect(row.summaryParams).toEqual({ usernameAttempt: '—', reason: 'INVALID' });
+    expect(JSON.stringify(row)).not.toContain('horse');
+  });
+
   it('writes a session-scoped audit row on success', async () => {
     const session = await login(app);
     const prisma = app.get(PrismaService);

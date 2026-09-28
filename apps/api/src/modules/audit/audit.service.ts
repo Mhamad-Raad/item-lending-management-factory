@@ -1,5 +1,5 @@
 import { Injectable } from '@nestjs/common';
-import { isAuditPair, type AuditAction, type AuditEntityType } from '@pallet/shared';
+import { USERNAME_PATTERN, isAuditPair, type AuditAction, type AuditEntityType } from '@pallet/shared';
 import { RequestContext } from '../../common/context/request-context';
 import type { Prisma } from '../../generated/prisma/client';
 
@@ -23,7 +23,17 @@ const SENSITIVE_KEY = /password|token|secret/i;
  * everything on it is a name the safety net below would otherwise delete from a snapshot.
  */
 const SENSITIVE_KEY_EXCEPTIONS = new Set(['mustChangePassword']);
-const USERNAME_ATTEMPT_MAX_LENGTH = 64;
+
+/**
+ * What of a typed username the audit log keeps (Q126): the name, trimmed and lower-cased, when it could be a
+ * username at all; otherwise nothing. People type their password into the username field, and `audit_logs`
+ * is append-only — whatever lands there stays for good. A password that happens to fit the username pattern
+ * (lower-case letters, digits, `.`, `_`, `-`, 3–32) is still kept; the rest are not.
+ */
+export function recordableUsernameAttempt(attempt: string | null | undefined): string | null {
+  const normalised = attempt?.trim().toLowerCase();
+  return normalised && USERNAME_PATTERN.test(normalised) ? normalised : null;
+}
 
 /**
  * Defence in depth behind the allow-lists of `toAuditSnapshot` (§11.4): whatever a caller
@@ -64,7 +74,7 @@ export class AuditService {
     await tx.auditLog.create({
       data: {
         userId,
-        usernameAttempt: entry.usernameAttempt?.trim().toLowerCase().slice(0, USERNAME_ATTEMPT_MAX_LENGTH) ?? null,
+        usernameAttempt: recordableUsernameAttempt(entry.usernameAttempt),
         action: entry.action,
         entityType: entry.entityType,
         entityId: entry.entityId,
