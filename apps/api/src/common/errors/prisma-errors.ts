@@ -44,10 +44,11 @@ const UNAVAILABLE_ADAPTER_KINDS = new Set([
   'TooManyConnections',
 ]);
 /**
- * PostgreSQL SQLSTATEs of the same kind: connection exceptions (class 08), too many connections
+ * PostgreSQL SQLSTATEs of the same kind: connection exceptions (class 08), a full disk (53100: the
+ * write fails, reads still work, and it lasts until someone frees space), too many connections
  * (53300), and a server shutting down, crashing or still starting (57P01, 57P02, 57P03).
  */
-const UNAVAILABLE_SQLSTATE = /^(08...|53300|57P0[123])$/;
+const UNAVAILABLE_SQLSTATE = /^(08...|53100|53300|57P0[123])$/;
 /** Socket errors and the pg pool's own messages when the error reaches us unwrapped. */
 const UNAVAILABLE_SOCKET_CODES = new Set(['ECONNREFUSED', 'ECONNRESET', 'ETIMEDOUT', 'ENOTFOUND', 'EPIPE']);
 const UNAVAILABLE_MESSAGE =

@@ -71,6 +71,8 @@ describe('ApiExceptionFilter database outages', () => {
       known('P2010', { driverAdapterError: { name: 'DriverAdapterError', cause: { kind: 'DatabaseNotReachable' } } }),
     ],
     ['a server shutting down', known('P2010', { driverAdapterError: { cause: { kind: 'postgres', code: '57P01' } } })],
+    ['a full disk', known('P2010', { driverAdapterError: { cause: { kind: 'postgres', code: '53100' } } })],
+    ['a full disk, unwrapped', Object.assign(new Error('could not extend file'), { code: '53100' })],
     ['the pg pool timing out', new Error('timeout exceeded when trying to connect')],
     ['a refused socket', Object.assign(new Error('connect ECONNREFUSED'), { code: 'ECONNREFUSED' })],
   ])('%s → 503 SERVICE_UNAVAILABLE, reported as a warning', (_, exception) => {

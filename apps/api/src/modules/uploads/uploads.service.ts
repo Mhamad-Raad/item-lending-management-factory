@@ -40,10 +40,9 @@ export class UploadsService implements OnModuleInit {
     const image = await processImage(file.buffer, kind);
     const fileName = `${randomBytes(16).toString('hex')}.webp`;
     const filePath = path.join(this.directory, fileName);
-    // `wx` refuses to overwrite: a collision of 128 random bits is not expected, and never silent.
-    await writeFile(filePath, image.buffer, { flag: 'wx', mode: 0o640 });
-
     try {
+      // `wx` refuses to overwrite: a collision of 128 random bits is not expected, and never silent.
+      await writeFile(filePath, image.buffer, { flag: 'wx', mode: 0o640 });
       return await runInTransaction(this.prisma, async (tx) => {
         const upload = await tx.upload.create({
           data: {
@@ -65,8 +64,9 @@ export class UploadsService implements OnModuleInit {
         return toUploadDto(upload);
       });
     } catch (error) {
-      // No row, no file: an orphan on disk would never be referenced or cleaned up.
-      await unlink(filePath).catch(() => undefined);
+      // No row, no file: an orphan on disk — or the half-written file a full disk leaves — would never
+      // be referenced or cleaned up. A refused `wx` (EEXIST) means the name is another upload's file.
+      if (!isErrnoCode(error, 'EEXIST')) await unlink(filePath).catch(() => undefined);
       throw error;
     }
   }
@@ -80,4 +80,8 @@ export class UploadsService implements OnModuleInit {
     if (!upload) throw new ApiError('UPLOAD_NOT_FOUND', { uploadId });
     if (upload.kind !== expected) throw new ApiError('UPLOAD_KIND_MISMATCH', { expected, actual: upload.kind });
   }
+}
+
+function isErrnoCode(error: unknown, code: string): boolean {
+  return error instanceof Error && (error as NodeJS.ErrnoException).code === code;
 }
