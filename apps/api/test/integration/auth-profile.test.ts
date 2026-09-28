@@ -145,4 +145,15 @@ describe('own display name', () => {
     expect(errorCode(response.body)).toBe('PASSWORD_CHANGE_REQUIRED');
     expect((await prisma.user.findUniqueOrThrow({ where: { id: fresh.id } })).displayName).toBe('fresh.start');
   });
+
+  it('Q121: refuses a colleague’s name and hidden characters, as the admin form does', async () => {
+    const taken = await patch({ version: 1, displayName: ' administrator ' }).expect(409);
+    expect(errorCode(taken.body)).toBe('DISPLAY_NAME_TAKEN');
+    const hidden = await patch({ version: 1, displayName: 'Admin\u2066istrator' }).expect(400);
+    expect(hidden.body).toMatchObject({ error: { fields: [{ path: 'displayName', code: 'invisible_characters' }] } });
+    expect((await prisma.user.findUniqueOrThrow({ where: { id: employee.id } })).displayName).toBe(employee.username);
+
+    // Changing only the case of one's own name is not a clash with oneself.
+    await patch({ version: 1, displayName: employee.username.toUpperCase() }).expect(200);
+  });
 });

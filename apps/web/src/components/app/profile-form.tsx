@@ -44,6 +44,7 @@ export function ProfileForm({ user }: { user: MeDto }) {
       handleApiError(error, {
         setError: form.setError,
         fields: ['displayName'],
+        fieldMap: { DISPLAY_NAME_TAKEN: 'displayName' },
         onReload: () => void refreshMe().catch((reloadError: unknown) => handleApiError(reloadError)),
       });
     }

@@ -5,6 +5,7 @@ import { dynamicKey } from '@/i18n/keys';
 import { translateSummaryParams } from '@/lib/audit-summary';
 import { useAuth, useCan } from '@/lib/auth';
 import { AuditDiff } from './audit-diff';
+import { ActorName } from '@/components/app/actor-name';
 
 const LINK = 'text-primary underline-offset-4 hover:underline';
 
@@ -74,7 +75,7 @@ export function EntityRef({ row }: { row: AuditLogDto }) {
 /** Who did it; a failed sign-in has no user, only the name that was tried. */
 export function AuditUser({ row }: { row: AuditLogDto }) {
   return row.user ? (
-    <bdi>{row.user.displayName}</bdi>
+    <ActorName user={row.user} />
   ) : (
     <bdi className="text-muted-foreground italic">{row.usernameAttempt ?? '—'}</bdi>
   );

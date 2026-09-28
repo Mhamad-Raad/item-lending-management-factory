@@ -40,6 +40,7 @@ export const ERROR_CODES = {
   // Users and permissions
   USER_NOT_FOUND: 404,
   USERNAME_TAKEN: 409,
+  DISPLAY_NAME_TAKEN: 409,
   SELF_DEACTIVATE_FORBIDDEN: 409,
   SELF_DEMOTE_FORBIDDEN: 409,
   LAST_ADMIN_GUARD: 409,
@@ -171,6 +172,7 @@ export const VALIDATION_CODES = [
   'not_integer',
   'unknown_key',
   'duplicate',
+  'invisible_characters',
 ] as const;
 
 export type ValidationCode = (typeof VALIDATION_CODES)[number];

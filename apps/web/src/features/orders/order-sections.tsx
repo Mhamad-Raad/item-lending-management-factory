@@ -15,6 +15,7 @@ import { Button } from '@/components/ui/button';
 import { Tip } from '@/components/app/tip';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { cn } from '@/lib/utils';
+import { ActorName } from '@/components/app/actor-name';
 
 type Line = OrderDetailDto['lines'][number];
 
@@ -194,7 +195,7 @@ export function OrderReturns({
                 </p>
               ) : null}
               <p className="text-muted-foreground text-xs">
-                <bdi>{pr.createdBy.displayName}</bdi> · <DateText value={pr.createdAt} withTime />
+                <ActorName user={pr.createdBy} /> · <DateText value={pr.createdAt} withTime />
               </p>
             </CardContent>
           </Card>
@@ -259,7 +260,7 @@ export function OrderMoney({
     {
       id: 'createdBy',
       header: 'orders.money.createdBy',
-      cell: (entry) => entry.createdBy.displayName,
+      cell: (entry) => <ActorName user={entry.createdBy} />,
       hideBelow: 'lg',
       wrap: true,
     },

@@ -58,6 +58,7 @@ function NewUserPage() {
         fields: ['username', 'displayName', 'password'],
         fieldMap: {
           USERNAME_TAKEN: 'username',
+          DISPLAY_NAME_TAKEN: 'displayName',
           PASSWORD_TOO_SHORT: 'password',
           PASSWORD_TOO_LONG: 'password',
           PASSWORD_TOO_COMMON: 'password',

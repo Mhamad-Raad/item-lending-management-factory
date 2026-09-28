@@ -16,6 +16,7 @@ import { PasswordService } from './password.service';
 import { SessionService, type IssuedToken } from './session.service';
 import { runInTransaction } from '../../prisma/transaction';
 import { assertVersion, changedFields } from '../../common/utils/versioning';
+import { assertDisplayNameFree } from '../users/display-name';
 
 export interface RequestOrigin {
   ip: string;
@@ -303,6 +304,8 @@ export class AuthService {
 
       // Q37: a save that changes nothing writes nothing — no version bump, no history row.
       if (changedFields(body, before, ['displayName'] as const).length === 0) return toMeDto(before);
+      // Q121: nobody may take a colleague's name, the way an admin could not give it to them.
+      await assertDisplayNameFree(tx, body.displayName, userId);
 
       const after = await tx.user.update({
         where: { id: userId },

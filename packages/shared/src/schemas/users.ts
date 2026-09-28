@@ -9,7 +9,24 @@ export const Username = z
   .toLowerCase()
   .regex(/^[a-z0-9._-]{3,32}$/);
 
-export const DisplayName = z.string().trim().min(1).max(100);
+/**
+ * Control (Cc) and format (Cf) characters a display name may not hold (Q121): bidi overrides and isolates can
+ * make one name read as another, zero-width characters make two names look the same. The zero-width non-joiner
+ * (U+200C) stays allowed: Sorani and Persian spelling needs it, and the uniqueness check ignores it.
+ */
+const INVISIBLE_CHARACTER = /(?!\u200C)[\p{Cc}\p{Cf}]/u;
+
+/** Whether a display name is free of the invisible characters above. */
+export function hasNoInvisibleCharacters(value: string): boolean {
+  return !INVISIBLE_CHARACTER.test(value);
+}
+
+export const DisplayName = z
+  .string()
+  .trim()
+  .min(1)
+  .max(100)
+  .refine(hasNoInvisibleCharacters, { params: { code: 'invisible_characters' } });
 
 /** Validated against PERMISSION_KEYS by the service, which reports the unknown keys it found. */
 const PermissionKeyList = z.array(z.string().max(64)).max(64);
