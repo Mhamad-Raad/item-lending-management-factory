@@ -29,25 +29,25 @@ export async function queryActivityReport(
   const lineFilter = query.itemId ? Prisma.sql`AND ol.item_id = ${query.itemId}` : Prisma.empty;
   const itemIdFilter = query.itemId === undefined ? {} : { itemId: query.itemId };
 
-  const [handoverKeys, handoverTotals, returnKeys, returnTotals, compensationRows] = await Promise.all([
-    db.$queryRaw<{ id: number }[]>`
+  // One after the other throughout: a transaction is one connection, which runs one query at a time.
+  const handoverKeys = await db.$queryRaw<{ id: number }[]>`
       SELECT o.id FROM orders o
        WHERE ${orderFilter} AND o.date BETWEEN ${from}::date AND ${to}::date
          AND EXISTS (SELECT 1 FROM order_lines ol WHERE ol.order_id = o.id ${lineFilter})
-       ORDER BY o.date ASC, o.created_at ASC, o.id ASC LIMIT ${ROW_CAP + 1}`,
-    db.$queryRaw<{ quantity: SqlAggregate; deposit: SqlAggregate }[]>`
+       ORDER BY o.date ASC, o.created_at ASC, o.id ASC LIMIT ${ROW_CAP + 1}`;
+  const handoverTotals = await db.$queryRaw<{ quantity: SqlAggregate; deposit: SqlAggregate }[]>`
       SELECT SUM(ol.quantity)::bigint AS quantity, SUM(ol.line_total)::bigint AS deposit
         FROM order_lines ol JOIN orders o ON o.id = ol.order_id
-       WHERE ${orderFilter} AND o.date BETWEEN ${from}::date AND ${to}::date ${lineFilter}`,
-    db.$queryRaw<{ id: number }[]>`
+       WHERE ${orderFilter} AND o.date BETWEEN ${from}::date AND ${to}::date ${lineFilter}`;
+  const returnKeys = await db.$queryRaw<{ id: number }[]>`
       SELECT r.id FROM returns r JOIN orders o ON o.id = r.order_id
        WHERE ${orderFilter} AND r.reversed_at IS NULL AND r.date BETWEEN ${from}::date AND ${to}::date
          AND EXISTS (SELECT 1 FROM return_lines rl JOIN order_lines ol ON ol.id = rl.order_line_id
                       WHERE rl.return_id = r.id ${lineFilter})
-       ORDER BY r.date ASC, r.created_at ASC, r.id ASC LIMIT ${ROW_CAP + 1}`,
-    db.$queryRaw<
-      { accepted: SqlAggregate; damaged: SqlAggregate; refund_due: SqlAggregate; compensation: SqlAggregate }[]
-    >`
+       ORDER BY r.date ASC, r.created_at ASC, r.id ASC LIMIT ${ROW_CAP + 1}`;
+  const returnTotals = await db.$queryRaw<
+    { accepted: SqlAggregate; damaged: SqlAggregate; refund_due: SqlAggregate; compensation: SqlAggregate }[]
+  >`
       SELECT SUM(rl.accepted_quantity)::bigint AS accepted, SUM(rl.damaged_quantity)::bigint AS damaged,
              SUM(rl.accepted_quantity * rl.unit_deposit + rl.damaged_refund)::bigint AS refund_due,
              SUM(rl.damaged_quantity * rl.unit_deposit - rl.damaged_refund)::bigint AS compensation
@@ -55,56 +55,54 @@ export async function queryActivityReport(
         JOIN returns r ON r.id = rl.return_id AND r.reversed_at IS NULL
         JOIN order_lines ol ON ol.id = rl.order_line_id
         JOIN orders o ON o.id = r.order_id
-       WHERE ${orderFilter} AND r.date BETWEEN ${from}::date AND ${to}::date ${lineFilter}`,
-    db.$queryRaw<{ id: number }[]>`
+       WHERE ${orderFilter} AND r.date BETWEEN ${from}::date AND ${to}::date ${lineFilter}`;
+  const compensationRows = await db.$queryRaw<{ id: number }[]>`
       SELECT rl.id FROM return_lines rl
         JOIN returns r ON r.id = rl.return_id AND r.reversed_at IS NULL
         JOIN order_lines ol ON ol.id = rl.order_line_id
         JOIN orders o ON o.id = r.order_id
        WHERE ${orderFilter} AND r.date BETWEEN ${from}::date AND ${to}::date AND rl.damaged_quantity > 0 ${lineFilter}
-       ORDER BY r.date ASC, r.created_at ASC, rl.id ASC LIMIT ${ROW_CAP + 1}`,
-  ]);
+       ORDER BY r.date ASC, r.created_at ASC, rl.id ASC LIMIT ${ROW_CAP + 1}`;
 
   const money = moneyOmitted
     ? null
-    : await Promise.all(
-        (['PAYMENT', 'REFUND'] as const).map((kind) => queryMoneySection(db, kind, orderFilter, from, to)),
-      );
+    : [
+        await queryMoneySection(db, 'PAYMENT', orderFilter, from, to),
+        await queryMoneySection(db, 'REFUND', orderFilter, from, to),
+      ];
 
-  const [handovers, returns, compensation, ledger] = await Promise.all([
-    db.order.findMany({
-      where: { id: { in: cap(handoverKeys) } },
-      include: {
-        customer: true,
-        driver: true,
-        lines: { where: itemIdFilter, orderBy: { id: 'asc' }, include: { item: ITEM_REF_INCLUDE } },
+  const handovers = await db.order.findMany({
+    where: { id: { in: cap(handoverKeys) } },
+    include: {
+      customer: true,
+      driver: true,
+      lines: { where: itemIdFilter, orderBy: { id: 'asc' }, include: { item: ITEM_REF_INCLUDE } },
+    },
+  });
+  const returns = await db.palletReturn.findMany({
+    where: { id: { in: cap(returnKeys) } },
+    include: {
+      order: { include: { customer: true } },
+      lines: {
+        where: query.itemId ? { orderLine: itemIdFilter } : {},
+        orderBy: { id: 'asc' },
+        include: { orderLine: { include: { item: ITEM_REF_INCLUDE } } },
       },
-    }),
-    db.palletReturn.findMany({
-      where: { id: { in: cap(returnKeys) } },
-      include: {
-        order: { include: { customer: true } },
-        lines: {
-          where: query.itemId ? { orderLine: itemIdFilter } : {},
-          orderBy: { id: 'asc' },
-          include: { orderLine: { include: { item: ITEM_REF_INCLUDE } } },
-        },
-      },
-    }),
-    db.returnLine.findMany({
-      where: { id: { in: cap(compensationRows) } },
-      include: {
-        return: { include: { order: { include: { customer: true } } } },
-        orderLine: { include: { item: ITEM_REF_INCLUDE } },
-      },
-    }),
-    money
-      ? db.ledgerEntry.findMany({
-          where: { id: { in: [...cap(money[0]?.keys ?? []), ...cap(money[1]?.keys ?? [])] } },
-          include: { ...LEDGER_ENTRY_INCLUDE, order: { include: { customer: true } } },
-        })
-      : Promise.resolve([]),
-  ]);
+    },
+  });
+  const compensation = await db.returnLine.findMany({
+    where: { id: { in: cap(compensationRows) } },
+    include: {
+      return: { include: { order: { include: { customer: true } } } },
+      orderLine: { include: { item: ITEM_REF_INCLUDE } },
+    },
+  });
+  const ledger = money
+    ? await db.ledgerEntry.findMany({
+        where: { id: { in: [...cap(money[0]?.keys ?? []), ...cap(money[1]?.keys ?? [])] } },
+        include: { ...LEDGER_ENTRY_INCLUDE, order: { include: { customer: true } } },
+      })
+    : [];
   const ledgerDto = (keys: { id: number }[]) =>
     inOrder(keys, ledger).map((entry) => toLedgerEntryDto(entry, entry.order));
   const payments = money?.[0];
@@ -235,17 +233,15 @@ async function queryMoneySection(
   const moneyWhere = Prisma.sql`
     ${orderFilter} AND le.type::text = ANY(${types}::text[])
     AND COALESCE(le.date, o.date) BETWEEN ${from}::date AND ${to}::date`;
-  const [keys, totals] = await Promise.all([
-    db.$queryRaw<{ id: number }[]>`
+  const keys = await db.$queryRaw<{ id: number }[]>`
       SELECT le.id FROM ledger_entries le JOIN orders o ON o.id = le.order_id
        WHERE ${moneyWhere}
-       ORDER BY COALESCE(le.date, o.date) ASC, le.created_at ASC, le.id ASC LIMIT ${ROW_CAP + 1}`,
-    db.$queryRaw<{ gross: SqlAggregate; reversals: SqlAggregate }[]>`
+       ORDER BY COALESCE(le.date, o.date) ASC, le.created_at ASC, le.id ASC LIMIT ${ROW_CAP + 1}`;
+  const totals = await db.$queryRaw<{ gross: SqlAggregate; reversals: SqlAggregate }[]>`
       SELECT COALESCE(SUM(le.amount) FILTER (WHERE le.type::text = ${kind}), 0)::bigint AS gross,
              COALESCE(SUM(le.amount) FILTER (WHERE le.type::text <> ${kind}), 0)::bigint AS reversals
         FROM ledger_entries le JOIN orders o ON o.id = le.order_id
-       WHERE ${moneyWhere}`,
-  ]);
+       WHERE ${moneyWhere}`;
   return {
     keys,
     gross: fromAggregate(totals[0]?.gross ?? 0),

@@ -20,14 +20,15 @@ export async function queryPurchasesReport(
     AND pb.date BETWEEN ${businessDateToDb(query.dateFrom)}::date AND ${businessDateToDb(query.dateTo)}::date
     ${query.itemId ? Prisma.sql`AND pb.item_id = ${query.itemId}` : Prisma.empty}`;
 
-  const [batches, perItem] = await Promise.all([
-    db.$queryRaw<{ id: number }[]>`
-      SELECT pb.id FROM purchase_batches pb WHERE ${where} ORDER BY pb.date ASC, pb.id ASC LIMIT ${ROW_CAP + 1}`,
-    db.$queryRaw<{ item_id: number; batch_count: SqlAggregate; quantity: SqlAggregate; total_cost: SqlAggregate }[]>`
+  // One after the other: a transaction is one connection, which runs one query at a time.
+  const batches = await db.$queryRaw<{ id: number }[]>`
+      SELECT pb.id FROM purchase_batches pb WHERE ${where} ORDER BY pb.date ASC, pb.id ASC LIMIT ${ROW_CAP + 1}`;
+  const perItem = await db.$queryRaw<
+    { item_id: number; batch_count: SqlAggregate; quantity: SqlAggregate; total_cost: SqlAggregate }[]
+  >`
       SELECT pb.item_id, COUNT(*)::bigint AS batch_count, SUM(pb.quantity)::bigint AS quantity,
              SUM(pb.total_cost)::bigint AS total_cost
-        FROM purchase_batches pb WHERE ${where} GROUP BY pb.item_id`,
-  ]);
+        FROM purchase_batches pb WHERE ${where} GROUP BY pb.item_id`;
   const page = batches.slice(0, ROW_CAP).map((row) => row.id);
   const stored = await db.purchaseBatch.findMany({
     where: { id: { in: page } },

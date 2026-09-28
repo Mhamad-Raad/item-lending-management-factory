@@ -65,21 +65,20 @@ export async function queryPositionsReport(
   // Per item over every included customer: a customer the zero filter leaves out has nothing out, so
   // the customer filter alone selects the same pallets.
   const orderCustomerFilter = query.customerId ? Prisma.sql`AND o.customer_id = ${query.customerId}` : Prisma.empty;
-  const [itemTotals, perItem, customers] = await Promise.all([
-    db.$queryRaw<{ item_id: number; quantity: SqlAggregate }[]>`
+  // One after the other: a transaction is one connection, which runs one query at a time.
+  const itemTotals = await db.$queryRaw<{ item_id: number; quantity: SqlAggregate }[]>`
       SELECT ol.item_id, SUM(ol.out_quantity)::bigint AS quantity
         FROM order_lines ol JOIN orders o ON o.id = ol.order_id
        WHERE o.cancelled_at IS NULL AND ol.out_quantity > 0 ${orderCustomerFilter}
-       GROUP BY ol.item_id`,
-    keptIds.length
-      ? db.$queryRaw<{ customer_id: number; item_id: number; quantity: SqlAggregate }[]>`
+       GROUP BY ol.item_id`;
+  const perItem = keptIds.length
+    ? await db.$queryRaw<{ customer_id: number; item_id: number; quantity: SqlAggregate }[]>`
           SELECT o.customer_id, ol.item_id, SUM(ol.out_quantity)::bigint AS quantity
             FROM order_lines ol JOIN orders o ON o.id = ol.order_id
            WHERE o.cancelled_at IS NULL AND ol.out_quantity > 0 AND o.customer_id = ANY(${keptIds}::int[])
            GROUP BY o.customer_id, ol.item_id`
-      : Promise.resolve([]),
-    db.customer.findMany({ where: { id: { in: keptIds } } }),
-  ]);
+    : [];
+  const customers = await db.customer.findMany({ where: { id: { in: keptIds } } });
   const items = await db.item.findMany({
     where: { id: { in: itemTotals.map((row) => row.item_id) } },
     ...ITEM_REF_INCLUDE,
