@@ -23,7 +23,8 @@
     "db:seed": "node --enable-source-maps --env-file-if-exists=../../.env dist/scripts/migrate.js --seed-only",
     "db:seed:demo": "node --enable-source-maps --env-file-if-exists=../../.env dist/scripts/seed-demo.js",
     "db:studio": "prisma studio",
-    "reconcile": "node --enable-source-maps --env-file-if-exists=../../.env dist/scripts/reconcile.js"
+    "reconcile": "node --enable-source-maps --env-file-if-exists=../../.env dist/scripts/reconcile.js",
+    "recover-admin": "node --enable-source-maps --env-file-if-exists=../../.env dist/scripts/recover-admin.js"
   },
   "dependencies": {
     "@nestjs/common": "11.2.3",
