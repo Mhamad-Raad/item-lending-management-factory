@@ -497,6 +497,7 @@ model Order {
   @@index([driverId])
   @@index([date])
   @@index([status, date])
+  @@index([owed, id])
   // The dashboard's recent activity reads the newest hand-overs (Q62).
   @@index([createdAt, id])
   @@index([cancelledByUserId])

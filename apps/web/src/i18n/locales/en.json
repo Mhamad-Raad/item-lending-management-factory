@@ -35,7 +35,9 @@
       "previous": "Previous",
       "next": "Next",
       "total": "{{total}} records",
-      "pageSize": "Rows per page"
+      "pageSize": "Rows per page",
+      "totalAtLeast": "{{total}}+ records",
+      "pageOpen": "Page {{page}}"
     },
     "versionConflict": {
       "title": "This record changed",
@@ -296,7 +298,8 @@
       "field": "Field",
       "before": "Before",
       "after": "After"
-    }
+    },
+    "countLimited": "More than 10,000 entries match. Only the newest 10,000 can be paged through; narrow the dates to see older ones."
   },
   "enums": {
     "role": {

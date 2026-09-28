@@ -1,9 +1,9 @@
 import {
   AUDIT_ACTIONS,
   AUDIT_ENTITY_TYPES,
+  AUDIT_PAGE_MAX,
   BusinessDate,
   formatTimestamp,
-  PAGE_MAX,
   visibleAuditEntityTypes,
 } from '@pallet/shared';
 import { useQuery } from '@tanstack/react-query';
@@ -30,7 +30,8 @@ const SearchSchema = z.object({
   userId: z.coerce.number().int().min(1).optional().catch(undefined),
   dateFrom: BusinessDate.optional().catch(undefined),
   dateTo: BusinessDate.optional().catch(undefined),
-  page: z.coerce.number().int().min(1).max(PAGE_MAX).default(1).catch(1),
+  // Q100: the history pages through its newest 10,000 entries; older ones are reached by date.
+  page: z.coerce.number().int().min(1).max(AUDIT_PAGE_MAX).default(1).catch(1),
 });
 
 export const Route = createFileRoute('/_app/history')({
@@ -151,10 +152,14 @@ function HistoryPage() {
             </>
           )}
 
+          {logs.data.totalIsLowerBound ? (
+            <p className="text-muted-foreground text-sm">{t('history.countLimited')}</p>
+          ) : null}
           <Pagination
             page={logs.data.page}
             pageSize={logs.data.pageSize}
             total={logs.data.total}
+            totalIsLowerBound={logs.data.totalIsLowerBound}
             onPageChange={pageProps.onPageChange}
           />
         </>

@@ -73,10 +73,6 @@ export class OrdersService {
 
   async list(query: OrderListQuery): Promise<PageDto<OrderListItemDto>> {
     assertDateRange(query.dateFrom, query.dateTo);
-    const byCustomerName: Prisma.OrderWhereInput = query.q
-      ? { customer: { name: { contains: escapeLikePattern(query.q), mode: 'insensitive' } } }
-      : {};
-    const orderNumber = query.q ? orderNumberOf(query.q) : null;
     const where: Prisma.OrderWhereInput = {
       ...(query.status === 'ALL' ? {} : { status: query.status }),
       ...(query.customerId ? { customerId: query.customerId } : {}),
@@ -84,7 +80,7 @@ export class OrdersService {
       ...(query.paymentType ? { paymentType: query.paymentType } : {}),
       ...(query.itemId ? { lines: { some: { itemId: query.itemId } } } : {}),
       date: businessDateFilter(query.dateFrom, query.dateTo),
-      ...(query.q ? (orderNumber === null ? byCustomerName : { OR: [{ orderNumber }, byCustomerName] }) : {}),
+      ...(query.q ? await this.searchFilter(query.q) : {}),
     };
     const { field, direction } = parseSort<keyof typeof SORT_FIELDS>(query.sort);
 
@@ -93,11 +89,31 @@ export class OrdersService {
       this.prisma.order.findMany({
         where,
         include: ORDER_LIST_INCLUDE,
-        orderBy: [{ [SORT_FIELDS[field]]: direction }, { id: direction }],
+        // The order number is unique: a tie-break by id would only stop the planner walking its index in order.
+        orderBy:
+          field === 'orderNumber'
+            ? [{ orderNumber: direction }]
+            : [{ [SORT_FIELDS[field]]: direction }, { id: direction }],
         ...pageArgs(query),
       }),
     ]);
     return toPage(rows.map(toOrderListItemDto), query, total);
+  }
+
+  /**
+   * The search box (§6.19): the order with that number, or the orders of the customers whose name contains
+   * the text. The matching customers are found first (a few thousand rows at most), so the orders are read
+   * by `order_number` and `customer_id` from their indexes; one condition across the order and its
+   * customer's name could only be answered by reading every order (Q101).
+   */
+  private async searchFilter(q: string): Promise<Prisma.OrderWhereInput> {
+    const customers = await this.prisma.customer.findMany({
+      where: { name: { contains: escapeLikePattern(q), mode: 'insensitive' } },
+      select: { id: true },
+    });
+    const byCustomerName: Prisma.OrderWhereInput = { customerId: { in: customers.map((customer) => customer.id) } };
+    const orderNumber = orderNumberOf(q);
+    return orderNumber === null ? byCustomerName : { OR: [{ orderNumber }, byCustomerName] };
   }
 
   get(orderId: number): Promise<OrderDetailDto> {

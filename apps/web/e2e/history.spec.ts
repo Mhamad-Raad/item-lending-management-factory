@@ -262,3 +262,27 @@ test('a history link with a filter or page it does not know opens the plain hist
   await expect(page.getByRole('heading', { level: 1 })).toBeVisible();
   await expect(page.getByRole('table').or(page.getByRole('list')).first()).toBeVisible();
 });
+
+test('Q100: past 10,000 entries the count reads 10000+, the pages stop at the newest 10,000, and the page says so', async ({
+  page,
+}) => {
+  await signIn(page, ADMIN);
+  await page.route(/\/api\/audit-logs(\?.*)?$/, (route) => {
+    const pageNumber = Number(new URL(route.request().url()).searchParams.get('page') ?? '1');
+    return route.fulfill({
+      json: { items: ROWS, page: pageNumber, pageSize: 50, total: 10_001, totalIsLowerBound: true },
+    });
+  });
+
+  await page.goto('/history?page=199');
+  await expect(page.getByText('10000+ records')).toBeVisible();
+  await expect(page.getByText('Page 199', { exact: true })).toBeVisible();
+  await expect(page.getByText('narrow the dates to see older ones')).toBeVisible();
+  await page.getByRole('button', { name: 'Next' }).click();
+  await expect(page).toHaveURL(/page=200/);
+  await expect(page.getByRole('button', { name: 'Next' })).toBeDisabled();
+
+  // A page past the last one the history pages through falls back to the first.
+  await page.goto('/history?page=201');
+  await expect(page.getByText('Page 1', { exact: true })).toBeVisible();
+});

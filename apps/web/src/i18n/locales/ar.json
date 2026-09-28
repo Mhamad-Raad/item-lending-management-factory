@@ -35,7 +35,9 @@
       "previous": "السابق",
       "next": "التالي",
       "total": "{{total}} سجل",
-      "pageSize": "صفوف في كل صفحة"
+      "pageSize": "صفوف في كل صفحة",
+      "totalAtLeast": "{{total}}+ سجل",
+      "pageOpen": "صفحة {{page}}"
     },
     "versionConflict": {
       "title": "تغيّر هذا السجل",
@@ -296,7 +298,8 @@
       "field": "الحقل",
       "before": "قبل",
       "after": "بعد"
-    }
+    },
+    "countLimited": "أكثر من 10,000 سجل مطابق. لا يمكن تصفح إلا أحدث 10,000؛ ضيّق التواريخ لرؤية الأقدم."
   },
   "enums": {
     "role": {

@@ -364,8 +364,18 @@ describe('orders: creation, credit and idempotency (§4.8.1, §6.7, §6.19)', ()
     expect(await numbers(`?q=${encodeURIComponent('#000001')}`)).toEqual([1]);
     expect(await numbers(`?q=${encodeURIComponent('٠٠٢')}`)).toEqual([2]);
     expect(await numbers('?q=baban')).toEqual([2]);
+    // Digits are the order with that number or a customer whose name holds them (Q101), counted alike.
+    const kawa = await createCustomer(app, admin, { name: 'Kawa 1 Trading', phone: '07503334455' });
+    await post(admin, orderBody({ customerId: kawa.id })).expect(201);
+    expect(await numbers('?q=1')).toEqual([3, 1]);
+    const matched = (await http().get('/api/orders?q=1&pageSize=1&page=2').set(asUser(admin)).expect(200))
+      .body as PageDto<OrderListItemDto>;
+    expect([matched.total, matched.items.map((order) => order.orderNumber)]).toEqual([2, [1]]);
+    expect(await numbers('?q=KAWA')).toEqual([3]);
+    expect(await numbers(`?q=${encodeURIComponent('%')}`)).toEqual([]);
+    expect(await numbers('?q=nobody')).toEqual([]);
     expect(await numbers('?status=SETTLED')).toEqual([]);
-    expect(await numbers('?sort=orderNumber')).toEqual([1, 2]);
+    expect(await numbers('?sort=orderNumber')).toEqual([1, 2, 3]);
     await http().get('/api/orders?dateFrom=2026-09-11&dateTo=2026-09-01').set(asUser(admin)).expect(400);
 
     const detail = (await http().get(`/api/orders/${first.id}`).set(asUser(admin)).expect(200)).body as OrderDetailDto;

@@ -124,4 +124,6 @@ export interface PageDto<T> {
   page: number;
   pageSize: number;
   total: number;
+  /** Set when the list stopped counting: at least `total` rows match (the history, Q100). */
+  totalIsLowerBound?: boolean;
 }

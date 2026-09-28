@@ -1,5 +1,5 @@
 import type { INestApplication } from '@nestjs/common';
-import type { AuditLogDto, PageDto } from '@pallet/shared';
+import { AUDIT_COUNT_LIMIT, AUDIT_PAGE_MAX, type AuditLogDto, type PageDto } from '@pallet/shared';
 import request from 'supertest';
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import { PrismaService } from '../../src/prisma/prisma.service';
@@ -158,6 +158,54 @@ describe('GET /api/audit-logs', () => {
     expect(new Set(all.items.map((item) => item.entityType))).toEqual(
       new Set(['CUSTOMER', 'ORDER', 'SETTINGS', 'SESSION']),
     );
+  });
+
+  it('Q100: stops counting past 10,000, pages the newest entries by time, and ends at page 200', async () => {
+    const get = async (query: string): Promise<PageDto<AuditLogDto>> =>
+      (await request(app.getHttpServer()).get(`/api/audit-logs${query}`).set(asUser(admin)).expect(200))
+        .body as PageDto<AuditLogDto>;
+    const small = await get('');
+    expect(small.totalIsLowerBound).toBeUndefined();
+
+    const adminRow = await prisma.user.findUniqueOrThrow({ where: { username: 'admin' } });
+    const at = new Date('2026-01-01T00:00:00Z');
+    await prisma.auditLog.createMany({
+      data: Array.from({ length: AUDIT_COUNT_LIMIT + 5 }, (_, index) => ({
+        createdAt: new Date(at.getTime() + index * 1_000),
+        userId: adminRow.id,
+        action: 'LOGIN_SUCCESS' as const,
+        entityType: 'SESSION' as const,
+        entityId: String(index),
+        summaryKey: 'audit.summary.SESSION.LOGIN_SUCCESS',
+        summaryParams: { username: 'admin' },
+      })),
+    });
+    const newestIds = (
+      await prisma.auditLog.findMany({
+        select: { id: true },
+        orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
+        take: 150,
+      })
+    ).map((row) => row.id);
+
+    const first = await get('');
+    expect(first).toMatchObject({ page: 1, pageSize: 50, total: AUDIT_COUNT_LIMIT + 1, totalIsLowerBound: true });
+    expect(first.items.map((row) => row.id)).toEqual(newestIds.slice(0, 50));
+    const third = await get('?page=3');
+    expect(third.items.map((row) => row.id)).toEqual(newestIds.slice(100, 150));
+    expect(third.items[0]?.user).toEqual({ id: adminRow.id, username: 'admin', displayName: 'Administrator' });
+
+    // A filter under the limit counts exactly again.
+    const one = await get('?entityType=SESSION&action=LOGOUT');
+    expect(one).toMatchObject({ total: 0, items: [] });
+    expect(one.totalIsLowerBound).toBeUndefined();
+
+    expect((await get(`?page=${AUDIT_PAGE_MAX}`)).items).toHaveLength(50);
+    const past = await request(app.getHttpServer())
+      .get(`/api/audit-logs?page=${AUDIT_PAGE_MAX + 1}`)
+      .set(asUser(admin))
+      .expect(400);
+    expect(errorCode(past.body)).toBe('VALIDATION_FAILED');
   });
 
   it('needs the audit.view permission', async () => {
