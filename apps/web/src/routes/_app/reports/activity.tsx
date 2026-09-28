@@ -1,12 +1,16 @@
 import {
+  ACTIVITY_PAGE_SIZE_MAX,
   BusinessDate,
   businessToday,
   formatBusinessDate,
   formatMoney,
+  PAGE_MAX,
+  type ActivityMoneyRowDto,
   type ActivityReportDto,
-  type LedgerEntryDto,
+  type ActivitySection,
+  type ReportSectionDto,
 } from '@pallet/shared';
-import { useQuery } from '@tanstack/react-query';
+import { keepPreviousData, useQuery } from '@tanstack/react-query';
 import { createFileRoute, useNavigate } from '@tanstack/react-router';
 import { Fragment } from 'react';
 import { Ban } from 'lucide-react';
@@ -17,9 +21,11 @@ import { DateText } from '@/components/app/date-text';
 import { EntityCombobox } from '@/components/app/entity-combobox';
 import { MoneyText } from '@/components/app/money-text';
 import { QuantityText } from '@/components/app/quantity-text';
+import { Pagination } from '@/components/app/pagination';
 import { PageSkeleton, QueryErrorState } from '@/components/app/states';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Badge } from '@/components/ui/badge';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { orderLabel } from '@/features/orders/order-text';
 import { periodRefusalOf, reportPeriod } from '@/features/reports/report-dates';
 import { useCanFilterBy, useFilterName } from '@/features/reports/report-filters';
@@ -32,13 +38,38 @@ import { requirePermission } from '@/lib/route-guards';
 import { REPORT_QUERY } from '@/lib/query-client';
 
 const id = z.coerce.number().int().min(1).optional().catch(undefined);
+const sectionPage = z.coerce.number().int().min(2).max(PAGE_MAX).optional().catch(undefined);
+/** Rows per section page (Q99): the page shown is the page printed. */
+const PAGE_SIZES = [100, 250, ACTIVITY_PAGE_SIZE_MAX] as const;
+const DEFAULT_PAGE_SIZE = PAGE_SIZES[0];
 const SearchSchema = z.object({
   dateFrom: BusinessDate.optional().catch(undefined),
   dateTo: BusinessDate.optional().catch(undefined),
   customerId: id,
   itemId: id,
   driverId: id,
+  // Each section keeps its own page; page 1 is left out of the URL.
+  handoversPage: sectionPage,
+  returnsPage: sectionPage,
+  paymentsPage: sectionPage,
+  refundsPage: sectionPage,
+  compensationPage: sectionPage,
+  pageSize: z.coerce
+    .number()
+    .refine((size) => (PAGE_SIZES as readonly number[]).includes(size))
+    .optional()
+    .catch(undefined),
 });
+
+type Search = z.infer<typeof SearchSchema>;
+const pageKey = (section: ActivitySection) => `${section}Page` as const;
+const FIRST_PAGES = {
+  handoversPage: undefined,
+  returnsPage: undefined,
+  paymentsPage: undefined,
+  refundsPage: undefined,
+  compensationPage: undefined,
+} satisfies Partial<Search>;
 
 export const Route = createFileRoute('/_app/reports/activity')({
   validateSearch: SearchSchema,
@@ -46,7 +77,10 @@ export const Route = createFileRoute('/_app/reports/activity')({
   component: ActivityReportPage,
 });
 
-/** Report 3 (§7.3.17, §12.4): what moved in a period, one table per kind, reversals as their own rows. */
+/**
+ * Report 3 (§7.3.17, §12.4): what moved in a period, one table per kind, reversals as their own rows. Each
+ * table is one page of its section (Q99), with the section's totals over the whole period.
+ */
 function ActivityReportPage() {
   const { t } = useTranslation();
   const navigate = useNavigate({ from: Route.fullPath });
@@ -62,19 +96,40 @@ function ActivityReportPage() {
     item: useFilterName('item', search.itemId),
     driver: useFilterName('driver', search.driverId),
   };
-  const params = { dateFrom, dateTo, customerId: search.customerId, itemId: search.itemId, driverId: search.driverId };
+  const pageSize = search.pageSize ?? DEFAULT_PAGE_SIZE;
+  const params = {
+    dateFrom,
+    dateTo,
+    customerId: search.customerId,
+    itemId: search.itemId,
+    driverId: search.driverId,
+    handoversPage: search.handoversPage,
+    returnsPage: search.returnsPage,
+    paymentsPage: search.paymentsPage,
+    refundsPage: search.refundsPage,
+    compensationPage: search.compensationPage,
+    pageSize,
+  };
   const report = useQuery({
     queryKey: [...qk.reports.all(), 'activity', params],
     queryFn: () => apiFetch<ActivityReportDto>('/reports/activity', { query: params }),
     ...REPORT_QUERY,
+    // A new page keeps the other tables on screen while it loads.
+    placeholderData: keepPreviousData,
     enabled: refusal === null,
   });
   const dateRefusal = refusal ?? periodRefusalOf(report.error);
-  const setFilter = (patch: Partial<typeof search>) =>
-    void navigate({ search: (prev) => ({ ...prev, ...patch }), replace: true });
+  // A new filter or page size starts every section on its first page again.
+  const setFilter = (patch: Partial<Search>) =>
+    void navigate({ search: (prev) => ({ ...prev, ...FIRST_PAGES, ...patch }), replace: true });
+  const setPage = (section: ActivitySection, page: number) =>
+    void navigate({ search: (prev) => ({ ...prev, [pageKey(section)]: page > 1 ? page : undefined }) });
+  const pager = <T,>(name: ActivitySection, section: ReportSectionDto<T>) => (
+    <SectionPager section={section} onPageChange={(page) => setPage(name, page)} />
+  );
 
-  const moneyColumns: ReportColumn<LedgerEntryDto>[] = [
-    { id: 'date', header: t('reports.activity.date'), cell: (row) => <DateText value={row.effectiveDate} /> },
+  const moneyColumns: ReportColumn<ActivityMoneyRowDto>[] = [
+    { id: 'date', header: t('reports.activity.date'), cell: (row) => <DateText value={row.date} /> },
     {
       id: 'order',
       header: t('reports.activity.order'),
@@ -126,6 +181,18 @@ function ActivityReportPage() {
             onChange={({ from, to }) => setFilter({ dateFrom: from, dateTo: to })}
             error={dateRefusal ? t(`errors.${dateRefusal}`) : undefined}
           />
+          <Select value={String(pageSize)} onValueChange={(value) => setFilter({ pageSize: Number(value) })}>
+            <SelectTrigger className="w-full md:w-32" aria-label={t('common.pagination.pageSize')}>
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {PAGE_SIZES.map((size) => (
+                <SelectItem key={size} value={String(size)}>
+                  {size}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
           {(['customer', 'item', 'driver'] as const)
             .filter((kind) => allowed[kind])
             .map((kind) => (
@@ -151,11 +218,7 @@ function ActivityReportPage() {
         <QueryErrorState error={report.error} onRetry={() => void report.refetch()} />
       ) : (
         <div className="flex flex-col gap-6">
-          {data.truncated ? (
-            <Alert>
-              <AlertDescription>{t('reports.truncated')}</AlertDescription>
-            </Alert>
-          ) : null}
+          <p className="text-muted-foreground text-sm">{t('reports.activity.pagedNote')}</p>
 
           <Section title={t('reports.activity.handovers')}>
             <ReportTable
@@ -198,7 +261,7 @@ function ActivityReportPage() {
                   cell: (row) => <MoneyText value={row.depositTotal} />,
                 },
               ]}
-              rows={data.handovers}
+              rows={data.handovers.rows}
               rowKey={(row) => row.orderId}
               totals={{
                 quantity: <QuantityText value={data.totals.handoverQuantity} />,
@@ -206,6 +269,7 @@ function ActivityReportPage() {
               }}
               emptyText={t('reports.empty')}
             />
+            {pager('handovers', data.handovers)}
           </Section>
 
           <Section title={t('reports.activity.returns')}>
@@ -238,7 +302,7 @@ function ActivityReportPage() {
                   cell: (row) => <MoneyText value={row.refundDue} />,
                 },
               ]}
-              rows={data.returns}
+              rows={data.returns.rows}
               rowKey={(row) => row.returnId}
               totals={{
                 accepted: <QuantityText value={data.totals.returnedAccepted} />,
@@ -247,6 +311,7 @@ function ActivityReportPage() {
               }}
               emptyText={t('reports.empty')}
             />
+            {pager('returns', data.returns)}
           </Section>
 
           {data.moneyOmitted ? (
@@ -259,7 +324,7 @@ function ActivityReportPage() {
                 <ReportTable
                   label={t('reports.activity.payments')}
                   columns={moneyColumns}
-                  rows={data.payments}
+                  rows={data.payments.rows}
                   rowKey={(row) => row.id}
                   totals={{
                     type: t('reports.activity.grossReversals', {
@@ -270,12 +335,13 @@ function ActivityReportPage() {
                   }}
                   emptyText={t('reports.empty')}
                 />
+                {pager('payments', data.payments)}
               </Section>
               <Section title={t('reports.activity.refunds')}>
                 <ReportTable
                   label={t('reports.activity.refunds')}
                   columns={moneyColumns}
-                  rows={data.refunds}
+                  rows={data.refunds.rows}
                   rowKey={(row) => row.id}
                   totals={{
                     type: t('reports.activity.grossReversals', {
@@ -286,6 +352,7 @@ function ActivityReportPage() {
                   }}
                   emptyText={t('reports.empty')}
                 />
+                {pager('refunds', data.refunds)}
               </Section>
             </>
           )}
@@ -321,11 +388,12 @@ function ActivityReportPage() {
                   cell: (row) => <MoneyText value={row.compensation} />,
                 },
               ]}
-              rows={data.compensation}
-              rowKey={(row) => `${row.returnId}-${row.item.id}`}
+              rows={data.compensation.rows}
+              rowKey={(row) => row.returnLineId}
               totals={{ compensation: <MoneyText value={data.totals.compensationAssessed} /> }}
               emptyText={t('reports.empty')}
             />
+            {pager('compensation', data.compensation)}
           </Section>
         </div>
       )}
@@ -340,5 +408,32 @@ function Section({ title, note, children }: { title: string; note?: string; chil
       {note ? <p className="text-muted-foreground text-sm">{note}</p> : null}
       {children}
     </section>
+  );
+}
+
+/**
+ * A section's paging (Q99): on screen, the record count and the way to the next page; on paper, which rows
+ * of how many the printed page holds, so a short table is not mistaken for the whole period.
+ */
+function SectionPager<T>({
+  section,
+  onPageChange,
+}: {
+  section: ReportSectionDto<T>;
+  onPageChange: (page: number) => void;
+}) {
+  const { t } = useTranslation();
+  if (section.total === 0) return null;
+  const first = Math.min((section.page - 1) * section.pageSize + 1, section.total);
+  const last = Math.min(first + section.rows.length - 1, section.total);
+  return (
+    <>
+      <div data-print="hide">
+        <Pagination page={section.page} pageSize={section.pageSize} total={section.total} onPageChange={onPageChange} />
+      </div>
+      <p className="hidden text-sm print:block">
+        {t('reports.activity.rowsShown', { from: first, to: last, total: section.total })}
+      </p>
+    </>
   );
 }

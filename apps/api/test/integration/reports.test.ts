@@ -302,17 +302,21 @@ describe('reports and dashboard (§6.22, §6.23, §12)', () => {
 
     expect(report).toMatchObject({
       moneyOmitted: false,
-      truncated: false,
       filters: { customerId: null, itemId: null, driverId: null },
+      handovers: { page: 1, pageSize: 100, total: 3 },
+      returns: { page: 1, pageSize: 100, total: 2 },
+      payments: { total: 3 },
+      refunds: { total: 1 },
+      compensation: { total: 1 },
     });
-    expect(report.handovers.map((row) => [row.orderNumber, row.date, row.quantity, row.depositTotal])).toEqual([
+    expect(report.handovers.rows.map((row) => [row.orderNumber, row.date, row.quantity, row.depositTotal])).toEqual([
       [orders.o1.orderNumber, '2026-09-01', 100, 100_000],
       [orders.o2.orderNumber, '2026-09-02', 30, 45_000],
       [orders.o4.orderNumber, '2026-09-03', 10, 10_000],
     ]);
-    expect(report.handovers[1]?.driver.name).toBe('Hemin Ali');
+    expect(report.handovers.rows[1]?.driver).toEqual({ id: hemin.id, name: 'Hemin Ali' });
     expect(
-      report.returns.map((row) => [
+      report.returns.rows.map((row) => [
         row.orderNumber,
         row.date,
         row.acceptedQuantity,
@@ -324,25 +328,34 @@ describe('reports and dashboard (§6.22, §6.23, §12)', () => {
       [orders.o2.orderNumber, '2026-09-04', 5, 2, 6_000, 6_000],
       [orders.o1.orderNumber, '2026-09-05', 50, 0, 50_000, 0],
     ]);
-    expect(
-      report.payments.map((row) => [row.orderNumber, row.effectiveDate, row.type, row.source, row.amount]),
-    ).toEqual([
-      [orders.o2.orderNumber, '2026-09-02', 'PAYMENT', 'ORDER_CREATE', 45_000],
-      [orders.o1.orderNumber, '2026-09-03', 'PAYMENT', 'MANUAL', 40_000],
-      [orders.o4.orderNumber, '2026-09-04', 'PAYMENT', 'MANUAL', 5_000],
+    // The automatic payment of the CASH order O2 is found on its order's date.
+    expect(report.payments.rows.map((row) => [row.orderNumber, row.date, row.type, row.amount])).toEqual([
+      [orders.o2.orderNumber, '2026-09-02', 'PAYMENT', 45_000],
+      [orders.o1.orderNumber, '2026-09-03', 'PAYMENT', 40_000],
+      [orders.o4.orderNumber, '2026-09-04', 'PAYMENT', 5_000],
     ]);
-    expect(report.refunds.map((row) => [row.orderNumber, row.type, row.amount])).toEqual([
+    expect(report.payments.rows[0]).toEqual({
+      id: expect.any(Number),
+      orderId: orders.o2.id,
+      orderNumber: orders.o2.orderNumber,
+      date: '2026-09-02',
+      customer: { id: baban.id, name: baban.name },
+      type: 'PAYMENT',
+      amount: 45_000,
+      reversesEntryId: null,
+    });
+    expect(report.refunds.rows.map((row) => [row.orderNumber, row.type, row.amount])).toEqual([
       [orders.o2.orderNumber, 'REFUND', 6_000],
     ]);
-    expect(report.compensation).toEqual([
+    expect(report.compensation.rows).toEqual([
       {
+        returnLineId: expect.any(Number),
         returnId: expect.any(Number),
         orderNumber: orders.o2.orderNumber,
         date: '2026-09-04',
-        customer: expect.objectContaining({ id: baban.id }),
-        item: ref(b),
+        customer: { id: baban.id, name: baban.name },
+        item: { id: b.id, name: b.name },
         damagedQuantity: 2,
-        unitDeposit: 2_500,
         damagedRefund: 1_000,
         compensation: 4_000,
       },
@@ -364,14 +377,19 @@ describe('reports and dashboard (§6.22, §6.23, §12)', () => {
 
     // To today, the payment's reversal falls in the period: listed as its own row, netted in the totals only.
     const toToday = await get<ActivityReportDto>(`/api/reports/activity?dateFrom=2026-09-01&dateTo=${TODAY}`);
-    expect(toToday.payments.at(-1)).toMatchObject({ type: 'PAYMENT_REVERSAL', amount: 5_000, effectiveDate: TODAY });
+    expect(toToday.payments.rows.at(-1)).toMatchObject({
+      type: 'PAYMENT_REVERSAL',
+      amount: 5_000,
+      date: TODAY,
+      reversesEntryId: toToday.payments.rows[2]?.id,
+    });
     expect(toToday.totals).toMatchObject({ paymentsGross: 90_000, paymentReversals: 5_000, paymentsNet: 85_000 });
   });
 
   it('activity filters: a customer or a driver through the order; an item leaves the money out', async () => {
     const range = 'dateFrom=2026-09-01&dateTo=2026-09-05';
     const ofAshti = await get<ActivityReportDto>(`/api/reports/activity?${range}&customerId=${ashti.id}`);
-    expect(ofAshti.handovers.map((row) => row.orderNumber)).toEqual([orders.o1.orderNumber]);
+    expect(ofAshti.handovers.rows.map((row) => row.orderNumber)).toEqual([orders.o1.orderNumber]);
     expect(ofAshti.totals).toMatchObject({
       handoverQuantity: 100,
       returnedAccepted: 50,
@@ -380,17 +398,27 @@ describe('reports and dashboard (§6.22, §6.23, §12)', () => {
     });
 
     const ofHemin = await get<ActivityReportDto>(`/api/reports/activity?${range}&driverId=${hemin.id}`);
-    expect(ofHemin.handovers.map((row) => row.orderNumber)).toEqual([orders.o2.orderNumber]);
+    expect(ofHemin.handovers.rows.map((row) => row.orderNumber)).toEqual([orders.o2.orderNumber]);
     expect(ofHemin.totals).toMatchObject({ paymentsNet: 45_000, refundsNet: 6_000 });
 
     const ofB = await get<ActivityReportDto>(`/api/reports/activity?${range}&itemId=${b.id}`);
-    expect(ofB).toMatchObject({ moneyOmitted: true, payments: [], refunds: [], filters: { itemId: b.id } });
-    expect(ofB.handovers).toEqual([
+    expect(ofB).toMatchObject({
+      moneyOmitted: true,
+      payments: { rows: [], total: 0 },
+      refunds: { rows: [], total: 0 },
+      filters: { itemId: b.id },
+    });
+    expect(ofB.handovers.rows).toEqual([
       expect.objectContaining({ orderNumber: orders.o2.orderNumber, quantity: 10, depositTotal: 25_000 }),
     ]);
-    expect(ofB.handovers[0]?.lines.map((line) => line.item.id)).toEqual([b.id]);
+    expect(ofB.handovers.rows[0]?.lines).toEqual([{ item: { id: b.id, name: b.name }, quantity: 10 }]);
     // Money belongs to the whole order: the return's cash refund is not split by item.
-    expect(ofB.returns[0]).toMatchObject({ acceptedQuantity: 0, damagedQuantity: 2, refundDue: 1_000, cashRefund: 0 });
+    expect(ofB.returns.rows[0]).toMatchObject({
+      acceptedQuantity: 0,
+      damagedQuantity: 2,
+      refundDue: 1_000,
+      cashRefund: 0,
+    });
     expect(ofB.totals).toMatchObject({
       handoverQuantity: 10,
       handoverDepositTotal: 25_000,
@@ -398,6 +426,40 @@ describe('reports and dashboard (§6.22, §6.23, §12)', () => {
       refundsGross: 0,
       compensationAssessed: 4_000,
     });
+  });
+
+  it('activity pages each section on its own, and its totals always cover the whole period (Q99)', async () => {
+    const range = 'dateFrom=2026-09-01&dateTo=2026-09-12';
+    const whole = await get<ActivityReportDto>(`/api/reports/activity?${range}`);
+    const firstPages = await get<ActivityReportDto>(`/api/reports/activity?${range}&pageSize=1`);
+    expect(firstPages.totals).toEqual(whole.totals);
+
+    const sections = ['handovers', 'returns', 'payments', 'refunds', 'compensation'] as const;
+    for (const name of sections) {
+      const all = whole[name].rows.map((row) => JSON.stringify(row));
+      expect(firstPages[name]).toMatchObject({ page: 1, pageSize: 1, total: whole[name].total });
+      // Stepping one section's page leaves every other section on its first page.
+      const walked: string[] = [];
+      for (let pageNumber = 1; pageNumber <= whole[name].total + 1; pageNumber += 1) {
+        const paged = await get<ActivityReportDto>(
+          `/api/reports/activity?${range}&pageSize=1&${name}Page=${pageNumber}`,
+        );
+        walked.push(...paged[name].rows.map((row) => JSON.stringify(row)));
+        for (const other of sections.filter((section) => section !== name)) {
+          expect(paged[other].rows).toEqual(firstPages[other].rows);
+        }
+      }
+      expect(walked).toEqual(all);
+    }
+
+    await request(app.getHttpServer())
+      .get(`/api/reports/activity?${range}&pageSize=501`)
+      .set(asUser(admin))
+      .expect(400);
+    await request(app.getHttpServer())
+      .get(`/api/reports/activity?${range}&returnsPage=0`)
+      .set(asUser(admin))
+      .expect(400);
   });
 
   it('stock: on hand, out with customers and damaged per item, with the low-stock flag', async () => {

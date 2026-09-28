@@ -535,6 +535,38 @@ export interface PurchasesReportDto {
   truncated: boolean;
 }
 
+/** A record named in a report row: its id and its name, nothing else (Q99). */
+export interface NamedRefDto {
+  id: number;
+  name: string;
+}
+
+/** One page of a report section, and how many rows the whole section holds (Q99). */
+export interface ReportSectionDto<T> {
+  rows: T[];
+  page: number;
+  pageSize: number;
+  total: number;
+}
+
+/** A payment, refund or reversal in the activity report, on its effective date. */
+export interface ActivityMoneyRowDto {
+  id: number;
+  orderId: number;
+  orderNumber: number;
+  /** The effective date: the row's own, or its order's for the automatic payment. */
+  date: string;
+  customer: NamedRefDto;
+  type: LedgerEntryType;
+  amount: number;
+  /** Set on a reversal: the row it reverses. */
+  reversesEntryId: number | null;
+}
+
+/**
+ * Report 3 (Q99): each section is one page of its rows, in the section's order (date, then time of
+ * recording); `totals` always cover every row of the period.
+ */
 export interface ActivityReportDto {
   generatedAt: string;
   dateFrom: string;
@@ -542,50 +574,47 @@ export interface ActivityReportDto {
   filters: { customerId: number | null; itemId: number | null; driverId: number | null };
   /** True when `itemId` is set: money is recorded per order, not per item. */
   moneyOmitted: boolean;
-  handovers: {
+  handovers: ReportSectionDto<{
     orderId: number;
     orderNumber: number;
     date: string;
-    customer: CustomerRefDto;
-    driver: DriverRefDto;
+    customer: NamedRefDto;
+    driver: NamedRefDto;
     paymentType: PaymentType;
-    lines: { item: ItemRefDto; quantity: number; unitDeposit: number; lineTotal: number }[];
+    /** With an item filter, that item's line only. */
+    lines: { item: NamedRefDto; quantity: number }[];
     quantity: number;
     depositTotal: number;
-  }[];
-  returns: {
+  }>;
+  returns: ReportSectionDto<{
     returnId: number;
     orderId: number;
     orderNumber: number;
     date: string;
-    customer: CustomerRefDto;
-    lines: {
-      item: ItemRefDto;
-      acceptedQuantity: number;
-      damagedQuantity: number;
-      damagedRefund: number;
-      compensation: number;
-    }[];
+    customer: NamedRefDto;
     acceptedQuantity: number;
     damagedQuantity: number;
+    /** Over the lines counted: with an item filter, the credit that item's lines gave. */
     refundDue: number;
+    /** 0 with an item filter: cash is paid per return, not per item. */
     cashRefund: number;
-  }[];
-  /** PAYMENT and PAYMENT_REVERSAL rows, reversals as their own rows; [] when money is omitted. */
-  payments: LedgerEntryDto[];
-  /** REFUND and REFUND_REVERSAL rows; [] when money is omitted. */
-  refunds: LedgerEntryDto[];
-  compensation: {
+  }>;
+  /** PAYMENT and PAYMENT_REVERSAL rows, reversals as their own rows; empty when money is omitted. */
+  payments: ReportSectionDto<ActivityMoneyRowDto>;
+  /** REFUND and REFUND_REVERSAL rows; empty when money is omitted. */
+  refunds: ReportSectionDto<ActivityMoneyRowDto>;
+  /** One row per damaged return line. */
+  compensation: ReportSectionDto<{
+    returnLineId: number;
     returnId: number;
     orderNumber: number;
     date: string;
-    customer: CustomerRefDto;
-    item: ItemRefDto;
+    customer: NamedRefDto;
+    item: NamedRefDto;
     damagedQuantity: number;
-    unitDeposit: number;
     damagedRefund: number;
     compensation: number;
-  }[];
+  }>;
   totals: {
     handoverQuantity: number;
     handoverDepositTotal: number;
@@ -601,8 +630,6 @@ export interface ActivityReportDto {
     refundsNet: number;
     compensationAssessed: number;
   };
-  /** A section passed 5,000 rows; totals are still complete (§12.1). */
-  truncated: boolean;
 }
 
 export interface StockReportDto {

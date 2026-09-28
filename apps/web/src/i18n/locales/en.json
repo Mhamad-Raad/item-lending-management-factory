@@ -1151,7 +1151,9 @@
       "compensationAssessed": "Damage compensation assessed",
       "compensationNote": "Assessed on damaged pallets. On credit orders it may still be part of what the customer owes.",
       "damagedRefund": "Damage refund",
-      "compensation": "Compensation"
+      "compensation": "Compensation",
+      "pagedNote": "Each table shows one page of its rows; the totals cover the whole period. Printing prints the pages shown.",
+      "rowsShown": "Rows {{from}}–{{to}} of {{total}}"
     },
     "stock": {
       "title": "Stock levels",

@@ -354,29 +354,41 @@ const PURCHASES: PurchasesReportDto = {
   truncated: false,
 };
 
+const section = <T>(rows: T[]) => ({ rows, page: 1, pageSize: 100, total: rows.length });
 const ACTIVITY: ActivityReportDto = {
   generatedAt: AT,
   dateFrom: '2026-09-01',
   dateTo: '2026-09-11',
   filters: { customerId: null, itemId: null, driverId: null },
   moneyOmitted: false,
-  handovers: [
+  handovers: section([
     {
       orderId: ORDER.id,
       orderNumber: ORDER.orderNumber,
       date: ORDER.date,
-      customer: CUSTOMER_REF,
-      driver: ORDER.driver,
+      customer: { id: CUSTOMER_REF.id, name: CUSTOMER_REF.name },
+      driver: { id: ORDER.driver.id, name: ORDER.driver.name },
       paymentType: ORDER.paymentType,
-      lines: [{ item: ITEM_REF_MOCK, quantity: 48_250, unitDeposit: 12_500, lineTotal: 603_125_000 }],
+      lines: [{ item: { id: ITEM_REF_MOCK.id, name: ITEM_REF_MOCK.name }, quantity: 48_250 }],
       quantity: 48_250,
       depositTotal: 603_125_000,
     },
-  ],
-  returns: [],
-  payments: [LEDGER_ENTRY],
-  refunds: [],
-  compensation: [],
+  ]),
+  returns: section([]),
+  payments: section([
+    {
+      id: LEDGER_ENTRY.id,
+      orderId: LEDGER_ENTRY.orderId,
+      orderNumber: LEDGER_ENTRY.orderNumber,
+      date: LEDGER_ENTRY.effectiveDate,
+      customer: { id: LEDGER_ENTRY.customer.id, name: LEDGER_ENTRY.customer.name },
+      type: LEDGER_ENTRY.type,
+      amount: LEDGER_ENTRY.amount,
+      reversesEntryId: LEDGER_ENTRY.reversesEntryId,
+    },
+  ]),
+  refunds: section([]),
+  compensation: section([]),
   totals: {
     handoverQuantity: 48_250,
     handoverDepositTotal: 603_125_000,
@@ -391,7 +403,6 @@ const ACTIVITY: ActivityReportDto = {
     refundsNet: 0,
     compensationAssessed: 0,
   },
-  truncated: false,
 };
 
 const STOCK: StockReportDto = {

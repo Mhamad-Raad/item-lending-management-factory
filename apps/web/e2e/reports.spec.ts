@@ -1,6 +1,6 @@
 import type {
   ActivityReportDto,
-  LedgerEntryDto,
+  ActivityMoneyRowDto,
   MeDto,
   PositionsReportDto,
   PurchasesReportDto,
@@ -73,8 +73,17 @@ const PURCHASES: PurchasesReportDto = {
   truncated: false,
 };
 
-const entry = (overrides: Partial<LedgerEntryDto>): LedgerEntryDto => ({
-  ...(ORDER.ledgerEntries[0] as LedgerEntryDto),
+const named = (ref: { id: number; name: string }) => ({ id: ref.id, name: ref.name });
+const section = <T>(rows: T[], total = rows.length) => ({ rows, page: 1, pageSize: 100, total });
+const money = (overrides: Partial<ActivityMoneyRowDto>): ActivityMoneyRowDto => ({
+  id: 11,
+  orderId: 9,
+  orderNumber: 1,
+  date: '2026-09-03',
+  customer: named(ASHTI),
+  type: 'PAYMENT',
+  amount: 40_000,
+  reversesEntryId: null,
   ...overrides,
 });
 const ACTIVITY: ActivityReportDto = {
@@ -83,47 +92,38 @@ const ACTIVITY: ActivityReportDto = {
   dateTo: '2026-09-12',
   filters: { customerId: null, itemId: null, driverId: null },
   moneyOmitted: false,
-  handovers: [
+  handovers: section([
     {
       orderId: 9,
       orderNumber: 1,
       date: '2026-09-01',
-      customer: ASHTI,
-      driver: ORDER.driver,
+      customer: named(ASHTI),
+      driver: named(ORDER.driver),
       paymentType: 'LENT',
-      lines: [{ item: A, quantity: 100, unitDeposit: 1_000, lineTotal: 100_000 }],
+      lines: [{ item: named(A), quantity: 100 }],
       quantity: 100,
       depositTotal: 100_000,
     },
-  ],
-  returns: [
+  ]),
+  returns: section([
     {
       returnId: 5,
       orderId: 9,
       orderNumber: 1,
       date: '2026-09-05',
-      customer: ASHTI,
-      lines: [{ item: A, acceptedQuantity: 50, damagedQuantity: 0, damagedRefund: 0, compensation: 0 }],
+      customer: named(ASHTI),
       acceptedQuantity: 50,
       damagedQuantity: 0,
       refundDue: 50_000,
       cashRefund: 0,
     },
-  ],
-  payments: [
-    entry({ id: 11, orderNumber: 1, type: 'PAYMENT', source: 'MANUAL', amount: 40_000, effectiveDate: '2026-09-03' }),
-    entry({
-      id: 12,
-      orderNumber: 1,
-      type: 'PAYMENT_REVERSAL',
-      source: 'PAYMENT_DELETE',
-      amount: 5_000,
-      effectiveDate: '2026-09-12',
-      reversesEntryId: 11,
-    }),
-  ],
-  refunds: [],
-  compensation: [],
+  ]),
+  payments: section([
+    money({}),
+    money({ id: 12, type: 'PAYMENT_REVERSAL', amount: 5_000, date: '2026-09-12', reversesEntryId: 11 }),
+  ]),
+  refunds: section([]),
+  compensation: section([]),
   totals: {
     handoverQuantity: 100,
     handoverDepositTotal: 100_000,
@@ -138,7 +138,6 @@ const ACTIVITY: ActivityReportDto = {
     refundsNet: 0,
     compensationAssessed: 0,
   },
-  truncated: false,
 };
 
 const STOCK: StockReportDto = {
@@ -231,12 +230,51 @@ test('activity: a table per section, reversals as their own marked rows, money l
 
   await page.route(/\/api\/reports\/activity/, (route) =>
     route.fulfill({
-      json: { ...ACTIVITY, moneyOmitted: true, payments: [], refunds: [], filters: { ...ACTIVITY.filters, itemId: 5 } },
+      json: {
+        ...ACTIVITY,
+        moneyOmitted: true,
+        payments: section([]),
+        refunds: section([]),
+        filters: { ...ACTIVITY.filters, itemId: 5 },
+      },
     }),
   );
   await page.goto('/reports/activity?dateFrom=2026-09-01&dateTo=2026-09-12&itemId=5');
   await expect(page.getByText('Payments and refunds are recorded per order')).toBeVisible();
   await expect(page.getByRole('table', { name: 'Payments' })).toHaveCount(0);
+});
+
+test('activity: each section pages on its own, and the printed page says which rows it holds (Q99)', async ({
+  page,
+}) => {
+  const asked = await mockReports(page);
+  const handovers = Array.from({ length: 100 }, (_, index) => ({
+    ...(ACTIVITY.handovers.rows[0] as ActivityReportDto['handovers']['rows'][number]),
+    orderId: 100 + index,
+    orderNumber: 100 + index,
+  }));
+  await page.route(/\/api\/reports\/activity/, (route) => {
+    const url = new URL(route.request().url());
+    asked.push(url);
+    const handoversPage = Number(url.searchParams.get('handoversPage') ?? 1);
+    return route.fulfill({
+      json: { ...ACTIVITY, handovers: { rows: handovers, page: handoversPage, pageSize: 100, total: 230 } },
+    });
+  });
+  await page.goto('/reports/activity?dateFrom=2026-09-01&dateTo=2026-09-12');
+
+  const section = page.locator('section').filter({ has: page.getByRole('table', { name: 'Hand-overs' }) });
+  await expect(section).toContainText('230 records');
+  await expect(section).toContainText('Page 1 of 3');
+  await section.getByRole('button', { name: 'Next' }).click();
+  await expect(page).toHaveURL(/handoversPage=2/);
+  await expect(section).toContainText('Page 2 of 3');
+  expect(asked.at(-1)?.searchParams.get('handoversPage')).toBe('2');
+  expect(asked.at(-1)?.searchParams.get('returnsPage')).toBeNull();
+
+  await page.emulateMedia({ media: 'print' });
+  await expect(section.getByText('Rows 101–200 of 230')).toBeVisible();
+  await expect(section.getByRole('button', { name: 'Next' })).toBeHidden();
 });
 
 test('stock: per item with the low-stock flag in words, and totals', async ({ page }) => {
@@ -299,7 +337,9 @@ test('a report offers no picker or link its viewer could not use', async ({ page
 
   await page.goto('/reports/activity?dateFrom=2026-09-01&dateTo=2026-09-12');
   await expect(page.getByRole('table', { name: 'Hand-overs' })).toBeVisible();
-  await expect(page.getByRole('combobox')).toHaveCount(0);
+  // Only the page size: no customer, item or driver picker.
+  await expect(page.getByRole('combobox')).toHaveCount(1);
+  await expect(page.getByRole('combobox', { name: 'Rows per page' })).toHaveCount(1);
 
   await page.goto('/reports/stock');
   await expect(page.getByRole('row', { name: /Pallet B/ })).toBeVisible();
