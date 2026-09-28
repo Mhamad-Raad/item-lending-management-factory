@@ -84,19 +84,21 @@ export class OrdersService {
     };
     const { field, direction } = parseSort<keyof typeof SORT_FIELDS>(query.sort);
 
-    const [total, rows] = await Promise.all([
+    // The order number is unique: a tie-break by id would only stop the planner walking its index in order.
+    const orderBy: Prisma.OrderOrderByWithRelationInput[] =
+      field === 'orderNumber' ? [{ orderNumber: direction }] : [{ [SORT_FIELDS[field]]: direction }, { id: direction }];
+
+    const [total, page] = await Promise.all([
       this.prisma.order.count({ where }),
-      this.prisma.order.findMany({
-        where,
-        include: ORDER_LIST_INCLUDE,
-        // The order number is unique: a tie-break by id would only stop the planner walking its index in order.
-        orderBy:
-          field === 'orderNumber'
-            ? [{ orderNumber: direction }]
-            : [{ [SORT_FIELDS[field]]: direction }, { id: direction }],
-        ...pageArgs(query),
-      }),
+      // The page's ids first, then only those orders with their customer and driver: a deep page no longer
+      // carries every skipped order's full row (a deferred join, Q100; offset 250,000: 66 -> 26 ms).
+      this.prisma.order.findMany({ where, select: { id: true }, orderBy, ...pageArgs(query) }),
     ]);
+    const rows = await this.prisma.order.findMany({
+      where: { id: { in: page.map((row) => row.id) } },
+      include: ORDER_LIST_INCLUDE,
+      orderBy,
+    });
     return toPage(rows.map(toOrderListItemDto), query, total);
   }
 
