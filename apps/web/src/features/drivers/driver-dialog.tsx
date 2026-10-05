@@ -105,7 +105,14 @@ export function DriverDialog({
       return apiFetch<DriverDto>('/drivers', { method: 'POST', body: fields });
     },
     onSuccess: async (saved) => {
-      await queryClient.invalidateQueries({ queryKey: qk.drivers.all() });
+      // The lists and records are read again. The live phone checks are only marked out of date: asked again now,
+      // the one under this dialog's phone box would find the driver just saved and warn of it.
+      const phoneChecks: readonly unknown[] = qk.drivers.phoneChecks();
+      void queryClient.invalidateQueries({ queryKey: phoneChecks, refetchType: 'none' });
+      await queryClient.invalidateQueries({
+        queryKey: qk.drivers.all(),
+        predicate: (query) => query.queryKey[1] !== phoneChecks[1],
+      });
       // After the invalidation, which would mark it stale again: a picker shows the new driver without asking.
       queryClient.setQueryData(qk.drivers.detail(saved.id), saved);
       toast.success(t(driver ? 'drivers.dialog.saved' : 'drivers.dialog.created'));
@@ -204,7 +211,7 @@ export function DriverDialog({
           {FIELDS.map((name) => (
             <Field key={name}>
               <FieldLabel htmlFor={`driver-${name}`}>{t(`drivers.fields.${name}`)}</FieldLabel>
-              {name === 'phone' ? (
+              {name === 'phone' && !save.isSuccess ? (
                 <PhoneInput
                   id="driver-phone"
                   aria-invalid={Boolean(errors.phone)}

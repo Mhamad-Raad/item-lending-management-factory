@@ -45,6 +45,7 @@ export const qk = {
     all: () => ['drivers'] as const,
     list: (params: Record<string, unknown>) => ['drivers', 'list', params] as const,
     detail: (id: number) => ['drivers', 'detail', id] as const,
+    phoneChecks: () => ['drivers', 'phoneCheck'] as const,
     phoneCheck: (phone: string, excludeId: number | undefined) =>
       ['drivers', 'phoneCheck', phone, excludeId ?? null] as const,
   },

@@ -69,6 +69,8 @@ const page1 = <T>(items: T[]) => ({ items, page: 1, pageSize: 20, total: items.l
 interface Sent {
   drivers: Record<string, unknown>[];
   orders: Record<string, unknown>[];
+  /** The phones the live check was asked about. */
+  checks: string[];
 }
 
 /**
@@ -84,7 +86,7 @@ async function mockApi(page: Page, user: typeof ADMIN | typeof CLERK, created = 
       json: { accessToken: 'token', accessTokenExpiresAt: new Date(Date.now() + 900_000).toISOString(), user },
     }),
   );
-  const sent: Sent = { drivers: [], orders: [] };
+  const sent: Sent = { drivers: [], orders: [], checks: [] };
   await page.route(/\/api\/customers\?/, (route) => route.fulfill({ json: page1([CUSTOMER]) }));
   await page.route(/\/api\/customers\/3$/, (route) => route.fulfill({ json: CUSTOMER }));
   await page.route(/\/api\/items\?/, (route) => route.fulfill({ json: page1([ITEM]) }));
@@ -96,6 +98,7 @@ async function mockApi(page: Page, user: typeof ADMIN | typeof CLERK, created = 
   await page.route(/\/api\/drivers\/5$/, (route) => route.fulfill({ json: created }));
   await page.route(/\/api\/drivers\/phone-check\?/, (route) => {
     const phone = new URL(route.request().url()).searchParams.get('phone');
+    sent.checks.push(phone ?? '');
     return route.fulfill({
       json: { normalizedPhone: phone, matches: phone === KARWAN.phone ? [KARWAN_MATCH] : [] },
     });
@@ -147,6 +150,8 @@ test('a driver added from the order form is chosen for the order, which keeps wh
   await page.getByRole('button', { name: 'New driver' }).click();
   const dialog = page.getByRole('dialog');
   await fillDriver(page, { name: 'Dilshad Omar', phone: '0750 222-3344', carNumber: 'Duhok 21 B 555' });
+  // The live check has asked about the number, and found nobody with it.
+  await expect.poll(() => sent.checks).toEqual(['07502223344']);
   // Enter in the dialog saves the driver; it must not reach the order's form underneath.
   await dialog.getByLabel('Car number').press('Enter');
 
@@ -156,6 +161,8 @@ test('a driver added from the order form is chosen for the order, which keeps wh
   ]);
   expect(sent.orders).toEqual([]);
   await expect(page.getByRole('combobox', { name: 'Driver' })).toHaveText(/Dilshad Omar/);
+  // The live check is not asked again once the driver is saved: it would find the driver itself, and warn of it.
+  expect(sent.checks).toEqual(['07502223344']);
   await expect(page.getByRole('combobox', { name: 'Customer' })).toHaveText(/Kurdistan Cement/);
   await expect(page.locator('#lines-0-quantity')).toHaveValue('7');
 

@@ -5,8 +5,6 @@
  */
 export function keepPhoneCharacters(text: string): string {
   const kept = text.replace(/[^0-9٠-٩۰-۹+\s()-]/g, '');
-  // A plus sign means "international" only in front of the number.
-  return kept
-    .replace(/\+/g, (plus, index: number) => (kept.slice(0, index).trim() === '' ? plus : ''))
-    .replace(/^(\s*\+)\s*\+/, '$1');
+  // A plus sign means "international" only in front of the number: one with anything but space before it goes.
+  return kept.replace(/\+/g, (plus, index: number) => (kept.slice(0, index).trim() === '' ? plus : ''));
 }
