@@ -136,3 +136,44 @@ test('E5: a seven-line receipt prints on exactly two A4 sheets, in Sorani, and p
   const pages = pdf.toString('latin1').match(/\/Type\s*\/Page[^s]/g) ?? [];
   expect(pages).toHaveLength(2);
 });
+
+/**
+ * Q134: the tab's Print button reads the order again, and what goes to the printer is that answer — the page as it
+ * is at the moment `window.print()` is called, not a moment later.
+ */
+test('a reprint from a tab left open prints the figures of the order as it is now', async ({ page }) => {
+  await page.addInitScript(() => {
+    window.localStorage.setItem('pallet.prefs.v1', JSON.stringify({ language: 'en' }));
+    const prints: string[] = [];
+    (window as unknown as { prints: string[] }).prints = prints;
+    window.print = () => {
+      prints.push(document.querySelector('.half tbody tr')?.textContent ?? '');
+    };
+  });
+  await page.route('**/api/auth/refresh', (route) =>
+    route.fulfill({
+      json: {
+        accessToken: 'token',
+        accessTokenExpiresAt: new Date(Date.now() + 900_000).toISOString(),
+        user: ADMIN,
+      },
+    }),
+  );
+  const atHandOver: ReceiptLineDto = { ...lines[0]!, returnedAccepted: 0, returnedDamaged: 0, outQuantity: 10 };
+  let reads = 0;
+  await page.route(/\/api\/orders\/9\/receipt$/, (route) => {
+    reads += 1;
+    const first = reads === 1 ? atHandOver : lines[0]!;
+    return route.fulfill({
+      json: { ...RECEIPT, sheets: [{ sheetNumber: 1, sheetCount: 1, lines: [first], showTotal: true }] },
+    });
+  });
+  const prints = (): Promise<string[]> => page.evaluate(() => (window as unknown as { prints: string[] }).prints);
+
+  await page.goto('/print/orders/9');
+  await expect.poll(prints).toEqual(['1Pallet 1100010' + '1,00010,000']);
+
+  await page.getByRole('button', { name: 'Print' }).click();
+  await expect.poll(prints).toHaveLength(2);
+  expect((await prints())[1]).toBe('1Pallet 110613' + '1,00010,000');
+});

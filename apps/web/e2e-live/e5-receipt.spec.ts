@@ -27,7 +27,9 @@ test('E5: a seven-line receipt prints on exactly two A4 sheets, total on the las
   await page.addInitScript(() => {
     (window as unknown as { printed: number }).printed = 0;
     window.print = () => {
-      (window as unknown as { printed: number }).printed += 1;
+      const state = window as unknown as { printed: number; rowAtPrint: string };
+      state.printed += 1;
+      state.rowAtPrint = document.querySelector('.half tbody tr')?.textContent ?? '';
     };
   });
   await page.goto(`/print/orders/${order.id}`);
@@ -57,6 +59,10 @@ test('E5: a seven-line receipt prints on exactly two A4 sheets, total on the las
   await staged.return(order.id, [{ orderLineId: firstLine.id, acceptedQuantity: 6, damagedQuantity: 1 }]);
   await page.getByRole('button', { name: sorani('receipt.print') }).click();
   await expect.poll(() => page.evaluate(() => (window as unknown as { printed: number }).printed)).toBe(2);
+  // What was on the page when the printer was called, not what a later look finds there.
+  expect(await page.evaluate(() => (window as unknown as { rowAtPrint: string }).rowAtPrint)).toContain(
+    ['10', '6', '1', '3', figure(1_000)].join(''),
+  );
   await expect(firstRow).toHaveText(['1', items[0]?.name ?? '', '10', '6', '1', '3', figure(1_000), figure(10_000)]);
   await expect(sheets.first()).toContainText(`${sorani('receipt.printedOn')}: ${shown(today())}`);
 

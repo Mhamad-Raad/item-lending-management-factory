@@ -44,13 +44,25 @@ function ReceiptPage() {
     void document.fonts.ready.then(() => window.print());
   }, [ready]);
 
+  // A reprint is the order as it stands now, not as this tab first read it (Q134): the button reads the order again,
+  // and the paper is printed by the effect that follows the render of that answer — the read's own promise settles
+  // before React has put the new figures on the page. A failed read prints nothing.
+  const reprintAt = useRef<number | null>(null);
+  const { dataUpdatedAt, isFetching, isError, refetch } = receipt;
+  useEffect(() => {
+    if (reprintAt.current === null || isFetching) return;
+    const fresh = !isError && dataUpdatedAt >= reprintAt.current;
+    reprintAt.current = null;
+    if (fresh) window.print();
+  }, [dataUpdatedAt, isFetching, isError]);
+  const reprint = (): void => {
+    reprintAt.current = Date.now();
+    void refetch();
+  };
+
   const toolbar = (
     <div className="receipt-toolbar flex justify-center gap-2 p-4 print:hidden">
-      <Button
-        // A reprint is the order as it stands now, not as this tab first read it (Q134); a failed read prints nothing.
-        onClick={() => void receipt.refetch().then((latest) => latest.isSuccess && window.print())}
-        disabled={!receipt.data || receipt.isFetching}
-      >
+      <Button onClick={reprint} disabled={!receipt.data || receipt.isFetching}>
         <Printer aria-hidden />
         {t('receipt.print')}
       </Button>
