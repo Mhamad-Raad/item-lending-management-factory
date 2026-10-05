@@ -1,7 +1,8 @@
 // @vitest-environment jsdom
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { bootstrapAuth, logout } from './auth';
+import { bootstrapAuth, login, logout } from './auth';
 import { authStore } from './auth-store';
+import { writeLastActivity } from './idle-storage';
 import { refreshAccessToken } from './refresh-lock';
 
 afterEach(() => {
@@ -155,6 +156,58 @@ describe('a refresh overtaken by a sign-out (Q136)', () => {
     answerOld(new Response(body('old-2'), { status: 200 }));
     await expect(old).resolves.toBe(false);
     expect(authStore.token).toBe('new-2');
+    authStore.clear();
+  });
+});
+
+describe('a sign-in while an idle sign-out is still on its way (Q136)', () => {
+  afterEach(() => {
+    localStorage.clear();
+  });
+
+  it('waits for it: the sign-out clears the refresh cookie, and must not clear the new one', async () => {
+    const user = {
+      id: 1,
+      username: 'admin',
+      displayName: 'Admin',
+      role: 'ADMIN' as const,
+      mustChangePassword: false,
+      permissions: [],
+      version: 1,
+    };
+    // The browser is opened again long after the last activity: the old session is ended, not restored.
+    writeLastActivity(Date.now() - 60 * 60_000);
+    let answerSignOut: (response: Response) => void = () => undefined;
+    const fetchMock = vi
+      .spyOn(globalThis, 'fetch')
+      .mockReturnValueOnce(
+        new Promise<Response>((resolve) => {
+          answerSignOut = resolve;
+        }),
+      )
+      .mockResolvedValueOnce(
+        new Response(
+          JSON.stringify({
+            accessToken: 'token-1',
+            accessTokenExpiresAt: new Date(Date.now() + 900_000).toISOString(),
+            user,
+          }),
+          { status: 200 },
+        ),
+      );
+
+    await bootstrapAuth();
+    expect(authStore.getSnapshot().status).toBe('anonymous');
+    expect(String(fetchMock.mock.calls[0]?.[0])).toContain('/auth/logout');
+
+    const signingIn = login({ username: 'admin', password: 'a-long-password' });
+    await new Promise((resolve) => setTimeout(resolve, 20));
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+
+    answerSignOut(new Response(null, { status: 204 }));
+    await expect(signingIn).resolves.toMatchObject({ username: 'admin' });
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+    expect(String(fetchMock.mock.calls[1]?.[0])).toContain('/auth/login');
     authStore.clear();
   });
 });

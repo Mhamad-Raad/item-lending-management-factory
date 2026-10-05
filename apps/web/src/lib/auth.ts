@@ -8,7 +8,7 @@ import {
 import { useSyncExternalStore } from 'react';
 import { apiFetch } from './api-client';
 import { authStore } from './auth-store';
-import { idleLimitReached, seedActivity, startActivity, wasLeftIdle, watchForIdleness } from './idle';
+import { endSharedRecord, idleLimitReached, startActivity, wasLeftIdle, watchForIdleness } from './idle';
 import { clearIdleNotice, markIdleNotice } from './idle-storage';
 import { clearPendingSignOut, hasPendingSignOut, markSignOutPending } from './pending-sign-out';
 import { listenForPeerRefreshes, refreshAccessToken } from './refresh-lock';
@@ -25,12 +25,14 @@ const MIN_REFRESH_DELAY_MS = 10_000;
  * server would otherwise put the refresh off past the expiry, and past the server's idle limit (Q136).
  */
 const MAX_REFRESH_DELAY_MS = ACCESS_TOKEN_TTL_MINUTES * 60_000 - REFRESH_MARGIN_MS;
-/** A refresh that could not reach the server is tried again this soon: the session must not lapse for a blip. */
+/** A refresh that was not made — the server out of reach, the idle limit just reached — is tried again this soon. */
 const REFRESH_RETRY_MS = 30_000;
 
 let refreshTimer: ReturnType<typeof setTimeout> | undefined;
 let bootstrapped = false;
 let onIdleSignOut: (() => void) | undefined;
+/** The idle sign-out's request to the server while it is still out: a sign-in waits for it (see `login`). */
+let idleSignOutRequest: Promise<void> | undefined;
 
 /** Where the app goes once an idle session has been ended (Q136): the login page, set by `App`. */
 export function setIdleSignOutHandler(handler: () => void): void {
@@ -46,10 +48,17 @@ export function setIdleSignOutHandler(handler: () => void): void {
 function signOutForInactivity(): void {
   markIdleNotice();
   markSignOutPending();
-  const told = apiFetch<void>('/auth/logout', { method: 'POST', skipAuthRetry: true });
+  const told = apiFetch<void>('/auth/logout', { method: 'POST', skipAuthRetry: true }).then(
+    clearPendingSignOut,
+    () => undefined,
+  );
+  idleSignOutRequest = told;
+  void told.finally(() => {
+    if (idleSignOutRequest === told) idleSignOutRequest = undefined;
+  });
+  endSharedRecord();
   authStore.clear();
   onIdleSignOut?.();
-  told.then(clearPendingSignOut, () => undefined);
 }
 
 /** Another tab ended the session this one shares with it: this tab follows, without a request of its own. */
@@ -63,17 +72,19 @@ function followSignOutElsewhere(): void {
  * the next request (its 401 ends the session), and an unreachable server is retried by that request.
  */
 function refreshQuietly(): void {
-  // Nobody is there (Q136): the session is about to be ended, not renewed.
-  if (idleLimitReached()) return;
-  refreshAccessToken().catch(() => {
-    // Out of reach, not refused: the timer is set from the store, which did not change, so it is set again here.
-    clearTimeout(refreshTimer);
-    refreshTimer = setTimeout(() => {
-      if (document.visibilityState === 'visible' && authStore.getSnapshot().status === 'authenticated') {
-        refreshQuietly();
-      }
-    }, REFRESH_RETRY_MS);
-  });
+  // Nobody is there (Q136): the session is about to be ended, not renewed — unless the user answers in the moment
+  // before it is, so the refresh is put off rather than dropped.
+  if (idleLimitReached()) return retryRefreshSoon();
+  // Out of reach, not refused: tried again, since the session must not lapse for a blip.
+  refreshAccessToken().catch(retryRefreshSoon);
+}
+
+/** The timer is set from the store; when the store did not change, it is set again here. */
+function retryRefreshSoon(): void {
+  clearTimeout(refreshTimer);
+  refreshTimer = setTimeout(() => {
+    if (document.visibilityState === 'visible' && authStore.getSnapshot().status === 'authenticated') refreshQuietly();
+  }, REFRESH_RETRY_MS);
 }
 
 function scheduleProactiveRefresh(): void {
@@ -126,11 +137,19 @@ export async function bootstrapAuth(): Promise<void> {
     signOutForInactivity();
     return;
   }
-  if (await refreshAccessToken()) seedActivity();
-  else authStore.clear();
+  if (await refreshAccessToken()) {
+    // Opening the app is being there: the count starts again, also when a record of a moment ago exists.
+    startActivity();
+  } else {
+    endSharedRecord();
+    authStore.clear();
+  }
 }
 
 export async function login(body: LoginBody): Promise<MeDto> {
+  // An idle sign-out may still be on its way to the server (Q136). Its answer clears the refresh cookie, and
+  // arriving after this sign-in's it would clear the new one: the two are sent one after the other.
+  await idleSignOutRequest;
   const session = await apiFetch<AuthTokenDto>('/auth/login', { method: 'POST', body, skipAuthRetry: true });
   // A fresh sign-in replaces the cookie a failed sign-out left behind.
   clearPendingSignOut();
@@ -153,6 +172,7 @@ export async function logout(): Promise<void> {
     markSignOutPending();
     throw error;
   } finally {
+    endSharedRecord();
     authStore.clear();
   }
 }
@@ -170,6 +190,7 @@ export async function logoutEverywhere(): Promise<void> {
     markSignOutPending();
     throw error;
   } finally {
+    endSharedRecord();
     authStore.clear();
   }
 }

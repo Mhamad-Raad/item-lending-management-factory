@@ -75,7 +75,20 @@ export function noteActivity(now = Date.now()): void {
   else trailingWrite ??= setTimeout(() => write(ownActivity, Date.now()), wait);
 }
 
-/** A session starts: whatever was on record belongs to the one before it. */
+/**
+ * The tab that ends a session — a sign-out, the idle limit, a refusal by the server — removes the record its other
+ * tabs count from, which is how they learn of it.
+ */
+export function endSharedRecord(): void {
+  clearTimeout(trailingWrite);
+  trailingWrite = undefined;
+  clearLastActivity();
+}
+
+/**
+ * A session starts, or is restored by a page load — which is the user being there: whatever was on record is
+ * replaced. (A load after the whole limit has passed is refused before it gets here: `wasLeftIdle`.)
+ */
 export function startActivity(now = Date.now()): void {
   lastWritten = 0;
   noteActivity(now);
@@ -90,13 +103,9 @@ export function wasLeftIdle(now = Date.now()): boolean {
   return last !== null && now - last >= IDLE_LIMIT_MS;
 }
 
-/**
- * A session restored with nothing on record (first load after an upgrade, cleared storage) counts from the moment
- * it is restored — not from the first look at the clock, which a sleeping laptop may put off for hours.
- */
-export function seedActivity(now = Date.now()): void {
-  // Read through `sharedActivity`, so a record found here is known to be this session's from the start.
-  if (sharedActivity() === 0) startActivity(now);
+/** "Stay signed in", and anything else that dismisses the warning — while there is still a session to keep. */
+export function answerWarning(): void {
+  if (authStore.getSnapshot().status === 'authenticated') noteActivity();
 }
 
 /**
@@ -143,10 +152,15 @@ export function watchForIdleness(on: { expire: () => void; endedElsewhere: () =>
   // Told at once when another tab removes the record, rather than at the next look at the clock.
   window.addEventListener('storage', (event) => {
     if (event.key !== ACTIVITY_KEY || event.newValue !== null) return;
+    // The event may be an old one, delivered to a tab the browser had put to sleep: if a record is there now, a
+    // session has been started since, and this is not the news of its end.
+    if (readLastActivity() !== null) return;
     if (authStore.getSnapshot().status === 'authenticated') on.endedElsewhere();
   });
 
-  // Signed out, however it happened: nothing is left to count, and the next session starts its own record.
+  // Signed out, however it happened: this tab has nothing left to count. The shared record is not removed here —
+  // that is `endSharedRecord`, for the tab that ends the session; one that only follows would otherwise remove
+  // the record of a session started since.
   authStore.subscribe(() => {
     if (authStore.getSnapshot().status !== 'anonymous') return;
     clearTimeout(trailingWrite);
@@ -154,7 +168,6 @@ export function watchForIdleness(on: { expire: () => void; endedElsewhere: () =>
     ownActivity = 0;
     lastWritten = 0;
     recordSeen = false;
-    clearLastActivity();
     setSecondsLeft(null);
   });
 }

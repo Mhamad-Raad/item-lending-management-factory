@@ -50,18 +50,10 @@ test('fifteen idle minutes end the session, with a warning for the last one (Q13
 });
 
 /**
- * On the real clock, since a moved one holds back the frames a leaving dialog animates with: the session starts
- * with fourteen and a half idle minutes on record, so the warning is up as the page opens.
+ * For what a dialog does as it leaves: Playwright's moved clock holds back the frames it animates with, so here
+ * only `Date.now()` is moved — the page believes the time has passed, while its timers and frames run as ever.
  */
 async function openNearTheLimit(page: Page, secondsLeft: number): Promise<{ signOuts: () => number }> {
-  await page.addInitScript(
-    ([key, idle]) => {
-      if (window.sessionStorage.getItem('seeded')) return;
-      window.sessionStorage.setItem('seeded', '1');
-      window.localStorage.setItem(key, String(Date.now() - idle));
-    },
-    [LAST_ACTIVITY, 15 * MINUTE - secondsLeft * 1_000] as const,
-  );
   await mockApi(page, ADMIN, 'en');
   let signOuts = 0;
   await page.route('**/api/auth/logout', (route) => {
@@ -69,6 +61,14 @@ async function openNearTheLimit(page: Page, secondsLeft: number): Promise<{ sign
     return route.fulfill({ status: 204 });
   });
   await page.goto('/orders');
+  await expect(page.locator('main')).toBeVisible();
+  await page.evaluate(
+    (ahead) => {
+      const real = Date.now.bind(Date);
+      Date.now = () => real() + ahead;
+    },
+    15 * MINUTE - secondsLeft * 1_000,
+  );
   return { signOuts: () => signOuts };
 }
 
@@ -86,8 +86,9 @@ test('answering the warning keeps the session; a pointer on its way to the butto
   // The press itself answers, before the click is complete: the dialog is already leaving under the pointer.
   await warning(page).getByRole('button', { name: 'Stay signed in' }).click({ force: true });
   await expect(warning(page)).toHaveCount(0);
+  // The record other tabs count from is the page's present, fourteen and a half minutes ahead of this test's.
   const record = await page.evaluate((key) => Number(window.localStorage.getItem(key)), LAST_ACTIVITY);
-  expect(Date.now() - record).toBeLessThan(10_000);
+  expect(record - Date.now()).toBeGreaterThan(14 * MINUTE);
   await expect(page).toHaveURL(/\/orders/);
   expect(signOuts()).toBe(0);
 });
@@ -244,4 +245,42 @@ test('the screen is cleared at the limit, without waiting for the server to answ
   expect(answered).toBe(false);
   // Not heard from yet: a reload now must not use the cookie the server has not ended.
   expect(await page.evaluate(() => window.localStorage.getItem('pallet.signOutPending.v1'))).toBe('1');
+});
+
+test('opening the app is being there: a session restored late in the limit starts a new count', async ({ page }) => {
+  await page.addInitScript(
+    ([key, at]) => {
+      if (window.sessionStorage.getItem('seeded')) return;
+      window.sessionStorage.setItem('seeded', '1');
+      window.localStorage.setItem(key, String(at));
+    },
+    [LAST_ACTIVITY, Date.now() - 15 * MINUTE + 10_000] as const,
+  );
+  await mockApi(page, ADMIN, 'en');
+  await page.goto('/orders');
+  await expect(page.locator('main')).toBeVisible();
+
+  // Ten seconds were left on the old record: no warning greets the user, and none follows.
+  await page.waitForTimeout(2_500);
+  await expect(warning(page)).toHaveCount(0);
+  await expect(page).toHaveURL(/\/orders/);
+  const record = await page.evaluate((key) => Number(window.localStorage.getItem(key)), LAST_ACTIVITY);
+  expect(Date.now() - record).toBeLessThan(10_000);
+});
+
+test('old news of a sign-out, reaching a tab late, does not end the session started since', async ({ page }) => {
+  await mockApi(page, ADMIN, 'en');
+  await page.goto('/customers/new');
+  await page.getByLabel('Name', { exact: true }).fill('Kurdistan Cement');
+
+  // A browser delivers a sleeping tab its storage events when it wakes — here, the removal of a record that a
+  // new sign-in has replaced since.
+  await page.evaluate((key) => {
+    window.dispatchEvent(new StorageEvent('storage', { key, oldValue: '1', newValue: null }));
+  }, LAST_ACTIVITY);
+  await page.waitForTimeout(1_500);
+
+  await expect(page).toHaveURL(/\/customers\/new/);
+  await expect(page.getByLabel('Name', { exact: true })).toHaveValue('Kurdistan Cement');
+  expect(await page.evaluate((key) => window.localStorage.getItem(key), LAST_ACTIVITY)).not.toBeNull();
 });

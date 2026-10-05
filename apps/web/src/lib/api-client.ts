@@ -1,6 +1,7 @@
 import type { UploadDto, UploadKind } from '@pallet/shared';
 import { ApiError, apiErrorFromResponse } from './api-error';
 import { authStore } from './auth-store';
+import { endSharedRecord } from './idle';
 import { refreshAccessToken } from './refresh-lock';
 import { REQUEST_TIMEOUT_MS, UPLOAD_TIMEOUT_MS, timedSignal } from './request-timeout';
 
@@ -93,9 +94,11 @@ async function withAuthRetry(sendOnce: () => Promise<Response>, skipAuthRetry = 
       if (response.status === 401) {
         // Ended already — signed out, or idle (Q136) — while this request was on its way: nothing more to end.
         if (authStore.getSnapshot().status === 'authenticated') {
+          endSharedRecord();
           authStore.clear();
-          onSessionEnded?.();
         }
+        // Said every time: a page kept open behind the unsaved-changes question is offered the login page again.
+        onSessionEnded?.();
         throw await apiErrorFromResponse(response);
       }
     }
