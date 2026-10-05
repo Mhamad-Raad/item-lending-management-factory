@@ -90,23 +90,49 @@ describe('refresh token rotation', () => {
     expect((await prisma.sessionFamily.findFirstOrThrow()).revokedReason).toBe('REUSE_DETECTED');
   });
 
-  it('S-8: refuses a token past its sliding lifetime and a family past its absolute one', async () => {
+  it('S-8: refuses a session nobody refreshed for days, and a family past its absolute lifetime', async () => {
     const session = await login(app);
 
     clock.advance(15 * 24 * 60 * 60 * 1000);
     await refresh(session.cookie).expect(401);
 
-    // A family that is rotated regularly still dies 30 days after it was created.
+    // A family that is rotated regularly still dies at its absolute expiry — brought forward here to an hour
+    // from now, since refreshing every twenty minutes for thirty days is not a test.
     await resetDatabase();
     clock.set(START);
     let cookie = (await login(app)).cookie;
-    for (let day = 0; day < 31; day++) {
-      clock.advance(24 * 60 * 60 * 1000);
+    await prisma.sessionFamily.updateMany({ data: { absoluteExpiresAt: new Date(START.getTime() + 60 * 60 * 1000) } });
+    const statuses: number[] = [];
+    for (let step = 0; step < 3; step++) {
+      clock.advance(20 * 60 * 1000);
       const response = await refresh(cookie);
-      if (response.status === 401) break;
-      cookie = refreshCookie(response);
+      statuses.push(response.status);
+      if (response.status === 200) cookie = refreshCookie(response);
     }
-    expect((await refresh(cookie)).status).toBe(401);
+    expect(statuses).toEqual([200, 200, 401]);
+    expect((await prisma.sessionFamily.findFirstOrThrow()).revokedAt).toBeNull();
+  });
+
+  it('ends a session left without a refresh for longer than the idle limit (Q136)', async () => {
+    const session = await login(app);
+
+    // Fifteen idle minutes plus an access token's life: a user at work never lets more than that pass.
+    clock.advance(30 * 60 * 1000);
+    const kept = await refresh(session.cookie).expect(200);
+    clock.advance(30 * 60 * 1000);
+    const again = await refresh(refreshCookie(kept)).expect(200);
+
+    clock.advance(30 * 60 * 1000 + 1);
+    await refresh(refreshCookie(again)).expect(401);
+
+    const family = await prisma.sessionFamily.findFirstOrThrow();
+    expect(family.revokedReason).toBe('IDLE');
+    expect(await prisma.refreshToken.count({ where: { status: { not: 'REVOKED' } } })).toBe(0);
+    // Ended for good: coming back sooner the next time does not wake it.
+    clock.advance(1_000);
+    await refresh(refreshCookie(again)).expect(401);
+    // Idleness is not an attack: the history says nothing of reuse.
+    expect(await prisma.auditLog.count({ where: { action: 'SESSION_REUSE_DETECTED' } })).toBe(0);
   });
 
   it('S-9: logout revokes only its own family; logout-all revokes every session', async () => {

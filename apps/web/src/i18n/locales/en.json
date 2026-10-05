@@ -172,7 +172,13 @@
       "INACTIVE": "Account deactivated",
       "ACCOUNT_THROTTLED": "Too many failures on this account; new devices paused"
     },
-    "logoutFailed": "You are signed out on this device, but the server could not be reached to end the session. It ends the next time this device opens the app while connected."
+    "logoutFailed": "You are signed out on this device, but the server could not be reached to end the session. It ends the next time this device opens the app while connected.",
+    "idle": {
+      "title": "Are you still there?",
+      "body": "Nothing has been done for a while. Signing out in {{seconds}} s.",
+      "stay": "Stay signed in",
+      "signedOut": "You were signed out after {{minutes}} minutes without activity. Sign in again to continue."
+    }
   },
   "dashboard": {
     "title": "Dashboard",

@@ -109,6 +109,7 @@ enum SessionRevokeReason {
   PASSWORD_CHANGED
   PASSWORD_RESET
   USER_DEACTIVATED
+  IDLE
 
   @@map("session_revoke_reason")
 }

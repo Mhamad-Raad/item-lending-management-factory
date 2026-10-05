@@ -5,10 +5,11 @@ import { MotionConfig } from 'motion/react';
 import { Direction } from 'radix-ui';
 import { Skeleton } from '@/components/ui/skeleton';
 import { QueryErrorState } from '@/components/app/states';
+import { IdleWarning } from '@/components/app/idle-warning';
 import { VersionConflictDialog } from '@/components/app/version-conflict-dialog';
 import { Toaster } from '@/components/ui/sonner';
 import { setSessionEndedHandler } from '@/lib/api-client';
-import { bootstrapAuth, useAuth } from '@/lib/auth';
+import { bootstrapAuth, setIdleSignOutHandler, useAuth } from '@/lib/auth';
 import { isRtl, usePreferences } from '@/lib/preferences';
 import { clearCacheOnSignOut } from '@/lib/query-client';
 import { queryClient, router } from './router';
@@ -58,9 +59,19 @@ export function App() {
 
     // A 401 that survives a refresh means the session is gone: send the user to the login page
     // with the address they were on (§7.7.2). The store, and with it the cache, is already cleared.
-    setSessionEndedHandler(() => {
-      void router.navigate({ to: '/login', search: { redirect: window.location.pathname + window.location.search } });
-    });
+    // An idle session ends the same way (Q136), but past the unsaved-changes question: nobody is there to answer
+    // it, and what was typed must not stay on a screen that is no longer anyone's.
+    const toLogin = (ignoreBlocker: boolean) => (): void => {
+      // Already there: a second ending of the same session must not make the login page its own way back.
+      if (window.location.pathname === '/login') return;
+      void router.navigate({
+        to: '/login',
+        search: { redirect: window.location.pathname + window.location.search },
+        ignoreBlocker,
+      });
+    };
+    setSessionEndedHandler(toLogin(false));
+    setIdleSignOutHandler(toLogin(true));
 
     // One bootstrap per page load; the router only mounts once the session is known, so a guard
     // never sees `booting` and bounces an authenticated user to the login page.
@@ -80,6 +91,7 @@ export function App() {
             <BootScreen />
           )}
           <VersionConflictDialog />
+          <IdleWarning />
           <Toaster />
         </MotionConfig>
       </QueryClientProvider>

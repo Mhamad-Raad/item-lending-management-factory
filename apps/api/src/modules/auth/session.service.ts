@@ -3,7 +3,7 @@ import { Injectable } from '@nestjs/common';
 import { Clock } from '../../common/clock';
 import type { Prisma, RefreshToken, SessionFamily, SessionRevokeReason, User } from '../../generated/prisma/client';
 import { AuditService } from '../audit/audit.service';
-import { REFRESH_GRACE_MS, REFRESH_SLIDING_MS, SESSION_ABSOLUTE_MS } from './auth.constants';
+import { REFRESH_GRACE_MS, REFRESH_SLIDING_MS, SESSION_ABSOLUTE_MS, SESSION_IDLE_MS } from './auth.constants';
 
 export interface IssuedToken {
   value: string;
@@ -75,6 +75,12 @@ export class SessionService {
     const now = this.clock.now();
 
     if (family.revokedAt || now >= family.absoluteExpiresAt || now >= current.expiresAt) {
+      return { ok: false };
+    }
+
+    // Left alone too long (Q136): the session ends for good, so the cookie cannot wake it later.
+    if (now.getTime() - family.lastUsedAt.getTime() > SESSION_IDLE_MS) {
+      await this.revokeFamily(tx, family.id, 'IDLE');
       return { ok: false };
     }
 

@@ -1,5 +1,5 @@
 import { zodResolver } from '@hookform/resolvers/zod';
-import { LoginBody } from '@pallet/shared';
+import { LoginBody, SESSION_IDLE_MINUTES } from '@pallet/shared';
 import { createFileRoute, redirect, useNavigate } from '@tanstack/react-router';
 import { useState } from 'react';
 import { useForm } from 'react-hook-form';
@@ -15,6 +15,7 @@ import { Input } from '@/components/ui/input';
 import { usePageTitle } from '@/hooks/use-page-title';
 import { ApiError } from '@/lib/api-error';
 import { authStore, login } from '@/lib/auth';
+import { hasIdleNotice } from '@/lib/idle-storage';
 import { safeRedirect } from '@/lib/safe-redirect';
 
 const SearchSchema = z.object({ redirect: z.string().optional() });
@@ -75,6 +76,12 @@ function LoginPage() {
 
         <CardContent>
           <form onSubmit={(event) => void onSubmit(event)} className="flex flex-col gap-4" noValidate>
+            {/* Signed out for inactivity (Q136): said until the next sign-in, so a reload does not lose the reason. */}
+            {hasIdleNotice() && !formError ? (
+              <Alert>
+                <AlertDescription>{t('auth.idle.signedOut', { minutes: SESSION_IDLE_MINUTES })}</AlertDescription>
+              </Alert>
+            ) : null}
             {formError ? (
               <Alert variant="destructive">
                 {/* RATE_LIMITED and the LOGIN_*THROTTLED codes say how long to wait; the wait travels in `details`. */}

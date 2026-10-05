@@ -82,3 +82,79 @@ describe('a sign-out the server missed (Q80)', () => {
     expect(localStorage.length).toBe(0);
   });
 });
+
+describe('a refresh overtaken by a sign-out (Q136)', () => {
+  afterEach(() => {
+    localStorage.clear();
+  });
+
+  it('drops its answer: the session that ended stays ended', async () => {
+    const user = {
+      id: 1,
+      username: 'admin',
+      displayName: 'Admin',
+      role: 'ADMIN' as const,
+      mustChangePassword: false,
+      permissions: [],
+      version: 1,
+    };
+    const expiry = new Date(Date.now() + 900_000).toISOString();
+    authStore.setSession({ accessToken: 'token-1', accessTokenExpiresAt: expiry, user });
+    let answer: (response: Response) => void = () => undefined;
+    vi.spyOn(globalThis, 'fetch').mockReturnValueOnce(
+      new Promise<Response>((resolve) => {
+        answer = resolve;
+      }),
+    );
+
+    const refreshing = refreshAccessToken();
+    // The idle limit, or the user, ends the session while the refresh is still on its way.
+    authStore.clear();
+    answer(
+      new Response(JSON.stringify({ accessToken: 'token-2', accessTokenExpiresAt: expiry, user }), { status: 200 }),
+    );
+
+    await expect(refreshing).resolves.toBe(false);
+    expect(authStore.getSnapshot().status).toBe('anonymous');
+    expect(authStore.token).toBeNull();
+  });
+
+  it('is not handed to the session that follows: that one asks for a refresh of its own', async () => {
+    const user = {
+      id: 1,
+      username: 'admin',
+      displayName: 'Admin',
+      role: 'ADMIN' as const,
+      mustChangePassword: false,
+      permissions: [],
+      version: 1,
+    };
+    const expiry = new Date(Date.now() + 900_000).toISOString();
+    const body = (token: string): string => JSON.stringify({ accessToken: token, accessTokenExpiresAt: expiry, user });
+    authStore.setSession({ accessToken: 'old-1', accessTokenExpiresAt: expiry, user });
+    let answerOld: (response: Response) => void = () => undefined;
+    const fetchMock = vi
+      .spyOn(globalThis, 'fetch')
+      .mockReturnValueOnce(
+        new Promise<Response>((resolve) => {
+          answerOld = resolve;
+        }),
+      )
+      .mockResolvedValueOnce(new Response(body('new-2'), { status: 200 }));
+
+    const old = refreshAccessToken();
+    // The session ends and the user signs in again while the first refresh is still out.
+    authStore.clear();
+    authStore.setSession({ accessToken: 'new-1', accessTokenExpiresAt: expiry, user });
+
+    await expect(refreshAccessToken()).resolves.toBe(true);
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+    expect(authStore.token).toBe('new-2');
+
+    // The late answer of the first changes nothing.
+    answerOld(new Response(body('old-2'), { status: 200 }));
+    await expect(old).resolves.toBe(false);
+    expect(authStore.token).toBe('new-2');
+    authStore.clear();
+  });
+});

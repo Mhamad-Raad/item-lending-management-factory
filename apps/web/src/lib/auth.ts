@@ -1,7 +1,15 @@
-import type { AuthTokenDto, LoginBody, MeDto, PermissionKey } from '@pallet/shared';
+import {
+  ACCESS_TOKEN_TTL_MINUTES,
+  type AuthTokenDto,
+  type LoginBody,
+  type MeDto,
+  type PermissionKey,
+} from '@pallet/shared';
 import { useSyncExternalStore } from 'react';
 import { apiFetch } from './api-client';
 import { authStore } from './auth-store';
+import { idleLimitReached, seedActivity, startActivity, wasLeftIdle, watchForIdleness } from './idle';
+import { clearIdleNotice, markIdleNotice } from './idle-storage';
 import { clearPendingSignOut, hasPendingSignOut, markSignOutPending } from './pending-sign-out';
 import { listenForPeerRefreshes, refreshAccessToken } from './refresh-lock';
 
@@ -12,16 +20,60 @@ const REFRESH_MARGIN_MS = 60_000;
  * a delay of zero on every refresh and spin, rotating the cookie until the throttler stops it.
  */
 const MIN_REFRESH_DELAY_MS = 10_000;
+/**
+ * A ceiling over it, from the token's known life rather than from two clocks: a client clock running behind the
+ * server would otherwise put the refresh off past the expiry, and past the server's idle limit (Q136).
+ */
+const MAX_REFRESH_DELAY_MS = ACCESS_TOKEN_TTL_MINUTES * 60_000 - REFRESH_MARGIN_MS;
+/** A refresh that could not reach the server is tried again this soon: the session must not lapse for a blip. */
+const REFRESH_RETRY_MS = 30_000;
 
 let refreshTimer: ReturnType<typeof setTimeout> | undefined;
 let bootstrapped = false;
+let onIdleSignOut: (() => void) | undefined;
+
+/** Where the app goes once an idle session has been ended (Q136): the login page, set by `App`. */
+export function setIdleSignOutHandler(handler: () => void): void {
+  onIdleSignOut = handler;
+}
+
+/**
+ * Ends a session nobody has touched for the idle limit (Q136). The screen goes first — what is on it is no longer
+ * anyone's, and the server may take its time — then the server is told, so the cookie left in the browser is worth
+ * nothing. Until it answers the sign-out counts as one it has not heard of (Q80): a reload in between must not use
+ * the cookie.
+ */
+function signOutForInactivity(): void {
+  markIdleNotice();
+  markSignOutPending();
+  const told = apiFetch<void>('/auth/logout', { method: 'POST', skipAuthRetry: true });
+  authStore.clear();
+  onIdleSignOut?.();
+  told.then(clearPendingSignOut, () => undefined);
+}
+
+/** Another tab ended the session this one shares with it: this tab follows, without a request of its own. */
+function followSignOutElsewhere(): void {
+  authStore.clear();
+  onIdleSignOut?.();
+}
 
 /**
  * A refresh ahead of expiry. A failure here says nothing the user must act on: a refusal surfaces on
  * the next request (its 401 ends the session), and an unreachable server is retried by that request.
  */
 function refreshQuietly(): void {
-  refreshAccessToken().catch(() => undefined);
+  // Nobody is there (Q136): the session is about to be ended, not renewed.
+  if (idleLimitReached()) return;
+  refreshAccessToken().catch(() => {
+    // Out of reach, not refused: the timer is set from the store, which did not change, so it is set again here.
+    clearTimeout(refreshTimer);
+    refreshTimer = setTimeout(() => {
+      if (document.visibilityState === 'visible' && authStore.getSnapshot().status === 'authenticated') {
+        refreshQuietly();
+      }
+    }, REFRESH_RETRY_MS);
+  });
 }
 
 function scheduleProactiveRefresh(): void {
@@ -34,7 +86,7 @@ function scheduleProactiveRefresh(): void {
     () => {
       if (document.visibilityState === 'visible') refreshQuietly();
     },
-    Math.max(MIN_REFRESH_DELAY_MS, delay),
+    Math.min(MAX_REFRESH_DELAY_MS, Math.max(MIN_REFRESH_DELAY_MS, delay)),
   );
 }
 
@@ -49,6 +101,7 @@ export async function bootstrapAuth(): Promise<void> {
   if (!bootstrapped) {
     bootstrapped = true;
     listenForPeerRefreshes();
+    watchForIdleness({ expire: signOutForInactivity, endedElsewhere: followSignOutElsewhere });
     authStore.subscribe(scheduleProactiveRefresh);
     document.addEventListener('visibilitychange', () => {
       const { accessTokenExpiresAt, status } = authStore.getSnapshot();
@@ -67,13 +120,22 @@ export async function bootstrapAuth(): Promise<void> {
     );
     return;
   }
-  if (!(await refreshAccessToken())) authStore.clear();
+  if (wasLeftIdle()) {
+    // The browser was closed, or the device slept, past the idle limit (Q136): the session is ended rather
+    // than restored, and the login page says why.
+    signOutForInactivity();
+    return;
+  }
+  if (await refreshAccessToken()) seedActivity();
+  else authStore.clear();
 }
 
 export async function login(body: LoginBody): Promise<MeDto> {
   const session = await apiFetch<AuthTokenDto>('/auth/login', { method: 'POST', body, skipAuthRetry: true });
   // A fresh sign-in replaces the cookie a failed sign-out left behind.
   clearPendingSignOut();
+  clearIdleNotice();
+  startActivity();
   authStore.setSession(session);
   return session.user;
 }

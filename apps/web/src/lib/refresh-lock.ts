@@ -8,6 +8,8 @@ const REFRESH_CHANNEL = 'pallet-auth';
 const PEER_BUSY_MS = 3_000;
 
 let inflight: Promise<boolean> | null = null;
+/** `authStore.endings` when `inflight` was asked for. */
+let inflightEndings = 0;
 let peerBusyUntil = 0;
 let channel: BroadcastChannel | null = null;
 
@@ -40,7 +42,7 @@ const TRANSIENT_STATUSES = new Set([408, 429]);
  * connection, a timeout, a 5xx while the API restarts or a rate limit say nothing about the session,
  * so they reject with that ApiError and the caller keeps the user signed in (Q79).
  */
-async function doRefresh(): Promise<boolean> {
+async function doRefresh(endings: number): Promise<boolean> {
   // Signed out in some tab while the server was out of reach (Q80): the cookie is not to be used.
   if (hasPendingSignOut()) return false;
   let response: Response;
@@ -65,7 +67,11 @@ async function doRefresh(): Promise<boolean> {
     return false;
   }
 
-  authStore.setSession((await response.json()) as AuthTokenDto);
+  const session = (await response.json()) as AuthTokenDto;
+  // The session ended while this was on its way — a sign-out, or the idle limit (Q136), both of which end it on
+  // the server too. The answer would sign the page back in for the life of an access token.
+  if (authStore.endings !== endings) return false;
+  authStore.setSession(session);
   return true;
 }
 
@@ -75,17 +81,24 @@ async function waitForPeer(): Promise<void> {
   }
 }
 
-async function refreshWithPeers(): Promise<boolean> {
+async function refreshWithPeers(endings: number): Promise<boolean> {
   const peers = peerChannel();
-  if (!peers) return doRefresh();
+  if (!peers) return doRefresh(endings);
 
   await waitForPeer();
   peers.postMessage({ type: 'refresh-start', at: Date.now() } satisfies PeerMessage);
   try {
-    return await doRefresh();
+    return await doRefresh(endings);
   } finally {
     peers.postMessage({ type: 'refresh-end', at: Date.now() } satisfies PeerMessage);
   }
+}
+
+async function refreshAcrossTabs(endings: number): Promise<boolean> {
+  if (typeof navigator !== 'undefined' && 'locks' in navigator) {
+    return await navigator.locks.request('pallet-auth-refresh', { mode: 'exclusive' }, () => doRefresh(endings));
+  }
+  return await refreshWithPeers(endings);
 }
 
 /**
@@ -95,16 +108,15 @@ async function refreshWithPeers(): Promise<boolean> {
  * never races with itself. The server's 30 second grace window covers what the lock cannot.
  */
 export function refreshAccessToken(): Promise<boolean> {
-  inflight ??= (async () => {
-    try {
-      if (typeof navigator !== 'undefined' && 'locks' in navigator) {
-        return await navigator.locks.request('pallet-auth-refresh', { mode: 'exclusive' }, () => doRefresh());
-      }
-      return await refreshWithPeers();
-    } finally {
-      inflight = null;
-    }
-  })();
+  // Counted before any waiting — for the lock, for another tab: a session that ends meanwhile is not renewed.
+  const endings = authStore.endings;
+  // A refresh still on its way for a session that has ended since is not this caller's: it will drop its answer.
+  if (inflight && inflightEndings === endings) return inflight;
 
-  return inflight;
+  const refresh: Promise<boolean> = refreshAcrossTabs(endings).finally(() => {
+    if (inflight === refresh) inflight = null;
+  });
+  inflight = refresh;
+  inflightEndings = endings;
+  return refresh;
 }

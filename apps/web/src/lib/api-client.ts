@@ -91,8 +91,11 @@ async function withAuthRetry(sendOnce: () => Promise<Response>, skipAuthRetry = 
     if (error.isAuthExpired) {
       response = (await refreshAccessToken()) ? await sendOnce() : response;
       if (response.status === 401) {
-        authStore.clear();
-        onSessionEnded?.();
+        // Ended already — signed out, or idle (Q136) — while this request was on its way: nothing more to end.
+        if (authStore.getSnapshot().status === 'authenticated') {
+          authStore.clear();
+          onSessionEnded?.();
+        }
         throw await apiErrorFromResponse(response);
       }
     }

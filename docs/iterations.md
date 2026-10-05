@@ -296,6 +296,21 @@ the order keeps its typing, the dialog's Enter does not submit the order (proven
 existing driver can be taken, the warning can be backed out of or confirmed, no button without
 `drivers.create`, and the drivers page warns too.
 
+### 9c — Sign out after 15 idle minutes (Q136)
+
+Read: §6.8.3, §6.8.5, §7.7.3, §10.1 S7/S11.
+
+Web: `lib/idle.ts` (activity shared between tabs, a check every second, the warning for the last minute,
+sign-out at the limit, no restore of a session left idle), `IdleWarning`, the login page's notice. API: a
+refresh more than `SESSION_IDLE_MS` after the last ends the family as `IDLE` (migration
+`20261005000000_session_idle_reason`).
+**Exit:** S-8 and the idle integration test; `e2e/idle.spec.ts` with the clock moved — warning at 14 minutes,
+sign-out at 15, typing keeps the session, another tab's work keeps this one, a browser reopened after the
+limit starts signed out without a refresh, a half-typed form does not hold the sign-out back, a refresh due
+at the same moment does not bring the session back — and on the real clock the warning answered by a press or
+a key but not by pointer movement; the unit test of a refresh overtaken by a sign-out (proven by removing the
+guard).
+
 ---
 
 ## Environments

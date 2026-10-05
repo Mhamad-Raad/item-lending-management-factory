@@ -53,3 +53,8 @@ The build history that used to sit in `CLAUDE.md` "Status", oldest first, moved 
   order keeping what was typed. A phone another driver has is a warning with confirmation, as for customers:
   `GET /api/drivers/phone-check`, `confirmDuplicatePhone`, `DRIVER_PHONE_DUPLICATE`; on an order the warning
   also offers the driver who already has the number. Amends Q13. No migration.
+- **9c idle sign-out** (2026-10-05, Q136): a user who does nothing for 15 minutes is signed out, on the server too, after a
+  one-minute warning that a press or a key answers; activity in any tab of the browser counts for all of them,
+  a browser reopened after the limit starts signed out, and the login page says why. The API ends a session
+  that goes 30 minutes without a refresh (`IDLE`, migration `20261005000000_session_idle_reason`: one enum
+  value, nothing to do by hand). A refresh overtaken by a sign-out no longer signs the page back in.

@@ -1,16 +1,25 @@
 /** Session and cookie constants (§6.8, §10.1 S10–S12). */
 
+import { ACCESS_TOKEN_TTL_MINUTES, SESSION_IDLE_MINUTES } from '@pallet/shared';
+
 export const REFRESH_COOKIE_NAME = 'pallet_rt';
 /** The cookie is only ever sent to the auth endpoints. */
 export const REFRESH_COOKIE_PATH = '/api/auth';
 
-export const ACCESS_TOKEN_TTL = '15m';
-export const ACCESS_TOKEN_TTL_MS = 15 * 60 * 1000;
+export const ACCESS_TOKEN_TTL = `${ACCESS_TOKEN_TTL_MINUTES}m` as const;
+export const ACCESS_TOKEN_TTL_MS = ACCESS_TOKEN_TTL_MINUTES * 60 * 1000;
 
 /** Sliding lifetime of one refresh token. */
 export const REFRESH_SLIDING_MS = 14 * 24 * 60 * 60 * 1000;
 /** Absolute lifetime of a session family, however often it is rotated. */
 export const SESSION_ABSOLUTE_MS = 30 * 24 * 60 * 60 * 1000;
+/**
+ * The longest a session may go between two refreshes (Q136). The web stops refreshing once its user has been idle
+ * for `SESSION_IDLE_MINUTES` and signs out; a session nobody signed out — a closed laptop, a browser reopened the
+ * next day — ends here instead. It is the idle limit plus an access token's life, because a user who is not idle
+ * may still let that long pass: the page refreshes only while it is visible, and only once its token nears expiry.
+ */
+export const SESSION_IDLE_MS = SESSION_IDLE_MINUTES * 60 * 1000 + ACCESS_TOKEN_TTL_MS;
 /** A rotated token keeps working this long, for two tabs refreshing at once. */
 export const REFRESH_GRACE_MS = 30 * 1000;
 
