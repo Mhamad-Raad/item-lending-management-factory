@@ -7,6 +7,7 @@ import type {
   OrderDetailDto,
   GrantablePermissionKey,
   PaymentResultDto,
+  ReturnResultDto,
   UserDto,
 } from '@pallet/shared';
 import { closePermissionSet } from '@pallet/shared';
@@ -144,6 +145,12 @@ export function stage(api: Api) {
       lines: { itemId: number; quantity: number }[];
     }) =>
       api.post<OrderDetailDto>('/api/orders', { date: today(), ...body }, { 'Idempotency-Key': crypto.randomUUID() }),
+    return: (orderId: number, lines: { orderLineId: number; acceptedQuantity: number; damagedQuantity: number }[]) =>
+      api.post<ReturnResultDto>(
+        `/api/orders/${orderId}/returns`,
+        { date: today(), lines },
+        { 'Idempotency-Key': crypto.randomUUID() },
+      ),
     payment: (orderId: number, amount: number) =>
       api.post<PaymentResultDto>(
         `/api/orders/${orderId}/payments`,

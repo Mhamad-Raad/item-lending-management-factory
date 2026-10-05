@@ -3,7 +3,8 @@ import { adminApi, figure, shown, signIn, sorani, stage, today, LIVE_ADMIN, RUN 
 
 /**
  * E5 (§14.6): a seven-line order prints on two A4 sheets, each with two copies — six lines on the first, the last
- * line and the total on the second — in Sorani, with Western digits and dd/MM/yyyy.
+ * line and the total on the second — in Sorani, with Western digits and dd/MM/yyyy. A return recorded afterwards is
+ * on the reprint (Q134).
  */
 test('E5: a seven-line receipt prints on exactly two A4 sheets, total on the last', async ({ page, request }) => {
   const api = await adminApi(request);
@@ -47,6 +48,17 @@ test('E5: a seven-line receipt prints on exactly two A4 sheets, total on the las
   await expect(sheets.first()).toContainText(String(order.orderNumber).padStart(6, '0'));
   // Western digits only: no Arabic-Indic or Persian digit anywhere on the printout.
   expect(await page.locator('.receipt').innerText()).not.toMatch(/[٠-٩۰-۹]/);
+
+  // Q134: a return recorded while this tab stays open; its Print button reads the order again before printing.
+  const [firstLine] = order.lines;
+  if (!firstLine) throw new Error('the order has lines');
+  const firstRow = sheets.first().locator('.half').first().locator('tbody tr').first().locator('td');
+  await expect(firstRow).toHaveText(['1', items[0]?.name ?? '', '10', '0', '0', '10', figure(1_000), figure(10_000)]);
+  await staged.return(order.id, [{ orderLineId: firstLine.id, acceptedQuantity: 6, damagedQuantity: 1 }]);
+  await page.getByRole('button', { name: sorani('receipt.print') }).click();
+  await expect.poll(() => page.evaluate(() => (window as unknown as { printed: number }).printed)).toBe(2);
+  await expect(firstRow).toHaveText(['1', items[0]?.name ?? '', '10', '6', '1', '3', figure(1_000), figure(10_000)]);
+  await expect(sheets.first()).toContainText(`${sorani('receipt.printedOn')}: ${shown(today())}`);
 
   await page.emulateMedia({ media: 'print' });
   const pdf = await page.pdf({ format: 'A4', printBackground: true, preferCSSPageSize: true });

@@ -431,6 +431,7 @@ export const RECEIPT: ReceiptDto = {
   orderNumber: 42,
   orderNumberDisplay: '000042',
   date: '2026-09-11',
+  printedOn: '2026-09-15',
   paymentType: 'LENT',
   depositTotal: 10_000,
   factory: { name: 'Pallet Factory', phone: '07500000000', address: 'Erbil', logoUrl: null },
@@ -441,7 +442,17 @@ export const RECEIPT: ReceiptDto = {
     {
       sheetNumber: 1,
       sheetCount: 1,
-      lines: [{ itemName: ITEM.name, quantity: 10, unitDeposit: 1_000, lineTotal: 10_000 }],
+      lines: [
+        {
+          itemName: ITEM.name,
+          quantity: 10,
+          unitDeposit: 1_000,
+          lineTotal: 10_000,
+          returnedAccepted: 6,
+          returnedDamaged: 1,
+          outQuantity: 3,
+        },
+      ],
       showTotal: true,
     },
   ],

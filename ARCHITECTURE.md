@@ -150,7 +150,7 @@ Every item below is an ambiguity, contradiction or gap in the brief. The builder
 | A6 | How are order numbers allocated? | Gap-free increasing integers from 1, allocated inside the creation transaction from the locked single-row `order_counter`; shown zero-padded to 6 digits (`000123`) on the receipt and in the UI; numbers above 999999 are shown unpadded. Cancelled orders keep their number. |
 | A7 | Payment limits and scope? | A payment on a `LENT` order cannot exceed the order's current `owed`. Payments are per order; there is no customer-level payment. Manual payments on `CASH` orders are rejected (`PAYMENT_ORDER_NOT_LENT`). |
 | A8 | Cardinalities? | One customer per order; one driver per order; an item appears at most once per order (`VALIDATION_FAILED` `duplicate`, Q38; DB unique `(order_id, item_id)`). |
-| A9 | Receipt content? | Only the fields listed in section 7 (receipt print route); no notes, no signature lines. |
+| A9 | Receipt content? | Only the fields listed in section 7 (receipt print route); no notes, no signature lines. Since Q134 the lines also say what has come back of each. |
 | A10 | Report export? | On screen and printable only; CSV/Excel export is out of scope (section 16). |
 | A11 | Password policy and recovery? | Minimum 10, maximum 128 characters; rejected if in the bundled common-password list or equal to the username; admins reset passwords; no email or self-service reset. |
 | A12 | Low-stock flag without `minStock`? | `minStock` is optional; items without it are never flagged. `isLowStock = minStock IS NOT NULL AND quantityOnHand ≤ minStock`. Archived items are never flagged on the dashboard. |
@@ -283,6 +283,7 @@ Every item below is an ambiguity, contradiction or gap in the brief. The builder
 | Q131 | Recorded after the fact by 8b (iteration 7g, `e68823a`): the client is Jiyan (natural mineral water). What is the product called, and where does the brand appear? | **Jiyan Items** — `common.appName`: ckb `کاڵاکانی ژیان`, ar `أصناف جيان`, en `Jiyan Items` (glossary: items = کاڵاکان / الأصناف); the English name is the HTML `<title>` before the app starts. The favicon (`favicon-32.png`, `favicon-48.png`), the touch icon (`apple-touch-icon.png`) and the sidebar and sheet mark (`public/brand/jiyan-mark.jpg`, 36 px, rounded) are cut from the client's logo; the login page shows the full logo (`public/brand/jiyan-logo.jpg`). The repository, packages, containers and database keep the name `pallet` (renaming them would touch every deployment for no user-visible gain). The E6 screenshot baselines include the sidebar, so they were removed for CI to render again. |
 | Q132 | Recorded after the fact by 8b (iterations 7h `cddba33` and 7i `fdf2f6d`): staff on shared tablets change the text size more often than anything else on `/settings`. Where does it live? | A text-size menu in the app bar at every width, between the language menu and the light/dark toggle (`TextSizeMenu` in `app-shell.tsx`): lucide `Type` icon (the management system's, since the two apps share users), label `settings.appearance.sizeTitle`, the four sizes of §7.3.20 with the current one marked (`aria-current`, primary colour), applied through `setPreferences({ fontSize })` like the settings page, which keeps the samples. |
 | Q133 | The deploy workflow calls CI, whose `pnpm audit --audit-level=high` job fails on any newly published advisory in any dependency — so a deploy of an urgent, unrelated fix could be blocked for days by an advisory nobody can fix yet (8b, maintainability). Block, or warn? | **Warn in the deploy, block everywhere else.** `ci.yml` takes the input `audit_advisory` (default `false`); the deploy workflow passes `true`, which makes the audit step `continue-on-error` and adds a `::warning::` annotation and a job-summary line naming the next step. Pushes to `main` and pull requests still fail on the advisory, so it is seen and fixed in the next change. Why this is safe: a deploy ships the lockfile that CI's tests just passed, and an advisory in a dependency already running in production is not made worse by deploying — blocking only delays the fix (or the security patch) being deployed. The manual path (`deploy.md`, "Manual path": build and push the images from a workstation, then run `deploy.sh <sha>` on the server) stays for when GitHub Actions itself is unavailable, not for getting around a red CI. |
+| Q134 | The business asked (2026-10-05, iteration 9a) that the receipt also say what has been returned of the order — per order, since the paper belongs to that customer, not what the factory holds in general. A9 printed the hand-over only. A table under the lines, or columns? And what makes a reprint trustworthy? | **Three columns in the lines table, straight after the quantity they add up to and before the money:** `receipt.returnedAccepted` (came back and accepted), `receipt.returnedDamaged` (came back damaged), `receipt.outQuantity` (still with the customer — named so, since a bare "remaining" beside money reads as a balance), from the order line's maintained `returned_accepted`, `returned_damaged`, `out_quantity` (so reversed returns do not count). A second table does not fit: a half has 5.5 mm to spare (§7.16.3) and six more rows need about 40 mm, which would halve `RECEIPT_LINES_PER_HALF` and print every pallet name twice. The columns cost width only: the four quantity columns 18 mm each, unit deposit 30 → 24 mm, line total 34 → 29 mm, the item name 98 → 57 mm (still clipped with an ellipsis). A figure longer than its column holds at 10 pt (more than 7 characters of quantity, 9 of unit deposit, 11 of line total — only near the input maxima) is set at 7 pt rather than run into the next cell. **The receipt is the order's position on the day it is printed:** `ReceiptDto.printedOn` (the business day of the request) is printed in the footer as `receipt.printedOn`, so a paper from the hand-over (all zeros) and a later reprint can be told apart; the receipt query is never served from cache (`staleTime: 0`) and the toolbar's Print reads the order again first, printing nothing if that fails. No money is added (refunds and compensation stay on the order page), no totals row, and the receipt of a cancelled order is still refused (Q10). Amends A9. The four new Sorani labels join the strings to be proofread (Q22). |
 
 ## 3. Actors, roles and permissions
 
@@ -2868,7 +2869,10 @@ interface ReturnResultDto { returnId: number; order: OrderDetailDto }
 interface PaymentResultDto { ledgerEntryId: number; order: OrderDetailDto }
 
 // ── receipt ──
-interface ReceiptLineDto { itemName: string; quantity: number; unitDeposit: number; lineTotal: number }
+interface ReceiptLineDto {
+  itemName: string; quantity: number; unitDeposit: number; lineTotal: number;
+  returnedAccepted: number; returnedDamaged: number; outQuantity: number;   // the order line's maintained totals (Q134)
+}
 interface ReceiptSheetDto {
   sheetNumber: number;              // 1-based
   sheetCount: number;
@@ -2878,6 +2882,7 @@ interface ReceiptSheetDto {
 interface ReceiptDto {
   orderId: number; orderNumber: number; orderNumberDisplay: string;   // zero-padded to 6 digits
   date: string; paymentType: PaymentType; depositTotal: number;
+  printedOn: string;                // the business day of the request: what the returned figures are true as of (Q134)
   factory: { name: string; phone: string; address: string; logoUrl: string | null };
   customer: { name: string; phone: string; altPhone: string | null; address: string };
   driver: { name: string; phone: string; carNumber: string };
@@ -3389,7 +3394,7 @@ OrderUpdateBody = z.strictObject({
 
 #### `GET /api/orders/:id/receipt`
 - **Access:** `@RequirePermission('orders.view')`.
-- **Steps:** load order, customer, driver, lines (by `order_lines.id` asc, item name), settings with logo; cancelled → `ORDER_CANCELLED`; `sheets = chunkReceiptLines(lines, RECEIPT_LINES_PER_HALF).map((chunk, i, all) => ({ sheetNumber: i + 1, sheetCount: all.length, lines: chunk, showTotal: i === all.length − 1 }))`; `orderNumberDisplay = String(orderNumber).padStart(6, '0')`.
+- **Steps:** load order, customer, driver, lines (by `order_lines.id` asc, item name, and each line's maintained `returned_accepted`, `returned_damaged`, `out_quantity` — Q134), settings with logo; cancelled → `ORDER_CANCELLED`; `printedOn = businessToday(clock.now())`; `sheets = chunkReceiptLines(lines, RECEIPT_LINES_PER_HALF).map((chunk, i, all) => ({ sheetNumber: i + 1, sheetCount: all.length, lines: chunk, showTotal: i === all.length − 1 }))`; `orderNumberDisplay = String(orderNumber).padStart(6, '0')`.
 - **Response:** 200 `ReceiptDto`. Worked example: 14 lines → 3 sheets with 6, 6, 2 lines; `depositTotal` printed only on sheet 3; each sheet shows "sheet X of 3".
 - **Errors:** `ORDER_NOT_FOUND`, `ORDER_CANCELLED`.
 
@@ -4385,8 +4390,8 @@ Responsive:
 ### 7.16 Receipt print route (`/print/orders/$orderId`)
 
 #### 7.16.1 Behaviour
-- **Layout** `_print.tsx`: authenticated (`requireAuthenticated`), no AppShell; removes `dark` from `<html>` while mounted; renders a screen-only toolbar (`print:hidden`) with the buttons "Print" (`window.print()`) and "Close" (`window.close()`), labelled in the **UI** language.
-- **Data:** `GET /api/orders/:id/receipt` (key `['orders','receipt',id]`). Response `ReceiptDto` exactly as defined in §6.9 (the server does the chunking): `orderNumber`, `orderNumberDisplay` (zero-padded), `date`, `paymentType`, `depositTotal`, `factory { name, phone, address, logoUrl | null }`, `customer { name, phone, altPhone, address }` (the receipt prints name, phone, address only), `driver { name, phone, carNumber }`, `linesPerHalf`, `sheets [{ sheetNumber, sheetCount, lines [{ itemName, quantity, unitDeposit, lineTotal }], showTotal }]` (lines ordered by order line id).
+- **Layout** `_print.tsx`: authenticated (`requireAuthenticated`), no AppShell; removes `dark` from `<html>` while mounted; renders a screen-only toolbar (`print:hidden`) with the buttons "Print" (refetches the receipt, then `window.print()` only if that succeeded — Q134) and "Close" (`window.close()`), labelled in the **UI** language.
+- **Data:** `GET /api/orders/:id/receipt` (key `['orders','receipt',id]`). Response `ReceiptDto` exactly as defined in §6.9 (the server does the chunking): `orderNumber`, `orderNumberDisplay` (zero-padded), `date`, `printedOn`, `paymentType`, `depositTotal`, `factory { name, phone, address, logoUrl | null }`, `customer { name, phone, altPhone, address }` (the receipt prints name, phone, address only), `driver { name, phone, carNumber }`, `linesPerHalf`, `sheets [{ sheetNumber, sheetCount, lines [{ itemName, quantity, unitDeposit, lineTotal, returnedAccepted, returnedDamaged, outQuantity }], showTotal }]` (lines ordered by order line id). The last three are the line's position when the receipt is asked for (Q134), so the query has `staleTime: 0` — a tab left open reads the order again when it is returned to.
 - `409 ORDER_CANCELLED` → an error page `receipt.cancelledError` with a Close button. The API refuses cancelled orders (Q10).
 - **Auto-print:** after data is loaded, `await document.fonts.ready`, and the logo `<img>` has fired `load` or `error` (or there is no logo), call `window.print()` once (guarded by a ref). Reprinting is always possible with the toolbar button or the order page.
 - **Language:** the receipt is **always Kurdish Sorani** regardless of the UI language: root element `<div class="receipt" dir="rtl" lang="ckb">`, and all labels from `const tr = i18n.getFixedT('ckb')` with keys `receipt.*`.
@@ -4429,7 +4434,9 @@ Example: an order with 14 lines → chunks of 6, 6, 2 → 3 A4 sheets; sheet 3 s
 .lines { width: 100%; border-collapse: collapse; table-layout: fixed; }
 .lines th, .lines td { height: 7mm; padding: 0 1.5mm; border: 0.2mm solid #000; vertical-align: middle; }
 .lines th { font-size: 8.5pt; font-weight: 600; background: #f0f0f0; }
-.col-no { width: 8mm; } .col-qty { width: 20mm; } .col-unit { width: 30mm; } .col-total { width: 34mm; }
+.col-no { width: 8mm; } .col-qty { width: 18mm; } .col-unit { width: 24mm; } .col-total { width: 29mm; }
+/* .col-qty is the quantity and the three columns of Q134 alike */
+.lines .num-tight { font-size: 7pt; }   /* a figure longer than its column holds at 10 pt (Q134) */
 /* .col-item takes the remaining width; item names are clipped with text-overflow: ellipsis; white-space: nowrap */
 @media screen { body { background: #e5e5e5; } .sheet { margin: 8mm auto; box-shadow: 0 1mm 4mm rgb(0 0 0 / 0.25); } }
 ```
@@ -4443,13 +4450,13 @@ Block contents, in reading order (RTL: "start" = right side of the page):
 2. **Parties** (`.block-parties`, two equal columns separated by 4 mm, each boxed with a 0.2 mm border and 2 mm padding):
    - Customer column: heading `receipt.customer` (9 pt, 600); rows `receipt.name`: name; `receipt.phone`: `<bdi class="num">phone</bdi>`; `receipt.address`: address (clamped to 1 line with ellipsis).
    - Driver column: heading `receipt.driver`; rows `receipt.name`, `receipt.phone`, `receipt.carNumber` (`<bdi class="num">`).
-3. **Lines** (`.block-lines`): table with header row `#` | `receipt.item` | `receipt.quantity` | `receipt.unitDeposit` | `receipt.lineTotal`, then exactly 6 body rows (empty rows render empty cells so the grid is stable). Numeric cells are `.num`, aligned `text-align: end`.
+3. **Lines** (`.block-lines`): table with header row `#` | `receipt.item` | `receipt.quantity` | `receipt.returnedAccepted` | `receipt.returnedDamaged` | `receipt.outQuantity` | `receipt.unitDeposit` | `receipt.lineTotal` (the three after the quantity since Q134; a heading must stay on one line, or the table outgrows its block), then exactly 6 body rows (empty rows render empty cells so the grid is stable). Numeric cells are `.num`, aligned `text-align: end`.
 4. **Footer** (`.block-footer`, three rows):
    - row 1: on sheet Y → `receipt.depositTotal`: `<span class="num">125,000</span> دینار` (11 pt, 700); on other sheets → `receipt.continued` (9 pt, italic).
    - row 2: `receipt.paymentType`: `receipt.paymentCash` or `receipt.paymentLent` (10 pt, 600).
-   - row 3 (end-aligned, 8.5 pt): `receipt.sheetOf` with `{{x}}`, `{{y}}` as `.num`.
+   - row 3 (8.5 pt, `justify-content: space-between`): at the start `receipt.printedOn`: `<span class="num">15/09/2026</span>` (`printedOn`, Q134); at the end `receipt.sheetOf` with `{{x}}`, `{{y}}` as `.num`.
 
-No notes, no signature lines (A9).
+No notes, no signature lines (A9). What has come back is three columns of the lines table, not a block of its own (Q134).
 
 #### 7.16.4 Sorani receipt strings (`receipt.*` in `ckb.json`)
 
@@ -4473,6 +4480,10 @@ The `en.json` and `ar.json` files carry translated counterparts of the same keys
 | `receipt.quantity` | `بڕ` | Quantity |
 | `receipt.unitDeposit` | `تەئمیناتی دانە` | Deposit per pallet |
 | `receipt.lineTotal` | `کۆ` | Line total |
+| `receipt.returnedAccepted` | `وەرگیراو` | Came back, accepted (Q134) |
+| `receipt.returnedDamaged` | `تێکچوو` | Came back damaged (Q134) |
+| `receipt.outQuantity` | `لای کڕیار` | Still with the customer (Q134) |
+| `receipt.printedOn` | `بەرواری چاپ` | Printed on (Q134) |
 | `receipt.depositTotal` | `کۆی گشتی تەئمینات` | Total deposit |
 | `receipt.paymentType` | `جۆری پارەدان` | Payment type |
 | `receipt.paymentCash` | `پارە دراوە (نەقد)` | Paid cash |
@@ -4483,8 +4494,8 @@ The `en.json` and `ar.json` files carry translated counterparts of the same keys
 | `receipt.cancelledError` | `ئەم داواکارییە هەڵوەشێنراوەتەوە و پسووڵەی بۆ چاپ ناکرێت` | This order is cancelled; its receipt cannot be printed |
 
 #### 7.16.5 Receipt tests
-- Unit (`src/features/receipt/receipt.test.tsx`, jsdom): 1 line → 1 sheet, 2 halves, total present; 6 lines → 1 sheet; 7 lines → 2 sheets, lines 1–6 then 7, total only on sheet 2, text `پەڕەی 2 لە 2`; 14 lines → 3 sheets; both halves of a sheet have identical text content; labels are Sorani while `i18n.language === 'en'`.
-- E2E (`e2e/receipt.spec.ts`, Chromium): open the print route for a seeded 7-line order, wait for the `.sheet` elements, `page.emulateMedia({ media: 'print' })`, generate `page.pdf({ format: 'A4', printBackground: true, preferCSSPageSize: true })`, and assert the PDF has exactly 2 pages (count `/Type /Page` objects). The screenshot `receipt-7-lines.png` is compared against the committed baseline.
+- Unit (`src/features/receipt/receipt.test.tsx`, jsdom): 1 line → 1 sheet, 2 halves, total present; 6 lines → 1 sheet; 7 lines → 2 sheets, lines 1–6 then 7, total only on sheet 2, text `پەڕەی 2 لە 2`; 14 lines → 3 sheets; both halves of a sheet have identical text content; labels are Sorani while `i18n.language === 'en'`; the cells after a line's quantity are its accepted, damaged and outstanding quantities, and an empty row stays empty; the print date is in the footer; a figure longer than its column is `.num-tight` (Q134).
+- E2E (`e2e/receipt.spec.ts`, Chromium): open the print route for a seeded 7-line order, wait for the `.sheet` elements, `page.emulateMedia({ media: 'print' })`, generate `page.pdf({ format: 'A4', printBackground: true, preferCSSPageSize: true })`, and assert the PDF has exactly 2 pages (count `/Type /Page` objects). The eight headings are on the page in order, no cell but the item name is wider than its column — one line of the fixture carries the input maxima — and every row of the table is still 7 mm high (Q134). The screenshot `receipt-7-lines.png` is compared against the committed baseline.
 
 ## 8. Shared package contents
 
@@ -5409,7 +5420,7 @@ U1 expected values (`O` = OPEN, `S` = SETTLED):
 | E2 | Create order (daily flow 1) in `ckb` | `<html dir="rtl" lang="ckb">`; searchable customer/driver/item selects; live deposit total updates while typing; submit → order page with number; stock decreased on item page |
 | E3 | Record return (daily flow 2) | from dashboard quick action; refund due, cash refund and owed-after update live; submit → order shows returned quantities |
 | E4 | Record payment (daily flow 3) | LENT order; amount > owed shows inline error; valid payment updates owed |
-| E5 | Receipt print route | `page.emulateMedia({ media: 'print' })`; 2 copies per sheet separated by the dashed cut line; Sorani labels; Western digits; `dd/MM/yyyy` date; an order with 7 lines renders 2 sheets, "sheet 1 of 2", total only on sheet 2; `page.pdf({ format: 'A4' })` produces exactly 2 pages |
+| E5 | Receipt print route | `page.emulateMedia({ media: 'print' })`; 2 copies per sheet separated by the dashed cut line; Sorani labels; Western digits; `dd/MM/yyyy` date; an order with 7 lines renders 2 sheets, "sheet 1 of 2", total only on sheet 2; `page.pdf({ format: 'A4' })` produces exactly 2 pages; a return recorded while the tab is open is on the paper after the toolbar's Print, with the print date (Q134) |
 | E6 | RTL screenshots | `expect(page).toHaveScreenshot()` of E2–E4 final forms in `ckb` at 1280 × 800 and 390 × 844, `maxDiffPixelRatio: 0.01`; baselines committed under `apps/web/e2e-live/__screenshots__/` (generated on the CI runner image, Q63) |
 | E7 | Language + theme switch | switching to `en` flips `dir` to `ltr` without reload; dark theme toggles `html.dark`; receipt stays light |
 | E8 | Permission-hidden UI | employee without `orders.cancel` sees no Cancel button |

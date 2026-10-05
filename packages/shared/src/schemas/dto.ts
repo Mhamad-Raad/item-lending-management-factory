@@ -421,6 +421,11 @@ export interface ReceiptLineDto {
   quantity: number;
   unitDeposit: number;
   lineTotal: number;
+  /** Of this order's line alone, as recorded when the receipt was asked for (Q134); reversed returns do not count. */
+  returnedAccepted: number;
+  returnedDamaged: number;
+  /** `quantity − returnedAccepted − returnedDamaged`: what the customer still holds. */
+  outQuantity: number;
 }
 
 export interface ReceiptSheetDto {
@@ -439,6 +444,8 @@ export interface ReceiptDto {
   /** Zero-padded to six digits. */
   orderNumberDisplay: string;
   date: string;
+  /** The business day the receipt was asked for: what its returned figures are true as of (Q134). */
+  printedOn: string;
   paymentType: PaymentType;
   depositTotal: number;
   factory: { name: string; phone: string; address: string; logoUrl: string | null };

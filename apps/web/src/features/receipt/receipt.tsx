@@ -5,6 +5,16 @@ import i18n from '@/i18n';
 /** The receipt is always Kurdish Sorani, whatever the UI language (§7.16.1). */
 const tr = i18n.getFixedT('ckb');
 
+/**
+ * How many characters each numeric column holds at the receipt's 10 pt (§7.16.3). A longer figure — only the
+ * largest the inputs allow — is set smaller rather than left to run into the next column.
+ */
+const FITS = { quantity: 7, unitDeposit: 9, lineTotal: 11 } as const;
+
+function NumberCell({ text, fits }: { text: string | null; fits: number }) {
+  return <td className={text && text.length > fits ? 'num num-cell num-tight' : 'num num-cell'}>{text ?? ''}</td>;
+}
+
 function Half({
   receipt,
   sheet,
@@ -94,6 +104,16 @@ function Half({
               <th scope="col" className="col-qty">
                 {tr('receipt.quantity')}
               </th>
+              {/* What became of the quantity so far (Q134), beside it and before the money: the three add up to it. */}
+              <th scope="col" className="col-qty">
+                {tr('receipt.returnedAccepted')}
+              </th>
+              <th scope="col" className="col-qty">
+                {tr('receipt.returnedDamaged')}
+              </th>
+              <th scope="col" className="col-qty">
+                {tr('receipt.outQuantity')}
+              </th>
               <th scope="col" className="col-unit">
                 {tr('receipt.unitDeposit')}
               </th>
@@ -109,9 +129,12 @@ function Half({
                 <td className="col-item">
                   <bdi>{line?.itemName ?? ''}</bdi>
                 </td>
-                <td className="num num-cell">{line ? formatNumber(line.quantity) : ''}</td>
-                <td className="num num-cell">{line ? formatMoney(line.unitDeposit) : ''}</td>
-                <td className="num num-cell">{line ? formatMoney(line.lineTotal) : ''}</td>
+                <NumberCell text={line && formatNumber(line.quantity)} fits={FITS.quantity} />
+                <NumberCell text={line && formatNumber(line.returnedAccepted)} fits={FITS.quantity} />
+                <NumberCell text={line && formatNumber(line.returnedDamaged)} fits={FITS.quantity} />
+                <NumberCell text={line && formatNumber(line.outQuantity)} fits={FITS.quantity} />
+                <NumberCell text={line && formatMoney(line.unitDeposit)} fits={FITS.unitDeposit} />
+                <NumberCell text={line && formatMoney(line.lineTotal)} fits={FITS.lineTotal} />
               </tr>
             ))}
           </tbody>
@@ -131,8 +154,12 @@ function Half({
           {tr('receipt.paymentType')}:{' '}
           {tr(receipt.paymentType === 'CASH' ? 'receipt.paymentCash' : 'receipt.paymentLent')}
         </div>
-        <div style={{ fontSize: '8.5pt', textAlign: 'end' }}>
-          {tr('receipt.sheetOf', { x: sheet.sheetNumber, y: sheet.sheetCount })}
+        <div style={{ fontSize: '8.5pt', display: 'flex', justifyContent: 'space-between' }}>
+          {/* The returned figures are the order's position on this day, not on the hand-over's (Q134). */}
+          <span>
+            {tr('receipt.printedOn')}: <span className="num">{formatBusinessDate(receipt.printedOn)}</span>
+          </span>
+          <span>{tr('receipt.sheetOf', { x: sheet.sheetNumber, y: sheet.sheetCount })}</span>
         </div>
       </div>
     </>
@@ -141,7 +168,8 @@ function Half({
 
 /**
  * The hand-over receipt (§7.16): one A4 sheet per chunk the server made, each printing its chunk twice
- * — the factory's copy and the customer's — above and below a dashed cut line.
+ * — the factory's copy and the customer's — above and below a dashed cut line. Each line also says what
+ * of it has come back so far (Q134), so a reprint after a return is the order's current position.
  */
 export function Receipt({ receipt, onLogoSettled }: { receipt: ReceiptDto; onLogoSettled?: () => void }) {
   return (

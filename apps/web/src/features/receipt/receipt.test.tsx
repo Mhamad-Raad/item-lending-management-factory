@@ -6,12 +6,16 @@ import i18n from '@/i18n';
 import { Receipt } from './receipt';
 
 /** A receipt as the API builds it (§6.19): the server chunks, the page renders what it is given. */
-function receiptWith(lineCount: number): ReceiptDto {
+function receiptWith(
+  lineCount: number,
+  returned = { returnedAccepted: 0, returnedDamaged: 0, outQuantity: 10 },
+): ReceiptDto {
   const lines = Array.from({ length: lineCount }, (_, index) => ({
     itemName: `Pallet ${index + 1}`,
     quantity: 10,
     unitDeposit: 1_000,
     lineTotal: 10_000,
+    ...returned,
   }));
   const chunks = chunkReceiptLines(lines);
   return {
@@ -19,6 +23,7 @@ function receiptWith(lineCount: number): ReceiptDto {
     orderNumber: 123,
     orderNumberDisplay: '000123',
     date: '2026-09-11',
+    printedOn: '2026-09-15',
     paymentType: 'LENT',
     depositTotal: lineCount * 10_000,
     factory: { name: 'Pallet Factory', phone: '07500000000', address: 'Erbil', logoUrl: null },
@@ -72,6 +77,46 @@ describe('receipt (§7.16.5)', () => {
     expect(sheets).toHaveLength(3);
     const firstCells = [...(sheets[2]?.querySelector('.half tbody')?.querySelectorAll('tr td:first-child') ?? [])];
     expect(firstCells.map((cell) => cell.textContent)).toEqual(['13', '14', '', '', '', '']);
+  });
+
+  it('says per line what came back accepted, what came back damaged and what is still out (Q134)', () => {
+    const { container } = render(
+      <Receipt receipt={receiptWith(2, { returnedAccepted: 6, returnedDamaged: 1, outQuantity: 3 })} />,
+    );
+
+    const half = container.querySelector('.half');
+    const headers = [...(half?.querySelectorAll('thead th') ?? [])].map((cell) => cell.textContent);
+    // Beside the quantity they add up to, and before the money columns.
+    expect(headers.slice(2, 6)).toEqual(['بڕ', 'وەرگیراو', 'تێکچوو', 'لای کڕیار']);
+    const rows = [...(half?.querySelectorAll('tbody tr') ?? [])].map((row) =>
+      [...row.querySelectorAll('td')].slice(2, 6).map((cell) => cell.textContent),
+    );
+    expect(rows.slice(0, 3)).toEqual([
+      ['10', '6', '1', '3'],
+      ['10', '6', '1', '3'],
+      // A row without a line stays empty: no zeros in the blank part of the grid.
+      ['', '', '', ''],
+    ]);
+    // The figures are true as of the day of printing, which is not the hand-over's date.
+    expect(half?.textContent).toContain('بەرواری چاپ: 15/09/2026');
+  });
+
+  it('sets a figure too long for its column smaller instead of letting it run into the next', () => {
+    const receipt = receiptWith(1);
+    const line = receipt.sheets[0]?.lines[0];
+    if (!line) throw new Error('the receipt has a line');
+    Object.assign(line, { quantity: 1_000_000, outQuantity: 999_999, lineTotal: 1_000_000_000_000 });
+    const { container } = render(<Receipt receipt={receipt} />);
+
+    const cells = [...(container.querySelector('.half tbody tr')?.querySelectorAll('td') ?? [])];
+    expect(cells.map((cell) => [cell.textContent, cell.classList.contains('num-tight')]).slice(2)).toEqual([
+      ['1,000,000', true],
+      ['0', false],
+      ['0', false],
+      ['999,999', false],
+      ['1,000', false],
+      ['1,000,000,000,000', true],
+    ]);
   });
 
   it('prints both halves of a sheet identically, in Sorani and right to left', () => {

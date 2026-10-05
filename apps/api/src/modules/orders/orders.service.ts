@@ -2,6 +2,7 @@ import { Injectable } from '@nestjs/common';
 import {
   RECEIPT_LINES_PER_HALF,
   businessDateToDb,
+  businessToday,
   chunkReceiptLines,
   dbDateToBusiness,
   formatOrderNumber,
@@ -278,7 +279,11 @@ export class OrdersService {
     }
   }
 
-  /** The printed hand-over (§6.19, §7.16): lines in chunks of six, each chunk on its own A4 sheet. */
+  /**
+   * The printed hand-over (§6.19, §7.16): lines in chunks of six, each chunk on its own A4 sheet. A line also says
+   * what has come back so far (Q134), from the totals `recomputeOrder()` keeps on it, and the receipt the day
+   * those figures were read.
+   */
   async receipt(orderId: number): Promise<ReceiptDto> {
     const order = await this.prisma.order.findUnique({
       where: { id: orderId },
@@ -297,6 +302,9 @@ export class OrdersService {
         quantity: line.quantity,
         unitDeposit: toSafeMoney(line.unitDeposit),
         lineTotal: toSafeMoney(line.lineTotal),
+        returnedAccepted: line.returnedAccepted,
+        returnedDamaged: line.returnedDamaged,
+        outQuantity: line.outQuantity,
       })),
     );
     return {
@@ -304,6 +312,7 @@ export class OrdersService {
       orderNumber: order.orderNumber,
       orderNumberDisplay: formatOrderNumber(order.orderNumber),
       date: dbDateToBusiness(order.date),
+      printedOn: businessToday(this.clock.now()),
       paymentType: order.paymentType,
       depositTotal: toSafeMoney(order.depositTotal),
       factory: {

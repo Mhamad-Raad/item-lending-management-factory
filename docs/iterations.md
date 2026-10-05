@@ -267,6 +267,25 @@ deployment (7b), which the maintainer hands over.
 
 ---
 
+## After M7 — changes asked for by the business
+
+Not part of §15: each is a request from the factory after the build was finished, decided as a `Q` item.
+
+### 9a — Returns on the receipt (Q134)
+
+Read: §7.16, §6.9 (receipt DTOs), §4.8.4.
+
+The receipt's lines table gains three columns after the quantity — accepted, damaged, with the customer —
+from the order line's maintained totals (`ReceiptLineDto`), and the footer the day of printing
+(`ReceiptDto.printedOn`). No second table (it does not fit a half), no money. The toolbar's Print reads the
+order again first.
+**Exit:** an integration test records two returns and deletes one, and the receipt follows; the receipt unit
+test reads the cells and the print date; `e2e/receipt.spec.ts` shows the eight headings on rows that are still
+7 mm high with the input maxima inside their columns (proven by narrowing a column), and the PDF is still two
+pages; live E5 records a return with the tab open and finds it on the reprint.
+
+---
+
 ## Environments
 
 Three environments, one env-var contract (§13.2) — dev and production differ in _values_, never in shape.

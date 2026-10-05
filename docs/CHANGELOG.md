@@ -42,3 +42,9 @@ The build history that used to sit in `CLAUDE.md` "Status", oldest first, moved 
   typed passwords kept out of the audit log, monthly/yearly backup retention with a tamper check, deploy over
   the runner's own ssh with a forced-command key, `recover-admin`, Debian 13 images, and the maintainer quick
   start in `README.md`.
+- **9a returns on the receipt** (2026-10-05, Q134): the first change asked for by the business after the build. Each receipt line
+  also prints what came back accepted, what came back damaged and what the customer still holds, read from
+  the order line's maintained totals (`ReceiptLineDto.returnedAccepted/returnedDamaged/outQuantity`); a reprint
+  after a return is the order's current position, dated in the footer (`ReceiptDto.printedOn`), and the
+  toolbar's Print reads the order again before printing. Three columns rather than a second table, which a
+  half of the sheet has no room for. No migration.

@@ -399,6 +399,7 @@ describe('order changes: edit, cancel, receipt, ledger (§4.8.2, §4.8.3, §6.19
       orderNumber: 1,
       orderNumberDisplay: '000001',
       date: TODAY,
+      printedOn: TODAY,
       paymentType: 'LENT',
       depositTotal: 2_800,
       factory: { name: 'Pallet Factory', logoUrl: null },
@@ -418,7 +419,56 @@ describe('order changes: edit, cancel, receipt, ledger (§4.8.2, §4.8.3, §6.19
       quantity: 2,
       unitDeposit: 100,
       lineTotal: 200,
+      returnedAccepted: 0,
+      returnedDamaged: 0,
+      outQuantity: 2,
     });
+  });
+
+  it('prints on each receipt line what came back of it, and forgets a deleted return (Q134)', async () => {
+    const other = await createItem(app, admin, { name: 'Plastic pallet', depositPrice: 500, stock: 50 });
+    const order = await createOrder(app, admin, {
+      customerId: customer.id,
+      driverId: driver.id,
+      date: TODAY,
+      lines: [
+        { itemId: item.id, quantity: 10 },
+        { itemId: other.id, quantity: 4 },
+      ],
+    });
+    const [first, second] = order.lines;
+    if (!first || !second) throw new Error('the order has two lines');
+    const returned = async (): Promise<number[][]> => {
+      const receipt = (await http().get(`/api/orders/${order.id}/receipt`).set(asUser(admin)).expect(200))
+        .body as ReceiptDto;
+      return (receipt.sheets[0]?.lines ?? []).map((line) => [
+        line.quantity,
+        line.returnedAccepted,
+        line.returnedDamaged,
+        line.outQuantity,
+      ]);
+    };
+
+    await recordReturn(app, admin, {
+      orderId: order.id,
+      date: TODAY,
+      lines: [{ orderLineId: first.id, acceptedQuantity: 6, damagedQuantity: 1 }],
+    });
+    const mistaken = await recordReturn(app, admin, {
+      orderId: order.id,
+      date: TODAY,
+      lines: [{ orderLineId: second.id, acceptedQuantity: 4 }],
+    });
+    expect(await returned()).toEqual([
+      [10, 6, 1, 3],
+      [4, 4, 0, 0],
+    ]);
+
+    await http().delete(`/api/returns/${mistaken}`).set(asUser(admin)).expect(200);
+    expect(await returned()).toEqual([
+      [10, 6, 1, 3],
+      [4, 0, 0, 4],
+    ]);
   });
 
   it('lists the money ledger across orders by effective date, with its filters', async () => {

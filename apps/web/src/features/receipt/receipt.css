@@ -117,14 +117,20 @@
 .col-no {
   width: 8mm;
 }
+/* The quantity and what became of it so far — accepted, damaged, still out (Q134) — share one width. The seven
+   fixed columns take 133 mm of the half's 190; the item name has the rest. */
 .col-qty {
-  width: 20mm;
+  width: 18mm;
 }
 .col-unit {
-  width: 30mm;
+  width: 24mm;
 }
 .col-total {
-  width: 34mm;
+  width: 29mm;
+}
+/* A figure longer than its column holds at 10 pt (`FITS` in receipt.tsx). */
+.lines .num-tight {
+  font-size: 7pt;
 }
 .clamp {
   overflow: hidden;

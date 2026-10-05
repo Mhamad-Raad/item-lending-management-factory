@@ -30,6 +30,8 @@ function ReceiptPage() {
   const receipt = useQuery({
     queryKey: qk.orders.receipt(Number(orderId)),
     queryFn: () => apiFetch<ReceiptDto>(`/orders/${orderId}/receipt`),
+    // The receipt says what has come back so far (Q134): a tab left open reads the order again when it is returned to.
+    staleTime: 0,
   });
   const printed = useRef(false);
   const [logoSettled, setLogoSettled] = useState(false);
@@ -44,7 +46,11 @@ function ReceiptPage() {
 
   const toolbar = (
     <div className="receipt-toolbar flex justify-center gap-2 p-4 print:hidden">
-      <Button onClick={() => window.print()} disabled={!receipt.data}>
+      <Button
+        // A reprint is the order as it stands now, not as this tab first read it (Q134); a failed read prints nothing.
+        onClick={() => void receipt.refetch().then((latest) => latest.isSuccess && window.print())}
+        disabled={!receipt.data || receipt.isFetching}
+      >
         <Printer aria-hidden />
         {t('receipt.print')}
       </Button>
