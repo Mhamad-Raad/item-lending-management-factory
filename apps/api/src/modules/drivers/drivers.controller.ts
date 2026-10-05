@@ -2,10 +2,12 @@ import { Body, Controller, Delete, Get, Param, Patch, Post, Query } from '@nestj
 import {
   DriverCreateBody,
   DriverListQuery,
+  DriverPhoneCheckQuery,
   DriverUpdateBody,
   IdParam,
   VersionQuery,
   type DriverDto,
+  type DriverPhoneCheckDto,
   type PageDto,
 } from '@pallet/shared';
 import type { AuthContext } from '../../common/auth-context';
@@ -22,6 +24,15 @@ export class DriversController {
   @RequirePermission('drivers.view')
   list(@Query(new ZodValidationPipe(DriverListQuery)) query: DriverListQuery): Promise<PageDto<DriverDto>> {
     return this.drivers.list(query);
+  }
+
+  /** Declared before `:id`, which would otherwise take `phone-check` for an id (§6.18). */
+  @Get('phone-check')
+  @RequirePermission('drivers.view')
+  phoneCheck(
+    @Query(new ZodValidationPipe(DriverPhoneCheckQuery)) query: DriverPhoneCheckQuery,
+  ): Promise<DriverPhoneCheckDto> {
+    return this.drivers.phoneCheck(query);
   }
 
   @Get(':id')

@@ -281,6 +281,19 @@ export interface DriverDto {
   updatedAt: string;
 }
 
+/** Another driver holding a phone number (§6.18, Q135). */
+export interface DriverPhoneMatchDto {
+  driverId: number;
+  name: string;
+  carNumber: string;
+  archived: boolean;
+}
+
+export interface DriverPhoneCheckDto {
+  normalizedPhone: string;
+  matches: DriverPhoneMatchDto[];
+}
+
 export interface CustomerRefDto {
   id: number;
   name: string;

@@ -114,7 +114,10 @@ export async function createCustomer(
   return response.body as CustomerDto;
 }
 
-/** Creates a driver through `POST /api/drivers`. */
+/**
+ * Creates a driver through `POST /api/drivers`. Fixtures share the default number, so the duplicate-phone warning
+ * (Q135) is answered ahead of time: it is `drivers.test.ts` that tests it.
+ */
 export async function createDriver(
   app: INestApplication,
   session: Session,
@@ -127,6 +130,7 @@ export async function createDriver(
       name: options.name ?? 'Karwan Aziz',
       phone: options.phone ?? '07701112233',
       carNumber: options.carNumber ?? 'Erbil 12 A 34567',
+      confirmDuplicatePhone: true,
     })
     .expect(201);
   return response.body as DriverDto;

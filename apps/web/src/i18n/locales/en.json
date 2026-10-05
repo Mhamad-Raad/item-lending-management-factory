@@ -599,6 +599,7 @@
     "DRIVER_NOT_FOUND": "Driver not found",
     "DRIVER_ARCHIVED": "This driver is archived",
     "DRIVER_ALREADY_ARCHIVED": "This driver is already archived",
+    "DRIVER_PHONE_DUPLICATE": "Another driver already has this phone number",
     "ORDER_NOT_FOUND": "Order not found",
     "ORDER_CANCELLED": "This order is cancelled",
     "ORDER_HAS_ACTIVITY": "This order already has returns or payments",
@@ -878,7 +879,12 @@
       "newTitle": "New driver",
       "editTitle": "Edit driver",
       "created": "Driver added",
-      "saved": "Driver saved"
+      "saved": "Driver saved",
+      "phoneDuplicateWarning": "This number is already used by:",
+      "duplicateTitle": "This phone number is already in use",
+      "duplicateBody": "It belongs to {{names}}. Save anyway?",
+      "saveAnyway": "Save anyway",
+      "useExisting": "Use {{name}}"
     },
     "fields": {
       "name": "Name",
@@ -927,6 +933,7 @@
       "chooseCustomer": "Choose a customer",
       "driver": "Driver",
       "chooseDriver": "Choose a driver",
+      "newDriver": "New driver",
       "date": "Date",
       "paymentType": "Payment",
       "notes": "Notes",

@@ -1,5 +1,5 @@
 import type { INestApplication } from '@nestjs/common';
-import type { DriverDto, PageDto } from '@pallet/shared';
+import type { DriverDto, DriverPhoneCheckDto, PageDto } from '@pallet/shared';
 import request from 'supertest';
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import { FixedClock } from '../../src/common/clock';
@@ -37,7 +37,7 @@ describe('drivers', () => {
   const archive = (driverId: number, version: number): request.Test =>
     http().delete(`/api/drivers/${driverId}?version=${version}`).set(asUser(admin));
 
-  it('stores a driver with the phone normalised, with no duplicate check (Q13)', async () => {
+  it('stores a driver with the phone normalised (Q13)', async () => {
     const body = { name: 'Karwan Aziz', phone: '0770 111-2233', carNumber: ' Erbil 12 A 34567 ' };
 
     const response = await http().post('/api/drivers').set(asUser(admin)).send(body).expect(201);
@@ -49,13 +49,79 @@ describe('drivers', () => {
       archivedAt: null,
       version: 1,
     });
+    const audit = await prisma.auditLog.findFirstOrThrow({ where: { entityType: 'DRIVER', action: 'CREATE' } });
+    expect(audit.summaryParams).toEqual({ name: 'Karwan Aziz' });
+    // The confirmation is a flag of the request, not a fact about the driver.
+    expect(audit.after).not.toHaveProperty('confirmDuplicatePhone');
+  });
+
+  it('warns about a phone another driver holds, archived ones included, until confirmed (Q135)', async () => {
+    const old = await createDriver(app, admin, { name: 'Karwan Aziz', phone: '07701112233', carNumber: '22 A 1' });
+    await archive(old.id, 1).expect(200);
+    const brother = { name: 'Karwan’s brother', phone: '0770 111-2233', carNumber: '22 B 2' };
+
+    const warned = await http().post('/api/drivers').set(asUser(admin)).send(brother).expect(409);
+
+    expect(warned.body).toMatchObject({
+      error: {
+        code: 'DRIVER_PHONE_DUPLICATE',
+        details: { matches: [{ driverId: old.id, name: 'Karwan Aziz', carNumber: '22 A 1', archived: true }] },
+      },
+    });
+    expect(await prisma.driver.count()).toBe(1);
     await http()
       .post('/api/drivers')
       .set(asUser(admin))
-      .send({ ...body, name: 'Karwan’s brother' })
+      .send({ ...brother, confirmDuplicatePhone: true })
       .expect(201);
-    const audit = await prisma.auditLog.findFirstOrThrow({ where: { entityType: 'DRIVER', action: 'CREATE' } });
-    expect(audit.summaryParams).toEqual({ name: 'Karwan Aziz' });
+    expect(await prisma.driver.count()).toBe(2);
+  });
+
+  it('answers the live phone check, leaving out the driver being edited', async () => {
+    const first = await createDriver(app, admin, { name: 'Karwan Aziz', phone: '07701112233', carNumber: '22 A 1' });
+    const second = await createDriver(app, admin, { name: 'Dilshad Omar', phone: '07701112233', carNumber: '22 B 2' });
+    await createDriver(app, admin, { name: 'Omar Salih', phone: '07503334455' });
+    const check = async (query: string): Promise<DriverPhoneCheckDto> =>
+      (await http().get(`/api/drivers/phone-check${query}`).set(asUser(admin)).expect(200)).body as DriverPhoneCheckDto;
+
+    expect(await check('?phone=0770%20111-2233')).toEqual({
+      normalizedPhone: '07701112233',
+      matches: [
+        { driverId: first.id, name: 'Karwan Aziz', carNumber: '22 A 1', archived: false },
+        { driverId: second.id, name: 'Dilshad Omar', carNumber: '22 B 2', archived: false },
+      ],
+    });
+    expect((await check(`?phone=07701112233&excludeId=${first.id}`)).matches).toEqual([
+      { driverId: second.id, name: 'Dilshad Omar', carNumber: '22 B 2', archived: false },
+    ]);
+    expect((await check('?phone=07509990000')).matches).toEqual([]);
+    await http().get('/api/drivers/phone-check?phone=12ab').set(asUser(admin)).expect(400);
+  });
+
+  it('checks an edited phone only when it changes, and never the driver against itself (Q135)', async () => {
+    const karwan = await createDriver(app, admin, { name: 'Karwan Aziz', phone: '07701112233' });
+    const dilshad = await createDriver(app, admin, { name: 'Dilshad Omar', phone: '07502223344' });
+
+    // The driver's own number, sent back with another change, is not a duplicate of itself.
+    await patch(dilshad.id, { version: 1, phone: '07502223344', carNumber: 'Duhok 21 B 555' }).expect(200);
+
+    const warned = await patch(dilshad.id, { version: 2, phone: '0770 111 2233' }).expect(409);
+    expect(warned.body).toMatchObject({
+      error: { code: 'DRIVER_PHONE_DUPLICATE', details: { matches: [{ driverId: karwan.id, name: 'Karwan Aziz' }] } },
+    });
+    const saved = await patch(dilshad.id, { version: 2, phone: '0770 111 2233', confirmDuplicatePhone: true });
+    expect(saved.status).toBe(200);
+    expect(saved.body).toMatchObject({ phone: '07701112233', version: 3 });
+
+    // Once on file, the shared number is not warned about again when something else changes.
+    await patch(dilshad.id, { version: 3, name: 'Dilshad O.' }).expect(200);
+    // The flag alone is not a change.
+    await patch(dilshad.id, { version: 4, confirmDuplicatePhone: true }).expect(400);
+    const audit = await prisma.auditLog.findFirstOrThrow({
+      where: { entityType: 'DRIVER', action: 'UPDATE', entityId: String(dilshad.id) },
+      orderBy: { id: 'desc' },
+    });
+    expect(audit.summaryParams).toEqual({ name: 'Dilshad O.', fields: ['name'] });
   });
 
   it('lists by name, searching the name, the phone as typed and the car number', async () => {

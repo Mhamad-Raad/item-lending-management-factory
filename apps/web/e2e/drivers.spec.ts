@@ -56,7 +56,12 @@ test('a driver is added from the dialog, and the list shows them', async ({ page
   await dialog.getByRole('button', { name: 'Save' }).click();
 
   await expect(dialog).toBeHidden();
-  expect(created).toEqual({ name: 'Karwan Aziz', phone: '07701112233', carNumber: 'Erbil 12 A 34567' });
+  expect(created).toEqual({
+    name: 'Karwan Aziz',
+    phone: '07701112233',
+    carNumber: 'Erbil 12 A 34567',
+    confirmDuplicatePhone: false,
+  });
   await expect(page.getByRole('table', { name: 'Drivers' }).getByText('Karwan Aziz')).toBeVisible();
 });
 

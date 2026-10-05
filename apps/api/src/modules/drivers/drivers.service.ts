@@ -1,5 +1,15 @@
 import { Injectable } from '@nestjs/common';
-import type { DriverCreateBody, DriverDto, DriverListQuery, DriverUpdateBody, PageDto } from '@pallet/shared';
+import type {
+  DriverCreateBody,
+  DriverDto,
+  DriverListQuery,
+  DriverPhoneCheckDto,
+  DriverPhoneCheckQuery,
+  DriverPhoneMatchDto,
+  DriverUpdateBody,
+  ErrorDetails,
+  PageDto,
+} from '@pallet/shared';
 import type { AuthContext } from '../../common/auth-context';
 import { Clock } from '../../common/clock';
 import { ApiError } from '../../common/errors/api-error';
@@ -61,9 +71,21 @@ export class DriversService {
     return toDriverDto(driver);
   }
 
-  create(body: DriverCreateBody, actor: AuthContext): Promise<DriverDto> {
+  /** The dialog's live warning (§7.3.13): the same comparison as the one a save makes. */
+  async phoneCheck(query: DriverPhoneCheckQuery): Promise<DriverPhoneCheckDto> {
+    return {
+      normalizedPhone: query.phone,
+      matches: await this.findPhoneMatches(this.prisma, query.phone, query.excludeId),
+    };
+  }
+
+  /** A shared phone is a warning, not a block (Q135): confirmed, the driver is saved. */
+  async create(body: DriverCreateBody, actor: AuthContext): Promise<DriverDto> {
+    const { confirmDuplicatePhone, ...fields } = body;
+    if (!confirmDuplicatePhone) await this.assertNoDuplicate(this.prisma, fields.phone);
+
     return runInTransaction(this.prisma, async (tx) => {
-      const driver = await tx.driver.create({ data: { ...body, createdByUserId: actor.userId } });
+      const driver = await tx.driver.create({ data: { ...fields, createdByUserId: actor.userId } });
       await this.audit.record(tx, {
         action: 'CREATE',
         entityType: 'DRIVER',
@@ -86,6 +108,10 @@ export class DriversService {
       const changed = changedFields(body, before, EDITABLE_FIELDS);
       // Q37: a save that changes nothing writes nothing — no version bump, no history row.
       if (changed.length === 0) return toDriverDto(before);
+      // Only a number that changes is checked: one already on file was warned about when it was saved.
+      if (body.phone !== undefined && changed.includes('phone') && !body.confirmDuplicatePhone) {
+        await this.assertNoDuplicate(tx, body.phone, driverId);
+      }
 
       const after = await tx.driver.update({
         where: { id: driverId },
@@ -126,5 +152,31 @@ export class DriversService {
       });
       return toDriverDto(after);
     });
+  }
+
+  private async assertNoDuplicate(client: Prisma.TransactionClient, phone: string, excludeId?: number): Promise<void> {
+    const matches = await this.findPhoneMatches(client, phone, excludeId);
+    if (matches.length > 0) {
+      throw new ApiError('DRIVER_PHONE_DUPLICATE', { matches } satisfies ErrorDetails<'DRIVER_PHONE_DUPLICATE'>);
+    }
+  }
+
+  /** Every other driver, archived ones included, holding the normalised `phone` (Q13, Q135). */
+  private async findPhoneMatches(
+    client: Prisma.TransactionClient,
+    phone: string,
+    excludeId?: number,
+  ): Promise<DriverPhoneMatchDto[]> {
+    const rows = await client.driver.findMany({
+      where: { phone, ...(excludeId === undefined ? {} : { id: { not: excludeId } }) },
+      select: { id: true, name: true, carNumber: true, archivedAt: true },
+      orderBy: { id: 'asc' },
+    });
+    return rows.map((row) => ({
+      driverId: row.id,
+      name: row.name,
+      carNumber: row.carNumber,
+      archived: row.archivedAt !== null,
+    }));
   }
 }

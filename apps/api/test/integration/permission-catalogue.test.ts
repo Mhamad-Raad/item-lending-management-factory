@@ -60,6 +60,7 @@ const ROUTE_ACCESS: Record<string, Rule> = {
   'PATCH /api/customers/:id': all('customers.edit'),
   'DELETE /api/customers/:id': all('customers.delete'),
   'GET /api/drivers': all('drivers.view'),
+  'GET /api/drivers/phone-check': all('drivers.view'),
   'GET /api/drivers/:id': all('drivers.view'),
   'POST /api/drivers': all('drivers.create'),
   'PATCH /api/drivers/:id': all('drivers.edit'),

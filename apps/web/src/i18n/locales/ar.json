@@ -599,6 +599,7 @@
     "DRIVER_NOT_FOUND": "السائق غير موجود",
     "DRIVER_ARCHIVED": "هذا السائق مؤرشف",
     "DRIVER_ALREADY_ARCHIVED": "هذا السائق مؤرشف بالفعل",
+    "DRIVER_PHONE_DUPLICATE": "سائق آخر يملك رقم الهاتف نفسه",
     "ORDER_NOT_FOUND": "الطلب غير موجود",
     "ORDER_CANCELLED": "هذا الطلب ملغى",
     "ORDER_HAS_ACTIVITY": "لهذا الطلب إرجاعات أو دفعات",
@@ -878,7 +879,12 @@
       "newTitle": "سائق جديد",
       "editTitle": "تعديل السائق",
       "created": "تمت إضافة السائق",
-      "saved": "تم حفظ السائق"
+      "saved": "تم حفظ السائق",
+      "phoneDuplicateWarning": "هذا الرقم مستخدم من قبل:",
+      "duplicateTitle": "رقم الهاتف هذا مستخدم بالفعل",
+      "duplicateBody": "إنه يخص {{names}}. هل تريد الحفظ على أي حال؟",
+      "saveAnyway": "احفظ على أي حال",
+      "useExisting": "اختر {{name}}"
     },
     "fields": {
       "name": "الاسم",
@@ -927,6 +933,7 @@
       "chooseCustomer": "اختر زبوناً",
       "driver": "السائق",
       "chooseDriver": "اختر سائقاً",
+      "newDriver": "سائق جديد",
       "date": "التاريخ",
       "paymentType": "الدفع",
       "notes": "ملاحظات",

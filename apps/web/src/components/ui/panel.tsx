@@ -83,7 +83,15 @@ export function PanelContent({
               if (opener.current?.isConnected) opener.current.focus();
             }}
           >
-            <motion.div {...panel}>
+            {/* A panel is portalled, but React bubbles its events to wherever it was rendered: a form saved inside a
+                dialog must not also submit the form the dialog was opened from. */}
+            <motion.div
+              {...panel}
+              onSubmit={(event) => {
+                panel.onSubmit?.(event);
+                event.stopPropagation();
+              }}
+            >
               <InertWhileLeaving>
                 {children}
                 <DialogPrimitive.Close className="absolute end-4 top-4 flex size-10 items-center justify-center rounded-md opacity-70 outline-none hover:opacity-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background md:size-9">

@@ -1,13 +1,11 @@
 import { zodResolver } from '@hookform/resolvers/zod';
 import {
   CustomerCreateBody,
-  Phone,
   type CustomerDto,
-  type CustomerPhoneCheckDto,
   type CustomerPhoneMatchDto,
   type CustomerUpdateBody,
 } from '@pallet/shared';
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { Link, useNavigate } from '@tanstack/react-router';
 import { TriangleAlert } from 'lucide-react';
 import { useState } from 'react';
@@ -20,7 +18,7 @@ import { MoneyInput } from '@/components/app/numeric-input';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
-import { useDebouncedValue } from '@/hooks/use-debounced-value';
+import { usePhoneMatches } from '@/hooks/use-phone-matches';
 import { useUnsavedChangesGuard } from '@/hooks/use-unsaved-changes-guard';
 import { apiFetch } from '@/lib/api-client';
 import { detailsOf } from '@/lib/api-error';
@@ -39,19 +37,11 @@ const FIELDS = ['name', 'phone', 'altPhone', 'address', 'creditLimit'] as const;
  */
 function PhoneDuplicateWarning({ phone, excludeId }: { phone: string | null | undefined; excludeId?: number }) {
   const { t } = useTranslation();
-  const typed = useDebouncedValue(phone ?? '', 400);
-  const parsed = Phone.safeParse(typed);
-  const normalized = parsed.success ? parsed.data : null;
-
-  const check = useQuery({
-    queryKey: qk.customers.phoneCheck(normalized ?? '', excludeId),
-    queryFn: () =>
-      apiFetch<CustomerPhoneCheckDto>('/customers/phone-check', { query: { phone: normalized, excludeId } }),
-    enabled: normalized !== null,
-    staleTime: 30_000,
+  const matches = usePhoneMatches<CustomerPhoneMatchDto>(phone, {
+    path: '/customers/phone-check',
+    key: qk.customers.phoneCheck,
+    excludeId,
   });
-
-  const matches = normalized !== null ? (check.data?.matches ?? []) : [];
   if (matches.length === 0) return null;
   return (
     <p role="status" className="text-warning flex flex-wrap items-center gap-x-2 gap-y-1 text-sm">

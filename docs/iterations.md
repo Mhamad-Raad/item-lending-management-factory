@@ -284,6 +284,18 @@ test reads the cells and the print date; `e2e/receipt.spec.ts` shows the eight h
 7 mm high with the input maxima inside their columns (proven by narrowing a column), and the PDF is still two
 pages; live E5 records a return with the tab open and finds it on the reprint.
 
+### 9b — A driver from the order form (Q135)
+
+Read: §6.18, §7.3.13, §7.4.1, Q13, A13.
+
+`GET /api/drivers/phone-check`, `confirmDuplicatePhone` on driver create and update, `DRIVER_PHONE_DUPLICATE`;
+`DriverDialog` with the live warning and the in-place confirmation; the new-driver button of the order forms.
+**Exit:** integration tests for the refusal, the confirmation, the live check and an edit that only checks a
+changed phone, with the route in `ROUTE_ACCESS`; `e2e/order-driver.spec.ts` — the created driver is chosen and
+the order keeps its typing, the dialog's Enter does not submit the order (proven by removing the guard), the
+existing driver can be taken, the warning can be backed out of or confirmed, no button without
+`drivers.create`, and the drivers page warns too.
+
 ---
 
 ## Environments

@@ -599,6 +599,7 @@
     "DRIVER_NOT_FOUND": "شۆفێر نەدۆزرایەوە",
     "DRIVER_ARCHIVED": "ئەم شۆفێرە ئەرشیف کراوە",
     "DRIVER_ALREADY_ARCHIVED": "ئەم شۆفێرە پێشتر ئەرشیف کراوە",
+    "DRIVER_PHONE_DUPLICATE": "شۆفێرێکی تر هەمان ژمارەی تەلەفۆنی هەیە",
     "ORDER_NOT_FOUND": "داواکاری نەدۆزرایەوە",
     "ORDER_CANCELLED": "ئەم داواکارییە هەڵوەشێنراوەتەوە",
     "ORDER_HAS_ACTIVITY": "ئەم داواکارییە گەڕاندنەوە یان پارەدانی هەیە",
@@ -878,7 +879,12 @@
       "newTitle": "شۆفێری نوێ",
       "editTitle": "دەستکاریی شۆفێر",
       "created": "شۆفێرەکە زیاد کرا",
-      "saved": "شۆفێرەکە پاشەکەوت کرا"
+      "saved": "شۆفێرەکە پاشەکەوت کرا",
+      "phoneDuplicateWarning": "ئەم ژمارەیە پێشتر بەکارهاتووە لەلایەن:",
+      "duplicateTitle": "ئەم ژمارە تەلەفۆنە پێشتر بەکارهاتووە",
+      "duplicateBody": "هی {{names}}ە. هەر پاشەکەوت بکرێت؟",
+      "saveAnyway": "هەر پاشەکەوتی بکە",
+      "useExisting": "{{name}} هەڵبژێرە"
     },
     "fields": {
       "name": "ناو",
@@ -927,6 +933,7 @@
       "chooseCustomer": "کڕیارێک هەڵبژێرە",
       "driver": "شۆفێر",
       "chooseDriver": "شۆفێرێک هەڵبژێرە",
+      "newDriver": "شۆفێری نوێ",
       "date": "بەروار",
       "paymentType": "پارەدان",
       "notes": "تێبینییەکان",

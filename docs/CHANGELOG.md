@@ -48,3 +48,8 @@ The build history that used to sit in `CLAUDE.md` "Status", oldest first, moved 
   after a return is the order's current position, dated in the footer (`ReceiptDto.printedOn`), and the
   toolbar's Print reads the order again before printing. Three columns rather than a second table, which a
   half of the sheet has no room for. No migration.
+- **9b a driver from the order form** (2026-10-05, Q135): the driver picker of the new-order and edit-order forms has a
+  new-driver button (with `drivers.create`) that opens the drivers' dialog and takes the saved driver, the
+  order keeping what was typed. A phone another driver has is a warning with confirmation, as for customers:
+  `GET /api/drivers/phone-check`, `confirmDuplicatePhone`, `DRIVER_PHONE_DUPLICATE`; on an order the warning
+  also offers the driver who already has the number. Amends Q13. No migration.

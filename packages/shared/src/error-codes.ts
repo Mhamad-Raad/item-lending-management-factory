@@ -74,6 +74,7 @@ export const ERROR_CODES = {
   DRIVER_NOT_FOUND: 404,
   DRIVER_ARCHIVED: 409,
   DRIVER_ALREADY_ARCHIVED: 409,
+  DRIVER_PHONE_DUPLICATE: 409,
 
   // Orders
   ORDER_NOT_FOUND: 404,
@@ -130,6 +131,8 @@ export interface ErrorDetailsByCode {
   CUSTOMER_PHONE_DUPLICATE: {
     matches: { customerId: number; name: string; archived: boolean; matchedField: 'phone' | 'altPhone' }[];
   };
+  /** Every other driver holding the number, archived ones included (Q135). */
+  DRIVER_PHONE_DUPLICATE: { matches: { driverId: number; name: string; carNumber: string; archived: boolean }[] };
   PAYMENT_EXCEEDS_OWED: { owed: number; amount: number };
   RETURN_EXCEEDS_OUT: { lines: { orderLineId: number; requested: number; outQuantity: number }[] };
   DAMAGED_REFUND_TOO_HIGH: { orderLineId: number; maximum: number };
