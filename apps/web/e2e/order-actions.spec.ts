@@ -109,6 +109,60 @@ test('deleting a manual payment takes an optional note with it', async ({ page }
   ]);
 });
 
+test('Q137: a payment and a refund print their receipt; the rows that undo them do not', async ({ page, context }) => {
+  await openOrder(page, {
+    ...ACTIVE,
+    ledgerEntries: [
+      ...ACTIVE.ledgerEntries,
+      {
+        ...PAYMENT,
+        id: 13,
+        type: 'REFUND',
+        source: 'RETURN_CREATE',
+        isAutomatic: false,
+        returnId: 5,
+        canReverse: false,
+      },
+      {
+        ...PAYMENT,
+        id: 14,
+        type: 'PAYMENT_REVERSAL',
+        source: 'PAYMENT_DELETE',
+        reversesEntryId: 11,
+        canReverse: false,
+      },
+    ],
+  });
+
+  const print = page.getByRole('button', { name: 'Print money receipt' });
+  await expect(print).toHaveCount(2);
+  const [receipt] = await Promise.all([context.waitForEvent('page'), print.nth(1).click()]);
+  await expect.poll(() => receipt.url()).toMatch(/\/print\/ledger\/13$/);
+});
+
+test('Q137: on a phone, a money card with nothing to offer shows no empty Actions row (Q66)', async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await openOrder(page, {
+    ...ACTIVE,
+    ledgerEntries: [
+      ...ACTIVE.ledgerEntries,
+      {
+        ...PAYMENT,
+        id: 14,
+        type: 'PAYMENT_REVERSAL',
+        source: 'PAYMENT_DELETE',
+        reversesEntryId: 11,
+        canReverse: false,
+      },
+    ],
+  });
+
+  const money = page.locator('section').filter({ has: page.getByRole('heading', { name: 'Money', exact: true }) });
+  await expect(money.getByRole('button', { name: 'Print money receipt' })).toHaveCount(1);
+  // The desktop table's header stays in the page, hidden; a card's label would be visible.
+  await expect(money.getByText('Actions', { exact: true }).filter({ visible: true })).toHaveCount(0);
+});
+
 test('without the permissions, the money actions stay away', async ({ page }) => {
   const viewer: MeDto = {
     ...ADMIN,

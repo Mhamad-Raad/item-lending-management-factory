@@ -3,6 +3,7 @@ import {
   orderStateWithoutReturn,
   returnMoney,
   returnRefundDue,
+  type LedgerEntryDto,
   type OrderDetailDto,
   type OrderState,
   type OrderTotals,
@@ -34,11 +35,13 @@ export function returnBaseline(order: OrderDetailDto, replaceReturnId?: number):
   const state = orderStateOf(order);
   const index = replaceReturnId === undefined ? -1 : order.returns.findIndex((pr) => pr.id === replaceReturnId);
   if (index === -1) return computeOrderTotals(state);
-  // The same rule as the API: the refund row the return paid out, while it still stands.
-  const refund = order.ledgerEntries.find(
-    (entry) => entry.type === 'REFUND' && entry.returnId === replaceReturnId && !entry.isReversed,
-  );
+  const refund = order.ledgerEntries.find((entry) => isStandingRefundOf(entry, replaceReturnId));
   return computeOrderTotals(orderStateWithoutReturn(state, index, refund?.amount ?? 0));
+}
+
+/** The same rule as the API: the refund row a return paid out, while it still stands. */
+export function isStandingRefundOf(entry: LedgerEntryDto, returnId: number | undefined): boolean {
+  return entry.type === 'REFUND' && entry.returnId === returnId && !entry.isReversed;
 }
 
 export interface ReturnRow {

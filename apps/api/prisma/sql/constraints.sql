@@ -172,7 +172,11 @@ ALTER TABLE ledger_entries
     OR (type = 'PAYMENT_REVERSAL' AND source IN ('ORDER_LINE_EDIT', 'ORDER_CANCEL', 'PAYMENT_DELETE'))
     OR (type = 'REFUND' AND source IN ('RETURN_CREATE', 'RETURN_EDIT'))
     OR (type = 'REFUND_REVERSAL' AND source IN ('RETURN_EDIT', 'RETURN_DELETE'))
-  );
+  ),
+  -- Q137 (migration 20261012000000_payment_owed_before): a payment keeps what the order owed before it; the
+  -- payments recorded before the column have NULL (the ledger is never rewritten), every later one a figure.
+  ADD CONSTRAINT ledger_entries_owed_before_check
+    CHECK ((type = 'PAYMENT' OR owed_before IS NULL) AND (owed_before IS NULL OR owed_before >= amount));
 
 -- ─── idempotency ────────────────────────────────────────────────────────────────────────
 ALTER TABLE idempotency_keys

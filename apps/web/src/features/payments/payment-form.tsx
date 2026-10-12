@@ -19,6 +19,7 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { invalidateAfterPayment } from '@/features/orders/api';
+import { openMoneyReceipt } from '@/features/receipt/open-receipt';
 import { useFlowMutation } from '@/hooks/use-flow-mutation';
 import { apiFetch } from '@/lib/api-client';
 import { detailsOf } from '@/lib/api-error';
@@ -53,6 +54,11 @@ export function PaymentForm({ order }: { order: OrderDetailDto }) {
         idempotencyKey: idempotencyKey(),
       }),
     successMessage: (result) => t('payments.new.created', { orderNumber: formatOrderNumber(result.order.orderNumber) }),
+    // The receipt of the money just taken, to hand over while the customer is still there (Q137).
+    successAction: (result) => ({
+      label: t('orders.money.printReceipt'),
+      onClick: () => openMoneyReceipt(result.ledgerEntryId),
+    }),
     invalidate: (result) => invalidateAfterPayment(queryClient, result.order),
     // Leave first: refreshed here, a paid-off order would show "nothing owed" before the navigation.
     refresh: 'after-navigate',

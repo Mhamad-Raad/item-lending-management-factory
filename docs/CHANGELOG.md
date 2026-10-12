@@ -58,3 +58,9 @@ The build history that used to sit in `CLAUDE.md` "Status", oldest first, moved 
   a browser reopened after the limit starts signed out, and the login page says why. The API ends a session
   that goes 30 minutes without a refresh (`IDLE`, migration `20261005000000_session_idle_reason`: one enum
   value, nothing to do by hand). A refresh overtaken by a sign-out no longer signs the page back in.
+- **10a payment and refund receipts** (2026-10-12, Q137): every payment and every refund prints a receipt of its
+  own — offered on the toast straight after it is recorded, and from a printer button on the order page and the
+  customer's payments and refunds tabs — with what the order owed before and after, as it stood then. A deleted
+  payment or a reversed refund still prints, stamped. Migration `20261012000000_payment_owed_before` adds
+  `ledger_entries.owed_before` and rewrites no row (it runs on its own in a normal deploy; nothing to do by
+  hand); a payment recorded before it has its balance replayed when printed, or prints the amount alone.

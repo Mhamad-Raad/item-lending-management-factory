@@ -1,9 +1,6 @@
 import { formatBusinessDate, formatMoney, formatNumber, type ReceiptDto, type ReceiptSheetDto } from '@pallet/shared';
-import { Scissors } from 'lucide-react';
-import i18n from '@/i18n';
-
-/** The receipt is always Kurdish Sorani, whatever the UI language (§7.16.1). */
-const tr = i18n.getFixedT('ckb');
+import { tr } from './receipt-i18n';
+import { ReceiptCustomer, ReceiptFactory, ReceiptPaper, ReceiptSheet, ReceiptTitle } from './receipt-parts';
 
 /**
  * How many characters each numeric column holds at the receipt's 10 pt (§7.16.3). A longer figure — only the
@@ -31,54 +28,19 @@ function Half({
   return (
     <>
       <div className="block-header">
-        <div style={{ display: 'flex', gap: '3mm' }}>
-          {factory.logoUrl ? (
-            <img
-              src={factory.logoUrl}
-              alt=""
-              style={{ maxHeight: '18mm', maxWidth: '30mm', objectFit: 'contain' }}
-              onLoad={onLogoSettled}
-              onError={onLogoSettled}
-            />
-          ) : null}
-          <div>
-            <div style={{ fontSize: '13pt', fontWeight: 700 }}>
-              <bdi>{factory.name}</bdi>
-            </div>
-            <div style={{ fontSize: '8.5pt' }}>
-              {tr('receipt.factoryPhone')}: <bdi className="num">{factory.phone}</bdi>
-            </div>
-            <div style={{ fontSize: '8.5pt' }} className="clamp">
-              {tr('receipt.factoryAddress')}: <bdi>{factory.address}</bdi>
-            </div>
-          </div>
-        </div>
-        <div>
-          <div style={{ fontSize: '12pt', fontWeight: 700 }}>{tr('receipt.title')}</div>
-          <div>
-            {tr('receipt.receiptNumber')}: <span className="num">{receipt.orderNumberDisplay}</span>
-          </div>
-          <div>
-            {tr('receipt.date')}: <span className="num">{formatBusinessDate(receipt.date)}</span>
-          </div>
-        </div>
+        <ReceiptFactory factory={factory} onLogoSettled={onLogoSettled} />
+        <ReceiptTitle
+          title={tr('receipt.title')}
+          numberLabel={tr('receipt.receiptNumber')}
+          number={receipt.orderNumberDisplay}
+          date={receipt.date}
+        />
       </div>
 
       <div className="block-parties">
+        <ReceiptCustomer customer={customer} />
         <div>
-          <div style={{ fontSize: '9pt', fontWeight: 600 }}>{tr('receipt.customer')}</div>
-          <div className="clamp">
-            {tr('receipt.name')}: <bdi>{customer.name}</bdi>
-          </div>
-          <div>
-            {tr('receipt.phone')}: <bdi className="num">{customer.phone}</bdi>
-          </div>
-          <div className="clamp">
-            {tr('receipt.address')}: <bdi>{customer.address}</bdi>
-          </div>
-        </div>
-        <div>
-          <div style={{ fontSize: '9pt', fontWeight: 600 }}>{tr('receipt.driver')}</div>
+          <div className="box-title">{tr('receipt.driver')}</div>
           <div className="clamp">
             {tr('receipt.name')}: <bdi>{driver.name}</bdi>
           </div>
@@ -173,18 +135,19 @@ function Half({
  */
 export function Receipt({ receipt, onLogoSettled }: { receipt: ReceiptDto; onLogoSettled?: () => void }) {
   return (
-    <div className="receipt" dir="rtl" lang="ckb">
+    <ReceiptPaper>
       {receipt.sheets.map((sheet) => (
-        <div key={sheet.sheetNumber} className="sheet">
-          <div className="half">
-            <Half receipt={receipt} sheet={sheet} onLogoSettled={sheet.sheetNumber === 1 ? onLogoSettled : undefined} />
-          </div>
-          <div className="half">
-            <Scissors className="cut-mark" aria-hidden />
-            <Half receipt={receipt} sheet={sheet} />
-          </div>
-        </div>
+        <ReceiptSheet
+          key={sheet.sheetNumber}
+          half={(first) => (
+            <Half
+              receipt={receipt}
+              sheet={sheet}
+              onLogoSettled={first && sheet.sheetNumber === 1 ? onLogoSettled : undefined}
+            />
+          )}
+        />
       ))}
-    </div>
+    </ReceiptPaper>
   );
 }

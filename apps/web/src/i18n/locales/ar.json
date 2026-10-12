@@ -626,6 +626,7 @@
     "LEDGER_ENTRY_NOT_FOUND": "القيد المالي غير موجود",
     "LEDGER_ENTRY_NOT_REVERSIBLE": "لا يمكن عكس هذا القيد",
     "LEDGER_ENTRY_ALREADY_REVERSED": "هذا القيد عُكس بالفعل",
+    "LEDGER_ENTRY_NO_RECEIPT": "لا يوجد إيصال لهذا القيد",
     "IDEMPOTENCY_KEY_REQUIRED": "الطلب ينقصه مفتاح الأمان",
     "IDEMPOTENCY_KEY_INVALID": "مفتاح أمان الطلب غير صالح",
     "IDEMPOTENCY_KEY_REUSED": "استُخدم هذا المفتاح لطلب مختلف",
@@ -1024,7 +1025,8 @@
       "amount": "المبلغ",
       "note": "ملاحظة",
       "createdBy": "بواسطة",
-      "reverses": "يعكس #{{id}}"
+      "reverses": "يعكس #{{id}}",
+      "printReceipt": "طباعة الإيصال المالي"
     },
     "cancel": {
       "confirmTitle": "إلغاء الطلب {{orderNumber}}؟",
@@ -1080,7 +1082,25 @@
     "continued": "يُتبع في الصفحة التالية",
     "sheetOf": "الصفحة {{x}} من {{y}}",
     "cancelledError": "هذا الطلب ملغى؛ لا يمكن طباعة إيصاله",
-    "print": "طباعة"
+    "print": "طباعة",
+    "money": {
+      "pageTitle": "إيصال مالي",
+      "paymentTitle": "إيصال قبض",
+      "refundTitle": "إيصال صرف",
+      "receiptNumber": "رقم الإيصال المالي",
+      "order": "الطلب",
+      "orderNumber": "رقم الطلب",
+      "orderDate": "تاريخ الطلب",
+      "owedBefore": "المستحق قبل",
+      "credit": "قيمة الطبليات المرتجعة",
+      "received": "المبلغ المقبوض",
+      "refunded": "المبلغ المدفوع للزبون",
+      "owedAfter": "المستحق بعد",
+      "note": "ملاحظة",
+      "atHandover": "عند التسليم، نقداً",
+      "recordedBy": "سجّله",
+      "reversed": "أُلغي في {{date}}"
+    }
   },
   "returns": {
     "fields": {

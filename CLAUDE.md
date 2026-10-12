@@ -22,7 +22,8 @@ Pallet System: a web app for a single pallet factory in Iraq (Kurdistan Region) 
   operations and maintainability, Q120–Q133). The build history is in `docs/CHANGELOG.md`.
 - **Since then (2026-10-05):** changes asked for by the business, iterations 9a–9c — what came back of each
   line on the receipt, with its print date (Q134), a driver added from the order form with a duplicate-phone
-  warning for drivers (Q135), and sign-out after 15 idle minutes (Q136).
+  warning for drivers (Q135), and sign-out after 15 idle minutes (Q136). Then (2026-10-12) 10a: a printed receipt
+  for every payment and refund, with the balance as it stood then (Q137).
 - **The maintainer's one page** is "Maintainer quick start" in `README.md` (run, test, deploy, restore, recover,
   traps, yearly checklist). Keep it true when a command or a runbook changes.
 - **Open, needing people rather than code:** the E6 screenshot baselines (rendered by CI, then committed; after

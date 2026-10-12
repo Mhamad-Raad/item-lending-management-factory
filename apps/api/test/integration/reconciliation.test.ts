@@ -98,7 +98,7 @@ describe('reconciliation', () => {
         .get(MoneyLedger)
         .record(
           tx,
-          { orderId: withManual.id, type: 'PAYMENT', source: 'MANUAL', amount: 1_000, date: TODAY },
+          { orderId: withManual.id, type: 'PAYMENT', source: 'MANUAL', amount: 1_000, date: TODAY, owedBefore: 1_000 },
           admins.id,
         ),
     );

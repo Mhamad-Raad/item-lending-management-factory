@@ -429,6 +429,14 @@ export interface OrderDetailDto extends OrderListItemDto {
   createdBy: UserRefDto;
 }
 
+/** The factory as every printed receipt heads it, from Settings (§7.16.3, Q137). */
+export interface ReceiptFactoryDto {
+  name: string;
+  phone: string;
+  address: string;
+  logoUrl: string | null;
+}
+
 export interface ReceiptLineDto {
   itemName: string;
   quantity: number;
@@ -461,12 +469,46 @@ export interface ReceiptDto {
   printedOn: string;
   paymentType: PaymentType;
   depositTotal: number;
-  factory: { name: string; phone: string; address: string; logoUrl: string | null };
+  factory: ReceiptFactoryDto;
   customer: { name: string; phone: string; altPhone: string | null; address: string };
   driver: { name: string; phone: string; carNumber: string };
   linesPerHalf: number;
   /** One per `chunkReceiptLines` chunk; each A4 sheet prints its chunk twice. */
   sheets: ReceiptSheetDto[];
+}
+
+/**
+ * The receipt of one sum of money (Q137): a payment the factory received, or a refund it paid out on a return.
+ * Its balance is the order's when the money moved, not today's, so a reprint says what the original said.
+ */
+export interface MoneyReceiptDto {
+  ledgerEntryId: number;
+  /** The ledger row's id, zero-padded to six digits: the receipt's number. */
+  receiptNumberDisplay: string;
+  kind: 'PAYMENT' | 'REFUND';
+  /** A payment's date (the order's for the automatic one); a refund's is its return's. */
+  date: string;
+  /** The business day the receipt was asked for. */
+  printedOn: string;
+  amount: number;
+  /**
+   * What the order owed just before: this payment, or the return that paid this refund. Null only for a payment
+   * recorded before the figure was kept whose replay cannot be trusted: its receipt prints the amount alone.
+   */
+  owedBefore: number | null;
+  /** A refund's alone: what the returned pallets were credited (the return's `refundDue`). */
+  credit: number | null;
+  /** What the order owed straight after; 0 after a refund; null with `owedBefore`. */
+  owedAfter: number | null;
+  /** Where the money came from: the hand-over (`ORDER_CREATE`), a line edit's re-issue, by hand, or a return. */
+  source: LedgerEntrySource;
+  note: string | null;
+  recordedBy: UserRefDto;
+  /** The business day the row was reversed (a deleted payment, an edited or deleted return); null while it stands. */
+  reversedOn: string | null;
+  order: { id: number; orderNumber: number; orderNumberDisplay: string; date: string };
+  factory: ReceiptFactoryDto;
+  customer: { name: string; phone: string; address: string };
 }
 
 // ── dashboard (§6.9, §6.22) ──

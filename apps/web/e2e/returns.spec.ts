@@ -350,3 +350,49 @@ test('a saved correction goes to its order without first saying the return canno
   await expect(page.getByRole('heading', { level: 1 })).toBeVisible();
   expect(await page.evaluate(() => document.body.dataset.flashed)).toBeUndefined();
 });
+
+test('Q137: a return that pays cash back offers the refund’s receipt; one that does not, offers none', async ({
+  page,
+  context,
+}) => {
+  await mockReturns(page, CASH);
+  const refunded: OrderDetailDto = {
+    ...CASH,
+    ledgerEntries: [
+      ...CASH.ledgerEntries,
+      // Another return's refund on either side of this one's: the receipt offered is this return's, not the first
+      // refund nor the newest.
+      { ...PAYMENT, id: 12, type: 'REFUND', source: 'RETURN_CREATE', amount: 1_000, returnId: 5 },
+      { ...PAYMENT, id: 13, type: 'REFUND', source: 'RETURN_CREATE', amount: 100_000, returnId: 6 },
+      { ...PAYMENT, id: 14, type: 'REFUND', source: 'RETURN_EDIT', amount: 2_000, returnId: 7 },
+    ],
+  };
+  await page.route(/\/api\/orders\/9\/returns$/, (route) =>
+    route.fulfill({ status: 201, json: { returnId: 6, order: refunded } satisfies ReturnResultDto }),
+  );
+
+  await page.goto('/returns/new?orderId=9');
+  await page.getByRole('button', { name: 'Everything returned accepted' }).click();
+  await summary(page).getByRole('button', { name: 'Record return' }).click();
+  await expect(page).toHaveURL(/\/orders\/9$/);
+
+  const [receipt] = await Promise.all([
+    context.waitForEvent('page'),
+    page.locator('[data-sonner-toast]').getByRole('button', { name: 'Print money receipt' }).click(),
+  ]);
+  await expect.poll(() => receipt.url()).toMatch(/\/print\/ledger\/13$/);
+});
+
+test('Q137: a return that leaves something owed has no refund, so its toast offers no receipt', async ({ page }) => {
+  await mockReturns(page, LENT);
+
+  await page.goto('/returns/new?orderId=9');
+  await row(page).getByLabel('Accepted').fill('50');
+  await summary(page).getByRole('button', { name: 'Record return' }).click();
+  await expect(page).toHaveURL(/\/orders\/9$/);
+
+  // The order page's own money list prints the payment; the toast is what must have no button.
+  const toast = page.locator('[data-sonner-toast]').filter({ hasText: 'Return recorded on order' });
+  await expect(toast).toBeVisible();
+  await expect(toast.getByRole('button', { name: 'Print money receipt' })).toHaveCount(0);
+});

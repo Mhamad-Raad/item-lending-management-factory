@@ -1,5 +1,5 @@
-import { Controller, Get, Query } from '@nestjs/common';
-import { LedgerEntryListQuery, type LedgerEntryDto, type PageDto } from '@pallet/shared';
+import { Controller, Get, Param, Query } from '@nestjs/common';
+import { IdParam, LedgerEntryListQuery, type LedgerEntryDto, type MoneyReceiptDto, type PageDto } from '@pallet/shared';
 import { RequirePermission } from '../../common/decorators/access.decorators';
 import { ZodValidationPipe } from '../../common/pipes/zod-validation.pipe';
 import { LedgerService } from './ledger.service';
@@ -14,5 +14,11 @@ export class LedgerController {
     @Query(new ZodValidationPipe(LedgerEntryListQuery)) query: LedgerEntryListQuery,
   ): Promise<PageDto<LedgerEntryDto>> {
     return this.ledger.list(query);
+  }
+
+  @Get(':id/receipt')
+  @RequirePermission('orders.view')
+  receipt(@Param('id', new ZodValidationPipe(IdParam)) id: number): Promise<MoneyReceiptDto> {
+    return this.ledger.receipt(id);
   }
 }

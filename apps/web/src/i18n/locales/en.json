@@ -626,6 +626,7 @@
     "LEDGER_ENTRY_NOT_FOUND": "Money entry not found",
     "LEDGER_ENTRY_NOT_REVERSIBLE": "This entry cannot be reversed",
     "LEDGER_ENTRY_ALREADY_REVERSED": "This entry was already reversed",
+    "LEDGER_ENTRY_NO_RECEIPT": "This entry has no receipt",
     "IDEMPOTENCY_KEY_REQUIRED": "The request is missing its safety key",
     "IDEMPOTENCY_KEY_INVALID": "The safety key of the request is not valid",
     "IDEMPOTENCY_KEY_REUSED": "This key was used for a different request",
@@ -1024,7 +1025,8 @@
       "amount": "Amount",
       "note": "Note",
       "createdBy": "By",
-      "reverses": "Reverses #{{id}}"
+      "reverses": "Reverses #{{id}}",
+      "printReceipt": "Print money receipt"
     },
     "cancel": {
       "confirmTitle": "Cancel order {{orderNumber}}?",
@@ -1080,7 +1082,25 @@
     "continued": "Continued on the next sheet",
     "sheetOf": "Sheet {{x}} of {{y}}",
     "cancelledError": "This order is cancelled; its receipt cannot be printed",
-    "print": "Print"
+    "print": "Print",
+    "money": {
+      "pageTitle": "Money receipt",
+      "paymentTitle": "Payment receipt",
+      "refundTitle": "Refund receipt",
+      "receiptNumber": "Money receipt no.",
+      "order": "Order",
+      "orderNumber": "Order no.",
+      "orderDate": "Order date",
+      "owedBefore": "Owed before",
+      "credit": "Value of the pallets returned",
+      "received": "Amount received",
+      "refunded": "Paid to the customer",
+      "owedAfter": "Owed after",
+      "note": "Note",
+      "atHandover": "At the hand-over, in cash",
+      "recordedBy": "Recorded by",
+      "reversed": "Cancelled on {{date}}"
+    }
   },
   "returns": {
     "fields": {

@@ -1,7 +1,10 @@
 import { useMutation } from '@tanstack/react-query';
 import { useNavigate, type NavigateOptions } from '@tanstack/react-router';
 import { toast } from 'sonner';
+import { Button } from '@/components/ui/button';
 import { useIdempotencyKey } from '@/lib/idempotency';
+
+const SUCCESS_ACTION_MS = 15_000;
 
 interface FlowMutationOptions<TBody, TResult> {
   /**
@@ -11,6 +14,8 @@ interface FlowMutationOptions<TBody, TResult> {
   request: (body: TBody, idempotencyKey: () => string) => Promise<TResult>;
   /** The success toast. */
   successMessage: (result: TResult) => string;
+  /** A button on the success toast, for what may be wanted straight after (a receipt, Q137); null for none. */
+  successAction?: (result: TResult) => { label: string; onClick: () => void } | null;
   /** What the change made stale. */
   invalidate: (result: TResult) => Promise<void>;
   /** Where the flow lands. */
@@ -39,7 +44,26 @@ export function useFlowMutation<TBody, TResult>(options: FlowMutationOptions<TBo
     mutationFn: (body: TBody) => options.request(body, () => idempotency.getKey(body)),
     onSuccess: async (result) => {
       idempotency.reset();
-      toast.success(options.successMessage(result));
+      const action = options.successAction?.(result) ?? null;
+      if (action) {
+        // The app's own button (its size and focus ring, §7.15), not Sonner's; long enough to be read and pressed.
+        const id = toast.success(options.successMessage(result), {
+          duration: SUCCESS_ACTION_MS,
+          action: (
+            <Button
+              size="sm"
+              onClick={() => {
+                action.onClick();
+                toast.dismiss(id);
+              }}
+            >
+              {action.label}
+            </Button>
+          ),
+        });
+      } else {
+        toast.success(options.successMessage(result));
+      }
       if (options.refresh === 'before-navigate') {
         await options.invalidate(result);
         options.beforeLeave?.();

@@ -35,6 +35,11 @@ export type StockMovementReason = (typeof STOCK_MOVEMENT_REASONS)[number];
 export const LEDGER_ENTRY_TYPES = ['PAYMENT', 'REFUND', 'PAYMENT_REVERSAL', 'REFUND_REVERSAL'] as const;
 export const LedgerEntryType = enumOf(LEDGER_ENTRY_TYPES);
 export type LedgerEntryType = (typeof LEDGER_ENTRY_TYPES)[number];
+/** The money rows a receipt is printed for (Q137): money that came in or went out, not the rows that undo it. */
+export const RECEIPT_LEDGER_ENTRY_TYPES = ['PAYMENT', 'REFUND'] as const satisfies readonly LedgerEntryType[];
+export function hasMoneyReceipt(type: LedgerEntryType): type is (typeof RECEIPT_LEDGER_ENTRY_TYPES)[number] {
+  return (RECEIPT_LEDGER_ENTRY_TYPES as readonly LedgerEntryType[]).includes(type);
+}
 
 export const LEDGER_ENTRY_SOURCES = [
   'ORDER_CREATE',

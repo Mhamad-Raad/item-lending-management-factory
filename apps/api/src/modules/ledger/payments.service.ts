@@ -63,7 +63,16 @@ export class PaymentsService {
 
         const entry = await this.money.record(
           tx,
-          { orderId, type: 'PAYMENT', source: 'MANUAL', amount: body.amount, date: body.date, note: body.note ?? null },
+          {
+            orderId,
+            type: 'PAYMENT',
+            source: 'MANUAL',
+            amount: body.amount,
+            date: body.date,
+            note: body.note ?? null,
+            // What the payment was checked against: its receipt's "before" for good (Q137).
+            owedBefore: owed,
+          },
           actor.userId,
         );
         await recomputeOrder(tx, orderId, { bumpVersion: true });

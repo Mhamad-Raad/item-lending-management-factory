@@ -23,13 +23,14 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Textarea } from '@/components/ui/textarea';
 import { invalidateAfterOrderChange } from '@/features/orders/api';
+import { openMoneyReceipt } from '@/features/receipt/open-receipt';
 import { useFlowMutation } from '@/hooks/use-flow-mutation';
 import { apiFetch } from '@/lib/api-client';
 import { detailsOf, isApiError } from '@/lib/api-error';
 import { handleApiError } from '@/lib/errors';
 import { qk } from '@/lib/query-keys';
 import { encodeValidationMessage } from '@/lib/validation-message';
-import { returnBaseline, returnSummary } from './return-math';
+import { isStandingRefundOf, returnBaseline, returnSummary } from './return-math';
 
 interface RowValues {
   orderLineId: number;
@@ -124,6 +125,11 @@ export function ReturnForm({ order, replaceReturnId }: { order: OrderDetailDto; 
       t(replaced ? 'returns.new.replaced' : 'returns.new.created', {
         orderNumber: formatOrderNumber(result.order.orderNumber),
       }),
+    // A return that pays cash back offers the refund's receipt, for the customer to sign for (Q137).
+    successAction: (result) => {
+      const refund = result.order.ledgerEntries.find((entry) => isStandingRefundOf(entry, result.returnId));
+      return refund ? { label: t('orders.money.printReceipt'), onClick: () => openMoneyReceipt(refund.id) } : null;
+    },
     invalidate: () => invalidateAfterOrderChange(queryClient),
     // Leave first: refreshed here, the order would show this page's "cannot be corrected" or
     // "nothing out" state for a moment before the navigation.

@@ -1,4 +1,4 @@
-import type { LedgerEntryDto, OrderDetailDto, ReturnDto } from '@pallet/shared';
+import { hasMoneyReceipt, type LedgerEntryDto, type OrderDetailDto, type ReturnDto } from '@pallet/shared';
 import { ArrowDownLeft, ArrowUpRight, Ban, Trash2 } from 'lucide-react';
 import { Undo2 } from '@/components/app/dir-icon';
 import { useState } from 'react';
@@ -14,6 +14,7 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Tip } from '@/components/app/tip';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { PrintMoneyReceiptButton } from '@/features/receipt/print-money-receipt-button';
 import { cn } from '@/lib/utils';
 import { ActorName } from '@/components/app/actor-name';
 
@@ -206,8 +207,8 @@ export function OrderReturns({
 }
 
 /**
- * The order's money rows in recording order; reversals are rows of their own (§7.3.6). A manual payment
- * that stands offers its deletion when `onDeletePayment` is given.
+ * The order's money rows in recording order; reversals are rows of their own (§7.3.6). A payment or a refund
+ * prints its receipt (Q137); a manual payment that stands offers its deletion when `onDeletePayment` is given.
  */
 export function OrderMoney({
   entries,
@@ -264,22 +265,25 @@ export function OrderMoney({
       hideBelow: 'lg',
       wrap: true,
     },
-    ...(onDeletePayment
-      ? [
-          {
-            id: 'actions',
-            header: 'common.actions.title' as const,
-            align: 'end' as const,
-            cell: (entry: LedgerEntryDto) =>
-              entry.canReverse ? (
-                <Button variant="outline" size="sm" onClick={() => onDeletePayment(entry)}>
-                  <Trash2 aria-hidden />
-                  {t('orders.detail.deletePayment')}
-                </Button>
-              ) : null,
-          },
-        ]
-      : []),
+    {
+      id: 'actions',
+      header: 'common.actions.title',
+      align: 'end',
+      mobile: 'actions',
+      // Nothing at all on a row with nothing to offer, so a card shows no empty "Actions" (Q66).
+      cell: (entry) =>
+        !hasMoneyReceipt(entry.type) && !(onDeletePayment && entry.canReverse) ? null : (
+          <div className="flex items-center justify-end gap-1">
+            <PrintMoneyReceiptButton entry={entry} />
+            {onDeletePayment && entry.canReverse ? (
+              <Button variant="outline" size="sm" onClick={() => onDeletePayment(entry)}>
+                <Trash2 aria-hidden />
+                {t('orders.detail.deletePayment')}
+              </Button>
+            ) : null}
+          </div>
+        ),
+    },
   ];
 
   return (

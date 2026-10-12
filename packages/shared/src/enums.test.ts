@@ -12,6 +12,7 @@ import {
   ROLES,
   STOCK_MOVEMENT_REASONS,
   UPLOAD_KINDS,
+  hasMoneyReceipt,
 } from './enums.js';
 
 const SCHEMA = fileURLToPath(new URL('../../../apps/api/prisma/schema.prisma', import.meta.url));
@@ -53,5 +54,11 @@ describe('U7: enum parity with the Prisma schema', () => {
     expect([...enums.keys()]).toEqual(
       expect.arrayContaining([...shared.map(([name]) => name), 'RefreshTokenStatus', 'SessionRevokeReason']),
     );
+  });
+});
+
+describe('hasMoneyReceipt (Q137)', () => {
+  it('is true for the money that moved and false for the rows that undo it', () => {
+    expect(LEDGER_ENTRY_TYPES.filter(hasMoneyReceipt)).toEqual(['PAYMENT', 'REFUND']);
   });
 });

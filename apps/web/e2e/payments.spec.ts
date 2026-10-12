@@ -217,3 +217,18 @@ test('older orders stay whole when an order is created while the customer is bei
   // Read again from the start: the owing order shows once, and as the only one it is chosen.
   await expect(page).toHaveURL(/orderId=9/);
 });
+
+test('Q137: the saved payment offers its receipt, which opens in a tab of its own', async ({ page, context }) => {
+  await mockPayments(page);
+
+  await page.goto('/payments/new?orderId=9');
+  await page.getByRole('complementary', { name: 'Summary' }).getByRole('button', { name: 'Record payment' }).click();
+  await expect(page).toHaveURL(/\/orders\/9$/);
+
+  const [receipt] = await Promise.all([
+    context.waitForEvent('page'),
+    // The toast's own: the order page it lands on has a printer of the same name on its payment row.
+    page.locator('[data-sonner-toast]').getByRole('button', { name: 'Print money receipt' }).click(),
+  ]);
+  await expect.poll(() => receipt.url()).toMatch(/\/print\/ledger\/77$/);
+});

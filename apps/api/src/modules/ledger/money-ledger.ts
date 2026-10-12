@@ -3,10 +3,9 @@ import { businessDateToDb, type LedgerEntrySource, type LedgerEntryType } from '
 import { toDbMoney } from '../../common/utils/money';
 import type { LedgerEntry, Prisma } from '../../generated/prisma/client';
 
-/** One row of the money ledger (§4.7.2); the database checks that type, source and references agree. */
-export interface MoneyEntryInput {
+/** What every row of the money ledger has (§4.7.2); the database checks that type, source and references agree. */
+interface MoneyEntryBase {
   orderId: number;
-  type: LedgerEntryType;
   source: LedgerEntrySource;
   amount: number;
   /** A business date; null only on the automatic hand-over payment, which takes the order's date. */
@@ -16,6 +15,15 @@ export interface MoneyEntryInput {
   reversesEntryId?: number | null;
   note?: string | null;
 }
+
+/**
+ * One row of the money ledger. A payment must say what the order owed just before it (Q137) and no other row
+ * may: the type checker holds every writer to that, since the database accepts a payment without it (the ones
+ * recorded before the column existed have none).
+ */
+export type MoneyEntryInput =
+  | (MoneyEntryBase & { type: 'PAYMENT'; owedBefore: number })
+  | (MoneyEntryBase & { type: Exclude<LedgerEntryType, 'PAYMENT'>; owedBefore?: never });
 
 /**
  * The only writer of `ledger_entries` (§4.6). The table is append-only — grants and a trigger refuse
@@ -39,6 +47,7 @@ export class MoneyLedger {
         returnId: entry.returnId ?? null,
         reversesEntryId: entry.reversesEntryId ?? null,
         note: entry.note ?? null,
+        owedBefore: entry.type === 'PAYMENT' ? toDbMoney(entry.owedBefore) : null,
         createdByUserId: userId,
       },
     });

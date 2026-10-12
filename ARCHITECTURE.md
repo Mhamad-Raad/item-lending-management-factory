@@ -286,6 +286,7 @@ Every item below is an ambiguity, contradiction or gap in the brief. The builder
 | Q134 | The business asked (2026-10-05, iteration 9a) that the receipt also say what has been returned of the order — per order, since the paper belongs to that customer, not what the factory holds in general. A9 printed the hand-over only. A table under the lines, or columns? And what makes a reprint trustworthy? | **Three columns in the lines table, straight after the quantity they add up to and before the money:** `receipt.returnedAccepted` (came back and accepted), `receipt.returnedDamaged` (came back damaged), `receipt.outQuantity` (still with the customer — named so, since a bare "remaining" beside money reads as a balance), from the order line's maintained `returned_accepted`, `returned_damaged`, `out_quantity` (so reversed returns do not count). A second table does not fit: a half has 5.5 mm to spare (§7.16.3) and six more rows need about 40 mm, which would halve `RECEIPT_LINES_PER_HALF` and print every pallet name twice. The columns cost width only: the four quantity columns 18 mm each, unit deposit 30 → 24 mm, line total 34 → 29 mm, the item name 98 → 57 mm (still clipped with an ellipsis). A figure longer than its column holds at 10 pt (more than 7 characters of quantity, 9 of unit deposit, 11 of line total — only near the input maxima) is set at 7 pt rather than run into the next cell. **The receipt is the order's position on the day it is printed:** `ReceiptDto.printedOn` (the business day of the request) is printed in the footer as `receipt.printedOn`, so a paper from the hand-over (all zeros) and a later reprint can be told apart; the receipt query is never served from cache (`staleTime: 0`) and the toolbar's Print reads the order again first and prints from the effect that follows the render of that answer (the read's promise settles before React has put the new figures on the page), printing nothing if the read fails. No money is added (refunds and compensation stay on the order page), no totals row, and the receipt of a cancelled order is still refused (Q10). Amends A9. The four new Sorani labels join the strings to be proofread (Q22). |
 | Q135 | The business asked (2026-10-05, iteration 9b) that a driver who is not on file can be added from the order form, without leaving the order — and that a phone number a driver already has is warned about. Q13 gave drivers no duplicate warning. How does it work? | **The order's driver field opens the drivers' own dialog.** Beside the driver picker of `/orders/new` and `/orders/$orderId/edit`, an icon button (`UserPlus`, label and tooltip `orders.fields.newDriver`, only with `drivers.create`) opens `DriverDialog`; the saved driver becomes the order's `driverId` and everything typed on the order stays (no panel lets a `submit` bubble out of it: `PanelContent` stops it, since React carries a portal's events to the form the dialog was opened from). **A shared phone is a warning with confirmation, exactly as for customers (A13):** `GET /api/drivers/phone-check` feeds a live warning under the phone field; `POST /api/drivers` and a `PATCH` that changes the phone answer 409 `DRIVER_PHONE_DUPLICATE { matches: [{ driverId, name, carNumber, archived }] }` unless `confirmDuplicatePhone = true`; every other driver counts, archived ones included, by equality of the normalised number (Q13). The warning replaces the dialog's content instead of opening a second dialog above it: `drivers.dialog.duplicateTitle`, the names, then Cancel (back to the form, typing kept; focused first), "Save anyway", and — only where the caller is choosing a driver, i.e. on an order — one "Use {{name}}" button per match that is not archived, which takes that driver for the order and creates nothing. The drivers page gets the same warning without the "Use" buttons. Like the customers' check it is advisory: two saves racing each other are not serialised. The dialog's phone box is `PhoneInput` (`components/app/phone-input.tsx`): it keeps only digits (Western or Eastern), one leading `+`, spaces, dashes and parentheses as they are typed (`keepPhoneCharacters`), so a letter never appears in it; the format itself is still `Phone`'s call on save. While a save is in flight the dialog cannot be dismissed, so its answer cannot land on an order that has moved on; after a save the live phone checks are marked stale rather than asked again, or the one under the closing dialog would warn of the driver just saved. No migration, no new permission (`drivers.view` reads the check). Amends Q13. |
 | Q136 | The business asked (2026-10-05, iteration 9c) that a user who does nothing for 15 minutes is signed out. Until now nobody was: an open tab renewed its session every quarter of an hour for up to 30 days, and a closed browser came back signed in for 14. Where is idleness measured, and what happens at the limit? | **In the browser, with the server behind it.** `SESSION_IDLE_MINUTES = 15` and `SESSION_IDLE_WARNING_SECONDS = 60` (`packages/shared/src/constants.ts`), fixed, for admins and employees alike. **Web** (`lib/idle.ts`, started once by `bootstrapAuth`): activity is `pointerdown`, `pointermove`, `keydown`, `wheel`, `touchstart` or `scroll` on the window while signed in; its time is kept in memory and in `localStorage` (`pallet.lastActivity.v1`, `lib/idle-storage.ts`) — written at once, or inside a 5 s throttle when the throttle ends, so the record is never more than that behind — so every tab of the browser counts from the last activity in any of them. A check every second — and on `visibilitychange`, `focus` and `pageshow`, because timers sleep with a laptop — compares the clock with that time: in the last minute `IdleWarning` (a dialog mounted once in `App`: `auth.idle.title`, `auth.idle.body` with the seconds as a bare figure, so no noun has to agree with it, `auth.idle.stay`) counts down, and a press, a key or a touch answers it (pointer movement and scrolling do not, or the dialog would vanish under a pointer on its way to the button); at the limit the screen goes first — the store is cleared and the app goes to `/login?redirect=…` past the unsaved-changes guard (`ignoreBlocker`: nobody is there to answer it, and what was typed must not stay on screen) — and `POST /api/auth/logout` ends the session on the server without being waited for; until it answers the sign-out counts as pending (Q80), so a reload cannot use the cookie. The tabs of a browser share one session: the tab that ends it — a sign-out, the idle limit, a refusal by the server — removes the record (`endSharedRecord`), and a tab that had read it and finds it gone (told at once by the `storage` event, which is believed only if the record is still absent: a tab the browser had put to sleep gets old events late) signs out too, without a request of its own and without removing anything — so a sign-out in one tab, idle or by hand, takes the others with it instead of leaving them a new fifteen minutes on a dead session, and a late follower cannot end a session started since. A sign-in waits for an idle sign-out's request that is still out, whose answer would otherwise clear the new refresh cookie. Neither way of reaching the login page names `/login` itself as the page to return to. The login page says why (`auth.idle.signedOut`, from the flag `pallet.idleSignedOut.v1` until the next sign-in). On a page load whose record is older than the limit — the browser was closed, the device slept — the session is ended instead of restored. Opening the app is being there: a restored session starts its count again (a load after the whole limit never gets that far). Once the limit is reached the page no longer refreshes the session, and a refresh already on its way when a session ends (idle or signed out) drops its answer and is not handed to the session that follows (`authStore.endings`), since every timer fires at once when a laptop wakes and the answer would sign the page back in. Because the server now counts the time between refreshes, the proactive refresh is made dependable: its delay is capped at `ACCESS_TOKEN_TTL_MINUTES` less the one-minute margin whatever the two clocks say, and one that was not made — the server out of reach, or the limit reached a moment before the user answered — is tried again every 30 s while the page is visible. **Accepted cost:** the server cannot tell an idle user from one whose refreshes could not reach it, so a user who keeps working through an outage of more than about a quarter of an hour (no network, the API down) is signed out when it ends, where Q79 used to keep the session; nothing could be saved during the outage either, and widening the server's limit would widen what a stolen cookie is worth. **API** (`SessionService.rotate`): a refresh arriving more than `SESSION_IDLE_MS = 15 min + ACCESS_TOKEN_TTL_MS` (30 minutes) after the family's `last_used_at` is refused, and the family revoked with the new reason `IDLE` (migration `20261005000000_session_idle_reason`; no audit row — it is not an event anyone caused). The margin of an access token's life is needed because a user who is not idle may let that long pass between two refreshes (the page refreshes only while visible, and only near expiry); so the browser enforces 15 minutes exactly, and the server guarantees that a session nobody ended — storage cleared, another client — dies within 30. The 14-day sliding lifetime of a refresh token can no longer be reached and stays only as a bound. Not done: drafts of half-typed forms are not kept; an admin cannot change the limit. |
+| Q137 | The business asked (2026-10-12, iteration 10a) for a receipt of each payment a company makes — straight after it is recorded and later from the history — and the maintainer added refunds. A9 and §7.16 printed the hand-over only. What does the paper say, and what makes an old one trustworthy? | **One A4 sheet per sum of money, printed twice like the hand-over receipt** (factory copy, customer copy, the dashed cut line): `GET /api/ledger-entries/:id/receipt` (`orders.view`) → `MoneyReceiptDto`, printed by `/print/ledger/$entryId` (§7.16.6). A receipt exists for a `PAYMENT` (manual or the automatic one of a cash order) and a `REFUND`; a reversal row has none (409 `LEDGER_ENTRY_NO_RECEIPT { type }`). **Its balance is the order's when the money moved, not today's,** so a reprint says what the original said (the maintainer's choice over "today's balance" and "amount only"): a payment prints what was owed before it, the amount and what was owed after; a refund prints what was owed before its return, the credit of the returned pallets (`refundDue`), the cash paid out and nothing owed after (§4.3). A refund's figures are on its return already; a payment's are new: **`ledger_entries.owed_before`** (migration `20261012000000_payment_owed_before`), written with every `PAYMENT` from now on — a manual one stores the `owed` it was checked against under the order lock, an automatic one its own amount (it is the whole deposit) — and NULL on every other row (`ledger_entries_owed_before_check`, which also holds `owed_before ≥ amount`). **The ledger is never rewritten** (the append-only rule holds for the migration too): the payments recorded before the column keep NULL there. An automatic one's figure is its amount; a manual one's receipt replays its order when it is printed (`replayOwedBefore`, `modules/ledger/owed-before-replay.ts`): the deposit, less the money rows with a smaller id on the order (ids are taken under the order lock, so they are in recording order), less the `refund_due` of the returns created by then and not reversed by then. Where that cannot be trusted the answer is null and the receipt prints the amount alone, without the two balance rows, rather than a figure that might be wrong: a return created or reversed within 10 seconds of the payment (a return and a payment can only be ordered by time; `created_at` is stamped as the row is written and `reversed_at` from the API clock, both after the order lock, so they are in order, and the window is a margin for the two clocks and for ties), a deleted payment whose order's lines were edited after it (a deleted payment frees the lines, so the deposit may have changed; the edit's history row lists `lines` among its `fields`, or the order has an `ORDER_LINE_EDIT` stock movement after the payment; a header edit does not count), or a figure below the payment. A first design filled the column in the migration; the review found it broke the append-only rule (Q98 had already refused a ledger backfill) and stored such untrustworthy figures for good. The payment's history row carries `owedBefore` in its snapshot, so a disputed paper can be checked against it. `test/integration/owed-before-replay.test.ts` lays out a history by the minute and checks the replay against figures worked from §4.2. **A deleted payment or a reversed refund still prints**, so the history can be shown, with a red stamp `receipt.money.reversed` and the day of the reversal in a column of its own at the end of the footer, where it covers no text (the maintainer's choice over refusing). **Numbering:** the receipt number is the ledger row's id, zero-padded to six digits — unique and fixed. The hand-over receipt's number is the order number, and the two sequences overlap, so the money receipt labels its own `receipt.money.receiptNumber` ("money receipt no."), never `receipt.receiptNumber`, and prints the order number beside it under its own label. Payments and refunds share the sequence with reversal rows, so the numbers have gaps; a sequence of their own would need a counter and a migration, and is listed as F12. The figures are those of the moment; the parties (the factory, the customer's name, phone and address) are printed as they are now, as on the hand-over receipt, and the order's deposit total is left off — after a line edit of a cash order it would no longer match an old payment's figures. The paper also names who recorded the money (`recordedBy`) and the day it was printed, and carries the payment's note or, for the hand-over's own automatic payment (source `ORDER_CREATE`; not one re-issued by a line edit), `receipt.money.atHandover`. An automatic payment is dated by its order, as everywhere in the ledger (§4.7.2): a later change of the order's date moves its receipt's date too. **Where it is printed:** the success toast after a payment, and after a return that paid cash back, carries a button `orders.money.printReceipt` ("Print money receipt", 15 s instead of the usual 4 — a tab can only be opened from a press, so the receipt cannot open by itself after the save); the order page's money table and the customer profile's payments and refunds tabs have a printer icon on every `PAYMENT` and `REFUND` row. The toast's button is the app's own `Button` (size `sm`, its focus ring), passed to Sonner as the action. The money rows' action cell is empty (null) on a reversal row and sits in the cards' actions slot, so no card shows an empty "Actions" (Q66). Always Sorani, like the hand-over receipt; the new labels join the strings to be proofread (Q22). No new permission. Amends A9. |
 
 ## 3. Actors, roles and permissions
 
@@ -511,7 +512,7 @@ Damaged pallets never create stock movements.
 | `REFUND_REVERSAL` | `RETURN_EDIT` | false | today | the replaced (old) return | the old return's REFUND | Return edit when the old return had a non-reversed REFUND |
 | `REFUND_REVERSAL` | `RETURN_DELETE` | false | today | the deleted return | the return's REFUND | Return deletion when the return had a non-reversed REFUND |
 
-"Today" = the Asia/Baghdad calendar day at recording time. Every row has `amount > 0`, `created_at`, `created_by_user_id`, optional `note` (≤ 500 chars; manual payments and payment deletions accept a user note). A row is *reversed* when another row has `reverses_entry_id = row.id` (unique, so at most once). The database enforces the table above (`ledger_entries_source_matches_type_check`, `ledger_entries_date_null_only_automatic_check`, `ledger_entries_return_reference_check`, trigger `ledger_reversal_matches_original`).
+"Today" = the Asia/Baghdad calendar day at recording time. Every row has `amount > 0`, `created_at`, `created_by_user_id`, optional `note` (≤ 500 chars; manual payments and payment deletions accept a user note). A `PAYMENT` also keeps `owed_before`, what the order owed just before it (Q137: a manual payment's checked `owed`, an automatic payment's own amount); every other row, and every payment recorded before the column existed, has NULL there. A row is *reversed* when another row has `reverses_entry_id = row.id` (unique, so at most once). The database enforces the table above (`ledger_entries_source_matches_type_check`, `ledger_entries_date_null_only_automatic_check`, `ledger_entries_return_reference_check`, `ledger_entries_owed_before_check`, trigger `ledger_reversal_matches_original`).
 
 ### 4.8 Operations (each is ONE interactive Prisma transaction)
 
@@ -539,7 +540,7 @@ lockOrderCounter(tx)   // SELECT last_number FROM order_counter WHERE id = 1 FOR
 9. `lockOrderCounter()`; `orderNumber = last_number + 1`; `UPDATE order_counter SET last_number = orderNumber`.
 10. Insert `orders` (`status OPEN`, cache columns default 0, `version 1`, override columns when overridden) and `order_lines` (`out_quantity = quantity`).
 11. `StockLedger.apply`: `ORDER_CREATE` `−quantity` per line.
-12. If `paymentType = CASH` and `depositTotal > 0`: insert `PAYMENT / ORDER_CREATE / is_automatic / date NULL / amount depositTotal`.
+12. If `paymentType = CASH` and `depositTotal > 0`: insert `PAYMENT / ORDER_CREATE / is_automatic / date NULL / amount depositTotal / owed_before depositTotal` (Q137).
 13. `recomputeOrder(orderId, { bumpVersion: false })`.
 14. Audit: `ORDER CREATE` (after = order snapshot), `LEDGER_ENTRY PAYMENT_CREATE` for the automatic payment, `ORDER CREDIT_OVERRIDE` when overridden.
 15. Insert the idempotency key row with the 201 response body. Commit. Respond 201 with `OrderDetailDto`.
@@ -550,7 +551,7 @@ lockOrderCounter(tx)   // SELECT last_number FROM order_counter WHERE id = 1 FOR
 2. `hasActivity` = exists a non-reversed return OR a non-reversed ledger row with `type = PAYMENT AND source = MANUAL`.
 3. Header: `driverId` changed → driver must exist and not be archived; `date` changed → `≤ today`, and `≤` the earliest `date` of non-reversed returns and non-reversed manual payments else `ORDER_DATE_AFTER_ACTIVITY`; `notes` free.
 4. If `lines` is present: `hasActivity` → `ORDER_HAS_ACTIVITY`. Diff by `itemId` between stored and requested lines. `lockItems(union of old and new item ids)`. Added items must exist and not be archived; an existing line whose item is archived may be kept, reduced or removed, and increasing it → `ITEM_ARCHIVED`. When the order's customer is archived, any movement out (an added line or a raised quantity) → `CUSTOMER_ARCHIVED` (Q78). Unit deposits per Q15. Movements `ORDER_LINE_EDIT` per item (section 4.7.1). `depositDelta = newDepositTotal − oldDepositTotal`; if `> 0` run the credit check (section 4.4). Apply line changes: update changed lines (`quantity`, `unit_deposit`, `line_total`, `out_quantity = quantity`), delete removed lines, insert added lines. `StockLedger.apply`.
-5. If `lines` changed on a `CASH` order (any added, removed or changed line, even when the total is unchanged; each step is skipped only when its amount would be 0): if a non-reversed automatic payment exists, insert `PAYMENT_REVERSAL / ORDER_LINE_EDIT / date today / reverses it`; if `newDepositTotal > 0`, insert `PAYMENT / ORDER_LINE_EDIT / is_automatic / date NULL / amount newDepositTotal`.
+5. If `lines` changed on a `CASH` order (any added, removed or changed line, even when the total is unchanged; each step is skipped only when its amount would be 0): if a non-reversed automatic payment exists, insert `PAYMENT_REVERSAL / ORDER_LINE_EDIT / date today / reverses it`; if `newDepositTotal > 0`, insert `PAYMENT / ORDER_LINE_EDIT / is_automatic / date NULL / amount newDepositTotal / owed_before newDepositTotal` (Q137).
 6. `recomputeOrder({ bumpVersion: true })`. Audit `ORDER UPDATE` (before/after snapshots), plus `PAYMENT_REVERSE`/`PAYMENT_CREATE` for re-issued automatic payments and `CREDIT_OVERRIDE` when used. Respond 200 `OrderDetailDto`.
 
 #### 4.8.3 Cancel order — `POST /api/orders/:id/cancel` (orders.cancel; locks: customer, order, items)
@@ -594,7 +595,7 @@ lockOrderCounter(tx)   // SELECT last_number FROM order_counter WHERE id = 1 FOR
 
 1. Validate body (`date`, `amount` 1..MONEY_INPUT_MAX, `note?`); resolve idempotency key.
 2. `lockOrder`; reload. Cancelled → `ORDER_CANCELLED`; `paymentType ≠ LENT` → `PAYMENT_ORDER_NOT_LENT`; `date ≤ today` and `≥ order.date` (`PAYMENT_DATE_BEFORE_ORDER_DATE`); `amount ≤ order.owed` else `PAYMENT_EXCEEDS_OWED` (`details.owed`).
-3. Insert `PAYMENT / MANUAL / date / amount / note`. `recomputeOrder({ bumpVersion: true })`.
+3. Insert `PAYMENT / MANUAL / date / amount / note / owed_before` = the `owed` of step 2 (Q137). `recomputeOrder({ bumpVersion: true })`.
 4. Audit `LEDGER_ENTRY PAYMENT_CREATE`. Idempotency key row. Respond 201 `PaymentResultDto` (`{ ledgerEntryId, order }`, §6.21).
 
 #### 4.8.8 Reverse (delete) payment — `POST /api/ledger-entries/:id/reverse` (payments.delete; locks: customer, order)
@@ -1008,6 +1009,7 @@ CHECK `orders_totals_nonnegative_check`: every cache money/quantity column ≥ 0
 | return_id | integer | yes | — | FK → returns.id; required iff type ∈ {REFUND, REFUND_REVERSAL} |
 | reverses_entry_id | integer | yes | — | UNIQUE; FK → ledger_entries.id; required iff type is a reversal; trigger checks mirror |
 | note | varchar(500) | yes | — | |
+| owed_before | bigint | yes | — | NULL unless type = PAYMENT, and ≥ amount: what the order owed just before it (Q137); written with every payment since migration `20261012000000_payment_owed_before`, NULL on the ones before |
 | created_at | timestamptz(3) | NO | DB `now()` | defines insertion order |
 | created_by_user_id | integer | NO | — | FK → users.id |
 
@@ -1148,7 +1150,7 @@ There is no `ON DELETE SET NULL`: every optional relation is `onDelete: Restrict
 | order_lines | order_lines_quantity_positive_check, order_lines_unit_deposit_nonnegative_check, order_lines_line_total_matches_check, order_lines_returned_nonnegative_check, order_lines_out_quantity_matches_check, order_lines_out_quantity_nonnegative_check | as named |
 | returns | returns_money_nonnegative_check, returns_cash_refund_formula_check, returns_reversal_consistent_check, returns_replacement_matches_kind_check, returns_not_self_replaced_check | cash_refund = GREATEST(0, refund_due − owed_before); EDIT ⇔ replaced_by set |
 | return_lines | return_lines_quantities_nonnegative_check, return_lines_quantity_positive_check, return_lines_unit_deposit_nonnegative_check, return_lines_damaged_refund_range_check | as named |
-| ledger_entries | ledger_entries_amount_positive_check, ledger_entries_reversal_reference_check, ledger_entries_not_self_reversal_check, ledger_entries_automatic_only_payment_check, ledger_entries_date_null_only_automatic_check, ledger_entries_return_reference_check, ledger_entries_source_matches_type_check | section 4.7.2 |
+| ledger_entries | ledger_entries_amount_positive_check, ledger_entries_reversal_reference_check, ledger_entries_not_self_reversal_check, ledger_entries_automatic_only_payment_check, ledger_entries_date_null_only_automatic_check, ledger_entries_return_reference_check, ledger_entries_source_matches_type_check, ledger_entries_owed_before_check | section 4.7.2, Q137 |
 | idempotency_keys | idempotency_keys_key_format_check, idempotency_keys_request_hash_format_check, idempotency_keys_expiry_after_creation_check | as named |
 
 The API maps a PostgreSQL `check_violation` (23514) that escapes service validation to 500 `INTERNAL_ERROR` and logs the constraint name: a CHECK firing in production means a service bug, never a user error.
@@ -1793,6 +1795,8 @@ model LedgerEntry {
   returnId        Int?              @map("return_id")
   reversesEntryId Int?              @unique @map("reverses_entry_id")
   note            String?           @db.VarChar(500)
+  // A payment's alone: what the order owed just before it, for its receipt (Q137).
+  owedBefore      BigInt?           @map("owed_before")
   createdAt       DateTime          @default(now()) @map("created_at") @db.Timestamptz(3)
   createdByUserId Int               @map("created_by_user_id")
 
@@ -2033,7 +2037,11 @@ ALTER TABLE ledger_entries
     OR (type = 'PAYMENT_REVERSAL' AND source IN ('ORDER_LINE_EDIT', 'ORDER_CANCEL', 'PAYMENT_DELETE'))
     OR (type = 'REFUND' AND source IN ('RETURN_CREATE', 'RETURN_EDIT'))
     OR (type = 'REFUND_REVERSAL' AND source IN ('RETURN_EDIT', 'RETURN_DELETE'))
-  );
+  ),
+  -- Q137 (migration 20261012000000_payment_owed_before): a payment keeps what the order owed before it; the
+  -- payments recorded before the column have NULL (the ledger is never rewritten), every later one a figure.
+  ADD CONSTRAINT ledger_entries_owed_before_check
+    CHECK ((type = 'PAYMENT' OR owed_before IS NULL) AND (owed_before IS NULL OR owed_before >= amount));
 
 -- ─── idempotency ────────────────────────────────────────────────────────────────────────
 ALTER TABLE idempotency_keys
@@ -2516,6 +2524,7 @@ Path and query parameters use the same mapping; their `path` is the parameter na
 | `LEDGER_ENTRY_NOT_FOUND` | 404 | Ledger entry id does not exist. | `{ ledgerEntryId }` |
 | `LEDGER_ENTRY_NOT_REVERSIBLE` | 409 | Reverse requested on anything other than a `PAYMENT` with `source = MANUAL`. | `{ type, source }` |
 | `LEDGER_ENTRY_ALREADY_REVERSED` | 409 | The manual payment already has a `PAYMENT_REVERSAL`. | `{ ledgerEntryId }` |
+| `LEDGER_ENTRY_NO_RECEIPT` | 409 | A receipt was asked for a reversal row; only a `PAYMENT` or a `REFUND` has one (Q137). | `{ type }` |
 | `IDEMPOTENCY_KEY_REQUIRED` | 400 | Idempotent endpoint called without `Idempotency-Key`. | — |
 | `IDEMPOTENCY_KEY_INVALID` | 400 | Header does not match `^[A-Za-z0-9_-]{16,100}$`. | — |
 | `IDEMPOTENCY_KEY_REUSED` | 409 | Same (user, key) already stored with a different request hash. | — |
@@ -2893,6 +2902,22 @@ interface ReceiptDto {
   driver: { name: string; phone: string; carNumber: string };
   linesPerHalf: number;             // RECEIPT_LINES_PER_HALF
   sheets: ReceiptSheetDto[];        // chunkReceiptLines(lines) — one sheet per chunk; each A4 sheet prints its chunk twice
+}
+interface ReceiptFactoryDto { name: string; phone: string; address: string; logoUrl: string | null }   // both receipts' header (Q137)
+interface MoneyReceiptDto {         // Q137: one payment or refund, with the order's balance when the money moved
+  ledgerEntryId: number; receiptNumberDisplay: string;   // the row's id, zero-padded to 6 digits
+  kind: 'PAYMENT' | 'REFUND';
+  date: string;                     // the payment's (the order's for the automatic one); a refund's return's
+  printedOn: string;
+  amount: number;
+  owedBefore: number | null;        // a payment's owed_before (or its replay); a refund's return's owedBefore
+  credit: number | null;            // a refund's alone: its return's refundDue
+  owedAfter: number | null;         // owedBefore − amount; 0 after a refund; null with owedBefore
+  source: LedgerEntrySource; note: string | null; recordedBy: UserRefDto;   // source tells the automatic payments apart
+  reversedOn: string | null;        // the business date of the reversing row, while one exists
+  order: { id: number; orderNumber: number; orderNumberDisplay: string; date: string };
+  factory: ReceiptFactoryDto;
+  customer: { name: string; phone: string; address: string };
 }
 
 // ── dashboard ──
@@ -3360,7 +3385,7 @@ OrderCreateBody = z.strictObject({
   11. `lockOrderCounter`; `orderNumber = last_number + 1`; `UPDATE order_counter SET last_number = ${orderNumber} WHERE id = 1`.
   12. Insert order and lines (`out_quantity = quantity`).
   13. One `ORDER_CREATE` movement per line (`−quantity`, `order_id`); update each item's `quantity_on_hand`.
-  14. `paymentType = 'CASH'` and `depositTotal > 0` → ledger `PAYMENT`, source `ORDER_CREATE`, `is_automatic = true`, `date = NULL`, `amount = depositTotal`.
+  14. `paymentType = 'CASH'` and `depositTotal > 0` → ledger `PAYMENT`, source `ORDER_CREATE`, `is_automatic = true`, `date = NULL`, `amount = depositTotal`, `owed_before = depositTotal` (Q137).
   15. `recomputeOrder`.
   16. Audit rows; idempotency row (last statement).
 - **Writes:** movements `ORDER_CREATE`; ledger `PAYMENT` (automatic, CASH only); audit `CREATE` (entity `ORDER`, after = header + lines, params `{ orderNumber, customerName, paymentType, depositTotal }` as §11.3), `PAYMENT_CREATE` (entity `LEDGER_ENTRY`, params `{ orderNumber, amount, automatic }` as §11.3) when a payment was written, `CREDIT_OVERRIDE` (entity `ORDER`, after `{ creditLimit, customerOutValue, depositDelta, excess }`, params `{ orderNumber, customerName, excess }`) when overridden.
@@ -3389,7 +3414,7 @@ OrderUpdateBody = z.strictObject({
      - Diff by `itemId`. Kept item: new `quantity`; `unitDeposit` = supplied value or the stored one. Added item: must exist (`ITEM_NOT_FOUND`) and be active (`ITEM_ARCHIVED`); `unitDeposit` = supplied value or the item's current `depositPrice`. Removed item: its line row is deleted — unless a return, even a reversed one, has lines on it, which → `ORDER_LINE_HAS_RETURNS { itemId }` (Q40). A kept line whose item is archived may keep or lower its quantity; raising it → `ITEM_ARCHIVED`.
      - Stock: per item `movement = oldQuantity − newQuantity` (removed: `+old`; added: `−new`); an item whose resulting `quantity_on_hand` < 0 → `STOCK_INSUFFICIENT`. One `ORDER_LINE_EDIT` movement per item with a non-zero movement.
      - `depositDelta = newDepositTotal − oldDepositTotal`; if `> 0`, run the credit rule with the current `customerOutValue` (which already contains this order's current `out_value`) and `depositDelta`; override handling as in create.
-     - CASH order and the line set changed (any added, removed or changed line — §4.8): if a non-reversed automatic PAYMENT exists → `PAYMENT_REVERSAL` of its full amount (source `ORDER_LINE_EDIT`, `date` = today, `reverses_entry_id`); if `newDepositTotal > 0` → new automatic `PAYMENT` (source `ORDER_LINE_EDIT`, `is_automatic = true`, `date = NULL`, `amount = newDepositTotal`). Each step is skipped only when its amount would be 0. This applies even when `newDepositTotal = oldDepositTotal` (the pair nets to zero; owed stays 0). A request whose `lines` equal the stored lines exactly is not a line change and writes no ledger rows or movements.
+     - CASH order and the line set changed (any added, removed or changed line — §4.8): if a non-reversed automatic PAYMENT exists → `PAYMENT_REVERSAL` of its full amount (source `ORDER_LINE_EDIT`, `date` = today, `reverses_entry_id`); if `newDepositTotal > 0` → new automatic `PAYMENT` (source `ORDER_LINE_EDIT`, `is_automatic = true`, `date = NULL`, `amount = newDepositTotal`, `owed_before = newDepositTotal`, Q137). Each step is skipped only when its amount would be 0. This applies even when `newDepositTotal = oldDepositTotal` (the pair nets to zero; owed stays 0). A request whose `lines` equal the stored lines exactly is not a line change and writes no ledger rows or movements.
   7. Apply header fields; `recomputeOrder` (`version += 1`). A request whose header fields and lines all equal the stored ones changes nothing: no version bump, no audit row (Q37).
 - **Writes:** movements `ORDER_LINE_EDIT`; ledger `PAYMENT_REVERSAL` / `PAYMENT` (CASH only); audit `UPDATE` (entity `ORDER`, before/after of header fields and lines, params `{ orderNumber }`), `PAYMENT_REVERSE` and `PAYMENT_CREATE` per ledger row, `CREDIT_OVERRIDE` when overridden.
 - **Response:** 200 `OrderDetailDto`.
@@ -3478,7 +3503,7 @@ Worked example (4.3 example 8): CASH order 100 × 1,000; return of 50 accepted r
 #### `POST /api/orders/:orderId/payments`
 - **Access:** `@RequirePermission('payments.create')`; idempotent (scope `PAYMENT_CREATE`).
 - **Body:** `PaymentCreateBody = z.strictObject({ date: BusinessDate, amount: PositiveMoney, note: optionalText(500) })`.
-- **Steps:** idempotency; `date` ≤ today; `lockOrder`; missing → `ORDER_NOT_FOUND`; cancelled → `ORDER_CANCELLED`; `paymentType ≠ 'LENT'` → `PAYMENT_ORDER_NOT_LENT`; `date < order.date` → `PAYMENT_DATE_BEFORE_ORDER_DATE`; current `owed` (from `computeOrderTotals` under the lock) `< amount` → `PAYMENT_EXCEEDS_OWED { owed, amount }`; insert ledger `PAYMENT` (source `MANUAL`, `is_automatic = false`, `date`, `note`); `recomputeOrder`.
+- **Steps:** idempotency; `date` ≤ today; `lockOrder`; missing → `ORDER_NOT_FOUND`; cancelled → `ORDER_CANCELLED`; `paymentType ≠ 'LENT'` → `PAYMENT_ORDER_NOT_LENT`; `date < order.date` → `PAYMENT_DATE_BEFORE_ORDER_DATE`; current `owed` (from `computeOrderTotals` under the lock) `< amount` → `PAYMENT_EXCEEDS_OWED { owed, amount }`; insert ledger `PAYMENT` (source `MANUAL`, `is_automatic = false`, `date`, `note`, `owed_before` = that `owed`, Q137); `recomputeOrder`.
 - **Writes:** ledger `PAYMENT`; audit `PAYMENT_CREATE` (entity `LEDGER_ENTRY`, params `{ orderNumber, amount, automatic: false }` as §11.3).
 - **Response:** 201 `PaymentResultDto`.
 - **Errors:** idempotency codes, `BUSINESS_DATE_IN_FUTURE`, `ORDER_NOT_FOUND`, `ORDER_CANCELLED`, `PAYMENT_ORDER_NOT_LENT`, `PAYMENT_DATE_BEFORE_ORDER_DATE`, `PAYMENT_EXCEEDS_OWED`.
@@ -3507,6 +3532,12 @@ LedgerEntryListQuery = z.strictObject({
 - **Response:** 200 `PageDto<LedgerEntryDto>`. The customer profile uses `type=PAYMENT,PAYMENT_REVERSAL` (payments list) and `type=REFUND,REFUND_REVERSAL` (refunds list).
 - **Strategy (Q98):** `ledgerRowsOnEffectiveDate()` (`modules/ledger/effective-date.ts`) — a `UNION ALL` of the dated rows (by `le.date`, `ledger_entries (date, id)`) and the automatic payments (by `o.date`, `ledger_entries_undated_order_id_idx`), the type compared as `ledger_entry_type`, cancelled orders left out by an anti-join; each half sorted and cut at `page × pageSize` before the page is cut from both.
 - **Errors:** `DATE_RANGE_INVALID`.
+
+#### `GET /api/ledger-entries/:id/receipt` (Q137)
+- **Access:** `@RequirePermission('orders.view')`.
+- **Steps:** read the row with its order, customer, return, recorder and reversing row; missing → `LEDGER_ENTRY_NOT_FOUND`; type not `PAYMENT` or `REFUND` → `LEDGER_ENTRY_NO_RECEIPT { type }`. A payment's balance is `owed_before` → `owed_before − amount`; with `owed_before` NULL (recorded before Q137) an automatic payment's is its amount and a manual one's is `replayOwedBefore`, null when it cannot be trusted (both balance figures null then); a refund's is its return's `owed_before`, `refund_due` as `credit`, and 0 after. `reversedOn` is the reversing row's `date`. The factory header comes from Settings as for the hand-over receipt (`loadReceiptFactory`). A cancelled order is not refused: its automatic payment is reversed, so it prints stamped.
+- **Response:** 200 `MoneyReceiptDto`.
+- **Errors:** `LEDGER_ENTRY_NOT_FOUND`, `LEDGER_ENTRY_NO_RECEIPT`.
 
 ### 6.22 Dashboard (`apps/api/src/modules/dashboard/dashboard.controller.ts`)
 
@@ -3629,6 +3660,7 @@ AuditLogListQuery = z.strictObject({
 | POST | /api/orders/:orderId/payments | payments.create |
 | POST | /api/ledger-entries/:id/reverse | payments.delete |
 | GET | /api/ledger-entries | orders.view |
+| GET | /api/ledger-entries/:id/receipt | orders.view |
 | GET | /api/dashboard | Authenticated (sections gated) |
 | GET | /api/reports/positions | reports.viewPositions |
 | GET | /api/reports/purchases | reports.viewPurchases (+ items.viewCost) |
@@ -3750,6 +3782,7 @@ Conventions:
 | `/account` | `_app/account.tsx` | `_app` | `requireAuthenticated()` | `account.title` |
 | (layout) | `_print.tsx` | PrintLayout | `requireAuthenticated()` | — |
 | `/print/orders/$orderId` | `_print/print/orders/$orderId.tsx` | `_print` | `orders.view` | `receipt.pageTitle` |
+| `/print/ledger/$entryId` | `_print/print/ledger/$entryId.tsx` | `_print` | `orders.view` | `receipt.money.pageTitle` (Q137) |
 | any unknown path | `notFoundComponent` of `__root.tsx` | none | — | `common.notFound.title` |
 
 `/reports` redirects (`beforeLoad` throws `redirect`) to the first report the user may view, in the order positions → purchases → activity → stock.
@@ -3819,6 +3852,7 @@ Common rules for every page:
   - "Cancel order" — `orders.cancel`, `canCancel = true` → `ConfirmDialog` (`orders.cancel.confirmTitle`, destructive) → `POST /api/orders/:id/cancel { version }`.
   - Per return (not reversed, order not cancelled): "Edit return" (`returns.edit`) → `/returns/new?orderId=<id>&replaceReturnId=<returnId>`; "Delete return" (`returns.delete`) → `ConfirmDialog` → `DELETE /api/returns/:id`.
   - Per ledger row that is a non-reversed MANUAL `PAYMENT`: "Delete payment" (`payments.delete`) → `ConfirmDialog` with an optional note textarea (0–500) → `POST /api/ledger-entries/:id/reverse { note }`.
+  - Per ledger row that is a `PAYMENT` or a `REFUND`, reversed or not, cancelled order or not: a printer icon button `orders.money.printReceipt` (tooltip and `aria-label`) → `window.open('/print/ledger/<entryId>', '_blank', 'noopener')` (Q137).
 - **States:** a cancelled order shows a muted banner `orders.detail.cancelledBanner` with cancelled-by and time, and no mutating actions.
 
 #### 7.3.7 `/orders/$orderId/edit` Edit order
@@ -3855,6 +3889,7 @@ Common rules for every page:
   - `orders` — `GET /api/orders?customerId=<id>&status=<tab status>` with its own status `Select` (default OPEN).
   - `payments` — `GET /api/ledger-entries?customerId=<id>&type=PAYMENT,PAYMENT_REVERSAL` (a comma list, §6.21).
   - `refunds` — `GET /api/ledger-entries?customerId=<id>&type=REFUND,REFUND_REVERSAL`.
+  - In both, a `PAYMENT` or `REFUND` row ends with the printer icon button of §7.3.6 (Q137).
 - **Actions:** "New order" (`orders.create`, customer not archived) → `/orders/new?customerId=<id>`; "Edit" (`customers.edit`); "Archive" (`customers.delete`, not archived) → `ConfirmDialog` → `DELETE /api/customers/:id?version=N`. `CUSTOMER_HAS_OPEN_ORDERS` → toast.
 - An archived customer shows a muted banner `customers.detail.archivedBanner`.
 
@@ -3929,6 +3964,8 @@ Common: a filter bar, a `ReportTable` (a `DataTable` without pagination, with a 
 - **Sessions:** "Log out everywhere" (confirm) → `POST /api/auth/logout-all`, then clear local auth and go to `/login` — also when the request fails, with the toast `account.security.logoutAllFailed` (Q76).
 
 #### 7.3.22 `/print/orders/$orderId` Receipt (section 7.16)
+
+`/print/ledger/$entryId`, the receipt of a payment or a refund, is §7.16.6 (Q137).
 
 #### 7.3.23 Not found / forbidden
 `NotFoundPage`: `common.notFound.title`, text, and a "Go to dashboard" button. `ForbiddenPage`: `common.forbidden.title` ("You do not have permission to open this page"), text `common.forbidden.body` ("Ask an administrator for access"), and a "Go to dashboard" button.
@@ -4046,6 +4083,8 @@ Submit:
 - normal mode → `POST /api/orders/:orderId/returns` with `Idempotency-Key`;
 - replace mode → `POST /api/returns/:replaceReturnId/replace` (same body; no `Idempotency-Key`).
 
+Success: the toast `returns.new.created` (or `replaced`); when the answer's order has a `REFUND` row of the return just written, the toast carries the button `orders.money.printReceipt`, which opens that refund's receipt (§7.16.6, Q137) — a tab opens only from a press, so it is offered rather than opened.
+
 Errors: `RETURN_EXCEEDS_OUT` (details per `orderLineId`) → row field errors after refetching the order; `RETURN_ALREADY_REVERSED` → toast, then navigate to the order; `ORDER_CANCELLED` → toast.
 
 #### 7.4.3 Record payment (`/payments/new`, search `orderId?`, `customerId?`)
@@ -4063,7 +4102,7 @@ Quick buttons below amount: "Full amount" (sets owed) and "Half" (sets ⌊owed /
 
 Summary panel: owed before = `order.owed`; payment = `amount`; owed after = `owed − amount`. When owed after is 0 and pallets out is 0: `payments.new.willSettle` ("This order will be settled").
 
-Submit: `POST /api/orders/:orderId/payments` with `Idempotency-Key`. Errors: `PAYMENT_ORDER_NOT_LENT`, `ORDER_CANCELLED` → toast; `PAYMENT_EXCEEDS_OWED` → refetch the order and set a field error on `amount` with the new `owed`.
+Submit: `POST /api/orders/:orderId/payments` with `Idempotency-Key`. Success: the toast `payments.new.created` with the button `orders.money.printReceipt`, which opens the receipt of `ledgerEntryId` (§7.16.6, Q137); a toast with a button stays 15 s. Errors: `PAYMENT_ORDER_NOT_LENT`, `ORDER_CANCELLED` → toast; `PAYMENT_EXCEEDS_OWED` → refetch the order and set a field error on `amount` with the new `owed`.
 
 ### 7.5 Shared application components (`src/components/app/`)
 
@@ -4186,7 +4225,7 @@ Overrides: `['me']` staleTime 0 (fetched explicitly); `['settings']` 5 min; `['d
 | `['customers','list',params]`, `['customers','detail',id]`, `['customers','history',id,params]`, `['customers','phoneCheck',phone,excludeId]` | customers |
 | `['drivers','list',params]`, `['drivers','detail',id]`, `['drivers','phoneCheck',phone,excludeId]` (Q135) | drivers |
 | `['orders','list',params]`, `['orders','detail',id]`, `['orders','receipt',id]` | orders |
-| `['ledger','list',params]` | `GET /api/ledger-entries` |
+| `['ledger','list',params]`, `['ledger','receipt',id]` (Q137) | `GET /api/ledger-entries`, `GET /api/ledger-entries/:id/receipt` |
 | `['reports', 'positions' | 'purchases' | 'activity' | 'stock', params]` | reports |
 | `['audit','list',params]` | `GET /api/audit-logs` |
 
@@ -4421,7 +4460,7 @@ depositTotal row only where showTotal = true (sheet Y); other sheets show receip
 ```
 Example: an order with 14 lines → chunks of 6, 6, 2 → 3 A4 sheets; sheet 3 shows lines 13–14, four empty rows, and the deposit total; each sheet prints the header and "پەڕەی k لە 3".
 
-#### 7.16.3 Exact layout (`src/features/receipt/receipt.css`, imported only by the receipt route)
+#### 7.16.3 Exact layout (`src/features/receipt/receipt.css`, inlined only by the two receipt routes, Q137)
 ```css
 @page { size: A4 portrait; margin: 0; }
 @media print {
@@ -4510,6 +4549,35 @@ The `en.json` and `ar.json` files carry translated counterparts of the same keys
 - Unit (`src/features/receipt/receipt.test.tsx`, jsdom): 1 line → 1 sheet, 2 halves, total present; 6 lines → 1 sheet; 7 lines → 2 sheets, lines 1–6 then 7, total only on sheet 2, text `پەڕەی 2 لە 2`; 14 lines → 3 sheets; both halves of a sheet have identical text content; labels are Sorani while `i18n.language === 'en'`; the cells after a line's quantity are its accepted, damaged and outstanding quantities, and an empty row stays empty; the print date is in the footer; a figure longer than its column is `.num-tight` (Q134).
 - E2E (`e2e/receipt.spec.ts`, Chromium): open the print route for a seeded 7-line order, wait for the `.sheet` elements, `page.emulateMedia({ media: 'print' })`, generate `page.pdf({ format: 'A4', printBackground: true, preferCSSPageSize: true })`, and assert the PDF has exactly 2 pages (count `/Type /Page` objects). The eight headings are on the page in order, no cell but the item name is wider than its column — one line of the fixture carries the input maxima — and every row of the table is still 7 mm high (Q134). The screenshot `receipt-7-lines.png` is compared against the committed baseline.
 
+#### 7.16.6 Money receipt (`/print/ledger/$entryId`, Q137)
+- **Data:** `GET /api/ledger-entries/:id/receipt` (key `['ledger','receipt',id]`, `staleTime: 0`: a payment deleted since the tab was opened must print as deleted). `409 LEDGER_ENTRY_NO_RECEIPT` → the page says `errors.LEDGER_ENTRY_NO_RECEIPT` in Sorani, with the toolbar, and prints nothing.
+- **Behaviour:** as §7.16.1 — the toolbar, the print once when data, fonts and logo are ready, the reprint from a fresh read — shared with the hand-over receipt by `ReceiptPrintPage` (`src/features/receipt/receipt-print-page.tsx`, given the query and the refusal `{ code, message }`). A failed re-read keeps a receipt already on screen, under the error (screen only) — a reprint after it prints nothing; only the refusal, or a first read that fails, replaces it. Always Sorani (`getFixedT('ckb')`), Western digits, `dd/MM/yyyy`.
+- **Layout** (`src/features/receipt/money-receipt.tsx`, the same `receipt.css`): one `.sheet`, two identical `.half`s and the cut line. Per half: `.block-header` (22 mm) as §7.16.3 but titled `receipt.money.paymentTitle` or `receipt.money.refundTitle`, with `receipt.money.receiptNumber` = `receiptNumberDisplay` and `receipt.date` = `date`; `.block-parties` (24 mm): the customer (name, phone, address) and the order (`receipt.money.order`: `receipt.money.orderNumber`, `receipt.money.orderDate`); the factory header and the customer box are the hand-over receipt's own (`receipt-parts.tsx`); `.block-money` (49 mm): a two-column table `.money`, 8 mm rows — `receipt.money.owedBefore`, for a refund `receipt.money.credit`, then the amount as `receipt.money.received` (payment) or `receipt.money.refunded` (refund) at 12 pt bold, `receipt.money.owedAfter` (the two balance rows only when they are known), and when there is one a `receipt.money.note` row (the note, or `receipt.money.atHandover` for the hand-over's automatic payment; one line, clipped); `.block-footer` (20 mm): `receipt.money.recordedBy` and `receipt.printedOn`. At most five rows: 40 mm of the block's 49. The footer is a row (`.money-footer`): its two lines (`.footer-lines`) at the start and, on a reversed row, `.stamp` — `receipt.money.reversed` with `reversedOn`, red, 14 pt in a 0.8 mm border, turned 6° — in its own column at the end, clear of every text. The note cell has `dir="auto"`, so a Latin note is clipped at its end rather than its start. The paper, the two-copy sheet, the header's title block, the factory and the customer box are the hand-over receipt's own components (`receipt-parts.tsx`).
+- **Opened from:** the success toast of a payment and of a return with a cash refund (§7.4.2, §7.4.3), and the printer buttons of the order's money table and the customer's payments and refunds tabs (§7.3.6, §7.3.12), all through `openMoneyReceipt(entryId)` (`src/features/receipt/open-receipt.ts`).
+
+| Key | Sorani (ckb) | English gloss |
+|---|---|---|
+| `receipt.money.pageTitle` | `پسووڵەی پارە` | Money receipt (browser tab title) |
+| `receipt.money.paymentTitle` | `پسووڵەی وەرگرتنی پارە` | Payment receipt |
+| `receipt.money.refundTitle` | `پسووڵەی گەڕاندنەوەی پارە` | Refund receipt |
+| `receipt.money.receiptNumber` | `ژمارەی پسووڵەی پارە` | Money receipt no. |
+| `receipt.money.order` | `داواکاری` | Order |
+| `receipt.money.orderNumber` | `ژمارەی داواکاری` | Order no. |
+| `receipt.money.orderDate` | `بەرواری داواکاری` | Order date |
+| `receipt.money.owedBefore` | `قەرز پێشتر` | Owed before |
+| `receipt.money.credit` | `بەهای پالێتە گەڕاوەکان` | Value of the pallets returned |
+| `receipt.money.received` | `بڕی وەرگیراو` | Amount received |
+| `receipt.money.refunded` | `بڕی دراوە بە کڕیار` | Paid to the customer |
+| `receipt.money.owedAfter` | `قەرز دواتر` | Owed after |
+| `receipt.money.note` | `تێبینی` | Note |
+| `receipt.money.atHandover` | `لە کاتی ڕادەستکردن، نەقد` | At the hand-over, in cash |
+| `receipt.money.recordedBy` | `تۆمارکەر` | Recorded by |
+| `receipt.money.reversed` | `هەڵوەشێنراوەتەوە لە {{date}}` | Cancelled on {{date}} |
+
+These join the strings a native Sorani speaker proofreads before go-live (Q22).
+
+- **Tests:** unit (`src/features/receipt/money-receipt.test.tsx`): Sorani while the UI is English; the rows of a payment and of a refund; the amount alone when the balance is unknown; the money receipt's own number label; the note, or the hand-over remark of an automatic payment; the stamp only on a reversed row. E2E (`e2e/money-receipt.spec.ts`): a payment prints once on exactly one A4 page with both halves alike; a reversed refund at the largest figures with a 500-character note keeps every row and cell inside its half and the stamp clear of the figures; a reversal row's page refuses in Sorani and prints nothing. The toast buttons and the row buttons open `/print/ledger/<id>` (`payments.spec.ts`, `returns.spec.ts`, `order-actions.spec.ts`).
+
 ## 8. Shared package contents
 
 `packages/shared` (`@pallet/shared`) is the single source of truth for everything both apps must agree on. It is ESM (`"type": "module"`), built with `tsc -b` into `dist/` (JavaScript + `.d.ts`), and consumed by the API (CommonJS, through Node 24 `require(esm)`) and by the web app (Vite). Its runtime dependencies are `zod@4.6.2`, `date-fns@4.4.0` and `@date-fns/tz@1.5.0` (used by `dates.ts`).
@@ -4524,7 +4592,7 @@ All public symbols are re-exported from `src/index.ts`; deep imports are forbidd
 
 ### 8.1 `src/enums.ts`
 Exports value arrays, value objects and types (identical to the Prisma enums; the test `enums.test.ts` parses `apps/api/prisma/schema.prisma` and asserts equality):
-`ROLES`/`Role`, `PAYMENT_TYPES`/`PaymentType`, `ORDER_STATUSES`/`OrderStatus`, `STOCK_MOVEMENT_REASONS`/`StockMovementReason`, `LEDGER_ENTRY_TYPES`/`LedgerEntryType`, `LEDGER_ENTRY_SOURCES`/`LedgerEntrySource`, `RETURN_REVERSAL_KINDS`/`ReturnReversalKind`, `UPLOAD_KINDS`/`UploadKind`, `AUDIT_ACTIONS`/`AuditAction`, `AUDIT_ENTITY_TYPES`/`AuditEntityType`, plus the browser preference enums `LANGUAGES`/`Language`, `RTL_LANGUAGES`, `THEMES`/`Theme`/`ResolvedTheme`, `PALETTES`/`Palette`, `FONT_FAMILIES`/`FontFamily`, `FONT_SIZES`/`FontSize`, `FONT_SIZE_PX`. The package also defines (in this file) `ACTIVITY_EVENT_KINDS = ['HANDOVER', 'CANCELLATION', 'RETURN', 'PAYMENT', 'REFUND'] as const` / `ActivityEventKind` (the dashboard `ActivityEventDto.kind` of §6.9; reversals are flagged by `ActivityEventDto.reversed`, not by a separate kind) and `CUSTOMER_HISTORY_KINDS = ['HANDOVER', 'RETURN', 'LEDGER'] as const` / `CustomerHistoryKind` (the `CustomerHistoryItemDto.kind` of §6.9 and the `kinds` filter of `CustomerHistoryQuery`).
+`ROLES`/`Role`, `PAYMENT_TYPES`/`PaymentType`, `ORDER_STATUSES`/`OrderStatus`, `STOCK_MOVEMENT_REASONS`/`StockMovementReason`, `LEDGER_ENTRY_TYPES`/`LedgerEntryType` (with `RECEIPT_LEDGER_ENTRY_TYPES` and `hasMoneyReceipt(type)`, the rows with a receipt, Q137), `LEDGER_ENTRY_SOURCES`/`LedgerEntrySource`, `RETURN_REVERSAL_KINDS`/`ReturnReversalKind`, `UPLOAD_KINDS`/`UploadKind`, `AUDIT_ACTIONS`/`AuditAction`, `AUDIT_ENTITY_TYPES`/`AuditEntityType`, plus the browser preference enums `LANGUAGES`/`Language`, `RTL_LANGUAGES`, `THEMES`/`Theme`/`ResolvedTheme`, `PALETTES`/`Palette`, `FONT_FAMILIES`/`FontFamily`, `FONT_SIZES`/`FontSize`, `FONT_SIZE_PX`. The package also defines (in this file) `ACTIVITY_EVENT_KINDS = ['HANDOVER', 'CANCELLATION', 'RETURN', 'PAYMENT', 'REFUND'] as const` / `ActivityEventKind` (the dashboard `ActivityEventDto.kind` of §6.9; reversals are flagged by `ActivityEventDto.reversed`, not by a separate kind) and `CUSTOMER_HISTORY_KINDS = ['HANDOVER', 'RETURN', 'LEDGER'] as const` / `CustomerHistoryKind` (the `CustomerHistoryItemDto.kind` of §6.9 and the `kinds` filter of `CustomerHistoryQuery`).
 
 ### 8.2 `src/permissions.ts`
 `GRANTABLE_PERMISSION_KEYS` (33 keys), `ADMIN_ONLY_PERMISSION_KEYS` (3 keys), `PERMISSION_KEYS`, types `GrantablePermissionKey`, `AdminOnlyPermissionKey`, `PermissionKey`, `PERMISSION_DEPENDENCIES`, `isGrantablePermissionKey()`, `isAdminOnlyPermissionKey()`, `closePermissionSet()`, `missingPermissionDependencies()`. The module grouping `PermissionMatrix` shows (items, purchases, customers, drivers, orders, returns, payments, reports, audit) is the key prefix, derived in the component from `GRANTABLE_PERMISSION_KEYS` in their declared order; the tick/untick rule (a grant pulls in its dependencies, a revoke drops its dependants) is `togglePermission()` in `apps/web/src/lib/permission-selection.ts`, built on `PERMISSION_DEPENDENCIES` (Q61).
@@ -4735,7 +4803,7 @@ apps/web/
 │   ├── routes/                   # file-based routes (7.2): __root, login, change-password, _app/**, _print/**
 │   ├── features/                 # per module: api.ts (query options), forms, sections; small pages keep theirs in routes/
 │   │   ├── orders/  returns/  payments/  customers/  drivers/  items/  reports/
-│   │   └── receipt/              # receipt components, receipt.css, receipt.test.tsx
+│   │   └── receipt/              # hand-over and money receipts (Q137), the shared print page, receipt.css, tests
 │   ├── components/
 │   │   ├── ui/                   # shadcn-generated components after the RTL audit (7.11.1)
 │   │   └── app/                  # application components (7.5)
@@ -5528,7 +5596,7 @@ Nothing in this section is part of the specification above; none of it may be im
 |---|---|---|---|
 | F1 | Overdue-pallet reminders (pallets out longer than N days) | chase customers holding pallets too long | `order_lines.out_quantity` + `orders.date`; a report query and a dashboard card |
 | F2 | Printable customer statement | send a customer their position and history | customer history endpoint + print route pattern of the receipt |
-| F3 | Return / refund slip | paper proof for the driver at return time | returns store `refund_due`, `owed_before`, `cash_refund` |
+| F3 | Return slip (the pallets that came back) | paper proof for the driver at return time | returns store `refund_due`, `owed_before`, `cash_refund`; the cash of a refund has had its receipt since Q137 (§7.16.6) |
 | F4 | Deferred refund payout ("refund due, pay later") | factory cannot always pay cash at return | would need a new ledger row type and an owed-to-customer balance; today a return asserts immediate payout (A4) |
 | F5 | CSV / Excel export of reports | accountant wants spreadsheets | report endpoints already return flat row arrays |
 | F6 | Customer-level payments allocated across orders | customers pay one lump sum | payments are per order today (A7); needs an allocation table |
@@ -5537,5 +5605,6 @@ Nothing in this section is part of the specification above; none of it may be im
 | F9 | Admin UI to clear a login lockout | avoid the SQL runbook | `login_throttles` table keyed (ip, username) |
 | F10 | Multiple locations / warehouses | growth | would add `location_id` to items stock and movements |
 | F11 | Offline capture | internet outages at the factory | out of scope by decision (§13.11) |
+| F12 | Money receipts with a number sequence of their own, the amount in words, and signature lines | an accountant wants receipt numbers without gaps; a signed refund slip | Q137 numbers them by ledger row id; a counter like `order_counter` would give them their own |
 
 

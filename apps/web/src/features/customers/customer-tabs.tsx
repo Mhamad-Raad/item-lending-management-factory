@@ -1,9 +1,10 @@
-import type {
-  CustomerHistoryItemDto,
-  LedgerEntryDto,
-  LedgerEntryType,
-  OrderListItemDto,
-  PageDto,
+import {
+  hasMoneyReceipt,
+  type CustomerHistoryItemDto,
+  type LedgerEntryDto,
+  type LedgerEntryType,
+  type OrderListItemDto,
+  type PageDto,
 } from '@pallet/shared';
 import type { TFunction } from 'i18next';
 import { keepPreviousData, useQuery } from '@tanstack/react-query';
@@ -24,6 +25,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { ORDER_COLUMNS, orderRowLink } from '@/features/orders/order-columns';
 import { orderLabel } from '@/features/orders/order-text';
 import { PaymentTypeText } from '@/features/orders/payment-type-text';
+import { PrintMoneyReceiptButton } from '@/features/receipt/print-money-receipt-button';
 import { apiFetch } from '@/lib/api-client';
 import { qk } from '@/lib/query-keys';
 import { cn } from '@/lib/utils';
@@ -120,6 +122,15 @@ export function CustomerLedgerTab({ customerId, types }: { customerId: number; t
     },
     { id: 'amount', header: 'orders.money.amount', cell: (entry) => <MoneyText value={entry.amount} />, align: 'end' },
     { id: 'note', header: 'orders.money.note', cell: (entry) => entry.note ?? '—', hideBelow: 'md', wrap: true },
+    {
+      id: 'actions',
+      header: 'common.actions.title',
+      align: 'end',
+      // A payment or a refund prints its receipt again, as it was (Q137).
+      mobile: 'actions',
+      // Null on a reversal row, so its card shows no empty "Actions" (Q66).
+      cell: (entry) => (hasMoneyReceipt(entry.type) ? <PrintMoneyReceiptButton entry={entry} /> : null),
+    },
   ];
 
   if (entries.isPending) return <PageSkeleton rows={3} />;

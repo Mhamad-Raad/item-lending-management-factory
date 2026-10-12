@@ -626,6 +626,7 @@
     "LEDGER_ENTRY_NOT_FOUND": "تۆماری پارە نەدۆزرایەوە",
     "LEDGER_ENTRY_NOT_REVERSIBLE": "ئەم تۆمارە ناتوانرێت بگەڕێنرێتەوە",
     "LEDGER_ENTRY_ALREADY_REVERSED": "ئەم تۆمارە پێشتر گەڕێنراوەتەوە",
+    "LEDGER_ENTRY_NO_RECEIPT": "ئەم تۆمارە پسووڵەی نییە",
     "IDEMPOTENCY_KEY_REQUIRED": "داواکارییەکە کلیلی پاراستنی نییە",
     "IDEMPOTENCY_KEY_INVALID": "کلیلی پاراستنی داواکارییەکە دروست نییە",
     "IDEMPOTENCY_KEY_REUSED": "ئەم کلیلە بۆ داواکارییەکی تر بەکارهاتووە",
@@ -1024,7 +1025,8 @@
       "amount": "بڕ",
       "note": "تێبینی",
       "createdBy": "لەلایەن",
-      "reverses": "گەڕاندنەوەی #{{id}}"
+      "reverses": "گەڕاندنەوەی #{{id}}",
+      "printReceipt": "چاپکردنی پسووڵەی پارە"
     },
     "cancel": {
       "confirmTitle": "داواکاری {{orderNumber}} هەڵبوەشێندرێتەوە؟",
@@ -1080,7 +1082,25 @@
     "continued": "بەردەوامە لە پەڕەی داهاتوو",
     "sheetOf": "پەڕەی {{x}} لە {{y}}",
     "cancelledError": "ئەم داواکارییە هەڵوەشێنراوەتەوە و پسووڵەی بۆ چاپ ناکرێت",
-    "print": "چاپکردن"
+    "print": "چاپکردن",
+    "money": {
+      "pageTitle": "پسووڵەی پارە",
+      "paymentTitle": "پسووڵەی وەرگرتنی پارە",
+      "refundTitle": "پسووڵەی گەڕاندنەوەی پارە",
+      "receiptNumber": "ژمارەی پسووڵەی پارە",
+      "order": "داواکاری",
+      "orderNumber": "ژمارەی داواکاری",
+      "orderDate": "بەرواری داواکاری",
+      "owedBefore": "قەرز پێشتر",
+      "credit": "بەهای پالێتە گەڕاوەکان",
+      "received": "بڕی وەرگیراو",
+      "refunded": "بڕی دراوە بە کڕیار",
+      "owedAfter": "قەرز دواتر",
+      "note": "تێبینی",
+      "atHandover": "لە کاتی ڕادەستکردن، نەقد",
+      "recordedBy": "تۆمارکەر",
+      "reversed": "هەڵوەشێنراوەتەوە لە {{date}}"
+    }
   },
   "returns": {
     "fields": {

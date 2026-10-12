@@ -40,6 +40,7 @@ export const qk = {
   },
   ledger: {
     all: () => ['ledger'] as const,
+    receipt: (id: number) => ['ledger', 'receipt', id] as const,
   },
   drivers: {
     all: () => ['drivers'] as const,

@@ -311,6 +311,24 @@ at the same moment does not bring the session back — and on the real clock the
 a key but not by pointer movement; the unit test of a refresh overtaken by a sign-out (proven by removing the
 guard).
 
+### 10a — Payment and refund receipts (Q137)
+
+Read: §4.2, §4.3, §4.7.2, §4.8, §6.21, §7.3.6, §7.3.12, §7.4.2, §7.4.3, §7.16.
+
+A receipt for each payment and each refund, with the order's balance as it stood when the money moved:
+`GET /api/ledger-entries/:id/receipt`, the print route `/print/ledger/$entryId` (one A4 sheet, two copies),
+a button on the success toast of a payment and of a return that paid cash back, and a printer icon on the
+payment and refund rows of the order page and the customer profile. A payment keeps what was owed before it
+(`ledger_entries.owed_before`, migration `20261012000000_payment_owed_before`); a payment recorded before has
+its figure replayed when printed, or prints the amount alone where the replay cannot be trusted. A deleted
+payment or a reversed refund prints with a stamp.
+**Exit:** integration tests for the receipt of a manual, an automatic and a deleted payment and of a refund,
+the refusal of a reversal row and the permission; the replay of an old payment against figures worked by hand
+on a history laid out by the minute, and null where it cannot be trusted (proven by breaking the replay);
+the money receipt unit test; `e2e/money-receipt.spec.ts` (one PDF page, rows and stamp inside the half at
+the input maxima, the Sorani refusal) and the toast and row buttons in `payments.spec.ts`, `returns.spec.ts`
+(proven by offering a button without a refund) and `order-actions.spec.ts`.
+
 ---
 
 ## Environments

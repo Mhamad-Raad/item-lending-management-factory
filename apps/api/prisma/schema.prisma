@@ -597,6 +597,8 @@ model LedgerEntry {
   returnId        Int?              @map("return_id")
   reversesEntryId Int?              @unique @map("reverses_entry_id")
   note            String?           @db.VarChar(500)
+  // A payment's alone: what the order owed just before it, for its receipt (Q137).
+  owedBefore      BigInt?           @map("owed_before")
   createdAt       DateTime          @default(now()) @map("created_at") @db.Timestamptz(3)
   createdByUserId Int               @map("created_by_user_id")
 

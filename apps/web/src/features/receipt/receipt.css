@@ -1,5 +1,5 @@
-/* §7.16.3, inlined by the receipt route alone (`?inline`) and removed with it. The layout is fixed in
-   millimetres: the UI font-size preference and theme never apply, and nothing may overflow a half. */
+/* §7.16.3, inlined by the two receipt routes alone (`?inline`, through ReceiptPrintPage) and removed with them.
+   The layout is fixed in millimetres: the UI font-size preference and theme never apply, and nothing may overflow a half. */
 @page {
   size: A4 portrait;
   margin: 0;
@@ -80,6 +80,11 @@
   padding: 2mm;
   overflow: hidden;
 }
+/* The heading of a parties box: customer, driver, order (Q137). */
+.box-title {
+  font-size: 9pt;
+  font-weight: 600;
+}
 .block-lines {
   height: 49mm;
 } /* 1 header row + 6 body rows, 7mm each */
@@ -127,6 +132,66 @@
 }
 .col-total {
   width: 29mm;
+}
+/* Q137: the money receipt's balance, a row per figure, in the height the lines table has on the hand-over
+   receipt (at most five rows of 8 mm in 49 mm). */
+.block-money {
+  height: 49mm;
+}
+.money {
+  width: 100%;
+  border-collapse: collapse;
+  table-layout: fixed;
+}
+.money th,
+.money td {
+  height: 8mm;
+  padding: 0 2mm;
+  border: 0.2mm solid #000;
+  vertical-align: middle;
+}
+.money th {
+  width: 70mm;
+  font-weight: 600;
+  text-align: start;
+  background: #f0f0f0;
+}
+.money td {
+  text-align: end;
+}
+.money td.text {
+  text-align: start;
+}
+.money .key th,
+.money .key td {
+  font-size: 12pt;
+  font-weight: 700;
+}
+/* Q137: the money receipt's footer is a row — its two lines at the start, the reversed stamp (if any) in a column
+   of its own at the end, so the stamp covers no text, whatever the lines hold. */
+.money-footer {
+  flex-direction: row;
+  align-items: center;
+  gap: 4mm;
+}
+.footer-lines {
+  flex: 1;
+  min-width: 0;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+}
+/* A reversed payment or refund: no copy can pass as valid money. */
+.stamp {
+  flex: none;
+  transform: rotate(-6deg);
+  border: 0.8mm solid #b00000;
+  color: #b00000;
+  padding: 1mm 4mm;
+  font-size: 14pt;
+  font-weight: 700;
+  white-space: nowrap;
 }
 /* A figure longer than its column holds at 10 pt (`FITS` in receipt.tsx). */
 .lines .num-tight {

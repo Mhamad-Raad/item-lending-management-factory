@@ -10,8 +10,9 @@ export { expect, type Page } from '@playwright/test';
  */
 export const test = base.extend<{ sealApi: void }>({
   sealApi: [
-    async ({ page }, use) => {
-      await page.route('**/api/**', (route) =>
+    // On the context, so a tab a test opens (a receipt, Q137) is sealed too; a page's own routes still win.
+    async ({ context }, use) => {
+      await context.route('**/api/**', (route) =>
         route.fulfill({ status: 404, json: { error: { code: 'ROUTE_NOT_FOUND', details: {} } } }),
       );
       await use();

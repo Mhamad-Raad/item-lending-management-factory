@@ -373,6 +373,8 @@ export class OrderChangesService {
               amount: newDepositTotal,
               date: null,
               isAutomatic: true,
+              // With the old payment reversed, the new deposit is all that is owed (Q137).
+              owedBefore: newDepositTotal,
             },
             actor.userId,
           )

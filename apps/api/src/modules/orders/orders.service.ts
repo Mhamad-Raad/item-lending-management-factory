@@ -31,7 +31,7 @@ import { AuditService } from '../audit/audit.service';
 import { IdempotencyService, type IdempotentRequest, type IdempotentResult } from '../idempotency/idempotency.service';
 import { ledgerAuditEntry } from '../ledger/ledger.mapper';
 import { MoneyLedger } from '../ledger/money-ledger';
-import { uploadUrl } from '../uploads/uploads.mapper';
+import { loadReceiptFactory } from '../settings/receipt-factory';
 import { StockLedger } from '../stock/stock-ledger';
 import { assertCreditAllows, type CreditOverride } from './credit-limit';
 import {
@@ -187,6 +187,8 @@ export class OrdersService {
                   amount: depositTotal,
                   date: null,
                   isAutomatic: true,
+                  // The whole deposit was owed, and this pays it (Q137).
+                  owedBefore: depositTotal,
                 },
                 actor.userId,
               )
@@ -291,10 +293,6 @@ export class OrdersService {
     });
     if (!order) throw new ApiError('ORDER_NOT_FOUND', { orderId });
     if (order.cancelledAt) throw new ApiError('ORDER_CANCELLED', { orderId });
-    const settings = await this.prisma.factorySettings.findUniqueOrThrow({
-      where: { id: 1 },
-      include: { logo: { select: { fileName: true } } },
-    });
 
     const chunks = chunkReceiptLines(
       order.lines.map((line) => ({
@@ -315,12 +313,7 @@ export class OrdersService {
       printedOn: businessToday(this.clock.now()),
       paymentType: order.paymentType,
       depositTotal: toSafeMoney(order.depositTotal),
-      factory: {
-        name: settings.factoryName,
-        phone: settings.phone,
-        address: settings.address,
-        logoUrl: settings.logo ? uploadUrl(settings.logo.fileName) : null,
-      },
+      factory: await loadReceiptFactory(this.prisma),
       customer: {
         name: order.customer.name,
         phone: order.customer.phone,

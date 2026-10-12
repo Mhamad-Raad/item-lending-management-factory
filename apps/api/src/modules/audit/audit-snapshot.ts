@@ -74,7 +74,20 @@ export const SNAPSHOT_SPECS: Partial<Record<AuditEntityType, SnapshotSpec>> = {
     businessDates: ['date'],
   },
   LEDGER_ENTRY: {
-    fields: ['id', 'orderId', 'type', 'source', 'amount', 'date', 'isAutomatic', 'returnId', 'reversesEntryId', 'note'],
+    fields: [
+      'id',
+      'orderId',
+      'type',
+      'source',
+      'amount',
+      'date',
+      'isAutomatic',
+      'returnId',
+      'reversesEntryId',
+      'note',
+      // What a payment's receipt prints as owed before it (Q137), so the paper can be checked against history.
+      'owedBefore',
+    ],
     businessDates: ['date'],
   },
 };

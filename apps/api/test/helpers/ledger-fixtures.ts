@@ -19,13 +19,19 @@ export async function recordManualPayment(
   const prisma = app.get(PrismaService);
   const admin = await prisma.user.findFirstOrThrow({ where: { role: 'ADMIN' }, orderBy: { id: 'asc' } });
   return runInTransaction(prisma, async (tx) => {
-    const entry = await app
-      .get(MoneyLedger)
-      .record(
-        tx,
-        { orderId: options.orderId, type: 'PAYMENT', source: 'MANUAL', amount: options.amount, date: options.date },
-        admin.id,
-      );
+    const entry = await app.get(MoneyLedger).record(
+      tx,
+      {
+        orderId: options.orderId,
+        type: 'PAYMENT',
+        source: 'MANUAL',
+        amount: options.amount,
+        date: options.date,
+        // The least the database takes: these rows are where no payment could be, owed or not.
+        owedBefore: options.amount,
+      },
+      admin.id,
+    );
     await recomputeOrder(tx, options.orderId, { bumpVersion: true });
     return entry.id;
   });
