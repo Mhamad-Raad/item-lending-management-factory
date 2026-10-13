@@ -42,6 +42,7 @@ import { Route as AppOrdersOrderIdIndexRouteImport } from './routes/_app/orders/
 import { Route as AppOrdersOrderIdEditRouteImport } from './routes/_app/orders/$orderId/edit'
 import { Route as PrintPrintLedgerEntryIdRouteImport } from './routes/_print/print/ledger/$entryId'
 import { Route as PrintPrintOrdersOrderIdRouteImport } from './routes/_print/print/orders/$orderId'
+import { Route as PrintPrintTransactionsOrderIdRouteImport } from './routes/_print/print/transactions/$orderId'
 
 const AppRoute = AppRouteImport.update({
   id: '/_app',
@@ -208,6 +209,12 @@ const PrintPrintOrdersOrderIdRoute = PrintPrintOrdersOrderIdRouteImport.update({
   path: '/print/orders/$orderId',
   getParentRoute: () => PrintRoute,
 } as any)
+const PrintPrintTransactionsOrderIdRoute =
+  PrintPrintTransactionsOrderIdRouteImport.update({
+    id: '/print/transactions/$orderId',
+    path: '/print/transactions/$orderId',
+    getParentRoute: () => PrintRoute,
+  } as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof AppIndexRoute
@@ -238,6 +245,7 @@ export interface FileRoutesByFullPath {
   '/orders/$orderId/edit': typeof AppOrdersOrderIdEditRoute
   '/print/ledger/$entryId': typeof PrintPrintLedgerEntryIdRoute
   '/print/orders/$orderId': typeof PrintPrintOrdersOrderIdRoute
+  '/print/transactions/$orderId': typeof PrintPrintTransactionsOrderIdRoute
   '/customers/$customerId/': typeof AppCustomersCustomerIdIndexRoute
   '/items/$itemId/': typeof AppItemsItemIdIndexRoute
   '/orders/$orderId/': typeof AppOrdersOrderIdIndexRoute
@@ -271,6 +279,7 @@ export interface FileRoutesByTo {
   '/orders/$orderId/edit': typeof AppOrdersOrderIdEditRoute
   '/print/ledger/$entryId': typeof PrintPrintLedgerEntryIdRoute
   '/print/orders/$orderId': typeof PrintPrintOrdersOrderIdRoute
+  '/print/transactions/$orderId': typeof PrintPrintTransactionsOrderIdRoute
   '/customers/$customerId': typeof AppCustomersCustomerIdIndexRoute
   '/items/$itemId': typeof AppItemsItemIdIndexRoute
   '/orders/$orderId': typeof AppOrdersOrderIdIndexRoute
@@ -307,6 +316,7 @@ export interface FileRoutesById {
   '/_app/orders/$orderId/edit': typeof AppOrdersOrderIdEditRoute
   '/_print/print/ledger/$entryId': typeof PrintPrintLedgerEntryIdRoute
   '/_print/print/orders/$orderId': typeof PrintPrintOrdersOrderIdRoute
+  '/_print/print/transactions/$orderId': typeof PrintPrintTransactionsOrderIdRoute
   '/_app/customers/$customerId/': typeof AppCustomersCustomerIdIndexRoute
   '/_app/items/$itemId/': typeof AppItemsItemIdIndexRoute
   '/_app/orders/$orderId/': typeof AppOrdersOrderIdIndexRoute
@@ -342,6 +352,7 @@ export interface FileRouteTypes {
     | '/orders/$orderId/edit'
     | '/print/ledger/$entryId'
     | '/print/orders/$orderId'
+    | '/print/transactions/$orderId'
     | '/customers/$customerId/'
     | '/items/$itemId/'
     | '/orders/$orderId/'
@@ -375,6 +386,7 @@ export interface FileRouteTypes {
     | '/orders/$orderId/edit'
     | '/print/ledger/$entryId'
     | '/print/orders/$orderId'
+    | '/print/transactions/$orderId'
     | '/customers/$customerId'
     | '/items/$itemId'
     | '/orders/$orderId'
@@ -410,6 +422,7 @@ export interface FileRouteTypes {
     | '/_app/orders/$orderId/edit'
     | '/_print/print/ledger/$entryId'
     | '/_print/print/orders/$orderId'
+    | '/_print/print/transactions/$orderId'
     | '/_app/customers/$customerId/'
     | '/_app/items/$itemId/'
     | '/_app/orders/$orderId/'
@@ -655,6 +668,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof PrintPrintOrdersOrderIdRouteImport
       parentRoute: typeof PrintRoute
     }
+    '/_print/print/transactions/$orderId': {
+      id: '/_print/print/transactions/$orderId'
+      path: '/print/transactions/$orderId'
+      fullPath: '/print/transactions/$orderId'
+      preLoaderRoute: typeof PrintPrintTransactionsOrderIdRouteImport
+      parentRoute: typeof PrintRoute
+    }
   }
 }
 
@@ -723,11 +743,13 @@ const AppRouteWithChildren = AppRoute._addFileChildren(AppRouteChildren)
 interface PrintRouteChildren {
   PrintPrintLedgerEntryIdRoute: typeof PrintPrintLedgerEntryIdRoute
   PrintPrintOrdersOrderIdRoute: typeof PrintPrintOrdersOrderIdRoute
+  PrintPrintTransactionsOrderIdRoute: typeof PrintPrintTransactionsOrderIdRoute
 }
 
 const PrintRouteChildren: PrintRouteChildren = {
   PrintPrintLedgerEntryIdRoute: PrintPrintLedgerEntryIdRoute,
   PrintPrintOrdersOrderIdRoute: PrintPrintOrdersOrderIdRoute,
+  PrintPrintTransactionsOrderIdRoute: PrintPrintTransactionsOrderIdRoute,
 }
 
 const PrintRouteWithChildren = PrintRoute._addFileChildren(PrintRouteChildren)

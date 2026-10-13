@@ -23,7 +23,8 @@ async function mockPayments(
   const sent: { body: unknown; key?: string }[] = [];
   await page.route(/\/api\/orders\/9\/payments$/, (route) => {
     sent.push({ body: route.request().postDataJSON(), key: route.request().headers()['idempotency-key'] });
-    const result: PaymentResultDto = { ledgerEntryId: 77, order: { ...order, owed: 0 } };
+    const { amount } = route.request().postDataJSON() as { amount: number };
+    const result: PaymentResultDto = { ledgerEntryId: 77, order: { ...order, owed: order.owed - amount } };
     return route.fulfill({ status: 201, json: result });
   });
   return { sent };
@@ -48,6 +49,17 @@ test('daily flow 3: the full amount is ready, half is one tap, and the payment l
 
   await page.getByLabel('Note').fill('Paid at the gate');
   await page.getByRole('complementary', { name: 'Summary' }).getByRole('button', { name: 'Record payment' }).click();
+
+  // Q139: what was taken, and the balance either side of it, until the dialog is closed.
+  const saved = page.getByRole('dialog', { name: 'Payment recorded on order #123456' });
+  await expect(saved).toContainText(CUSTOMER.name);
+  await expect(saved.getByText('Owed before').locator('..')).toContainText('60,000');
+  await expect(saved.getByText('Payment', { exact: true }).locator('..')).toContainText('30,000');
+  await expect(saved.getByText('Owed after').locator('..')).toContainText('30,000');
+  await expect(saved).toContainText('Paid at the gate');
+  await expect(saved.getByRole('button', { name: 'Print money receipt' })).toBeFocused();
+  await expect(page).toHaveURL(/\/payments\/new/);
+  await saved.locator('[data-slot="dialog-footer"]').getByRole('button', { name: 'Close' }).click();
 
   await expect(page).toHaveURL(/\/orders\/9$/);
   expect(sent).toHaveLength(1);
@@ -218,17 +230,83 @@ test('older orders stay whole when an order is created while the customer is bei
   await expect(page).toHaveURL(/orderId=9/);
 });
 
-test('Q137: the saved payment offers its receipt, which opens in a tab of its own', async ({ page, context }) => {
+test('Q139: the saved payment’s dialog holds through a press beside it, prints, and closes', async ({
+  page,
+  context,
+}) => {
   await mockPayments(page);
 
   await page.goto('/payments/new?orderId=9');
   await page.getByRole('complementary', { name: 'Summary' }).getByRole('button', { name: 'Record payment' }).click();
-  await expect(page).toHaveURL(/\/orders\/9$/);
+  const saved = page.getByRole('dialog');
+  await expect(saved).toBeVisible();
 
-  const [receipt] = await Promise.all([
-    context.waitForEvent('page'),
-    // The toast's own: the order page it lands on has a printer of the same name on its payment row.
-    page.locator('[data-sonner-toast]').getByRole('button', { name: 'Print money receipt' }).click(),
+  // A press beside the dialog does not close it.
+  await page.mouse.click(5, 5);
+  await page.waitForTimeout(500);
+  await expect(saved).toBeVisible();
+
+  await Promise.all([
+    page.waitForRequest(/\/api\/ledger-entries\/77\/receipt$/),
+    saved.getByRole('button', { name: 'Print money receipt' }).click(),
   ]);
-  await expect.poll(() => receipt.url()).toMatch(/\/print\/ledger\/77$/);
+  expect(context.pages()).toHaveLength(1);
+  await expect(saved).toBeVisible();
+  await expect(page).toHaveURL(/\/payments\/new/);
+
+  // Escape closes it like the button: the flow goes on to the order.
+  await page.keyboard.press('Escape');
+  await expect(page).toHaveURL(/\/orders\/9$/);
+  await expect(saved).toHaveCount(0);
+});
+
+test('Q139: the order is held under the dialog: a later re-read that finds it paid off does not take it away', async ({
+  page,
+}) => {
+  await page.clock.install();
+  await mockPayments(page);
+  await page.goto('/payments/new?orderId=9');
+  await page.getByRole('complementary', { name: 'Summary' }).getByRole('button', { name: 'Record payment' }).click();
+  const saved = page.getByRole('dialog');
+  await expect(saved).toBeVisible();
+
+  // Back from printing the receipt a minute later: the order is stale, the tab's return re-reads it, and it now reads
+  // paid off. The page would show "nothing owed" — and the dialog with the form would be gone.
+  await page.route(/\/api\/orders\/9$/, (route) => route.fulfill({ json: { ...OWING, owed: 0 } }));
+  await page.clock.fastForward(60_000);
+  await page.evaluate(() => window.dispatchEvent(new Event('visibilitychange')));
+  await page.waitForTimeout(500);
+  await expect(saved).toBeVisible();
+  await expect(page.getByText('Nothing is owed on this order')).toHaveCount(0);
+});
+
+test('Q139: leaving with the dialog open (Back) refreshes what the payment changed and stays where Back went', async ({
+  page,
+}) => {
+  await mockPayments(page);
+  await page.route(/\/api\/orders\?/, (route) =>
+    route.fulfill({ json: { items: [{ ...OWING }], page: 1, pageSize: 100, total: 1 } }),
+  );
+  let dashboardReads = 0;
+  await page.route(/\/api\/dashboard$/, (route) => {
+    dashboardReads += 1;
+    return route.fallback();
+  });
+
+  // From the dashboard's quick action, in the app: Back from the form returns to the dashboard, not to the order.
+  await page.goto('/');
+  await page.getByRole('link', { name: 'Record payment' }).click();
+  await page.getByRole('combobox', { name: 'Customer' }).click();
+  await page.getByRole('option', { name: new RegExp(CUSTOMER.name.slice(0, 20)) }).click();
+  await expect(page).toHaveURL(/orderId=9/);
+  await page.getByRole('complementary', { name: 'Summary' }).getByRole('button', { name: 'Record payment' }).click();
+  await expect(page.getByRole('dialog')).toBeVisible();
+  const before = dashboardReads;
+
+  await page.goBack();
+  await expect(page).toHaveURL(/\/$/);
+  // The dashboard is read again within its stale time only because the payment's refresh ran.
+  await expect.poll(() => dashboardReads).toBeGreaterThan(before);
+  await page.waitForTimeout(500);
+  await expect(page).toHaveURL(/\/$/);
 });

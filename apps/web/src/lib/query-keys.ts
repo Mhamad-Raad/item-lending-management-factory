@@ -37,6 +37,7 @@ export const qk = {
     list: (params: Record<string, unknown>) => ['orders', 'list', params] as const,
     detail: (id: number) => ['orders', 'detail', id] as const,
     receipt: (id: number) => ['orders', 'receipt', id] as const,
+    transactionsReceipt: (id: number) => ['orders', 'transactionsReceipt', id] as const,
   },
   ledger: {
     all: () => ['ledger'] as const,

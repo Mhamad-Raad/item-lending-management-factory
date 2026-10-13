@@ -49,29 +49,56 @@ export function ReceiptCustomer({ customer }: { customer: { name: string; phone:
   );
 }
 
-/** The end side of a receipt's header: its title, its number under its own label, and its date. */
+/**
+ * The end side of a receipt's header: its title, its number under its own label, and its date. The transactions
+ * receipt has no number of its own (Q139).
+ */
 export function ReceiptTitle({
   title,
-  numberLabel,
-  number,
+  numbered,
   date,
 }: {
   title: string;
-  numberLabel: string;
-  number: string;
+  numbered?: { label: string; number: string };
   date: string;
 }) {
   return (
     <div>
       <div style={{ fontSize: '12pt', fontWeight: 700 }}>{title}</div>
-      <div>
-        {numberLabel}: <span className="num">{number}</span>
-      </div>
+      {numbered ? (
+        <div>
+          {numbered.label}: <span className="num">{numbered.number}</span>
+        </div>
+      ) : null}
       <div>
         {tr('receipt.date')}: <span className="num">{formatBusinessDate(date)}</span>
       </div>
     </div>
   );
+}
+
+/** The order's box of a money receipt's parties block (Q137, Q139): its number and its date. */
+export function ReceiptOrder({ order }: { order: { orderNumberDisplay: string; date: string } }) {
+  return (
+    <div>
+      <div className="box-title">{tr('receipt.money.order')}</div>
+      <div>
+        {tr('receipt.money.orderNumber')}: <span className="num">{order.orderNumberDisplay}</span>
+      </div>
+      <div>
+        {tr('receipt.money.orderDate')}: <span className="num">{formatBusinessDate(order.date)}</span>
+      </div>
+    </div>
+  );
+}
+
+/**
+ * A figure in a lines table: `fits` is how many characters its column holds at the receipt's 10 pt (§7.16.3); a
+ * longer one — only the largest the inputs allow — is set smaller rather than left to run into the next column.
+ */
+export function NumberCell({ text, fits, className }: { text: string | null; fits: number; className?: string }) {
+  const classes = ['num', 'num-cell', text && text.length > fits ? 'num-tight' : null, className].filter(Boolean);
+  return <td className={classes.join(' ')}>{text ?? ''}</td>;
 }
 
 /** A receipt's paper: always right to left and Sorani (§7.16.1). */

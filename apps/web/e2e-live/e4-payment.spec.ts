@@ -35,6 +35,11 @@ test('E4: a payment larger than what is owed is refused inline; a valid one upda
   await expect(summary.getByText(sorani('payments.new.owedAfter')).locator('..')).toContainText(figure(15_000));
   await summary.getByRole('button', { name: sorani('payments.new.submit') }).click();
 
+  // Q139: the saved payment's dialog, from the real answer, then on to the order.
+  const saved = page.getByRole('dialog');
+  await expect(saved.getByText(sorani('payments.new.owedBefore')).locator('..')).toContainText(figure(20_000));
+  await expect(saved.getByText(sorani('payments.new.owedAfter')).locator('..')).toContainText(figure(15_000));
+  await page.keyboard.press('Escape');
   await expect(page).toHaveURL(new RegExp(`/orders/${order.id}$`));
   const owed = page.getByRole('term').filter({ hasText: new RegExp(`^${sorani('orders.fields.owed')}$`) });
   await expect(owed.locator('xpath=following-sibling::dd[1]')).toContainText(figure(15_000));

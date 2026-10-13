@@ -1,18 +1,20 @@
 import type { ErrorCode, ReceiptFactoryDto } from '@pallet/shared';
 import type { UseQueryResult } from '@tanstack/react-query';
 import { Printer, X } from 'lucide-react';
-import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react';
+import { useCallback, useEffect, useRef, type ReactNode } from 'react';
 import { useTranslation } from 'react-i18next';
 import { QueryErrorState } from '@/components/app/states';
 import { Button } from '@/components/ui/button';
 import receiptStyles from '@/features/receipt/receipt.css?inline';
 import type { TranslationKey } from '@/i18n/keys';
 import { isApiError } from '@/lib/api-error';
+import { fontsSettled, useLogoGate, usePrintOnce } from './auto-print';
 import { tr } from './receipt-i18n';
 
 /**
- * A receipt's own tab (§7.16.1, Q137). It prints itself once, when the data, the fonts and the logo are
- * ready — a receipt printed before its font loads comes out in the wrong script width.
+ * A receipt's own page (§7.16.1, Q137), at its address; the app's buttons print in place instead (Q140,
+ * `receipt-printer.tsx`). It prints itself once, when the data, the fonts and the logo are ready — a receipt printed
+ * before its font loads comes out in the wrong script width.
  */
 export function ReceiptPrintPage<T extends { factory: ReceiptFactoryDto }>({
   query,
@@ -21,20 +23,18 @@ export function ReceiptPrintPage<T extends { factory: ReceiptFactoryDto }>({
 }: {
   query: UseQueryResult<T>;
   /** The API's answer that means "this has no receipt", said on the page in Sorani instead of the generic error. */
-  refusal: { code: ErrorCode; message: TranslationKey };
+  refusal?: { code: ErrorCode; message: TranslationKey };
   children: (data: T, onLogoSettled: () => void) => ReactNode;
 }) {
   const { t } = useTranslation();
-  const printed = useRef(false);
-  const [logoSettled, setLogoSettled] = useState(false);
-  const settleLogo = useCallback(() => setLogoSettled(true), []);
-
-  const ready = query.data !== undefined && (query.data.factory.logoUrl === null || logoSettled);
-  useEffect(() => {
-    if (!ready || printed.current) return;
-    printed.current = true;
-    void document.fonts.ready.then(() => window.print());
-  }, [ready]);
+  const { logoReady, onLogoSettled: settleLogo } = useLogoGate(query.data?.factory.logoUrl != null);
+  usePrintOnce(
+    query.data !== undefined && logoReady,
+    useCallback(async () => {
+      await fontsSettled(document);
+      window.print();
+    }, []),
+  );
 
   // A reprint is what the server says now, not what this tab first read (Q134): the button reads it again, and
   // the paper is printed by the effect that follows the render of that answer — the read's own promise settles
@@ -65,15 +65,15 @@ export function ReceiptPrintPage<T extends { factory: ReceiptFactoryDto }>({
     </div>
   );
 
-  const refused = query.isError && isApiError(query.error, refusal.code);
+  const refused = query.isError && refusal !== undefined && isApiError(query.error, refusal.code) ? refusal : null;
   // A failed re-read (focus, the Print button) keeps the paper on screen under the error, unless the answer is the
   // refusal; a reprint after one prints nothing (the effect above).
-  if (query.isError && (refused || query.data === undefined)) {
+  if (query.isError && (refused !== null || query.data === undefined)) {
     return (
       <div className="flex flex-col items-center gap-4 p-8">
-        {refused ? (
+        {refused !== null ? (
           <p className="font-medium" lang="ckb" dir="rtl">
-            {tr(refusal.message)}
+            {tr(refused.message)}
           </p>
         ) : (
           <QueryErrorState error={query.error} onRetry={() => void query.refetch()} />

@@ -1,7 +1,14 @@
 import { formatBusinessDate, formatMoney, type MoneyReceiptDto } from '@pallet/shared';
 import { isolate } from '@/lib/bidi';
 import { tr } from './receipt-i18n';
-import { ReceiptCustomer, ReceiptFactory, ReceiptPaper, ReceiptSheet, ReceiptTitle } from './receipt-parts';
+import {
+  ReceiptCustomer,
+  ReceiptFactory,
+  ReceiptOrder,
+  ReceiptPaper,
+  ReceiptSheet,
+  ReceiptTitle,
+} from './receipt-parts';
 
 function MoneyRow({ label, value, strong = false }: { label: string; value: number; strong?: boolean }) {
   return (
@@ -28,23 +35,14 @@ function Half({ receipt, onLogoSettled }: { receipt: MoneyReceiptDto; onLogoSett
         {/* Not the hand-over receipt's number label: the two numberings overlap, and each paper must say which. */}
         <ReceiptTitle
           title={tr(isPayment ? 'receipt.money.paymentTitle' : 'receipt.money.refundTitle')}
-          numberLabel={tr('receipt.money.receiptNumber')}
-          number={receipt.receiptNumberDisplay}
+          numbered={{ label: tr('receipt.money.receiptNumber'), number: receipt.receiptNumberDisplay }}
           date={receipt.date}
         />
       </div>
 
       <div className="block-parties">
         <ReceiptCustomer customer={customer} />
-        <div>
-          <div className="box-title">{tr('receipt.money.order')}</div>
-          <div>
-            {tr('receipt.money.orderNumber')}: <span className="num">{order.orderNumberDisplay}</span>
-          </div>
-          <div>
-            {tr('receipt.money.orderDate')}: <span className="num">{formatBusinessDate(order.date)}</span>
-          </div>
-        </div>
+        <ReceiptOrder order={order} />
       </div>
 
       <div className="block-money">

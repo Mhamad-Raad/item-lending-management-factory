@@ -23,7 +23,7 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Textarea } from '@/components/ui/textarea';
 import { invalidateAfterOrderChange } from '@/features/orders/api';
-import { openMoneyReceipt } from '@/features/receipt/open-receipt';
+import { printMoneyReceipt } from '@/features/receipt/print-receipt';
 import { useFlowMutation } from '@/hooks/use-flow-mutation';
 import { apiFetch } from '@/lib/api-client';
 import { detailsOf, isApiError } from '@/lib/api-error';
@@ -128,7 +128,7 @@ export function ReturnForm({ order, replaceReturnId }: { order: OrderDetailDto; 
     // A return that pays cash back offers the refund's receipt, for the customer to sign for (Q137).
     successAction: (result) => {
       const refund = result.order.ledgerEntries.find((entry) => isStandingRefundOf(entry, result.returnId));
-      return refund ? { label: t('orders.money.printReceipt'), onClick: () => openMoneyReceipt(refund.id) } : null;
+      return refund ? { label: t('orders.money.printReceipt'), onClick: () => printMoneyReceipt(refund.id) } : null;
     },
     invalidate: () => invalidateAfterOrderChange(queryClient),
     // Leave first: refreshed here, the order would show this page's "cannot be corrected" or

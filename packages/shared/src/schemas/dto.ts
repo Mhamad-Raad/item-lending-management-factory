@@ -511,6 +511,49 @@ export interface MoneyReceiptDto {
   customer: { name: string; phone: string; address: string };
 }
 
+/** One payment or refund on an order's transactions receipt (Q139). */
+export interface TransactionsReceiptRowDto {
+  ledgerEntryId: number;
+  /** Its own money receipt's number (Q137). */
+  receiptNumberDisplay: string;
+  kind: 'PAYMENT' | 'REFUND';
+  /** The day the money moved, as on its own receipt. */
+  date: string;
+  amount: number;
+  /** The business day it was reversed; null while it stands. A reversed row is listed but counts in no total. */
+  reversedOn: string | null;
+}
+
+export interface TransactionsReceiptSheetDto {
+  /** 1-based. */
+  sheetNumber: number;
+  sheetCount: number;
+  /** At most `RECEIPT_LINES_PER_HALF`. */
+  rows: TransactionsReceiptRowDto[];
+  /** True only on the last sheet. */
+  showTotal: boolean;
+}
+
+/**
+ * Every payment and refund of one order on one paper (Q139), by date, with the totals of those that stand and what
+ * the order owes on the day it is printed.
+ */
+export interface TransactionsReceiptDto {
+  order: { id: number; orderNumber: number; orderNumberDisplay: string; date: string };
+  /** The business day the receipt was asked for: what its totals are true as of. */
+  printedOn: string;
+  factory: ReceiptFactoryDto;
+  customer: { name: string; phone: string; address: string };
+  /** Of the rows that stand. */
+  received: number;
+  refunded: number;
+  /** What the order owes now. */
+  owed: number;
+  rowsPerHalf: number;
+  /** One per `chunkReceiptLines` chunk; each A4 sheet prints its chunk twice. */
+  sheets: TransactionsReceiptSheetDto[];
+}
+
 // ── dashboard (§6.9, §6.22) ──
 
 export interface ActivityEventDto {

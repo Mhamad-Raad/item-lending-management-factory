@@ -3,9 +3,9 @@ import { Printer } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { Tip } from '@/components/app/tip';
 import { Button } from '@/components/ui/button';
-import { openMoneyReceipt } from './open-receipt';
+import { printMoneyReceipt } from './print-receipt';
 
-/** The printer icon of a money row (Q137): a payment's or a refund's receipt in its own tab; nothing on a reversal. */
+/** The printer icon of a money row (Q137): prints a payment's or a refund's receipt in place (Q140); nothing on a reversal. */
 export function PrintMoneyReceiptButton({ entry }: { entry: { id: number; type: LedgerEntryType } }) {
   const { t } = useTranslation();
   if (!hasMoneyReceipt(entry.type)) return null;
@@ -15,7 +15,7 @@ export function PrintMoneyReceiptButton({ entry }: { entry: { id: number; type: 
         variant="ghost"
         size="icon"
         aria-label={t('orders.money.printReceipt')}
-        onClick={() => openMoneyReceipt(entry.id)}
+        onClick={() => printMoneyReceipt(entry.id)}
       >
         <Printer aria-hidden />
       </Button>

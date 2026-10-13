@@ -136,8 +136,8 @@ test('Q137: a payment and a refund print their receipt; the rows that undo them 
 
   const print = page.getByRole('button', { name: 'Print money receipt' });
   await expect(print).toHaveCount(2);
-  const [receipt] = await Promise.all([context.waitForEvent('page'), print.nth(1).click()]);
-  await expect.poll(() => receipt.url()).toMatch(/\/print\/ledger\/13$/);
+  await Promise.all([page.waitForRequest(/\/api\/ledger-entries\/13\/receipt$/), print.nth(1).click()]);
+  expect(context.pages()).toHaveLength(1);
 });
 
 test('Q137: on a phone, a money card with nothing to offer shows no empty Actions row (Q66)', async ({ page }) => {
@@ -157,10 +157,33 @@ test('Q137: on a phone, a money card with nothing to offer shows no empty Action
     ],
   });
 
-  const money = page.locator('section').filter({ has: page.getByRole('heading', { name: 'Money', exact: true }) });
+  const money = page
+    .locator('section')
+    .filter({ has: page.getByRole('heading', { name: 'Transactions', exact: true }) });
   await expect(money.getByRole('button', { name: 'Print money receipt' })).toHaveCount(1);
   // The desktop table's header stays in the page, hidden; a card's label would be visible.
   await expect(money.getByText('Actions', { exact: true }).filter({ visible: true })).toHaveCount(0);
+});
+
+test('Q139: the transactions print all together, in place (Q140), when there is something to print', async ({
+  page,
+  context,
+}) => {
+  await openOrder(page);
+  const transactions = page
+    .locator('section')
+    .filter({ has: page.getByRole('heading', { name: 'Transactions', exact: true }) });
+  await Promise.all([
+    page.waitForRequest(/\/api\/orders\/9\/transactions-receipt$/),
+    transactions.getByRole('button', { name: 'Print all' }).click(),
+  ]);
+  expect(context.pages()).toHaveLength(1);
+});
+
+test('Q139: an order without a payment or a refund offers no Print all', async ({ page }) => {
+  await openOrder(page, { ...ACTIVE, ledgerEntries: [] });
+  await expect(page.getByText('No transactions yet')).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Print all' })).toHaveCount(0);
 });
 
 test('without the permissions, the money actions stay away', async ({ page }) => {

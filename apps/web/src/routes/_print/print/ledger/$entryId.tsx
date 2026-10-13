@@ -1,11 +1,9 @@
-import type { MoneyReceiptDto } from '@pallet/shared';
 import { useQuery } from '@tanstack/react-query';
 import { createFileRoute } from '@tanstack/react-router';
 import { MoneyReceipt } from '@/features/receipt/money-receipt';
+import { moneyReceiptQuery } from '@/features/receipt/api';
 import { ReceiptPrintPage } from '@/features/receipt/receipt-print-page';
 import { usePageTitle } from '@/hooks/use-page-title';
-import { apiFetch } from '@/lib/api-client';
-import { qk } from '@/lib/query-keys';
 import { requirePermission } from '@/lib/route-guards';
 
 export const Route = createFileRoute('/_print/print/ledger/$entryId')({
@@ -13,16 +11,11 @@ export const Route = createFileRoute('/_print/print/ledger/$entryId')({
   component: MoneyReceiptPage,
 });
 
-/** The receipt of one payment or refund (Q137), in its own tab like the hand-over receipt. */
+/** The receipt of one payment or refund (Q137), at its own address; the app's buttons print it in place (Q140). */
 function MoneyReceiptPage() {
   const { entryId } = Route.useParams();
   usePageTitle('receipt.money.pageTitle');
-  const receipt = useQuery({
-    queryKey: qk.ledger.receipt(Number(entryId)),
-    queryFn: () => apiFetch<MoneyReceiptDto>(`/ledger-entries/${entryId}/receipt`),
-    // Its figures are fixed, but a payment deleted since the tab was opened must print as deleted.
-    staleTime: 0,
-  });
+  const receipt = useQuery(moneyReceiptQuery(Number(entryId)));
 
   return (
     <ReceiptPrintPage

@@ -344,6 +344,21 @@ for either. **Exit:** the unit tests of two restores at once (and one later) and
 both failing on the previous code; `idle.spec` green against a `NODE_ENV=test` build, as CI makes it, where it
 failed before.
 
+### 10d — Payment dialog, "Transactions", Print all, printing in place (Q139, Q140)
+
+Read: §6.21, §7.3.6, §7.4.3, §7.16.
+
+After a payment is saved, a dialog of what was paid with Close and Print instead of the toast; the order's money
+section is "Transactions"; "Print all" prints every payment and refund of the order on one paper, by date
+(`GET /api/orders/:id/transactions-receipt`, `/print/transactions/$orderId`), six to a half like the hand-over
+receipt, reversed ones listed but not counted. Every receipt prints in place, drawn into a blank frame of the page
+with the page's own session, instead of opening a tab (Q140). **Exit:** integration tests of the rows, order, totals and sheets;
+`e2e/transactions-receipt.spec.ts` (two PDF pages, every cell inside its half at the largest figure — proven by
+switching off the small type for long amounts); the dialog's figures, focus, Print, Close and Escape, and the refresh after Back with it
+open (proven against the form without it), in `payments.spec.ts` and the live E4; "Print all" in `order-actions.spec.ts`; `e2e/print-in-place.spec.ts` (the money and hand-over receipts print once in place,
+their paper alone, no new page; a refusal said on the page; a second press while preparing prints once — proven by
+breaking the code).
+
 ---
 
 ## Environments

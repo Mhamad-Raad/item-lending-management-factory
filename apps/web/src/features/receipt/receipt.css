@@ -1,4 +1,5 @@
-/* §7.16.3, inlined by the two receipt routes alone (`?inline`, through ReceiptPrintPage) and removed with them.
+/* §7.16.3, inlined (`?inline`) by the receipt routes alone (through ReceiptPrintPage) and removed with them, and
+   copied into the blank frame that prints a receipt in place (print-job.tsx, Q140) — never into the app's own page.
    The layout is fixed in millimetres: the UI font-size preference and theme never apply, and nothing may overflow a half. */
 @page {
   size: A4 portrait;
@@ -192,6 +193,28 @@
   font-size: 14pt;
   font-weight: 700;
   white-space: nowrap;
+}
+/* Q139: the transactions receipt's columns; the type has the rest of the half's 190 mm (58 mm). */
+.col-date {
+  width: 24mm;
+}
+.col-receipt {
+  width: 24mm;
+}
+.col-amount {
+  width: 30mm;
+}
+.col-status {
+  width: 46mm;
+}
+.lines td.status {
+  color: #b00000;
+  font-size: 8.5pt;
+  font-weight: 600;
+}
+/* A reversed row is listed but counts in no total: its amount is struck through. */
+.lines tr.reversed td.amount {
+  text-decoration: line-through;
 }
 /* A figure longer than its column holds at 10 pt (`FITS` in receipt.tsx). */
 .lines .num-tight {

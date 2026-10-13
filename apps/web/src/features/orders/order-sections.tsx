@@ -1,5 +1,5 @@
 import { hasMoneyReceipt, type LedgerEntryDto, type OrderDetailDto, type ReturnDto } from '@pallet/shared';
-import { ArrowDownLeft, ArrowUpRight, Ban, Trash2 } from 'lucide-react';
+import { ArrowDownLeft, ArrowUpRight, Ban, Printer, Trash2 } from 'lucide-react';
 import { Undo2 } from '@/components/app/dir-icon';
 import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
@@ -14,6 +14,7 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Tip } from '@/components/app/tip';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { printTransactionsReceipt } from '@/features/receipt/print-receipt';
 import { PrintMoneyReceiptButton } from '@/features/receipt/print-money-receipt-button';
 import { cn } from '@/lib/utils';
 import { ActorName } from '@/components/app/actor-name';
@@ -207,13 +208,16 @@ export function OrderReturns({
 }
 
 /**
- * The order's money rows in recording order; reversals are rows of their own (§7.3.6). A payment or a refund
- * prints its receipt (Q137); a manual payment that stands offers its deletion when `onDeletePayment` is given.
+ * The order's money rows ("Transactions", Q139) in recording order; reversals are rows of their own (§7.3.6). A
+ * payment or a refund prints its receipt (Q137), and all of them print together on one paper (Q139); a manual
+ * payment that stands offers its deletion when `onDeletePayment` is given.
  */
 export function OrderMoney({
+  orderId,
   entries,
   onDeletePayment,
 }: {
+  orderId: number;
   entries: LedgerEntryDto[];
   onDeletePayment?: (entry: LedgerEntryDto) => void;
 }) {
@@ -288,7 +292,15 @@ export function OrderMoney({
 
   return (
     <section className="flex flex-col gap-3">
-      <h2 className="text-lg font-semibold">{t('orders.detail.money')}</h2>
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <h2 className="text-lg font-semibold">{t('orders.detail.money')}</h2>
+        {entries.some((entry) => hasMoneyReceipt(entry.type)) ? (
+          <Button variant="outline" size="sm" onClick={() => printTransactionsReceipt(orderId)}>
+            <Printer aria-hidden />
+            {t('orders.money.printAll')}
+          </Button>
+        ) : null}
+      </div>
       <DataTable
         label={t('orders.detail.money')}
         columns={columns}

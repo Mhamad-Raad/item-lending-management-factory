@@ -862,7 +862,7 @@
       "orders": "الطلبات",
       "payments": "الدفعات",
       "refunds": "المبالغ المستردة",
-      "money": "المال",
+      "money": "المعاملات",
       "history": "السجل",
       "label": "الأقسام"
     },
@@ -1002,8 +1002,8 @@
       "damagedRefund": "استرداد التالف",
       "refundDue": "المبلغ المستحق للإرجاع",
       "cashRefund": "أُعيد نقداً",
-      "money": "المال",
-      "noMoney": "لا توجد مبالغ مسجلة على هذا الطلب",
+      "money": "المعاملات",
+      "noMoney": "لا توجد معاملات بعد",
       "recordReturn": "تسجيل إرجاع",
       "recordPayment": "تسجيل دفعة",
       "editReturn": "تعديل الإرجاع",
@@ -1026,7 +1026,8 @@
       "note": "ملاحظة",
       "createdBy": "بواسطة",
       "reverses": "يعكس #{{id}}",
-      "printReceipt": "طباعة الإيصال المالي"
+      "printReceipt": "طباعة الإيصال المالي",
+      "printAll": "طباعة الكل"
     },
     "cancel": {
       "confirmTitle": "إلغاء الطلب {{orderNumber}}؟",
@@ -1100,7 +1101,19 @@
       "atHandover": "عند التسليم، نقداً",
       "recordedBy": "سجّله",
       "reversed": "أُلغي في {{date}}"
-    }
+    },
+    "transactions": {
+      "pageTitle": "كشف المعاملات",
+      "title": "كشف المعاملات المالية",
+      "receiptNumber": "رقم الإيصال",
+      "type": "النوع",
+      "amount": "المبلغ",
+      "status": "الحالة",
+      "received": "مجموع المقبوض",
+      "refunded": "مجموع المردود",
+      "owed": "المستحق الآن"
+    },
+    "preparing": "جارٍ تجهيز الإيصال…"
   },
   "returns": {
     "fields": {

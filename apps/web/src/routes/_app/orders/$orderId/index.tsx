@@ -24,7 +24,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { invalidateAfterOrderChange, invalidateAfterPayment, orderQuery } from '@/features/orders/api';
 import { Tip } from '@/components/app/tip';
 import { OrderLinesTable, OrderMoney, OrderReturns } from '@/features/orders/order-sections';
-import { openOrderReceipt } from '@/features/receipt/open-receipt';
+import { printOrderReceipt } from '@/features/receipt/print-receipt';
 import { orderLabel } from '@/features/orders/order-text';
 import { usePageTitle } from '@/hooks/use-page-title';
 import { apiFetch } from '@/lib/api-client';
@@ -133,7 +133,7 @@ function OrderDetailPage() {
 
   const data = order.data;
   const cancelled = data.cancelledAt !== null;
-  const printReceipt = (): void => openOrderReceipt(data.id);
+  const printReceipt = (): void => printOrderReceipt(data.id);
   const figures = [
     { label: 'orders.fields.depositTotal', value: <MoneyText value={data.depositTotal} /> },
     { label: 'orders.fields.owed', value: <MoneyText value={data.owed} /> },
@@ -319,6 +319,7 @@ function OrderDetailPage() {
         }
       />
       <OrderMoney
+        orderId={data.id}
         entries={data.ledgerEntries}
         onDeletePayment={
           can.deletePayment && !cancelled

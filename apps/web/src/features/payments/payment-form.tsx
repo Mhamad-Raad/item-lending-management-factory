@@ -1,13 +1,13 @@
 import {
   businessToday,
   formatMoney,
-  formatOrderNumber,
   type OrderDetailDto,
   type PaymentCreateBody,
   type PaymentResultDto,
 } from '@pallet/shared';
 import { useQueryClient } from '@tanstack/react-query';
 import { Loader2 } from 'lucide-react';
+import { useEffect, useRef, useState } from 'react';
 import { Controller, useForm, useWatch } from 'react-hook-form';
 import { useTranslation } from 'react-i18next';
 import { DateField } from '@/components/app/date-field';
@@ -19,7 +19,7 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { invalidateAfterPayment } from '@/features/orders/api';
-import { openMoneyReceipt } from '@/features/receipt/open-receipt';
+import { PaymentSavedDialog } from '@/features/payments/payment-saved-dialog';
 import { useFlowMutation } from '@/hooks/use-flow-mutation';
 import { apiFetch } from '@/lib/api-client';
 import { detailsOf } from '@/lib/api-error';
@@ -33,8 +33,11 @@ interface PaymentValues {
   note: string;
 }
 
-/** Daily flow 3 (§7.4.3): a payment on a credit order, with what it leaves owing live. */
-export function PaymentForm({ order }: { order: OrderDetailDto }) {
+/**
+ * Daily flow 3 (§7.4.3): a payment on a credit order, with what it leaves owing live. `onSaved` tells the page a
+ * payment was saved, so it holds the order beneath the saved dialog (Q139).
+ */
+export function PaymentForm({ order, onSaved }: { order: OrderDetailDto; onSaved: () => void }) {
   const { t } = useTranslation();
   const queryClient = useQueryClient();
   const form = useForm<PaymentValues>({
@@ -45,6 +48,12 @@ export function PaymentForm({ order }: { order: OrderDetailDto }) {
   const errors = form.formState.errors;
   const owedAfter = Math.max(0, order.owed - amount);
   const exceedsOwed = (owed: number) => encodeValidationMessage('paymentExceedsOwed', { owed: formatMoney(owed) });
+  // The payment just recorded, kept through the dialog's exit; closing it lets the flow go on to the order.
+  const [saved, setSaved] = useState<{ result: PaymentResultDto; body: PaymentCreateBody } | null>(null);
+  const [savedOpen, setSavedOpen] = useState(false);
+  const closeSaved = useRef<(() => void) | null>(null);
+  // Left with the dialog open (Back): the payment is saved, so the flow still refreshes what it made stale.
+  useEffect(() => () => closeSaved.current?.(), []);
 
   const record = useFlowMutation({
     request: (body: PaymentCreateBody, idempotencyKey) =>
@@ -53,12 +62,14 @@ export function PaymentForm({ order }: { order: OrderDetailDto }) {
         body,
         idempotencyKey: idempotencyKey(),
       }),
-    successMessage: (result) => t('payments.new.created', { orderNumber: formatOrderNumber(result.order.orderNumber) }),
-    // The receipt of the money just taken, to hand over while the customer is still there (Q137).
-    successAction: (result) => ({
-      label: t('orders.money.printReceipt'),
-      onClick: () => openMoneyReceipt(result.ledgerEntryId),
-    }),
+    // What was taken, with its receipt to hand over while the customer is still there (Q137, Q139).
+    showSaved: (result, body) =>
+      new Promise<void>((close) => {
+        closeSaved.current = close;
+        onSaved();
+        setSaved({ result, body });
+        setSavedOpen(true);
+      }),
     invalidate: (result) => invalidateAfterPayment(queryClient, result.order),
     // Leave first: refreshed here, a paid-off order would show "nothing owed" before the navigation.
     refresh: 'after-navigate',
@@ -198,6 +209,17 @@ export function PaymentForm({ order }: { order: OrderDetailDto }) {
           <p className="text-success text-sm font-medium">{t('payments.new.willSettle')}</p>
         ) : null}
       </SummaryPanel>
+      {saved ? (
+        <PaymentSavedDialog
+          result={saved.result}
+          payment={saved.body}
+          open={savedOpen}
+          onClose={() => {
+            setSavedOpen(false);
+            closeSaved.current?.();
+          }}
+        />
+      ) : null}
     </div>
   );
 }

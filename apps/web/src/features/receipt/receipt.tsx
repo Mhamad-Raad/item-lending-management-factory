@@ -1,16 +1,9 @@
 import { formatBusinessDate, formatMoney, formatNumber, type ReceiptDto, type ReceiptSheetDto } from '@pallet/shared';
 import { tr } from './receipt-i18n';
-import { ReceiptCustomer, ReceiptFactory, ReceiptPaper, ReceiptSheet, ReceiptTitle } from './receipt-parts';
+import { NumberCell, ReceiptCustomer, ReceiptFactory, ReceiptPaper, ReceiptSheet, ReceiptTitle } from './receipt-parts';
 
-/**
- * How many characters each numeric column holds at the receipt's 10 pt (§7.16.3). A longer figure — only the
- * largest the inputs allow — is set smaller rather than left to run into the next column.
- */
+/** How many characters each numeric column holds at the receipt's 10 pt (§7.16.3; `NumberCell`). */
 const FITS = { quantity: 7, unitDeposit: 9, lineTotal: 11 } as const;
-
-function NumberCell({ text, fits }: { text: string | null; fits: number }) {
-  return <td className={text && text.length > fits ? 'num num-cell num-tight' : 'num num-cell'}>{text ?? ''}</td>;
-}
 
 function Half({
   receipt,
@@ -31,8 +24,7 @@ function Half({
         <ReceiptFactory factory={factory} onLogoSettled={onLogoSettled} />
         <ReceiptTitle
           title={tr('receipt.title')}
-          numberLabel={tr('receipt.receiptNumber')}
-          number={receipt.orderNumberDisplay}
+          numbered={{ label: tr('receipt.receiptNumber'), number: receipt.orderNumberDisplay }}
           date={receipt.date}
         />
       </div>

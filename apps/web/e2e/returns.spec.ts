@@ -376,11 +376,12 @@ test('Q137: a return that pays cash back offers the refund’s receipt; one that
   await summary(page).getByRole('button', { name: 'Record return' }).click();
   await expect(page).toHaveURL(/\/orders\/9$/);
 
-  const [receipt] = await Promise.all([
-    context.waitForEvent('page'),
+  // Printed in place (Q140): the refund's receipt is read, and no tab opens.
+  await Promise.all([
+    page.waitForRequest(/\/api\/ledger-entries\/13\/receipt$/),
     page.locator('[data-sonner-toast]').getByRole('button', { name: 'Print money receipt' }).click(),
   ]);
-  await expect.poll(() => receipt.url()).toMatch(/\/print\/ledger\/13$/);
+  expect(context.pages()).toHaveLength(1);
 });
 
 test('Q137: a return that leaves something owed has no refund, so its toast offers no receipt', async ({ page }) => {

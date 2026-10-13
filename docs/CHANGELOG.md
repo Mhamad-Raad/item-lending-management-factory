@@ -70,3 +70,8 @@ The build history that used to sit in `CLAUDE.md` "Status", oldest first, moved 
   of React restores the session twice at once, and the second restore sent the idle sign-out again. Every
   sign-out request now goes through one place that sends nothing while another is out, and a sign-in waits for
   it whichever path sent it.
+- **10d payment dialog, transactions receipt, printing in place** (2026-10-13, Q139, Q140): a recorded payment opens a dialog of what
+  was paid and the balance either side, with Print and Close, before the flow goes on to the order; the order's
+  money section is "Transactions"; "Print all" prints the order's payments and refunds by date on the hand-over
+  receipt's layout, with the totals of those that stand and what is owed now. Every receipt now prints in place
+  (drawn into a blank frame of the page, with the page's session) instead of opening a tab (Q140). No migration.

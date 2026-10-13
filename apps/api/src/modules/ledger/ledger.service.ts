@@ -2,13 +2,18 @@ import { Injectable } from '@nestjs/common';
 import {
   businessDateToDb,
   businessToday,
+  chunkReceiptLines,
   dbDateToBusiness,
   formatOrderNumber,
   hasMoneyReceipt,
+  RECEIPT_LEDGER_ENTRY_TYPES,
+  RECEIPT_LINES_PER_HALF,
   type LedgerEntryDto,
   type LedgerEntryListQuery,
   type MoneyReceiptDto,
   type PageDto,
+  type TransactionsReceiptDto,
+  type TransactionsReceiptRowDto,
 } from '@pallet/shared';
 import { Clock } from '../../common/clock';
 import { ApiError } from '../../common/errors/api-error';
@@ -146,6 +151,73 @@ export class LedgerService {
       },
       factory,
       customer: { name: order.customer.name, phone: order.customer.phone, address: order.customer.address },
+    };
+  }
+
+  /**
+   * Every payment and refund of an order on one paper (Q139), by the day the money moved, six to a half like the
+   * hand-over receipt's lines. A reversed one is listed with the day it was reversed and left out of the totals;
+   * the reversal rows themselves are not listed. A cancelled order still prints, like its money receipts.
+   */
+  async transactionsReceipt(orderId: number): Promise<TransactionsReceiptDto> {
+    const [order, factory] = await Promise.all([
+      this.prisma.order.findUnique({
+        where: { id: orderId },
+        include: {
+          customer: true,
+          ledgerEntries: {
+            where: { type: { in: [...RECEIPT_LEDGER_ENTRY_TYPES] } },
+            include: { reversedBy: { select: { date: true } } },
+          },
+        },
+      }),
+      loadReceiptFactory(this.prisma),
+    ]);
+    if (!order) throw new ApiError('ORDER_NOT_FOUND', { orderId });
+
+    const rows: TransactionsReceiptRowDto[] = order.ledgerEntries
+      // The query took these types alone; the guard narrows the type for the row, without a cast.
+      .flatMap((entry) =>
+        hasMoneyReceipt(entry.type)
+          ? [
+              {
+                ledgerEntryId: entry.id,
+                receiptNumberDisplay: formatOrderNumber(entry.id),
+                kind: entry.type,
+                // An automatic payment is dated by its order (§4.7.2), as on its own receipt.
+                date: dbDateToBusiness(entry.date ?? order.date),
+                amount: toSafeMoney(entry.amount),
+                reversedOn: entry.reversedBy?.date ? dbDateToBusiness(entry.reversedBy.date) : null,
+              },
+            ]
+          : [],
+      )
+      // ISO dates sort as text; the same day keeps recording order.
+      .sort((a, b) => a.date.localeCompare(b.date) || a.ledgerEntryId - b.ledgerEntryId);
+    const standing = (kind: TransactionsReceiptRowDto['kind']) =>
+      rows.filter((row) => row.kind === kind && row.reversedOn === null).reduce((sum, row) => sum + row.amount, 0);
+
+    const chunks = chunkReceiptLines(rows);
+    return {
+      order: {
+        id: order.id,
+        orderNumber: order.orderNumber,
+        orderNumberDisplay: formatOrderNumber(order.orderNumber),
+        date: dbDateToBusiness(order.date),
+      },
+      printedOn: businessToday(this.clock.now()),
+      factory,
+      customer: { name: order.customer.name, phone: order.customer.phone, address: order.customer.address },
+      received: standing('PAYMENT'),
+      refunded: standing('REFUND'),
+      owed: toSafeMoney(order.owed),
+      rowsPerHalf: RECEIPT_LINES_PER_HALF,
+      sheets: chunks.map((chunk, index) => ({
+        sheetNumber: index + 1,
+        sheetCount: chunks.length,
+        rows: chunk,
+        showTotal: index === chunks.length - 1,
+      })),
     };
   }
 }

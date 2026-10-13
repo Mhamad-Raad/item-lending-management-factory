@@ -1,6 +1,6 @@
 import { useQuery } from '@tanstack/react-query';
 import { Link, createFileRoute, useNavigate } from '@tanstack/react-router';
-import { useCallback } from 'react';
+import { useCallback, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { z } from 'zod';
 import { PageHeader } from '@/components/app/page-header';
@@ -63,7 +63,10 @@ function NewPaymentPage() {
 
 function ChosenOrder({ orderId, onChange }: { orderId: number; onChange: () => void }) {
   const { t } = useTranslation();
-  const order = useQuery(orderQuery(orderId));
+  // Once a payment is saved the order is held as it was: re-read (a return to the tab after printing), a paid-off
+  // order would swap the form, and the saved dialog in it, for "nothing owed" before the dialog is closed (Q139).
+  const [held, setHeld] = useState(false);
+  const order = useQuery({ ...orderQuery(orderId), enabled: !held });
   if (order.isPending) return <PageSkeleton rows={3} />;
   if (order.isError) return <QueryErrorState error={order.error} onRetry={() => void order.refetch()} />;
   const payable = order.data.cancelledAt === null && order.data.paymentType === 'LENT' && order.data.owed > 0;
@@ -86,7 +89,7 @@ function ChosenOrder({ orderId, onChange }: { orderId: number; onChange: () => v
     <div className="flex flex-col gap-6">
       <OrderHeaderCompact order={order.data} onChange={onChange} />
       {/* Not keyed by version: a reload after a refusal keeps the typed amount, its error and its key. */}
-      <PaymentForm order={order.data} />
+      <PaymentForm order={order.data} onSaved={() => setHeld(true)} />
     </div>
   );
 }

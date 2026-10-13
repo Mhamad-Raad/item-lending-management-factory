@@ -862,7 +862,7 @@
       "orders": "Orders",
       "payments": "Payments",
       "refunds": "Refunds",
-      "money": "Money",
+      "money": "Transactions",
       "history": "History",
       "label": "Sections"
     },
@@ -1002,8 +1002,8 @@
       "damagedRefund": "Damage refund",
       "refundDue": "Refund due",
       "cashRefund": "Paid back in cash",
-      "money": "Money",
-      "noMoney": "No money recorded on this order",
+      "money": "Transactions",
+      "noMoney": "No transactions yet",
       "recordReturn": "Record return",
       "recordPayment": "Record payment",
       "editReturn": "Edit return",
@@ -1026,7 +1026,8 @@
       "note": "Note",
       "createdBy": "By",
       "reverses": "Reverses #{{id}}",
-      "printReceipt": "Print money receipt"
+      "printReceipt": "Print money receipt",
+      "printAll": "Print all"
     },
     "cancel": {
       "confirmTitle": "Cancel order {{orderNumber}}?",
@@ -1100,7 +1101,19 @@
       "atHandover": "At the hand-over, in cash",
       "recordedBy": "Recorded by",
       "reversed": "Cancelled on {{date}}"
-    }
+    },
+    "transactions": {
+      "pageTitle": "Transactions receipt",
+      "title": "Transactions receipt",
+      "receiptNumber": "Receipt no.",
+      "type": "Type",
+      "amount": "Amount",
+      "status": "Status",
+      "received": "Total received",
+      "refunded": "Total paid back",
+      "owed": "Owed now"
+    },
+    "preparing": "Preparing the receipt…"
   },
   "returns": {
     "fields": {
