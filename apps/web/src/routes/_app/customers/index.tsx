@@ -4,7 +4,7 @@ import { Link, createFileRoute } from '@tanstack/react-router';
 import { Building2, Plus } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { z } from 'zod';
-import { ArchivedBadge } from '@/components/app/archived-badge';
+import { RecordStatusBadge } from '@/components/app/archived-badge';
 import { DataTable, type DataColumn } from '@/components/app/data-table';
 import { DateText } from '@/components/app/date-text';
 import { FilterChoice, ListEmpty, ListFilters, SearchBox } from '@/components/app/list-controls';
@@ -110,7 +110,7 @@ const COLUMNS: DataColumn<CustomerDto>[] = [
   {
     id: 'status',
     header: 'customers.fields.status',
-    cell: (customer) => (customer.archivedAt ? <ArchivedBadge /> : null),
+    cell: (customer) => <RecordStatusBadge archived={Boolean(customer.archivedAt)} />,
     mobile: 'badge',
   },
 ];

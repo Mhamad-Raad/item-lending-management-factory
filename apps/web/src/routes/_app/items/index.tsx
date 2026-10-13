@@ -4,7 +4,7 @@ import { Link, createFileRoute } from '@tanstack/react-router';
 import { Package, Plus } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { z } from 'zod';
-import { ArchivedBadge } from '@/components/app/archived-badge';
+import { RecordStatusBadge } from '@/components/app/archived-badge';
 import { DataTable, type DataColumn } from '@/components/app/data-table';
 import { DateText } from '@/components/app/date-text';
 import { FilterChoice, ListEmpty, ListFilters, SearchBox } from '@/components/app/list-controls';
@@ -99,13 +99,12 @@ const COLUMNS: DataColumn<ItemDto>[] = [
   {
     id: 'status',
     header: 'items.fields.status',
-    cell: (item) =>
-      item.isLowStock || item.archivedAt ? (
-        <span className="flex flex-wrap gap-1">
-          {item.isLowStock ? <LowStockBadge /> : null}
-          {item.archivedAt ? <ArchivedBadge /> : null}
-        </span>
-      ) : null,
+    cell: (item) => (
+      <span className="flex flex-wrap gap-1">
+        {item.isLowStock ? <LowStockBadge /> : null}
+        <RecordStatusBadge archived={Boolean(item.archivedAt)} />
+      </span>
+    ),
     mobile: 'badge',
   },
 ];

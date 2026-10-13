@@ -262,6 +262,31 @@ html {
     outline-offset: 2px;
   }
 
+  /* Q143: everything that acts on a press shows the hand, as a link does; Tailwind 4 gives buttons the arrow.
+     All inside :where(), so the rule has no specificity and a component's own cursor class still wins. Some
+     libraries write data-disabled="false" on an enabled item (cmdk, sonner): only another value means disabled. */
+  :where(
+    :is(
+      button,
+      a[href],
+      summary,
+      select,
+      input:is([type='checkbox'], [type='radio'], [type='file'], [type='color']),
+      [role='button'],
+      [role='link'],
+      [role='tab'],
+      [role='menuitem'],
+      [role='menuitemradio'],
+      [role='menuitemcheckbox'],
+      [role='option'],
+      [role='radio'],
+      [role='checkbox'],
+      [role='switch']
+    ):not(:disabled, [aria-disabled='true'], [data-disabled]:not([data-disabled='false']))
+  ) {
+    cursor: pointer;
+  }
+
   body {
     @apply bg-background text-foreground font-sans antialiased;
     font-variant-numeric: tabular-nums;

@@ -1,4 +1,5 @@
 import type { LedgerEntryDto, MeDto, OrderDetailDto, ReturnDto } from '@pallet/shared';
+import type { Locator } from '@playwright/test';
 import { expect, test, type Page } from './fixtures';
 import { ADMIN, ORDER, mockApi } from './mock-api';
 
@@ -302,4 +303,37 @@ test('without a damage refund on any return, the table has no column for it', as
   const table = page.getByRole('table', { name: 'Returns' });
   await expect(table.getByRole('columnheader', { name: 'Refund due' })).toBeVisible();
   await expect(table.getByRole('columnheader', { name: 'Damage refund' })).toHaveCount(0);
+});
+
+test('Q143: buttons, links, menu items and choices show the hand; a disabled button does not', async ({ page }) => {
+  const replacement: ReturnDto = { ...RETURN, id: 6, replacesReturnId: 5 };
+  const old: ReturnDto = { ...RETURN, reversed: true, reversalKind: 'EDIT', replacedByReturnId: 6, canReverse: false };
+  await openOrder(page, { ...ACTIVE, returns: [old, replacement] });
+  const cursor = (locator: Locator) => locator.evaluate((element) => getComputedStyle(element).cursor);
+
+  expect(await cursor(page.getByRole('button', { name: 'Print receipt' }))).toBe('pointer');
+  expect(await cursor(page.getByRole('button', { name: 'Delete return' }))).toBe('pointer');
+  expect(await cursor(page.getByRole('link', { name: 'Record return' }))).toBe('pointer');
+  expect(await cursor(page.getByRole('radio', { name: 'Show reversed' }))).toBe('pointer');
+  await page.getByRole('button', { name: 'Language' }).click();
+  expect(await cursor(page.getByRole('menuitem', { name: 'English' }))).toBe('pointer');
+  await page.keyboard.press('Escape');
+
+  // cmdk and sonner write data-disabled="false" on an enabled item; only another value means disabled.
+  const probe = async (value: string) =>
+    page.evaluate((disabled) => {
+      const option = document.createElement('div');
+      option.setAttribute('role', 'option');
+      option.setAttribute('data-disabled', disabled);
+      document.body.append(option);
+      const result = getComputedStyle(option).cursor;
+      option.remove();
+      return result;
+    }, value);
+  expect(await probe('false')).toBe('pointer');
+  expect(await probe('true')).not.toBe('pointer');
+
+  const print = page.getByRole('button', { name: 'Print receipt' });
+  await print.evaluate((element) => element.setAttribute('disabled', ''));
+  expect(await cursor(print)).not.toBe('pointer');
 });

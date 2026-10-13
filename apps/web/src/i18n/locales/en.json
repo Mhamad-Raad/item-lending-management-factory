@@ -53,6 +53,7 @@
       "preview": "Image preview",
       "hint": "An image of up to 5 MB."
     },
+    "active": "Active",
     "archived": "Archived",
     "includeArchived": "Include archived",
     "listSeparator": ", ",
@@ -849,7 +850,11 @@
       "phoneDuplicateWarning": "This number is already used by:",
       "duplicateTitle": "This phone number is already in use",
       "duplicateBody": "It belongs to {{names}}. Save anyway?",
-      "saveAnyway": "Save anyway"
+      "saveAnyway": "Save anyway",
+      "contactSection": "Contact details",
+      "contactSectionHint": "Who the customer is and how to reach them",
+      "creditSection": "Credit",
+      "creditSectionHint": "How much the customer may owe at once"
     },
     "holdings": {
       "title": "Pallets held",

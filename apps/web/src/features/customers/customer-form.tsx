@@ -7,16 +7,27 @@ import {
 } from '@pallet/shared';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { Link, useNavigate } from '@tanstack/react-router';
-import { TriangleAlert } from 'lucide-react';
+import {
+  Contact,
+  MapPin,
+  Phone,
+  PhoneCall,
+  Save,
+  TriangleAlert,
+  UserRound,
+  Wallet,
+  X,
+  type LucideIcon,
+} from 'lucide-react';
 import { useState } from 'react';
 import { Controller, useForm, useWatch } from 'react-hook-form';
 import { useTranslation } from 'react-i18next';
 import { toast } from 'sonner';
 import { ConfirmDialog } from '@/components/app/confirm-dialog';
 import { Field, FieldDescription, FieldError, FieldLabel } from '@/components/app/field';
+import { FormSection } from '@/components/app/form-section';
 import { MoneyInput } from '@/components/app/numeric-input';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { usePhoneMatches } from '@/hooks/use-phone-matches';
 import { useUnsavedChangesGuard } from '@/hooks/use-unsaved-changes-guard';
@@ -61,7 +72,25 @@ function PhoneDuplicateWarning({ phone, excludeId }: { phone: string | null | un
   );
 }
 
-/** Creates or edits a customer (§7.3.11). */
+/** A field's label with its icon before the words; the icon is decoration, the words name the field. */
+function IconLabel({
+  htmlFor,
+  icon: Icon,
+  children,
+}: {
+  htmlFor: string;
+  icon: LucideIcon;
+  children: React.ReactNode;
+}) {
+  return (
+    <FieldLabel htmlFor={htmlFor}>
+      <Icon className="text-muted-foreground size-4" aria-hidden />
+      {children}
+    </FieldLabel>
+  );
+}
+
+/** Creates or edits a customer (§7.3.11), in two sections: who they are and how to reach them, and their credit (Q145). */
 export function CustomerForm({ customer }: { customer?: CustomerDto }) {
   const { t } = useTranslation();
   const navigate = useNavigate();
@@ -123,12 +152,13 @@ export function CustomerForm({ customer }: { customer?: CustomerDto }) {
     },
   });
 
-  const textField = (name: 'name' | 'address', dir?: 'ltr') => (
-    <Field>
-      <FieldLabel htmlFor={name}>{t(`customers.fields.${name}`)}</FieldLabel>
+  const textField = (name: 'name' | 'address', icon: LucideIcon, className?: string) => (
+    <Field className={className}>
+      <IconLabel htmlFor={name} icon={icon}>
+        {t(`customers.fields.${name}`)}
+      </IconLabel>
       <Input
         id={name}
-        dir={dir}
         aria-invalid={Boolean(errors[name])}
         aria-describedby={`${name}-error`}
         {...form.register(name)}
@@ -140,15 +170,21 @@ export function CustomerForm({ customer }: { customer?: CustomerDto }) {
   return (
     <form
       onSubmit={(event) => void form.handleSubmit((values) => save.mutate({ values, confirm: false }))(event)}
-      className="flex max-w-2xl flex-col gap-6"
+      className="flex max-w-3xl flex-col gap-6"
       noValidate
     >
-      <Card>
-        <CardContent className="flex flex-col gap-4">
-          {textField('name')}
+      <FormSection
+        icon={Contact}
+        title={t('customers.form.contactSection')}
+        hint={t('customers.form.contactSectionHint')}
+      >
+        <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+          {textField('name', UserRound, 'md:col-span-2')}
 
           <Field>
-            <FieldLabel htmlFor="phone">{t('customers.fields.phone')}</FieldLabel>
+            <IconLabel htmlFor="phone" icon={Phone}>
+              {t('customers.fields.phone')}
+            </IconLabel>
             {/* A phone number reads left to right in every language of the app. */}
             <Input
               id="phone"
@@ -164,7 +200,9 @@ export function CustomerForm({ customer }: { customer?: CustomerDto }) {
           </Field>
 
           <Field>
-            <FieldLabel htmlFor="altPhone">{t('customers.fields.altPhone')}</FieldLabel>
+            <IconLabel htmlFor="altPhone" icon={PhoneCall}>
+              {t('customers.fields.altPhone')}
+            </IconLabel>
             <Controller
               control={form.control}
               name="altPhone"
@@ -186,10 +224,21 @@ export function CustomerForm({ customer }: { customer?: CustomerDto }) {
             <PhoneDuplicateWarning phone={altPhone} excludeId={customer?.id} />
           </Field>
 
-          {textField('address')}
+          {textField('address', MapPin, 'md:col-span-2')}
+        </div>
+      </FormSection>
 
+      <FormSection
+        icon={Wallet}
+        tone="warning"
+        title={t('customers.form.creditSection')}
+        hint={t('customers.form.creditSectionHint')}
+      >
+        <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
           <Field>
-            <FieldLabel htmlFor="creditLimit">{t('customers.fields.creditLimit')}</FieldLabel>
+            <IconLabel htmlFor="creditLimit" icon={Wallet}>
+              {t('customers.fields.creditLimit')}
+            </IconLabel>
             <Controller
               control={form.control}
               name="creditLimit"
@@ -210,11 +259,12 @@ export function CustomerForm({ customer }: { customer?: CustomerDto }) {
             </FieldDescription>
             <FieldError id="creditLimit-error" message={errors.creditLimit?.message} />
           </Field>
-        </CardContent>
-      </Card>
+        </div>
+      </FormSection>
 
       <div className="flex gap-2">
         <Button type="submit" disabled={save.isPending}>
+          <Save aria-hidden />
           {t('common.actions.save')}
         </Button>
         <Button
@@ -226,6 +276,7 @@ export function CustomerForm({ customer }: { customer?: CustomerDto }) {
               : navigate({ to: '/customers' }))
           }
         >
+          <X aria-hidden />
           {t('common.actions.cancel')}
         </Button>
       </div>

@@ -53,6 +53,7 @@
       "preview": "معاينة الصورة",
       "hint": "صورة حتى 5 ميغابايت."
     },
+    "active": "نشط",
     "archived": "مؤرشف",
     "includeArchived": "إظهار المؤرشف أيضاً",
     "listSeparator": "، ",
@@ -849,7 +850,11 @@
       "phoneDuplicateWarning": "هذا الرقم مستخدم من قبل:",
       "duplicateTitle": "رقم الهاتف هذا مستخدم بالفعل",
       "duplicateBody": "إنه يخص {{names}}. هل تريد الحفظ على أي حال؟",
-      "saveAnyway": "احفظ على أي حال"
+      "saveAnyway": "احفظ على أي حال",
+      "contactSection": "معلومات الاتصال",
+      "contactSectionHint": "من هو الزبون وكيف يمكن التواصل معه",
+      "creditSection": "الدين",
+      "creditSectionHint": "أقصى ما يمكن أن يكون الزبون مديناً به في وقت واحد"
     },
     "holdings": {
       "title": "المنصات لديهم",

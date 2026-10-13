@@ -345,3 +345,32 @@ test('Q56: the list filters are segmented choices, and the narrowing segment set
   await archived.getByRole('radio', { name: 'Active' }).click();
   await expect(page).not.toHaveURL(/includeArchived/);
 });
+
+test('Q144: the status column says Active or Archived, never blank', async ({ page }) => {
+  await signIn(page);
+  const archived = { ...CUSTOMER, id: 8, name: 'Old Blocks', archivedAt: '2026-09-13T08:00:00.000Z' };
+  await page.route(/\/api\/customers(\?.*)?$/, (route) =>
+    route.fulfill({ json: { items: [CUSTOMER, archived], page: 1, pageSize: 25, total: 2 } }),
+  );
+
+  await page.goto('/customers');
+
+  const rows = page.getByRole('table', { name: 'Customers' }).locator('tbody tr');
+  await expect(rows.nth(0).getByRole('cell').last()).toHaveText('Active');
+  await expect(rows.nth(1).getByRole('cell').last()).toHaveText('Archived');
+});
+
+test('Q145: the customer form is two titled sections, each field under its own', async ({ page }) => {
+  await signIn(page);
+  await page.route(/\/api\/customers\/7$/, (route) => route.fulfill({ json: CUSTOMER }));
+  await page.goto('/customers/7/edit');
+
+  const section = (title: string) =>
+    page.locator('[data-slot="card"]').filter({ has: page.getByRole('heading', { name: title }) });
+  for (const label of ['Name', 'Phone', 'Second phone', 'Address']) {
+    await expect(section('Contact details').getByLabel(label, { exact: true })).toBeVisible();
+  }
+  await expect(section('Credit').getByLabel('Credit limit')).toBeVisible();
+  await expect(section('Contact details').getByLabel('Credit limit')).toHaveCount(0);
+  await expect(page.getByRole('button', { name: 'Save' })).toBeVisible();
+});

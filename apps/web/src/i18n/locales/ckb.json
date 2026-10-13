@@ -53,6 +53,7 @@
       "preview": "پێشبینینی وێنە",
       "hint": "وێنەیەک تا 5 مێگابایت."
     },
+    "active": "چالاک",
     "archived": "ئەرشیفکراو",
     "includeArchived": "ئەرشیفکراوەکانیش پیشان بدە",
     "listSeparator": "، ",
@@ -849,7 +850,11 @@
       "phoneDuplicateWarning": "ئەم ژمارەیە پێشتر بەکارهاتووە لەلایەن:",
       "duplicateTitle": "ئەم ژمارە تەلەفۆنە پێشتر بەکارهاتووە",
       "duplicateBody": "هی {{names}}ە. هەر پاشەکەوت بکرێت؟",
-      "saveAnyway": "هەر پاشەکەوتی بکە"
+      "saveAnyway": "هەر پاشەکەوتی بکە",
+      "contactSection": "زانیاری پەیوەندی",
+      "contactSectionHint": "کڕیارەکە کێیە و چۆن پەیوەندی پێوە بکرێت",
+      "creditSection": "قەرز",
+      "creditSectionHint": "کڕیارەکە لە یەک کاتدا تا چەند دەتوانێت قەرزدار بێت"
     },
     "holdings": {
       "title": "پالێتەکانی لایان",

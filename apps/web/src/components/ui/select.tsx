@@ -49,7 +49,7 @@ export function SelectItem({ className, children, ...props }: React.ComponentPro
     <SelectPrimitive.Item
       data-slot="select-item"
       className={cn(
-        'focus:bg-accent focus:text-accent-foreground relative flex w-full cursor-default items-center gap-2 rounded-sm py-1.5 pe-8 ps-2 text-sm outline-none select-none',
+        'focus:bg-accent focus:text-accent-foreground relative flex w-full items-center gap-2 rounded-sm py-1.5 pe-8 ps-2 text-sm outline-none select-none',
         'data-[disabled]:pointer-events-none data-[disabled]:opacity-50',
         className,
       )}

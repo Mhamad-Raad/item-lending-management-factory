@@ -6,7 +6,7 @@ import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { toast } from 'sonner';
 import { z } from 'zod';
-import { ArchivedBadge } from '@/components/app/archived-badge';
+import { RecordStatusBadge } from '@/components/app/archived-badge';
 import { ConfirmDialog } from '@/components/app/confirm-dialog';
 import { DataTable, type DataColumn } from '@/components/app/data-table';
 import { DateText } from '@/components/app/date-text';
@@ -105,7 +105,7 @@ function DriversPage() {
     {
       id: 'status',
       header: 'drivers.fields.status',
-      cell: (driver) => (driver.archivedAt ? <ArchivedBadge /> : null),
+      cell: (driver) => <RecordStatusBadge archived={Boolean(driver.archivedAt)} />,
       mobile: 'badge',
     },
     ...(can.edit || can.archive

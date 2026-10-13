@@ -32,7 +32,7 @@ export function DropdownMenuItem({ className, ...props }: React.ComponentProps<t
     <DropdownMenuPrimitive.Item
       data-slot="dropdown-menu-item"
       className={cn(
-        'focus:bg-accent focus:text-accent-foreground relative flex h-10 cursor-default items-center gap-2 rounded-sm px-2 text-sm outline-none select-none md:h-9',
+        'focus:bg-accent focus:text-accent-foreground relative flex h-10 items-center gap-2 rounded-sm px-2 text-sm outline-none select-none md:h-9',
         'data-[disabled]:pointer-events-none data-[disabled]:opacity-50 [&_svg]:size-4 [&_svg]:shrink-0',
         className,
       )}
