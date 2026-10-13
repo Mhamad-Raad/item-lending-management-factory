@@ -9,6 +9,8 @@ interface NumericInputProps extends Omit<React.ComponentProps<'input'>, 'value' 
   value: number | null | undefined;
   onChange: (value: number | null) => void;
   allowNegative?: boolean;
+  /** A unit shown inside the box at its end, such as the currency, so the box says what it holds. */
+  suffix?: string;
 }
 
 function textOf(value: number | null | undefined): string {
@@ -20,7 +22,7 @@ function textOf(value: number | null | undefined): string {
  * Eastern digits and shows no separators. The box keeps its own text while the user types and
  * follows the form when the value changes from outside (a reset, a default).
  */
-function NumericInput({ value, onChange, allowNegative = false, className, ...props }: NumericInputProps) {
+function NumericInput({ value, onChange, allowNegative = false, suffix, className, ...props }: NumericInputProps) {
   const input = useRef<HTMLInputElement>(null);
   const caret = useRef<number | null>(null);
   const [text, setText] = useState(() => textOf(value));
@@ -37,7 +39,7 @@ function NumericInput({ value, onChange, allowNegative = false, className, ...pr
     caret.current = null;
   });
 
-  return (
+  const box = (
     <Input
       {...props}
       ref={input}
@@ -46,7 +48,7 @@ function NumericInput({ value, onChange, allowNegative = false, className, ...pr
       inputMode={allowNegative ? 'text' : 'numeric'}
       dir="ltr"
       autoComplete="off"
-      className={cn('tabular-nums', className)}
+      className={cn('tabular-nums', suffix ? 'pe-16' : className)}
       value={text}
       onChange={(event) => {
         const raw = event.target.value;
@@ -57,6 +59,20 @@ function NumericInput({ value, onChange, allowNegative = false, className, ...pr
         onChange(next.value);
       }}
     />
+  );
+  if (!suffix) return box;
+  // The digits read left to right in every language, so the unit sits at the box's right in all of them.
+  return (
+    // Sizing classes go on the wrapper, so the unit stays inside whatever width the box is given.
+    <div dir="ltr" className={cn('relative', className)}>
+      {box}
+      <span
+        className="text-muted-foreground pointer-events-none absolute inset-y-0 end-3 flex items-center text-sm"
+        aria-hidden
+      >
+        {suffix}
+      </span>
+    </div>
   );
 }
 

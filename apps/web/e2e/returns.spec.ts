@@ -107,6 +107,11 @@ async function mockReturns(page: Page, order: OrderDetailDto) {
 }
 
 const summary = (page: Page) => page.getByRole('complementary', { name: 'Summary' });
+/** Text as read, without the invisible isolation marks around amounts in a sentence. */
+const plain = (text: string | null) => (text ?? '').replace(/[\u2066-\u2069]/g, '');
+/** The summary's figure for a label, matched whole: "0 IQD" must not pass for "101,000 IQD". */
+const figure = (page: Page, label: string) => summary(page).getByText(label).locator('..').locator('dd');
+const exactly = (text: string) => new RegExp(`^\\P{N}*${text}\\P{N}*$`, 'u');
 const row = (page: Page) => page.getByRole('group', { name: new RegExp(ITEM_REF.name.slice(0, 12)) });
 
 test('daily flow 2: accepted pallets credit what is owed, live, and the return lands on its order', async ({
@@ -157,12 +162,16 @@ test('checks each row against the pallets out and the damage refund against its 
   await expect(refund).toBeDisabled();
   await row(page).getByLabel('Accepted').fill('99');
   await row(page).getByLabel('Damaged').fill('2');
+  await expect(row(page).getByRole('alert').filter({ hasText: '100' })).toBeVisible();
+  await expect(summary(page).getByRole('button', { name: 'Record return' })).toBeDisabled();
+
+  await row(page).getByLabel('Accepted').fill('98');
   await expect(refund).toBeEnabled();
   await refund.fill('2001');
-  await summary(page).getByRole('button', { name: 'Record return' }).click();
 
-  await expect(row(page).getByRole('alert').filter({ hasText: '100' })).toBeVisible();
+  // Over its maximum the refund is refused as it is typed, like a count over what is out (Q146).
   await expect(row(page).getByRole('alert').filter({ hasText: '2,000' })).toBeVisible();
+  await expect(summary(page).getByRole('button', { name: 'Record return' })).toBeDisabled();
   await expect(page).toHaveURL(/\/returns\/new/);
 });
 
@@ -221,6 +230,64 @@ test('without an order, the customer is picked and their orders with pallets out
   await expect(page).toHaveURL(/orderId=9/);
 });
 
+test('Q141: more than is out is refused as it is typed and prices nothing', async ({ page }) => {
+  const { sent } = await mockReturns(page, CASH);
+  await page.goto('/returns/new?orderId=9');
+
+  const accepted = row(page).getByLabel('Accepted');
+  const damaged = row(page).getByLabel('Damaged');
+  await accepted.fill('101');
+
+  await expect(row(page).getByRole('alert').filter({ hasText: 'At most 100 are out' })).toBeVisible();
+  await expect(accepted).toHaveAttribute('aria-invalid', 'true');
+  await expect(figure(page, 'Refund due')).toHaveText(exactly('0 IQD'));
+  await expect(figure(page, 'Still out after')).toHaveText(exactly('100'));
+  await expect(summary(page)).not.toContainText('Hand the customer');
+
+  // Accepted and damaged together count against what is out.
+  await accepted.fill('99');
+  await expect(row(page).getByRole('alert')).toHaveCount(0);
+  await expect(summary(page)).toContainText('Hand the customer 99,000 IQD now');
+  await damaged.fill('2');
+  await expect(row(page).getByRole('alert').filter({ hasText: 'At most 100 are out' })).toBeVisible();
+  await expect(damaged).toHaveAttribute('aria-invalid', 'true');
+  await expect(summary(page)).not.toContainText('Hand the customer');
+
+  // Nothing over what is out can be sent: Record return is off until the row is fixed.
+  const record = summary(page).getByRole('button', { name: 'Record return' });
+  await expect(record).toBeDisabled();
+  expect(sent).toHaveLength(0);
+
+  await damaged.fill('1');
+  await expect(row(page).getByRole('alert')).toHaveCount(0);
+  await expect(record).toBeEnabled();
+  await expect(figure(page, 'Still out after')).toHaveText(exactly('0'));
+  await expect(summary(page)).toContainText('Hand the customer 99,000 IQD now');
+});
+
+test('Q141: while one row is over, the others price but nothing is to be handed over', async ({ page }) => {
+  const other = { ...LINE, id: 22, item: { ...ITEM_REF, id: 6, name: 'Half pallet' } };
+  // Paid in full for both lines, so whatever comes back is paid out.
+  await mockReturns(page, {
+    ...CASH,
+    lines: [LINE, other],
+    depositTotal: 200_000,
+    outValue: 200_000,
+    outQuantityTotal: 200,
+    paymentsNet: 200_000,
+    held: 200_000,
+    ledgerEntries: [{ ...PAYMENT, type: 'PAYMENT', source: 'ORDER_CREATE', isAutomatic: true, amount: 200_000 }],
+  });
+  await page.goto('/returns/new?orderId=9');
+
+  await page.getByRole('group', { name: 'Half pallet' }).getByLabel('Accepted').fill('10');
+  await expect(summary(page)).toContainText('Hand the customer 10,000 IQD now');
+  await row(page).getByLabel('Accepted').fill('101');
+
+  await expect(figure(page, 'Refund due')).toHaveText(exactly('10,000 IQD'));
+  await expect(summary(page)).not.toContainText('Hand the customer');
+});
+
 test('a return the server finds too large keeps the rows typed and marks the row', async ({ page }) => {
   await mockReturns(page, LENT);
   let refused = false;
@@ -258,6 +325,7 @@ test('a return the server finds too large keeps the rows typed and marks the row
   await page.waitForTimeout(500);
   await expect(row(page).getByRole('alert').filter({ hasText: '70' })).toBeVisible();
   await expect(row(page).getByLabel('Accepted')).toHaveValue('80');
+  await expect(summary(page).getByRole('button', { name: 'Record return' })).toBeDisabled();
 });
 
 test('a cleared date is refused, not recorded as today', async ({ page }) => {
@@ -321,7 +389,11 @@ test('a reloaded order with a line removed keeps each typed row on its own line'
   await expect(page.locator('fieldset')).toHaveCount(1);
   await expect(half.getByLabel('Accepted')).toHaveValue('50');
   await expect(half.getByRole('alert').filter({ hasText: '40' })).toBeVisible();
-  await expect(summary(page).getByText('Refund due').locator('..')).toContainText('50,000');
+  // Over what is out now, the row prices nothing (Q141); within it, it prices on its own line.
+  await expect(figure(page, 'Refund due')).toHaveText(exactly('0 IQD'));
+  await half.getByLabel('Accepted').fill('40');
+  await expect(half.getByRole('alert')).toHaveCount(0);
+  await expect(figure(page, 'Refund due')).toHaveText(exactly('40,000 IQD'));
 });
 
 test('a saved correction goes to its order without first saying the return cannot be corrected', async ({ page }) => {
@@ -396,4 +468,42 @@ test('Q137: a return that leaves something owed has no refund, so its toast offe
   const toast = page.locator('[data-sonner-toast]').filter({ hasText: 'Return recorded on order' });
   await expect(toast).toBeVisible();
   await expect(toast.getByRole('button', { name: 'Print money receipt' })).toHaveCount(0);
+});
+
+test('Q146: the damage refund reads as money and says what it does with the deposit', async ({ page }) => {
+  await mockReturns(page, LENT);
+  await page.goto('/returns/new?orderId=9');
+
+  const refund = row(page).getByLabel('Damage refund');
+  // The currency sits inside the box: an amount, not a count.
+  await expect(refund.locator('..')).toContainText('IQD');
+  await expect(row(page).getByText(/Of their .* deposit/)).toHaveCount(0);
+
+  await row(page).getByLabel('Damaged').fill('2');
+  const split = row(page).getByText(/Of their .* deposit/);
+  await expect
+    .poll(async () => plain(await split.textContent()))
+    .toBe('Of their 2,000 IQD deposit, 0 IQD is refunded and 2,000 IQD is kept for the damage.');
+  await expect(refund).toHaveAccessibleDescription(/Of their \W?2,000 IQD\W? deposit/);
+
+  await refund.fill('500');
+  await expect
+    .poll(async () => plain(await split.textContent()))
+    .toBe('Of their 2,000 IQD deposit, 500 IQD is refunded and 1,500 IQD is kept for the damage.');
+  await expect(figure(page, 'Refund due')).toHaveText(exactly('500 IQD'));
+  await expect(figure(page, 'Compensation assessed')).toHaveText(exactly('1,500 IQD'));
+
+  // Over the deposit, the error replaces the split at once, prices nothing, and nothing can be sent.
+  await refund.fill('2001');
+  await expect(row(page).getByRole('alert').filter({ hasText: '2,000' })).toBeVisible();
+  await expect(split).toHaveCount(0);
+  await expect(figure(page, 'Refund due')).toHaveText(exactly('0 IQD'));
+  await expect(summary(page).getByRole('button', { name: 'Record return' })).toBeDisabled();
+  // Back within it, the error goes and the split returns.
+  await refund.fill('2000');
+  await expect(row(page).getByRole('alert')).toHaveCount(0);
+  await expect(split).toBeVisible();
+  // A row over what is out explains nothing: it prices nothing.
+  await row(page).getByLabel('Accepted').fill('99');
+  await expect(split).toHaveCount(0);
 });

@@ -1145,7 +1145,8 @@
       "stillOwes": "ما زال على الزبون {{amount}}",
       "notReplaceable": "لم يعد بالإمكان تصحيح هذا الإرجاع",
       "backToOrder": "العودة إلى الطلب",
-      "nothingOut": "لا شيء لدى الزبون من هذا الطلب"
+      "nothingOut": "لا شيء لدى الزبون من هذا الطلب",
+      "damageSplit": "تأمينها {{deposit}}: يُردّ منه {{refund}} ويُحتجز {{kept}} تعويضاً عن التلف."
     }
   },
   "reports": {

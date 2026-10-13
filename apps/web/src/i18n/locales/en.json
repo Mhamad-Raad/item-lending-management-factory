@@ -1145,7 +1145,8 @@
       "stillOwes": "The customer still owes {{amount}}",
       "notReplaceable": "This return can no longer be corrected",
       "backToOrder": "Back to the order",
-      "nothingOut": "Nothing is out on this order"
+      "nothingOut": "Nothing is out on this order",
+      "damageSplit": "Of their {{deposit}} deposit, {{refund}} is refunded and {{kept}} is kept for the damage."
     }
   },
   "reports": {

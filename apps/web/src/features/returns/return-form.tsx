@@ -13,7 +13,7 @@ import { Controller, useForm, useWatch } from 'react-hook-form';
 import { useTranslation } from 'react-i18next';
 import { toast } from 'sonner';
 import { DateField } from '@/components/app/date-field';
-import { Field, FieldError, FieldLabel } from '@/components/app/field';
+import { Field, FieldDescription, FieldError, FieldLabel } from '@/components/app/field';
 import { MoneyText } from '@/components/app/money-text';
 import { MoneyInput, QuantityInput } from '@/components/app/numeric-input';
 import { QuantityText } from '@/components/app/quantity-text';
@@ -29,6 +29,7 @@ import { apiFetch } from '@/lib/api-client';
 import { detailsOf, isApiError } from '@/lib/api-error';
 import { handleApiError } from '@/lib/errors';
 import { qk } from '@/lib/query-keys';
+import { isolate } from '@/lib/bidi';
 import { encodeValidationMessage } from '@/lib/validation-message';
 import { isStandingRefundOf, returnBaseline, returnSummary } from './return-math';
 
@@ -95,21 +96,38 @@ export function ReturnForm({ order, replaceReturnId }: { order: OrderDetailDto; 
       damagedRefund: count(row?.damagedRefund ?? null),
     };
   };
-  const lines = order.lines
-    .map((line) => ({ line, key: rowKey(line.id), out: outOf(line.id) }))
-    .filter(({ line, out }) => out > 0 || rowOf(line.id).accepted + rowOf(line.id).damaged > 0);
   const errors = form.formState.errors;
-  const priced = lines.map(({ line }) => ({
-    acceptedQuantity: rowOf(line.id).accepted,
-    damagedQuantity: rowOf(line.id).damaged,
-    damagedRefund: rowOf(line.id).damagedRefund,
+  const lines = order.lines
+    .map((line) => {
+      const key = rowKey(line.id);
+      const row = rowOf(line.id);
+      const out = outOf(line.id);
+      const returning = row.accepted + row.damaged;
+      // Over what is out here, or refused as over by the server for an order not yet reloaded (Q141).
+      const overOut = returning > out || Boolean(errors.rows?.[key]?.accepted);
+      // The most a damage refund can give back: the whole deposit on the damaged pallets (Q146).
+      const maximum = row.damaged * line.unitDeposit;
+      const refundOver = row.damagedRefund > maximum || Boolean(errors.rows?.[key]?.damagedRefund);
+      return { line, key, row, out, returning, overOut, maximum, refundOver, invalid: overOut || refundOver };
+    })
+    .filter(({ out, returning }) => out > 0 || returning > 0);
+  // A row asking back more than is out, or refunding more than its damaged pallets' deposit, is refused as it is
+  // typed and prices nothing: the summary never offers a figure the server would refuse (Q141, Q146).
+  const priced = lines.map(({ line, row, invalid }) => ({
+    acceptedQuantity: invalid ? 0 : row.accepted,
+    damagedQuantity: invalid ? 0 : row.damaged,
+    damagedRefund: invalid ? 0 : row.damagedRefund,
     unitDeposit: line.unitDeposit,
   }));
   const summary = returnSummary(base, priced);
+  // Nothing can be recorded while a row is refused, so nothing is to be handed over or owed yet.
+  const anyInvalid = lines.some(({ invalid }) => invalid);
 
   const exceedsOut = (limit: number) => encodeValidationMessage('returnExceedsOut', { out: limit });
   const refundTooHigh = (maximum: number) =>
     encodeValidationMessage('damagedRefundTooHigh', { maximum: formatMoney(maximum) });
+  // An amount with its currency, kept whole inside a right-to-left sentence.
+  const money = (amount: number): string => isolate(`${formatMoney(amount)} ${t('common.currency')}`);
   const hasLine = (orderLineId: number): boolean => order.lines.some((line) => line.id === orderLineId);
 
   const record = useFlowMutation({
@@ -159,6 +177,8 @@ export function ReturnForm({ order, replaceReturnId }: { order: OrderDetailDto; 
           form.setError(`rows.${rowKey(refund.orderLineId)}.damagedRefund`, {
             message: refundTooHigh(refund.maximum),
           });
+          // The line's deposit may have changed meanwhile: the live check needs the order as it is now.
+          void queryClient.invalidateQueries({ queryKey: qk.orders.detail(order.id) });
           return;
         }
       }
@@ -221,7 +241,8 @@ export function ReturnForm({ order, replaceReturnId }: { order: OrderDetailDto; 
   };
 
   const submitButton = (
-    <Button type="submit" form="new-return" disabled={record.isPending}>
+    // A refused row cannot be recorded, so it cannot be sent either (Q141, Q146).
+    <Button type="submit" form="new-return" disabled={record.isPending || anyInvalid}>
       {record.isPending ? <Loader2 className="size-4 animate-spin" aria-hidden /> : null}
       {t(replaced ? 'returns.new.submitReplace' : 'returns.new.submit')}
     </Button>
@@ -243,9 +264,14 @@ export function ReturnForm({ order, replaceReturnId }: { order: OrderDetailDto; 
                 {t('returns.new.everythingAccepted')}
               </Button>
             </div>
-            {lines.map(({ line, key, out: lineOut }) => {
-              const damaged = rowOf(line.id).damaged;
+            {lines.map(({ line, key, row, out: lineOut, overOut, maximum, refundOver }) => {
+              const damaged = row.damaged;
               const rowErrors = errors.rows?.[key];
+              const acceptedError = rowErrors?.accepted?.message ?? (overOut ? exceedsOut(lineOut) : undefined);
+              const refundError =
+                rowErrors?.damagedRefund?.message ?? (refundOver ? refundTooHigh(maximum) : undefined);
+              // A count changed settles what a save or the server said about the old one.
+              const countChanged = (): void => form.clearErrors(`rows.${key}.accepted`);
               return (
                 <fieldset key={line.id} className="flex flex-col gap-3 rounded-md border p-3">
                   <legend className="sr-only">{line.item.name}</legend>
@@ -276,13 +302,16 @@ export function ReturnForm({ order, replaceReturnId }: { order: OrderDetailDto; 
                           <QuantityInput
                             id={`accepted-${line.id}`}
                             value={field.value}
-                            onChange={field.onChange}
-                            aria-invalid={Boolean(rowErrors?.accepted)}
+                            onChange={(next) => {
+                              field.onChange(next);
+                              countChanged();
+                            }}
+                            aria-invalid={Boolean(acceptedError)}
                             aria-describedby={`accepted-${line.id}-error`}
                           />
                         )}
                       />
-                      <FieldError id={`accepted-${line.id}-error`} message={rowErrors?.accepted?.message} />
+                      <FieldError id={`accepted-${line.id}-error`} message={acceptedError} />
                     </Field>
                     <Field>
                       <FieldLabel htmlFor={`damaged-${line.id}`}>{t('returns.fields.damaged')}</FieldLabel>
@@ -295,9 +324,14 @@ export function ReturnForm({ order, replaceReturnId }: { order: OrderDetailDto; 
                             value={field.value}
                             onChange={(next) => {
                               field.onChange(next);
+                              countChanged();
+                              // The refund's maximum moves with the damaged count.
+                              form.clearErrors(`rows.${key}.damagedRefund`);
                               // No damaged pallets, nothing to refund for them.
                               if (!next) form.setValue(`rows.${key}.damagedRefund`, 0);
                             }}
+                            aria-invalid={Boolean(acceptedError)}
+                            aria-describedby={`accepted-${line.id}-error`}
                           />
                         )}
                       />
@@ -311,14 +345,28 @@ export function ReturnForm({ order, replaceReturnId }: { order: OrderDetailDto; 
                           <MoneyInput
                             id={`refund-${line.id}`}
                             value={field.value}
-                            onChange={field.onChange}
+                            onChange={(next) => {
+                              field.onChange(next);
+                              form.clearErrors(`rows.${key}.damagedRefund`);
+                            }}
                             disabled={damaged === 0}
-                            aria-invalid={Boolean(rowErrors?.damagedRefund)}
-                            aria-describedby={`refund-${line.id}-error`}
+                            suffix={t('common.currency')}
+                            aria-invalid={Boolean(refundError)}
+                            aria-describedby={`refund-${line.id}-split refund-${line.id}-error`}
                           />
                         )}
                       />
-                      <FieldError id={`refund-${line.id}-error`} message={rowErrors?.damagedRefund?.message} />
+                      <FieldError id={`refund-${line.id}-error`} message={refundError} />
+                      {/* What the amount does: given back out of these pallets' deposit, the rest kept (Q146). */}
+                      {damaged > 0 && !overOut && !refundOver ? (
+                        <FieldDescription id={`refund-${line.id}-split`}>
+                          {t('returns.new.damageSplit', {
+                            deposit: money(maximum),
+                            refund: money(row.damagedRefund),
+                            kept: money(maximum - row.damagedRefund),
+                          })}
+                        </FieldDescription>
+                      ) : null}
                     </Field>
                   </div>
                 </fieldset>
@@ -341,8 +389,9 @@ export function ReturnForm({ order, replaceReturnId }: { order: OrderDetailDto; 
 
       <SummaryPanel
         title={t('returns.new.summary')}
-        keyLabel={t(summary.cashRefund > 0 ? 'returns.new.cashRefund' : 'returns.new.refundDue')}
-        keyFigure={<MoneyText value={summary.cashRefund > 0 ? summary.cashRefund : summary.refundDue} />}
+        // The phone's bar names cash only when this return can be recorded and pays some out.
+        keyLabel={t(!anyInvalid && summary.cashRefund > 0 ? 'returns.new.cashRefund' : 'returns.new.refundDue')}
+        keyFigure={<MoneyText value={!anyInvalid && summary.cashRefund > 0 ? summary.cashRefund : summary.refundDue} />}
         submit={submitButton}
       >
         <dl className="flex flex-col gap-3 text-sm">
@@ -361,7 +410,7 @@ export function ReturnForm({ order, replaceReturnId }: { order: OrderDetailDto; 
             </div>
           ))}
         </dl>
-        {summary.cashRefund > 0 ? (
+        {anyInvalid ? null : summary.cashRefund > 0 ? (
           <p className="bg-success/12 text-success flex items-center gap-2 rounded-md p-3 font-semibold dark:bg-success/20">
             <HandCoins className="size-5 shrink-0" aria-hidden />
             {t('returns.new.cashHandover', { amount: formatMoney(summary.cashRefund) })}
