@@ -13,9 +13,9 @@ import { Thumbnail } from '@/components/app/thumbnail';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Tip } from '@/components/app/tip';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { printTransactionsReceipt } from '@/features/receipt/print-receipt';
 import { PrintMoneyReceiptButton } from '@/features/receipt/print-money-receipt-button';
+import { scrollToAnchor } from '@/lib/scroll-to-anchor';
 import { cn } from '@/lib/utils';
 import { ActorName } from '@/components/app/actor-name';
 
@@ -86,9 +86,41 @@ export function OrderLinesTable({ order }: { order: OrderDetailDto }) {
   );
 }
 
+/** A damaged count, in red when there is one. */
+function DamagedCount({ value }: { value: number }) {
+  return (
+    <span className={cn(value > 0 && 'text-destructive font-medium')}>
+      <QuantityText value={value} />
+    </span>
+  );
+}
+
+/** One line per returned item, the same height in every column, so a return's items read across the row. */
+function ReturnLines({
+  pr,
+  cell,
+  end = false,
+}: {
+  pr: ReturnDto;
+  cell: (line: ReturnDto['lines'][number]) => React.ReactNode;
+  /** Numbers sit at the column's end, as its header does. */
+  end?: boolean;
+}) {
+  return (
+    <ul className="flex flex-col">
+      {pr.lines.map((line) => (
+        <li key={line.id} className={cn('flex h-8 items-center whitespace-nowrap', end && 'justify-end')}>
+          {cell(line)}
+        </li>
+      ))}
+    </ul>
+  );
+}
+
 /**
- * One card per return, newest first; reversed ones only when asked for (§7.3.6). A standing return
- * offers its edit and delete when `actions` allows them, as icon buttons at the end of its header (Q54).
+ * The order's returns as a table, newest first; reversed ones only when asked for (§7.3.6). Each return is a
+ * row whose item, accepted and damaged cells list its items line by line. A standing return offers its edit
+ * and delete when `actions` allows them (Q54); a corrected one links to the return that replaced it.
  */
 export function OrderReturns({
   returns,
@@ -100,6 +132,185 @@ export function OrderReturns({
   const { t } = useTranslation();
   const [showReversed, setShowReversed] = useState(false);
   const visible = [...returns].reverse().filter((pr) => showReversed || !pr.reversed);
+  const hasActions = Boolean(actions?.edit || actions?.onDelete);
+  // Most returns refund nothing for damage: the column shows only when one of them does — any of them, so
+  // "Show reversed" never adds or takes away a column.
+  const hasDamagedRefund = returns.some((pr) => pr.lines.some((line) => line.damagedRefund > 0));
+
+  const columns: DataColumn<ReturnDto>[] = [
+    {
+      id: 'date',
+      header: 'orders.money.date',
+      cell: (pr) => (
+        <span className="flex flex-wrap items-center gap-2">
+          <span dir="ltr" className="text-muted-foreground">
+            #{pr.id}
+          </span>
+          <DateText value={pr.date} />
+          {pr.reversed ? (
+            <Badge variant="secondary">
+              <Ban aria-hidden />
+              {t('orders.detail.reversed')}
+            </Badge>
+          ) : null}
+          {pr.replacedByReturnId ? (
+            <button
+              type="button"
+              className="text-primary text-sm underline-offset-4 hover:underline"
+              // Scrolls to the replacement's row or card, whichever this width shows; no hash for the router to keep.
+              onClick={() => scrollToAnchor(`return-${pr.replacedByReturnId}`)}
+            >
+              {t('orders.detail.replacedBy', { id: pr.replacedByReturnId })}
+            </button>
+          ) : null}
+        </span>
+      ),
+      mobile: 'title',
+    },
+    {
+      id: 'item',
+      header: 'orders.lines.item',
+      cell: (pr) => (
+        <ReturnLines
+          pr={pr}
+          cell={(line) => (
+            // A long name is cut, not wrapped: each line must stay the height of its counts beside it.
+            <bdi className="block max-w-60 truncate font-medium" title={line.item.name}>
+              {line.item.name}
+            </bdi>
+          )}
+        />
+      ),
+      // On a card the item and its counts share a line: three narrow columns do not fit.
+      mobileCell: (pr) => (
+        <ul className="flex flex-col gap-1">
+          {pr.lines.map((line) => (
+            <li key={line.id} className="flex flex-wrap gap-x-4">
+              <bdi className="font-medium">{line.item.name}</bdi>
+              <span>
+                {t('orders.detail.returnAccepted')}: <QuantityText value={line.acceptedQuantity} />
+              </span>
+              <span>
+                {t('orders.detail.returnDamaged')}: <DamagedCount value={line.damagedQuantity} />
+              </span>
+              {line.damagedRefund > 0 ? (
+                <span>
+                  {t('orders.detail.damagedRefund')}: <MoneyText value={line.damagedRefund} />
+                </span>
+              ) : null}
+            </li>
+          ))}
+        </ul>
+      ),
+      mobile: 'subtitle',
+    },
+    {
+      id: 'accepted',
+      header: 'orders.detail.returnAccepted',
+      cell: (pr) => <ReturnLines pr={pr} end cell={(line) => <QuantityText value={line.acceptedQuantity} />} />,
+      align: 'end',
+      mobile: 'hidden',
+    },
+    {
+      id: 'damaged',
+      header: 'orders.detail.returnDamaged',
+      cell: (pr) => <ReturnLines pr={pr} end cell={(line) => <DamagedCount value={line.damagedQuantity} />} />,
+      align: 'end',
+      mobile: 'hidden',
+    },
+    ...(hasDamagedRefund
+      ? [
+          {
+            id: 'damagedRefund',
+            header: 'orders.detail.damagedRefund',
+            cell: (pr: ReturnDto) =>
+              pr.lines.some((line) => line.damagedRefund > 0) ? (
+                <ReturnLines
+                  pr={pr}
+                  end
+                  cell={(line) => (line.damagedRefund > 0 ? <MoneyText value={line.damagedRefund} /> : '—')}
+                />
+              ) : (
+                '—'
+              ),
+            align: 'end',
+            // On a card each refund sits on its item's line instead.
+            mobile: 'hidden',
+          } satisfies DataColumn<ReturnDto>,
+        ]
+      : []),
+    {
+      id: 'refundDue',
+      header: 'orders.detail.refundDue',
+      cell: (pr) => <MoneyText value={pr.refundDue} />,
+      align: 'end',
+      mobile: 'figure',
+    },
+    {
+      id: 'cashRefund',
+      header: 'orders.detail.cashRefund',
+      cell: (pr) => <MoneyText value={pr.cashRefund} />,
+      align: 'end',
+      mobile: 'figure',
+    },
+    {
+      id: 'notes',
+      header: 'orders.money.note',
+      cell: (pr) => (pr.notes ? <bdi>{pr.notes}</bdi> : '—'),
+      mobileCell: (pr) => (pr.notes ? <bdi>{pr.notes}</bdi> : null),
+      wrap: true,
+      mobile: 'meta',
+    },
+    {
+      id: 'createdBy',
+      header: 'orders.money.createdBy',
+      cell: (pr) => (
+        <span className="flex flex-col">
+          <ActorName user={pr.createdBy} />
+          <span className="text-muted-foreground text-sm">
+            <DateText value={pr.createdAt} withTime />
+          </span>
+        </span>
+      ),
+      mobileCell: (pr) => (
+        <span>
+          <ActorName user={pr.createdBy} /> · <DateText value={pr.createdAt} withTime />
+        </span>
+      ),
+      wrap: true,
+      mobile: 'footer',
+    },
+    ...(hasActions
+      ? [
+          {
+            id: 'actions',
+            header: 'common.actions.title',
+            align: 'end',
+            mobile: 'actions',
+            // Nothing on a reversed return, so its card shows no empty "Actions" (Q66).
+            cell: (pr: ReturnDto) =>
+              pr.reversed ? null : (
+                <div className="flex items-center justify-end gap-1">
+                  {actions?.edit?.(pr)}
+                  {actions?.onDelete ? (
+                    <Tip label={t('orders.detail.deleteReturn')}>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        aria-label={t('orders.detail.deleteReturn')}
+                        className="text-muted-foreground hover:text-destructive"
+                        onClick={() => actions.onDelete?.(pr)}
+                      >
+                        <Trash2 aria-hidden />
+                      </Button>
+                    </Tip>
+                  ) : null}
+                </div>
+              ),
+          } satisfies DataColumn<ReturnDto>,
+        ]
+      : []),
+  ];
 
   return (
     <section className="flex flex-col gap-3">
@@ -114,95 +325,15 @@ export function OrderReturns({
           />
         ) : null}
       </div>
-      {visible.length === 0 ? (
-        <EmptyState icon={Undo2} title={t('orders.detail.noReturns')} />
-      ) : (
-        visible.map((pr) => (
-          <Card key={pr.id} id={`return-${pr.id}`} className={cn('scroll-mt-20', pr.reversed && 'opacity-60')}>
-            <CardHeader className="flex flex-row flex-wrap items-center gap-2">
-              <CardTitle className="flex items-center gap-2 text-base">
-                <span dir="ltr" className="text-muted-foreground font-normal">
-                  #{pr.id}
-                </span>
-                <DateText value={pr.date} />
-              </CardTitle>
-              {pr.reversed ? (
-                <Badge variant="secondary">
-                  <Ban aria-hidden />
-                  {t('orders.detail.reversed')}
-                </Badge>
-              ) : null}
-              {pr.replacedByReturnId ? (
-                <a
-                  href={`#return-${pr.replacedByReturnId}`}
-                  className="text-primary text-sm underline-offset-4 hover:underline"
-                  onClick={(event) => {
-                    // Scroll to the replacement without handing the router a hash it would keep.
-                    event.preventDefault();
-                    document.getElementById(`return-${pr.replacedByReturnId}`)?.scrollIntoView({ block: 'start' });
-                  }}
-                >
-                  {t('orders.detail.replacedBy', { id: pr.replacedByReturnId })}
-                </a>
-              ) : null}
-              {!pr.reversed && (actions?.edit || actions?.onDelete) ? (
-                <div className="ms-auto flex items-center gap-1">
-                  {actions.edit?.(pr)}
-                  {actions.onDelete ? (
-                    <Tip label={t('orders.detail.deleteReturn')}>
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        aria-label={t('orders.detail.deleteReturn')}
-                        className="text-muted-foreground hover:text-destructive"
-                        onClick={() => actions.onDelete?.(pr)}
-                      >
-                        <Trash2 aria-hidden />
-                      </Button>
-                    </Tip>
-                  ) : null}
-                </div>
-              ) : null}
-            </CardHeader>
-            <CardContent className="flex flex-col gap-2 text-sm">
-              <ul className="flex flex-col gap-1">
-                {pr.lines.map((line) => (
-                  <li key={line.id} className="flex flex-wrap gap-x-4">
-                    <bdi className="font-medium">{line.item.name}</bdi>
-                    <span>
-                      {t('orders.detail.returnAccepted')}: <QuantityText value={line.acceptedQuantity} />
-                    </span>
-                    <span>
-                      {t('orders.detail.returnDamaged')}: <QuantityText value={line.damagedQuantity} />
-                    </span>
-                    {line.damagedRefund > 0 ? (
-                      <span>
-                        {t('orders.detail.damagedRefund')}: <MoneyText value={line.damagedRefund} />
-                      </span>
-                    ) : null}
-                  </li>
-                ))}
-              </ul>
-              <div className="flex flex-wrap gap-x-6">
-                <span>
-                  {t('orders.detail.refundDue')}: <MoneyText value={pr.refundDue} />
-                </span>
-                <span>
-                  {t('orders.detail.cashRefund')}: <MoneyText value={pr.cashRefund} />
-                </span>
-              </div>
-              {pr.notes ? (
-                <p className="text-muted-foreground">
-                  <bdi>{pr.notes}</bdi>
-                </p>
-              ) : null}
-              <p className="text-muted-foreground text-xs">
-                <ActorName user={pr.createdBy} /> · <DateText value={pr.createdAt} withTime />
-              </p>
-            </CardContent>
-          </Card>
-        ))
-      )}
+      <DataTable
+        label={t('orders.detail.returns')}
+        columns={columns}
+        rows={visible}
+        rowKey={(pr) => pr.id}
+        rowAnchor={(pr) => `return-${pr.id}`}
+        rowMuted={(pr) => pr.reversed}
+        empty={<EmptyState icon={Undo2} title={t('orders.detail.noReturns')} />}
+      />
     </section>
   );
 }

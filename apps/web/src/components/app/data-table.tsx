@@ -44,6 +44,13 @@ interface DataTableProps<T> {
   columns: DataColumn<T>[];
   rows: T[];
   rowKey: (row: T) => string | number;
+  /**
+   * A name other parts of the page scroll to (`data-anchor`, see `lib/scroll-to-anchor.ts`): the row and its card
+   * both carry it, as only one of them is shown at a time.
+   */
+  rowAnchor?: (row: T) => string;
+  /** A row that no longer counts, such as one reversed: drawn faded. */
+  rowMuted?: (row: T) => boolean;
   /** Wraps the first cell in the row's link: the tab stop, and what a click anywhere on the row opens. */
   rowLink?: (row: T, children: React.ReactNode) => React.ReactNode;
   /**
@@ -77,6 +84,13 @@ const STAY = (): void => undefined;
 
 /** A row motion can fade in and out. */
 const MotionTableRow = motion.create(TableRow);
+
+/**
+ * A `rowMuted` row's opacity. An animated list sets it as motion's target, since motion writes `opacity` inline
+ * and a class could not override it; a plain one through `MUTED_CLASS`, which must say the same.
+ */
+const MUTED_OPACITY = 0.6;
+const MUTED_CLASS = 'opacity-60';
 
 /** §7.14: row animations only up to this many rows. */
 const ROW_ANIMATION_LIMIT = 50;
@@ -118,6 +132,8 @@ export function DataTable<T>({
   columns,
   rows,
   rowKey,
+  rowAnchor,
+  rowMuted,
   rowLink,
   total = rows.length,
   page = 1,
@@ -148,14 +164,15 @@ export function DataTable<T>({
   const replacements = useReplacements(rows.map(rowKey));
   const Row = animated ? MotionTableRow : TableRow;
   const Card = animated ? motion.li : 'li';
-  const rowMotion = animated
-    ? {
-        initial: { opacity: 0, y: 4 },
-        animate: { opacity: 1, y: 0 },
-        exit: { opacity: 0 },
-        transition: { duration: DURATION.fast },
-      }
-    : {};
+  const rowMotion = (row: T) =>
+    animated
+      ? {
+          initial: { opacity: 0, y: 4 },
+          animate: { opacity: rowMuted?.(row) ? MUTED_OPACITY : 1, y: 0 },
+          exit: { opacity: 0 },
+          transition: { duration: DURATION.fast },
+        }
+      : {};
   const [firstColumn] = columns;
   const renderCell = (column: DataColumn<T>, row: T): React.ReactNode => {
     const value = isolated(column.cell(row));
@@ -239,8 +256,13 @@ export function DataTable<T>({
                   {rows.map((row) => (
                     <Row
                       key={rowKey(row)}
-                      {...rowMotion}
-                      className={cn(rowLink && 'cursor-pointer')}
+                      {...rowMotion(row)}
+                      data-anchor={rowAnchor?.(row)}
+                      className={cn(
+                        rowAnchor && 'scroll-mt-20',
+                        rowLink && 'cursor-pointer',
+                        rowMuted?.(row) && MUTED_CLASS,
+                      )}
                       onClick={rowLink ? openRowLink : undefined}
                     >
                       {columns.map((column) => (
@@ -269,10 +291,13 @@ export function DataTable<T>({
                 return (
                   <Card
                     key={rowKey(row)}
-                    {...rowMotion}
+                    {...rowMotion(row)}
+                    data-anchor={rowAnchor?.(row)}
                     className={cn(
                       'bg-card flex flex-col gap-2 rounded-xl border p-4 shadow-sm',
+                      rowAnchor && 'scroll-mt-20',
                       rowLink && 'hover:border-primary/40 cursor-pointer transition-colors',
+                      rowMuted?.(row) && MUTED_CLASS,
                     )}
                     onClick={rowLink ? openRowLink : undefined}
                   >

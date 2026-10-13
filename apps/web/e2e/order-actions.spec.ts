@@ -215,13 +215,91 @@ test('a settled cash order has nothing to return or pay', async ({ page }) => {
   await expect(page.getByRole('link', { name: 'Record payment' })).toHaveCount(0);
 });
 
-test('a corrected return names its replacement as a link to it', async ({ page }) => {
-  const replacement: ReturnDto = { ...RETURN, id: 6, replacesReturnId: 5 };
-  const old: ReturnDto = { ...RETURN, reversed: true, reversalKind: 'EDIT', replacedByReturnId: 6, canReverse: false };
-  await openOrder(page, { ...ACTIVE, returns: [old, replacement] });
+for (const [width, layout] of [
+  [1280, 'table'],
+  [390, 'cards'],
+] as const) {
+  test(`a corrected return names its replacement as a link to it (${layout})`, async ({ page }) => {
+    await page.setViewportSize({ width, height: 700 });
+    const replacement: ReturnDto = { ...RETURN, id: 6, replacesReturnId: 5 };
+    const old: ReturnDto = {
+      ...RETURN,
+      reversed: true,
+      reversalKind: 'EDIT',
+      replacedByReturnId: 6,
+      canReverse: false,
+    };
+    // Newest first: the corrected return heads the list and its replacement is last, below eight others, out
+    // of view until the link is followed.
+    const between = [11, 12, 13, 14, 15, 16, 17, 18].map((id) => ({ ...RETURN, id }));
+    await openOrder(page, { ...ACTIVE, returns: [replacement, ...between, old] });
 
-  await page.getByRole('radio', { name: 'Show reversed' }).click();
-  await page.getByRole('link', { name: 'Replaced by return #6' }).click();
+    await page.getByRole('radio', { name: 'Show reversed' }).click();
+    // The corrected return is faded, after its fade-in has settled (motion writes the opacity inline).
+    await expect(page.locator('[data-anchor="return-5"]').locator('visible=true')).toHaveCSS('opacity', '0.6');
+    const target = page.locator('[data-anchor="return-6"]').locator('visible=true');
+    await expect(target).toHaveCount(1);
+    const link = page.getByRole('button', { name: 'Replaced by return #6' });
+    await link.scrollIntoViewIfNeeded();
+    await expect(target).not.toBeInViewport();
+    await link.click();
 
-  await expect(page.locator('#return-6')).toBeInViewport();
+    await expect(target).toBeInViewport();
+  });
+}
+
+test('returns read as a table: a row per return, its items line by line with their counts', async ({ page }) => {
+  const other = { ...ITEM_REF, id: 6, name: 'Half pallet' };
+  const two: ReturnDto = {
+    ...RETURN,
+    id: 7,
+    notes: 'Two broken',
+    cashRefund: 5_000,
+    lines: [
+      { ...(RETURN.lines[0] as ReturnDto['lines'][number]), acceptedQuantity: 12 },
+      {
+        ...(RETURN.lines[0] as ReturnDto['lines'][number]),
+        id: 2,
+        orderLineId: 22,
+        item: other,
+        acceptedQuantity: 3,
+        damagedQuantity: 2,
+        damagedRefund: 1_500,
+      },
+    ],
+  };
+  await openOrder(page, { ...ACTIVE, returns: [RETURN, two] });
+
+  const table = page.getByRole('table', { name: 'Returns' });
+  await expect(table.getByRole('columnheader')).toHaveText([
+    'Date',
+    'Item',
+    'Accepted',
+    'Damaged',
+    'Damage refund',
+    'Refund due',
+    'Paid back in cash',
+    'Note',
+    'By',
+    'Actions',
+  ]);
+  const rows = table.locator('tbody tr');
+  await expect(rows).toHaveCount(2);
+  // Newest first; each item on its own line, in the same place in every column.
+  const newest = rows.first();
+  await expect(newest.getByRole('cell').nth(0)).toContainText('#7');
+  await expect(newest.getByRole('cell').nth(1).locator('li')).toHaveText([ITEM_REF.name, 'Half pallet']);
+  await expect(newest.getByRole('cell').nth(2).locator('li')).toHaveText(['12', '3']);
+  await expect(newest.getByRole('cell').nth(3).locator('li')).toHaveText(['0', '2']);
+  await expect(newest.getByRole('cell').nth(4).locator('li')).toHaveText(['—', '1,500 IQD']);
+  await expect(newest.getByRole('cell').nth(6)).toHaveText('5,000 IQD');
+  await expect(newest.getByRole('cell').nth(7)).toHaveText('Two broken');
+});
+
+test('without a damage refund on any return, the table has no column for it', async ({ page }) => {
+  await openOrder(page);
+
+  const table = page.getByRole('table', { name: 'Returns' });
+  await expect(table.getByRole('columnheader', { name: 'Refund due' })).toBeVisible();
+  await expect(table.getByRole('columnheader', { name: 'Damage refund' })).toHaveCount(0);
 });
