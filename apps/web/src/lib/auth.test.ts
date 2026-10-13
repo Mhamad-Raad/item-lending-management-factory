@@ -3,6 +3,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { bootstrapAuth, login, logout } from './auth';
 import { authStore } from './auth-store';
 import { writeLastActivity } from './idle-storage';
+import { markSignOutPending } from './pending-sign-out';
 import { refreshAccessToken } from './refresh-lock';
 
 afterEach(() => {
@@ -209,5 +210,75 @@ describe('a sign-in while an idle sign-out is still on its way (Q136)', () => {
     expect(fetchMock).toHaveBeenCalledTimes(2);
     expect(String(fetchMock.mock.calls[1]?.[0])).toContain('/auth/login');
     authStore.clear();
+  });
+});
+
+describe('one sign-out on its way at a time (Q80, Q136)', () => {
+  afterEach(() => {
+    localStorage.clear();
+    authStore.clear();
+  });
+
+  const user = {
+    id: 1,
+    username: 'admin',
+    displayName: 'Admin',
+    role: 'ADMIN' as const,
+    mustChangePassword: false,
+    permissions: [],
+    version: 1,
+  };
+
+  it('a page load does not send the sign-out again while the idle one is still out', async () => {
+    writeLastActivity(Date.now() - 60 * 60_000);
+    let answer: (response: Response) => void = () => undefined;
+    const fetchMock = vi.spyOn(globalThis, 'fetch').mockReturnValue(
+      new Promise<Response>((resolve) => {
+        answer = resolve;
+      }),
+    );
+
+    // As React's development double effect makes them: two at once…
+    await Promise.all([bootstrapAuth(), bootstrapAuth()]);
+    // …and one later, with the first sign-out still unanswered.
+    await bootstrapAuth();
+
+    expect(authStore.getSnapshot().status).toBe('anonymous');
+    expect(fetchMock.mock.calls.map(([url]) => String(url))).toEqual([expect.stringContaining('/auth/logout')]);
+    answer(new Response(null, { status: 204 }));
+    // Settled before the next test, which must find no sign-out on its way.
+    await new Promise((resolve) => setTimeout(resolve, 0));
+  });
+
+  it('a sign-in waits for the retry of a sign-out the server missed', async () => {
+    markSignOutPending();
+    let answerSignOut: (response: Response) => void = () => undefined;
+    const fetchMock = vi
+      .spyOn(globalThis, 'fetch')
+      .mockReturnValueOnce(
+        new Promise<Response>((resolve) => {
+          answerSignOut = resolve;
+        }),
+      )
+      .mockResolvedValueOnce(
+        new Response(
+          JSON.stringify({
+            accessToken: 'token-1',
+            accessTokenExpiresAt: new Date(Date.now() + 900_000).toISOString(),
+            user,
+          }),
+          { status: 200 },
+        ),
+      );
+
+    await bootstrapAuth();
+    expect(String(fetchMock.mock.calls[0]?.[0])).toContain('/auth/logout');
+    const signingIn = login({ username: 'admin', password: 'a-long-password' });
+    await new Promise((resolve) => setTimeout(resolve, 20));
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+
+    answerSignOut(new Response(null, { status: 204 }));
+    await expect(signingIn).resolves.toMatchObject({ username: 'admin' });
+    expect(String(fetchMock.mock.calls[1]?.[0])).toContain('/auth/login');
   });
 });

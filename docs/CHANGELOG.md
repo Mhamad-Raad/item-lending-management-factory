@@ -64,3 +64,9 @@ The build history that used to sit in `CLAUDE.md` "Status", oldest first, moved 
   payment or a reversed refund still prints, stamped. Migration `20261012000000_payment_owed_before` adds
   `ledger_entries.owed_before` and rewrites no row (it runs on its own in a normal deploy; nothing to do by
   hand); a payment recorded before it has its balance replayed when printed, or prints the amount alone.
+- **10b dependency advisories** (2026-10-13): `proxy-addr` 2.0.8 and `source-map-js` 1.2.2 by override, `sharp`
+  0.35.5; the audit CI runs is clean again.
+- **10c one sign-out at a time** (2026-10-13, Q138): CI's idle test had failed since 9c — its development build
+  of React restores the session twice at once, and the second restore sent the idle sign-out again. Every
+  sign-out request now goes through one place that sends nothing while another is out, and a sign-in waits for
+  it whichever path sent it.

@@ -329,6 +329,21 @@ the money receipt unit test; `e2e/money-receipt.spec.ts` (one PDF page, rows and
 the input maxima, the Sorani refusal) and the toast and row buttons in `payments.spec.ts`, `returns.spec.ts`
 (proven by offering a button without a refund) and `order-actions.spec.ts`.
 
+### 10b — Dependency advisories (no Q)
+
+`proxy-addr` (critical, Express's trusted-proxy check) and `source-map-js` (high, build and test only) pinned by
+override, `sharp` (high, uploads) raised to 0.35.5 — all patch releases. **Exit:** `pnpm audit --audit-level=high`
+clean, every gate green.
+
+### 10c — One sign-out on its way at a time (Q138)
+
+Read: §6.8, Q80, Q136.
+
+`tellServerSignedOut()` carries both the idle sign-out and the page load's retry of a missed one; a sign-in waits
+for either. **Exit:** the unit tests of two restores at once (and one later) and of a sign-in behind a Q80 retry,
+both failing on the previous code; `idle.spec` green against a `NODE_ENV=test` build, as CI makes it, where it
+failed before.
+
 ---
 
 ## Environments

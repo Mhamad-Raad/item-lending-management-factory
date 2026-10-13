@@ -31,8 +31,24 @@ const REFRESH_RETRY_MS = 30_000;
 let refreshTimer: ReturnType<typeof setTimeout> | undefined;
 let bootstrapped = false;
 let onIdleSignOut: (() => void) | undefined;
-/** The idle sign-out's request to the server while it is still out: a sign-in waits for it (see `login`). */
-let idleSignOutRequest: Promise<void> | undefined;
+/**
+ * A sign-out's request to the server while it is still out — the idle one, or the retry of one the server missed
+ * (Q80). A sign-in waits for it (see `login`), and a page load does not send another meanwhile.
+ */
+let signOutRequest: Promise<void> | undefined;
+
+/** Tells the server the session is over, once at a time; until it answers, the sign-out counts as pending (Q80). */
+function tellServerSignedOut(): void {
+  if (signOutRequest) return;
+  const told = apiFetch<void>('/auth/logout', { method: 'POST', skipAuthRetry: true }).then(
+    clearPendingSignOut,
+    () => undefined,
+  );
+  signOutRequest = told;
+  void told.finally(() => {
+    if (signOutRequest === told) signOutRequest = undefined;
+  });
+}
 
 /** Where the app goes once an idle session has been ended (Q136): the login page, set by `App`. */
 export function setIdleSignOutHandler(handler: () => void): void {
@@ -48,14 +64,7 @@ export function setIdleSignOutHandler(handler: () => void): void {
 function signOutForInactivity(): void {
   markIdleNotice();
   markSignOutPending();
-  const told = apiFetch<void>('/auth/logout', { method: 'POST', skipAuthRetry: true }).then(
-    clearPendingSignOut,
-    () => undefined,
-  );
-  idleSignOutRequest = told;
-  void told.finally(() => {
-    if (idleSignOutRequest === told) idleSignOutRequest = undefined;
-  });
+  tellServerSignedOut();
   endSharedRecord();
   authStore.clear();
   onIdleSignOut?.();
@@ -107,8 +116,7 @@ function scheduleProactiveRefresh(): void {
  * user signed out; a server out of reach rejects with its ApiError and the cookie stays (Q79).
  */
 export async function bootstrapAuth(): Promise<void> {
-  // Once per page load. React's development double-effect would otherwise register the listeners
-  // twice and, harmlessly but pointlessly, refresh twice.
+  // Once per page load: a retry after a failed restore runs this again, and must not register the listeners twice.
   if (!bootstrapped) {
     bootstrapped = true;
     listenForPeerRefreshes();
@@ -124,11 +132,10 @@ export async function bootstrapAuth(): Promise<void> {
   if (hasPendingSignOut()) {
     // The user signed out while the server was out of reach (Q80): never use the leftover cookie,
     // and try once more to end its session on the server.
+    // Not a second time while one is still on its way: React's development double effect restores twice at once,
+    // and the second restore finds the first one's idle sign-out pending.
     authStore.clear();
-    void apiFetch<void>('/auth/logout', { method: 'POST', skipAuthRetry: true }).then(
-      clearPendingSignOut,
-      () => undefined,
-    );
+    tellServerSignedOut();
     return;
   }
   if (wasLeftIdle()) {
@@ -147,9 +154,10 @@ export async function bootstrapAuth(): Promise<void> {
 }
 
 export async function login(body: LoginBody): Promise<MeDto> {
-  // An idle sign-out may still be on its way to the server (Q136). Its answer clears the refresh cookie, and
-  // arriving after this sign-in's it would clear the new one: the two are sent one after the other.
-  await idleSignOutRequest;
+  // A sign-out may still be on its way to the server — an idle one (Q136), or the retry of one it missed (Q80). Its
+  // answer clears the refresh cookie, and arriving after this sign-in's it would clear the new one: the two are
+  // sent one after the other.
+  await signOutRequest;
   const session = await apiFetch<AuthTokenDto>('/auth/login', { method: 'POST', body, skipAuthRetry: true });
   // A fresh sign-in replaces the cookie a failed sign-out left behind.
   clearPendingSignOut();
