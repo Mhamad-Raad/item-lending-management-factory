@@ -7,7 +7,13 @@ import { Calendar } from '@/components/ui/calendar';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
-import { businessDateToLocal, localToBusinessDate, parseTypedDate } from '@/lib/date-input';
+import {
+  businessDateToLocal,
+  localToBusinessDate,
+  parseTypedDate,
+  sanitizeTypedDate,
+  TYPED_DATE_MAX_LENGTH,
+} from '@/lib/date-input';
 
 interface DatePickerProps {
   id?: string;
@@ -69,7 +75,23 @@ export function DatePicker({ id, value, onChange, onBlur, min, max, invalid, dis
         disabled={disabled}
         aria-invalid={invalid}
         aria-describedby={describedBy}
-        onChange={(event) => setText(event.target.value)}
+        // Only a date's characters get in: a letter typed is not shown at all, and a full box takes no more (Q148).
+        onChange={(event) => {
+          const box = event.target;
+          const raw = box.value;
+          const at = box.selectionStart ?? raw.length;
+          let kept = sanitizeTypedDate(raw);
+          let caretAt = sanitizeTypedDate(raw.slice(0, at)).length;
+          if (kept.length > TYPED_DATE_MAX_LENGTH) {
+            // Refused whole: the box keeps what it had, the caret where it was before the keystroke.
+            kept = text;
+            caretAt = Math.max(0, at - (raw.length - text.length));
+          }
+          // Written to the box here, with the caret, so a dropped keystroke never sends the caret to the end.
+          box.value = kept;
+          box.setSelectionRange(caretAt, caretAt);
+          setText(kept);
+        }}
         onBlur={() => {
           commitText();
           onBlur?.();

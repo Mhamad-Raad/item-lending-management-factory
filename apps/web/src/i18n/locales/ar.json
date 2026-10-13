@@ -229,7 +229,7 @@
       "new": "مستخدم جديد",
       "empty": "لا يوجد مستخدم يطابق هذا البحث",
       "anyRole": "كل الأدوار",
-      "anyStatus": "أي حالة"
+      "anyStatus": "كل الحالات"
     },
     "new": {
       "title": "مستخدم جديد",
@@ -933,10 +933,10 @@
       "new": "طلب جديد",
       "empty": "لا توجد طلبات هنا بعد",
       "allStatuses": "الكل",
-      "anyCustomer": "أي زبون",
-      "anyDriver": "أي سائق",
-      "anyItem": "أي صنف",
-      "anyPaymentType": "أي نوع دفع",
+      "anyCustomer": "الزبون",
+      "anyDriver": "السائق",
+      "anyItem": "الصنف",
+      "anyPaymentType": "كل أنواع الدفع",
       "status": "الحالة"
     },
     "fields": {

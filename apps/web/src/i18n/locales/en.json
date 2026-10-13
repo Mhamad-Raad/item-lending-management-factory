@@ -229,7 +229,7 @@
       "new": "New user",
       "empty": "No users match this search",
       "anyRole": "All roles",
-      "anyStatus": "Any status"
+      "anyStatus": "All statuses"
     },
     "new": {
       "title": "New user",
@@ -933,10 +933,10 @@
       "new": "New order",
       "empty": "No orders here yet",
       "allStatuses": "All",
-      "anyCustomer": "Any customer",
-      "anyDriver": "Any driver",
-      "anyItem": "Any item",
-      "anyPaymentType": "Any payment type",
+      "anyCustomer": "Customer",
+      "anyDriver": "Driver",
+      "anyItem": "Item",
+      "anyPaymentType": "All payment types",
       "status": "Status"
     },
     "fields": {

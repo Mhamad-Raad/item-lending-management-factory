@@ -286,3 +286,38 @@ test('Q100: past 10,000 entries the count reads 10000+, the pages stop at the ne
   await page.goto('/history?page=201');
   await expect(page.getByText('Page 1', { exact: true })).toBeVisible();
 });
+
+test('Q148: a date box takes only a date’s characters; letters typed never show', async ({ page }) => {
+  await signIn(page, ADMIN);
+  const asked = await mockHistory(page);
+
+  await page.goto('/history');
+  const from = page.getByLabel('From');
+  await from.pressSequentially('ab0x1/0y9-2026z');
+  await expect(from).toHaveValue('01/09/2026');
+  await from.blur();
+  await expect.poll(() => asked.some((search) => search.includes('dateFrom=2026-09-01'))).toBe(true);
+
+  // A full box takes no more: the year is not cut short by a digit typed in the middle.
+  await from.focus();
+  await from.evaluate((element: HTMLInputElement) => element.setSelectionRange(3, 3));
+  await page.keyboard.type('5');
+  await expect(from).toHaveValue('01/09/2026');
+
+  const to = page.getByLabel('To', { exact: true });
+  await to.pressSequentially('hello');
+  await expect(to).toHaveValue('');
+  // A separator typed in the middle is cleaned where it was typed, and the caret stays there.
+  await to.pressSequentially('12/092026');
+  await to.evaluate((element: HTMLInputElement) => element.setSelectionRange(5, 5));
+  await page.keyboard.type('-');
+  await expect(to).toHaveValue('12/09/2026');
+  expect(await to.evaluate((element: HTMLInputElement) => element.selectionStart)).toBe(6);
+  // A dropped keystroke — a letter, or one more digit in a full box — leaves the caret where it was.
+  await to.evaluate((element: HTMLInputElement) => element.setSelectionRange(3, 3));
+  await page.keyboard.type('x');
+  expect(await to.evaluate((element: HTMLInputElement) => element.selectionStart)).toBe(3);
+  await page.keyboard.type('7');
+  await expect(to).toHaveValue('12/09/2026');
+  expect(await to.evaluate((element: HTMLInputElement) => element.selectionStart)).toBe(3);
+});

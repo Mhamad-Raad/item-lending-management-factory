@@ -1,5 +1,19 @@
 import { isBusinessDate, toWesternDigits } from '@pallet/shared';
 
+/** The longest a typed date can be: `dd/MM/yyyy`. */
+export const TYPED_DATE_MAX_LENGTH = 10;
+
+/**
+ * What a date box keeps of what was typed (Q148): digits — Eastern ones as Western — and `/`, with `-` or `.`
+ * read as `/`; letters and anything else are dropped. The box refuses a keystroke that would pass
+ * `TYPED_DATE_MAX_LENGTH` rather than cutting the end off.
+ */
+export function sanitizeTypedDate(text: string): string {
+  return toWesternDigits(text)
+    .replace(/[.-]/g, '/')
+    .replace(/[^0-9/]/g, '');
+}
+
 /**
  * A date typed as `dd/MM/yyyy` — Eastern digits, and `-` or `.` between the parts, accepted — as a
  * business date `YYYY-MM-DD`, or null when it is not a real calendar day (§7.5).
