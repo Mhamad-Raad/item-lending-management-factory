@@ -75,3 +75,17 @@ The build history that used to sit in `CLAUDE.md` "Status", oldest first, moved 
   money section is "Transactions"; "Print all" prints the order's payments and refunds by date on the hand-over
   receipt's layout, with the totals of those that stand and what is owed now. Every receipt now prints in place
   (drawn into a blank frame of the page, with the page's session) instead of opening a tab (Q140). No migration.
+- **10e return limit as typed** (2026-10-14, Q141): the return form refuses a row that asks back more pallets
+  than are out on its line as soon as it is typed, leaves that row out of the summary's refund and counts, and disables Record return until it is fixed,
+  instead of showing figures the server would refuse until Record return was pressed. No API change.
+- **10f returns as a table** (2026-10-14, Q142): the order page's returns are a table — one row per return, its
+  items with their accepted and damaged counts line by line — instead of one text card each, in step with the
+  pallets and Transactions tables. No API change.
+- **10g hand cursor, Active status, customer form** (2026-10-14, Q143–Q145): every button, link and menu item
+  shows the hand cursor; the customers, drivers and items lists say Active or Archived in their status column; the customer
+  form is two titled sections with icons. No API change.
+- **10h damage refund explained** (2026-10-14, Q146): the return form's damage-refund box shows the currency, and a
+  live line under it says how much of the damaged pallets' deposit is refunded and how much is kept; an amount
+  over the deposit is refused as it is typed.
+- **10i filter names, date boxes** (2026-10-14, Q147, Q148): the filters say "Customer", "Driver"… instead of
+  "Any customer"…, and date boxes take only digits and slashes.

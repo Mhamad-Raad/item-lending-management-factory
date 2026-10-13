@@ -359,6 +359,55 @@ open (proven against the form without it), in `payments.spec.ts` and the live E4
 their paper alone, no new page; a refusal said on the page; a second press while preparing prints once — proven by
 breaking the code).
 
+### 10e — A return never asks back more than is out, as it is typed (Q141)
+
+Read: §7.4.2.
+
+The return form checks each row against what is out on its line while it is typed, not only on Record return:
+the error shows under Accepted, both counts are marked invalid, the row prices nothing in the summary, no
+hand-over is offered and Record return is disabled while any row is over. **Exit:** `returns.spec.ts` "Q141" (the error and exact summary figures
+as typed, accepted and damaged counted together, nothing sent; with two lines, the valid one prices but no hand-over
+is shown) and the line-removed test (the over row prices nothing) — each proven failing with its part of the change
+removed.
+
+### 10f — Returns as a table on the order page (Q142)
+
+Read: §7.3.6.
+
+The order page's returns become a table like the pallets and Transactions: one row per return, its items listed line
+by line across the item, accepted and damaged columns, cards below `lg`; "replaced by" scrolls to whichever row or
+card is shown. **Exit:** `order-actions.spec.ts` — the columns, newest first, items and counts line by line, the
+damage-refund column only when needed, and "replaced by" at desktop and phone widths (the phone one proven failing
+when the scroll picks the hidden table row).
+
+### 10g — Hand cursor, Active status, customer form sections (Q143, Q144, Q145)
+
+Read: §7.3.10, §7.3.11, §7.13.
+
+Every button, link and menu item shows the hand on hover (one base-layer rule); the customers, drivers and items lists'
+status column says Active or Archived instead of being blank for every active row; the customer form is two
+titled sections with icons. **Exit:** `order-actions.spec.ts` "Q143" (computed cursors, proven failing without the
+rule), `customers.spec.ts` "Q144" and "Q145".
+
+### 10h — The damage refund says it is money and what it does (Q146)
+
+Read: §7.4.2.
+
+The damage-refund box shows the currency inside it, and under it a live line splits the damaged pallets' deposit into
+what goes back to the customer and what is kept for the damage. **Exit:** `returns.spec.ts` "Q146" (the unit, the
+split as typed and as the box's description, matching the summary, replaced by the error over the maximum).
+
+The same day, after its review: an amount over the maximum is refused as it is typed, like a count over what is out,
+and the line says "refunded" (a refund first lowers what is owed).
+
+### 10i — Filter names without "any", date boxes take only dates (Q147, Q148)
+
+Read: §7.5.
+
+The orders and users filters say the field's name, or "All …" for a no-filter choice, instead of "Any …"; every date box drops letters and other
+characters as they are typed. **Exit:** `lib/date-input.test.ts` (sanitizeTypedDate), `history.spec.ts` "Q148"
+(proven failing without the filter); the existing e2e suite for the filter labels.
+
 ---
 
 ## Environments

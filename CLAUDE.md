@@ -25,7 +25,11 @@ Pallet System: a web app for a single pallet factory in Iraq (Kurdistan Region) 
   warning for drivers (Q135), and sign-out after 15 idle minutes (Q136). Then (2026-10-12) 10a: a printed receipt
   for every payment and refund, with the balance as it stood then (Q137); 10d: a dialog after a payment with
   Print and Close, the money section renamed "Transactions", and "Print all" for an order's transactions (Q139);
-  every receipt prints in place, from a blank frame of the page, instead of a new tab (Q140).
+  every receipt prints in place, from a blank frame of the page, instead of a new tab (Q140). Then (2026-10-14)
+  10e: the return form refuses a row over what is out as it is typed, and that row prices nothing (Q141); 10f:
+  the order page's returns as a table (Q142); 10g: the hand cursor everywhere, Active in list status columns, and
+  the customer form in sections with icons (Q143–Q145); 10h: the damage refund shows its currency and what it
+  gives back and keeps (Q146); 10i: filters without "any", date boxes that take only dates (Q147, Q148).
 - **The maintainer's one page** is "Maintainer quick start" in `README.md` (run, test, deploy, restore, recover,
   traps, yearly checklist). Keep it true when a command or a runbook changes.
 - **Open, needing people rather than code:** the E6 screenshot baselines (rendered by CI, then committed; after
