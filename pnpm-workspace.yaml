@@ -15,9 +15,13 @@ onlyBuiltDependencies:
 # high advisories). multer: the copy @nestjs/platform-express's FileInterceptor loads. mysql2 and
 # deepmerge-ts: the Prisma CLI's (mysql2 is never loaded here, PostgreSQL only; deepmerge-ts merges
 # prisma.config.ts). brace-expansion: the 5.x copy under ESLint's minimatch (a development tool; the older
-# majors elsewhere in the tree are not affected). Drop each override once the parent ships the patched version.
+# majors elsewhere in the tree are not affected). proxy-addr: Express's, which applies TRUST_PROXY_SUBNET (an
+# IPv4-mapped IPv6 address could pass the trusted-proxy check). source-map-js: under PostCSS and the coverage
+# tooling (build and test only). Drop each override once the parent ships the patched version.
 overrides:
   multer: 2.3.0
   mysql2: 3.24.4
   deepmerge-ts: 8.0.2
   'brace-expansion@>=4.0.0 <5.0.11': 5.0.11
+  'proxy-addr@>=1.1.0 <2.0.8': 2.0.8
+  'source-map-js@>=1.0.0 <1.2.2': 1.2.2
