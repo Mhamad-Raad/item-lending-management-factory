@@ -81,6 +81,23 @@
   padding: 2mm;
   overflow: hidden;
 }
+/* The factory's name and details, and a receipt's title (Q151: classes, so a receipt's own design can restyle them). */
+.factory-name {
+  font-size: 13pt;
+  font-weight: 700;
+}
+.factory-meta {
+  font-size: 8.5pt;
+}
+.doc-title {
+  font-size: 12pt;
+  font-weight: 700;
+}
+/* A sheet that is not the last says the receipt goes on, where its total would be. */
+.continued {
+  font-size: 9pt;
+  font-style: italic;
+}
 /* The heading of a parties box: customer, driver, order (Q137). */
 .box-title {
   font-size: 9pt;
@@ -95,8 +112,9 @@
   flex-direction: column;
   justify-content: space-between;
 }
-/* Q150: the footer of the last sheet when the customer's earlier orders are listed — their total and the two added
-   up join the order's, five rows in 25 mm: 5 of the half's 5.5 mm to spare (§7.16.3). */
+/* Q150: the footer of the last sheet when the customer's earlier orders are listed. Since Q151 the hand-over footer
+   is a row — the details beside the three totals (about 18 mm) — so it fits 20 mm; the 25 mm stays the budget
+   §7.16.3 grants it, 0.5 mm of the half's 5.5 mm to spare. */
 .block-footer.with-older {
   height: 25mm;
 }
@@ -262,4 +280,152 @@
     margin: 8mm auto;
     box-shadow: 0 1mm 4mm rgb(0 0 0 / 0.25);
   }
+}
+/* Q151: the hand-over receipt's own design, chosen by the business from five (design 5): blue for the receipt and
+   this order, amber for the customer's earlier pallets still out. In black and white the blue prints dark and the
+   amber light, so the two still tell apart. The blocks keep their heights (§7.16.3); only their look changes. */
+.handover {
+  --blue: #0b5394;
+  --blue-soft: #f1f6fb;
+  --blue-line: #b9cde2;
+  --amber: #f6b26b;
+  --amber-edge: #e69138;
+  --amber-soft: #fdf1e3;
+  --amber-line: #efc79c;
+  --amber-ink: #7a4500;
+  color: #10243a;
+}
+.handover .factory-name,
+.handover .doc-title {
+  font-family: 'Noto Kufi Arabic Variable', 'Noto Sans Arabic Variable', sans-serif;
+}
+.handover .factory-name {
+  font-size: 12.5pt;
+  font-weight: 800;
+  color: var(--blue);
+  /* Kufi at 800 is wider than the other receipts' face: one line, clipped, so a long name cannot outgrow 22 mm. */
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+/* The title box keeps its width; the factory's side gives way, down to its clipped name. */
+.handover .block-header > div:first-child,
+.handover .block-header > div:first-child > div {
+  flex: 1;
+  min-width: 0;
+}
+.handover .doc {
+  flex: none;
+}
+.handover .factory-meta {
+  font-size: 8pt;
+  color: #4a5d72;
+}
+.handover .doc {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  padding: 1.5mm 4mm;
+  border-radius: 1.5mm;
+  background: var(--blue);
+  color: #fff;
+  font-size: 8.5pt;
+  text-align: center;
+}
+.handover .doc .num {
+  font-size: 10pt;
+  font-weight: 700;
+}
+.handover .doc-title {
+  font-size: 10.5pt;
+}
+.handover .block-parties > div {
+  border: 0;
+  border-top: 0.8mm solid var(--blue);
+  padding: 1.4mm 3mm;
+  background: var(--blue-soft);
+}
+.handover .box-title {
+  font-weight: 700;
+  color: var(--blue);
+}
+.handover .lines th {
+  border-color: var(--blue);
+  background: var(--blue);
+  color: #fff;
+}
+.handover .lines td {
+  border-color: var(--blue-line);
+}
+.handover .lines td.line-total {
+  font-weight: 700;
+  color: var(--blue);
+}
+.handover .lines tr.older-heading td {
+  border-color: var(--amber-edge);
+  background: var(--amber);
+  color: #3d2400;
+  font-weight: 700;
+}
+.handover .lines tr.older td {
+  border-color: var(--amber-line);
+  background: var(--amber-soft);
+}
+.handover .lines tr.older td.line-total,
+.handover .lines tr.older td.col-item > .num {
+  font-weight: 700;
+  color: var(--amber-ink);
+}
+/* The footer: payment type, print date and sheet at the start; the totals at the end, ending on the figure in blue. */
+.handover .block-footer {
+  flex-direction: row;
+  justify-content: space-between;
+  align-items: flex-end;
+  gap: 4mm;
+}
+.handover .footer-side {
+  display: flex;
+  flex-direction: column;
+  gap: 1mm;
+  font-size: 8.3pt;
+  color: #4a5d72;
+}
+.handover .pay {
+  align-self: flex-start;
+  padding: 0.5mm 2.5mm;
+  border: 0.3mm solid var(--blue);
+  border-radius: 1mm;
+  background: var(--blue-soft);
+  color: var(--blue);
+  font-size: 9pt;
+  font-weight: 700;
+  white-space: nowrap;
+}
+.handover .sums {
+  flex: 1;
+  min-width: 0;
+}
+.handover .sum {
+  display: flex;
+  justify-content: space-between;
+  gap: 3mm;
+  padding: 0.7mm 3mm;
+  font-size: 9pt;
+  white-space: nowrap;
+}
+.handover .sum-order {
+  background: var(--blue-soft);
+}
+.handover .sum-older {
+  background: var(--amber-soft);
+}
+.handover .sum-grand {
+  border-radius: 0 0 1.5mm 1.5mm;
+  background: var(--blue);
+  color: #fff;
+  font-size: 11pt;
+  font-weight: 800;
+}
+.handover .sum-grand:only-child {
+  border-radius: 1.5mm;
 }

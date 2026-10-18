@@ -139,7 +139,7 @@ describe('receipt (§7.16.5)', () => {
     expect(footer?.classList.contains('with-older')).toBe(true);
     expect(footer?.textContent).toContain('کۆی تەئمیناتی ئەم داواکارییە: 20,000 دینار');
     expect(footer?.textContent).toContain('تەئمیناتی پالێتە پێشووەکانی لای کڕیار: 75,000 دینار');
-    expect(footer?.textContent).toContain('کۆی گشتی لەگەڵ داواکارییە پێشووەکان: 95,000 دینار');
+    expect(footer?.textContent).toContain('کۆی گشتی: 95,000 دینار');
     expect(footer?.textContent).not.toContain(TOTAL_LABEL);
   });
 

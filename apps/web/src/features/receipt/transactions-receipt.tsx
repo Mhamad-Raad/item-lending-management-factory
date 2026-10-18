@@ -105,7 +105,7 @@ function Half({
             <Total label={tr('receipt.transactions.owed')} value={receipt.owed} strong />
           </>
         ) : (
-          <div style={{ fontSize: '9pt', fontStyle: 'italic' }}>{tr('receipt.continued')}</div>
+          <div className="continued">{tr('receipt.continued')}</div>
         )}
         <div style={{ fontSize: '8.5pt', textAlign: 'end' }}>
           {tr('receipt.sheetOf', { x: sheet.sheetNumber, y: sheet.sheetCount })}

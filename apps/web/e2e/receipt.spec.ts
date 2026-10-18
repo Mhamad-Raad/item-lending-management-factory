@@ -44,7 +44,13 @@ const RECEIPT: ReceiptDto = {
   printedOn: '2026-09-15',
   paymentType: 'LENT',
   depositTotal: 70_000,
-  factory: { name: 'Pallet Factory', phone: '07500000000', address: 'Erbil', logoUrl: null },
+  // A long name: Kufi at 800 (Q151) is wider than the text face, and the header block is 22 mm.
+  factory: {
+    name: 'کارگەی پالێت و کاڵای دارینی هەولێر و دهۆک و سلێمانی و کەرکووک بۆ هەناردە و هاوردە و بازرگانی و گواستنەوە و کۆگاکردنی کاڵا لە سەرانسەری هەرێمی کوردستان',
+    phone: '07500000000',
+    address: 'Erbil',
+    logoUrl: null,
+  },
   customer: { name: 'Kurdistan Cement', phone: '07501234567', altPhone: null, address: 'Erbil' },
   driver: { name: 'Karwan Aziz', phone: '07701112233', carNumber: 'Erbil 12 A 34567' },
   layout: 'pages',
@@ -133,6 +139,22 @@ async function paperFit(page: Page, copy: string) {
           .filter((block) => !block.classList.contains('cut-mark'))
           .every((block) => block.getBoundingClientRect().bottom <= bottom),
         footerInside: [...(footer?.children ?? [])].every((row) => row.getBoundingClientRect().bottom <= footerBottom),
+        // Q151: the footer is a row — details beside the totals — so a figure too wide shows across, not down.
+        footerAcross: [...(footer?.querySelectorAll('*') ?? [])].every((part) => {
+          const box = part.getBoundingClientRect();
+          const area = footer?.getBoundingClientRect();
+          return (
+            part.scrollWidth <= part.clientWidth + 1 &&
+            area !== undefined &&
+            box.left >= area.left - 0.5 &&
+            box.right <= area.right + 0.5
+          );
+        }),
+        headerInside: [...(element.querySelector('.block-header')?.querySelectorAll('*') ?? [])].every(
+          (part) =>
+            part.getBoundingClientRect().bottom <=
+            (element.querySelector('.block-header')?.getBoundingClientRect().bottom ?? 0) + 0.5,
+        ),
       };
     });
 }
@@ -207,6 +229,8 @@ test('E5: a seven-line receipt prints each copy on an A4 page of its own, in Sor
     cellsFit: true,
     blocksInside: true,
     footerInside: true,
+    footerAcross: true,
+    headerInside: true,
   });
 
   expect(await pdfPages(page)).toBe(2);
@@ -246,16 +270,16 @@ test("Q150: the customer's earlier pallets still out share the order's table, an
       .evaluate((cell) => getComputedStyle(cell).backgroundColor);
   expect(await shade('tbody tr:not(.older):not(.older-heading)')).not.toBe(await shade('tbody tr.older'));
   await expect(half.locator('.block-footer')).toContainText('کۆی تەئمیناتی ئەم داواکارییە: 20,000 دینار');
-  await expect(half.locator('.block-footer')).toContainText(
-    'کۆی گشتی لەگەڵ داواکارییە پێشووەکان: 1,000,000,020,000 دینار',
-  );
-  // Five footer rows, with the largest totals, in what the half has to spare.
+  await expect(half.locator('.block-footer')).toContainText('کۆی گشتی: 1,000,000,020,000 دینار');
+  // The three totals beside the details, with the largest totals, in what the half has to spare.
   expect(await paperFit(page, '.half')).toEqual({
     rows: 7,
     rowsKeepTheirHeight: true,
     cellsFit: true,
     blocksInside: true,
     footerInside: true,
+    footerAcross: true,
+    headerInside: true,
   });
 
   expect(await pdfPages(page)).toBe(1);

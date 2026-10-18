@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 
-/** The faces the receipt sets its text in (`receipt.css`). */
-const RECEIPT_FONTS = ['"Noto Sans Arabic Variable"', '"Inter Variable"'];
+/** The faces the receipts set their text in (`receipt.css`); Kufi is the hand-over receipt's headings (Q151). */
+const RECEIPT_FONTS = ['"Noto Sans Arabic Variable"', '"Inter Variable"', '"Noto Kufi Arabic Variable"'];
 
 /** A logo that has neither loaded nor failed by then is not waited for: the receipt prints without it. */
 const LOGO_WAIT_MS = 10_000;

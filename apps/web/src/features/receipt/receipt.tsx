@@ -20,11 +20,17 @@ import {
 /** How many characters each numeric column holds at the receipt's 10 pt (§7.16.3; `NumberCell`). */
 const FITS = { quantity: 7, unitDeposit: 9, lineTotal: 11 } as const;
 
-/** One figure of the footer, in dinars (§7.16.3, Q150). */
-function Total({ label, amount, size, weight }: { label: string; amount: number; size: string; weight: number }) {
+/**
+ * One row of the footer's totals, in dinars (§7.16.3, Q150): `order` this order's deposit, `older` the earlier
+ * pallets', `grand` the figure the receipt ends on (Q151).
+ */
+function Total({ label, amount, kind }: { label: string; amount: number; kind: 'order' | 'older' | 'grand' }) {
   return (
-    <div style={{ fontSize: size, fontWeight: weight }}>
-      {label}: <span className="num">{formatMoney(amount)}</span> {tr('receipt.currency')}
+    <div className={`sum sum-${kind}`}>
+      <span>{label}: </span>
+      <span>
+        <span className="num">{formatMoney(amount)}</span> {tr('receipt.currency')}
+      </span>
     </div>
   );
 }
@@ -61,6 +67,7 @@ function Row({ row }: { row: ReceiptRowDto | null }) {
       <NumberCell
         text={row && formatMoney(row.kind === 'older' ? row.outValue : row.lineTotal)}
         fits={FITS.lineTotal}
+        className="line-total"
       />
     </tr>
   );
@@ -144,29 +151,32 @@ function Copy({
         </table>
       </div>
 
+      {/* The details at the start, the totals at the end: on the last sheet only, the rest say they go on (Q151). */}
       <div className={sheet.showTotal && receipt.older ? 'block-footer with-older' : 'block-footer'}>
-        {sheet.showTotal && receipt.older ? (
-          <>
-            <Total label={tr('receipt.orderTotal')} amount={receipt.depositTotal} size="10pt" weight={600} />
-            <Total label={tr('receipt.olderOutValue')} amount={receipt.older.outValue} size="10pt" weight={600} />
-            <Total label={tr('receipt.combinedTotal')} amount={receipt.older.combinedTotal} size="11pt" weight={700} />
-          </>
-        ) : sheet.showTotal ? (
-          <Total label={tr('receipt.depositTotal')} amount={receipt.depositTotal} size="11pt" weight={700} />
-        ) : (
-          <div style={{ fontSize: '9pt', fontStyle: 'italic' }}>{tr('receipt.continued')}</div>
-        )}
-        <div style={{ fontSize: '10pt', fontWeight: 600 }}>
-          {tr('receipt.paymentType')}:{' '}
-          {tr(receipt.paymentType === 'CASH' ? 'receipt.paymentCash' : 'receipt.paymentLent')}
-        </div>
-        <div style={{ fontSize: '8.5pt', display: 'flex', justifyContent: 'space-between' }}>
+        <div className="footer-side">
+          <div className="pay">
+            {tr('receipt.paymentType')}:{' '}
+            {tr(receipt.paymentType === 'CASH' ? 'receipt.paymentCash' : 'receipt.paymentLent')}
+          </div>
           {/* The returned figures are the order's position on this day, not on the hand-over's (Q134). */}
-          <span>
+          <div>
             {tr('receipt.printedOn')}: <span className="num">{formatBusinessDate(receipt.printedOn)}</span>
-          </span>
-          <span>{tr('receipt.sheetOf', { x: sheet.sheetNumber, y: sheet.sheetCount })}</span>
+          </div>
+          <div>{tr('receipt.sheetOf', { x: sheet.sheetNumber, y: sheet.sheetCount })}</div>
         </div>
+        {sheet.showTotal && receipt.older ? (
+          <div className="sums">
+            <Total label={tr('receipt.orderTotal')} amount={receipt.depositTotal} kind="order" />
+            <Total label={tr('receipt.olderOutValue')} amount={receipt.older.outValue} kind="older" />
+            <Total label={tr('receipt.combinedTotal')} amount={receipt.older.combinedTotal} kind="grand" />
+          </div>
+        ) : sheet.showTotal ? (
+          <div className="sums">
+            <Total label={tr('receipt.depositTotal')} amount={receipt.depositTotal} kind="grand" />
+          </div>
+        ) : (
+          <div className="continued">{tr('receipt.continued')}</div>
+        )}
       </div>
     </>
   );
@@ -190,7 +200,7 @@ export function Receipt({ receipt, onLogoSettled }: { receipt: ReceiptDto; onLog
   if (receipt.layout === 'pages') {
     // All of the factory's pages, then all of the customer's: each copy comes off the printer in one stack.
     return (
-      <ReceiptPaper>
+      <ReceiptPaper design="handover">
         {[true, false].flatMap((first) =>
           receipt.sheets.map((sheet) => (
             <ReceiptPage key={`${first ? 'factory' : 'customer'}-${sheet.sheetNumber}`}>
@@ -202,7 +212,7 @@ export function Receipt({ receipt, onLogoSettled }: { receipt: ReceiptDto; onLog
     );
   }
   return (
-    <ReceiptPaper>
+    <ReceiptPaper design="handover">
       {receipt.sheets.map((sheet) => (
         <ReceiptSheet key={sheet.sheetNumber} half={(first) => copy(sheet, first)} />
       ))}

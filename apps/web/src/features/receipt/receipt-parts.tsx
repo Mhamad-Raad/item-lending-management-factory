@@ -17,13 +17,13 @@ export function ReceiptFactory({ factory, onLogoSettled }: { factory: ReceiptFac
         />
       ) : null}
       <div>
-        <div style={{ fontSize: '13pt', fontWeight: 700 }}>
+        <div className="factory-name">
           <bdi>{factory.name}</bdi>
         </div>
-        <div style={{ fontSize: '8.5pt' }}>
+        <div className="factory-meta">
           {tr('receipt.factoryPhone')}: <bdi className="num">{factory.phone}</bdi>
         </div>
-        <div style={{ fontSize: '8.5pt' }} className="clamp">
+        <div className="factory-meta clamp">
           {tr('receipt.factoryAddress')}: <bdi>{factory.address}</bdi>
         </div>
       </div>
@@ -63,8 +63,8 @@ export function ReceiptTitle({
   date: string;
 }) {
   return (
-    <div>
-      <div style={{ fontSize: '12pt', fontWeight: 700 }}>{title}</div>
+    <div className="doc">
+      <div className="doc-title">{title}</div>
       {numbered ? (
         <div>
           {numbered.label}: <span className="num">{numbered.number}</span>
@@ -101,10 +101,10 @@ export function NumberCell({ text, fits, className }: { text: string | null; fit
   return <td className={classes.join(' ')}>{text ?? ''}</td>;
 }
 
-/** A receipt's paper: always right to left and Sorani (§7.16.1). */
-export function ReceiptPaper({ children }: { children: ReactNode }) {
+/** A receipt's paper: always right to left and Sorani (§7.16.1). `design` names a receipt's own look (Q151). */
+export function ReceiptPaper({ children, design }: { children: ReactNode; design?: 'handover' }) {
   return (
-    <div className="receipt" dir="rtl" lang="ckb">
+    <div className={design ? `receipt ${design}` : 'receipt'} dir="rtl" lang="ckb">
       {children}
     </div>
   );

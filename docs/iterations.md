@@ -436,6 +436,18 @@ halves, more a page per copy" and "earlier orders' pallets still out" (another c
 returned line's and a later order's left out); `receipt.test.tsx` (the factory's pages first); `receipt.spec.ts` E5 and "Q150" (the half's
 five-row footer proven failing at 20 mm); `e2e-live/e5-receipt.spec.ts`.
 
+### 10l — The hand-over receipt in the design the business chose (Q151)
+
+Read: §7.16.3.
+
+Five designs with the same content went to the business; they chose design 5. The hand-over receipt takes its
+look: a blue title box and table header, pale blue parties, the earlier pallets in amber, and a footer of the
+details beside a totals box ending on the figure in blue. Nothing else changes: the content, the block heights,
+the rows per half or page, and the money and transactions receipts. **Exit:** the existing receipt suite (unit,
+`receipt.spec.ts` E5 and Q150 at the largest totals, `print-in-place.spec.ts`, the live E5) unchanged and green;
+the fit check measuring the footer across at the largest totals and the header under a long factory name (each
+proven failing when broken); the real receipt compared by eye with the sample, with and without earlier pallets.
+
 ---
 
 ## Environments

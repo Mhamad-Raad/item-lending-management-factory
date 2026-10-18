@@ -95,3 +95,5 @@ The build history that used to sit in `CLAUDE.md` "Status", oldest first, moved 
 - **10k earlier pallets on the receipt** (2026-10-18, Q150): the hand-over receipt lists, under the order's lines
   and shaded, the customer's earlier orders' pallets still out, with this order's total, theirs and the two added;
   more than six rows give each copy an A4 page of its own.
+- **10l receipt design** (2026-10-18, Q151): of five designs sent to the business, the hand-over receipt takes
+  design 5 — blue for the receipt and this order, amber for the earlier pallets, the totals ending in blue.
