@@ -89,3 +89,6 @@ The build history that used to sit in `CLAUDE.md` "Status", oldest first, moved 
   over the deposit is refused as it is typed.
 - **10i filter names, date boxes** (2026-10-14, Q147, Q148): the filters say "Customer", "Driver"… instead of
   "Any customer"…, and date boxes take only digits and slashes.
+- **10j driver page** (2026-10-18, Q149): `/drivers/$driverId` shows a driver's details, edits them in the
+  drivers' dialog and lists every order they were given; the drivers list, the order page and the history link
+  to it.

@@ -217,7 +217,7 @@ const BATCH: PurchaseBatchDto = {
   createdBy: BY,
 };
 
-const AUDIT_ROW: AuditLogDto = {
+export const AUDIT_ROW: AuditLogDto = {
   id: 51,
   createdAt: AT,
   user: BY,

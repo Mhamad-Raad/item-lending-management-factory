@@ -25,6 +25,7 @@ const ROUTES = [
   '/items/5',
   '/items/5/edit',
   '/drivers',
+  '/drivers/4',
   '/reports/positions',
   '/reports/purchases',
   '/reports/activity',

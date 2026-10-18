@@ -1,6 +1,6 @@
 import type { DriverDto } from '@pallet/shared';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { createFileRoute } from '@tanstack/react-router';
+import { Link, createFileRoute } from '@tanstack/react-router';
 import { Archive, EllipsisVertical, Pencil, Plus, Truck } from 'lucide-react';
 import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
@@ -199,6 +199,7 @@ function DriversPage() {
         columns={columns}
         rows={drivers.data.items}
         rowKey={(driver) => driver.id}
+        rowLink={driverRowLink}
         total={drivers.data.total}
         page={drivers.data.page}
         pageSize={drivers.data.pageSize}
@@ -235,5 +236,18 @@ function DriversPage() {
         onConfirm={() => open?.kind === 'archive' && archive.mutate(open.driver)}
       />
     </>
+  );
+}
+
+/** A row opens the driver's page (Q149). */
+function driverRowLink(driver: DriverDto, children: React.ReactNode) {
+  return (
+    <Link
+      to="/drivers/$driverId"
+      params={{ driverId: String(driver.id) }}
+      className="text-primary font-medium underline-offset-4 hover:underline"
+    >
+      {children}
+    </Link>
   );
 }

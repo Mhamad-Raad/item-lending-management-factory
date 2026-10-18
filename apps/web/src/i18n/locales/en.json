@@ -887,6 +887,12 @@
       "archiveTitle": "Archive {{name}}?",
       "archiveBody": "Orders keep showing this driver, but they can no longer be chosen for new ones."
     },
+    "detail": {
+      "title": "Driver",
+      "backToList": "Back to drivers",
+      "archivedBanner": "This driver is archived and can no longer be chosen for new orders.",
+      "orders": "Orders"
+    },
     "dialog": {
       "newTitle": "New driver",
       "editTitle": "Edit driver",

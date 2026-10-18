@@ -3,13 +3,12 @@ import {
   type CustomerHistoryItemDto,
   type LedgerEntryDto,
   type LedgerEntryType,
-  type OrderListItemDto,
   type PageDto,
 } from '@pallet/shared';
 import type { TFunction } from 'i18next';
 import { keepPreviousData, useQuery } from '@tanstack/react-query';
 import { Link } from '@tanstack/react-router';
-import { Ban, ClipboardList, History, PackageOpen, Wallet } from 'lucide-react';
+import { Ban, History, PackageOpen, Wallet } from 'lucide-react';
 import { Undo2 } from '@/components/app/dir-icon';
 import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
@@ -21,69 +20,20 @@ import { QuantityText } from '@/components/app/quantity-text';
 import { EmptyState, PageSkeleton, QueryErrorState } from '@/components/app/states';
 import { StatusBadge } from '@/components/app/status-badge';
 import { Badge } from '@/components/ui/badge';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { ORDER_COLUMNS, orderRowLink } from '@/features/orders/order-columns';
 import { orderLabel } from '@/features/orders/order-text';
 import { PaymentTypeText } from '@/features/orders/payment-type-text';
+import { RelatedOrders } from '@/features/orders/related-orders';
 import { PrintMoneyReceiptButton } from '@/features/receipt/print-money-receipt-button';
 import { apiFetch } from '@/lib/api-client';
 import { qk } from '@/lib/query-keys';
 import { cn } from '@/lib/utils';
 
-const STATUSES = ['OPEN', 'SETTLED', 'CANCELLED', 'ALL'] as const;
-
 /** The customer's orders, with a status choice of their own (§7.3.12). */
 export function CustomerOrdersTab({ customerId }: { customerId: number }) {
   const { t } = useTranslation();
-  const [status, setStatus] = useState<(typeof STATUSES)[number]>('OPEN');
-  const [page, setPage] = useState(1);
-  const params = { customerId, status, page, pageSize: 25 };
-  const orders = useQuery({
-    queryKey: qk.orders.list(params),
-    queryFn: () => apiFetch<PageDto<OrderListItemDto>>('/orders', { query: params }),
-    placeholderData: keepPreviousData,
-  });
-
+  // Keyed: another customer's page starts from their own default status and first page.
   return (
-    <div className="flex flex-col gap-3">
-      <Select
-        value={status}
-        onValueChange={(next) => {
-          setStatus(next as (typeof STATUSES)[number]);
-          setPage(1);
-        }}
-      >
-        <SelectTrigger className="w-44" aria-label={t('orders.fields.status')}>
-          <SelectValue />
-        </SelectTrigger>
-        <SelectContent>
-          {STATUSES.map((value) => (
-            <SelectItem key={value} value={value}>
-              {t(value === 'ALL' ? 'orders.list.allStatuses' : `enums.orderStatus.${value}`)}
-            </SelectItem>
-          ))}
-        </SelectContent>
-      </Select>
-      {orders.isPending ? (
-        <PageSkeleton rows={3} />
-      ) : orders.isError ? (
-        <QueryErrorState error={orders.error} onRetry={() => void orders.refetch()} />
-      ) : (
-        <DataTable
-          label={t('customers.tabs.orders')}
-          columns={ORDER_COLUMNS.filter((column) => column.id !== 'customer')}
-          rows={orders.data.items}
-          rowKey={(order) => order.id}
-          rowLink={orderRowLink}
-          total={orders.data.total}
-          page={orders.data.page}
-          pageSize={orders.data.pageSize}
-          onPageChange={setPage}
-          isFetching={orders.isFetching}
-          empty={<EmptyState icon={ClipboardList} title={t('orders.list.empty')} />}
-        />
-      )}
-    </div>
+    <RelatedOrders key={customerId} filter={{ customerId }} label={t('customers.tabs.orders')} defaultStatus="OPEN" />
   );
 }
 

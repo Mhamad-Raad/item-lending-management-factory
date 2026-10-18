@@ -20,6 +20,7 @@ import { Route as AppSettingsRouteImport } from './routes/_app/settings'
 import { Route as AppCustomersIndexRouteImport } from './routes/_app/customers/index'
 import { Route as AppCustomersNewRouteImport } from './routes/_app/customers/new'
 import { Route as AppDriversIndexRouteImport } from './routes/_app/drivers/index'
+import { Route as AppDriversDriverIdRouteImport } from './routes/_app/drivers/$driverId'
 import { Route as AppItemsIndexRouteImport } from './routes/_app/items/index'
 import { Route as AppItemsNewRouteImport } from './routes/_app/items/new'
 import { Route as AppOrdersIndexRouteImport } from './routes/_app/orders/index'
@@ -95,6 +96,11 @@ const AppCustomersNewRoute = AppCustomersNewRouteImport.update({
 const AppDriversIndexRoute = AppDriversIndexRouteImport.update({
   id: '/drivers/',
   path: '/drivers/',
+  getParentRoute: () => AppRoute,
+} as any)
+const AppDriversDriverIdRoute = AppDriversDriverIdRouteImport.update({
+  id: '/drivers/$driverId',
+  path: '/drivers/$driverId',
   getParentRoute: () => AppRoute,
 } as any)
 const AppItemsIndexRoute = AppItemsIndexRouteImport.update({
@@ -224,6 +230,7 @@ export interface FileRoutesByFullPath {
   '/history': typeof AppHistoryRoute
   '/settings': typeof AppSettingsRoute
   '/customers/new': typeof AppCustomersNewRoute
+  '/drivers/$driverId': typeof AppDriversDriverIdRoute
   '/items/new': typeof AppItemsNewRoute
   '/orders/new': typeof AppOrdersNewRoute
   '/payments/new': typeof AppPaymentsNewRoute
@@ -258,6 +265,7 @@ export interface FileRoutesByTo {
   '/history': typeof AppHistoryRoute
   '/settings': typeof AppSettingsRoute
   '/customers/new': typeof AppCustomersNewRoute
+  '/drivers/$driverId': typeof AppDriversDriverIdRoute
   '/items/new': typeof AppItemsNewRoute
   '/orders/new': typeof AppOrdersNewRoute
   '/payments/new': typeof AppPaymentsNewRoute
@@ -295,6 +303,7 @@ export interface FileRoutesById {
   '/_app/settings': typeof AppSettingsRoute
   '/_app/': typeof AppIndexRoute
   '/_app/customers/new': typeof AppCustomersNewRoute
+  '/_app/drivers/$driverId': typeof AppDriversDriverIdRoute
   '/_app/items/new': typeof AppItemsNewRoute
   '/_app/orders/new': typeof AppOrdersNewRoute
   '/_app/payments/new': typeof AppPaymentsNewRoute
@@ -331,6 +340,7 @@ export interface FileRouteTypes {
     | '/history'
     | '/settings'
     | '/customers/new'
+    | '/drivers/$driverId'
     | '/items/new'
     | '/orders/new'
     | '/payments/new'
@@ -365,6 +375,7 @@ export interface FileRouteTypes {
     | '/history'
     | '/settings'
     | '/customers/new'
+    | '/drivers/$driverId'
     | '/items/new'
     | '/orders/new'
     | '/payments/new'
@@ -401,6 +412,7 @@ export interface FileRouteTypes {
     | '/_app/settings'
     | '/_app/'
     | '/_app/customers/new'
+    | '/_app/drivers/$driverId'
     | '/_app/items/new'
     | '/_app/orders/new'
     | '/_app/payments/new'
@@ -512,6 +524,13 @@ declare module '@tanstack/react-router' {
       path: '/drivers'
       fullPath: '/drivers/'
       preLoaderRoute: typeof AppDriversIndexRouteImport
+      parentRoute: typeof AppRoute
+    }
+    '/_app/drivers/$driverId': {
+      id: '/_app/drivers/$driverId'
+      path: '/drivers/$driverId'
+      fullPath: '/drivers/$driverId'
+      preLoaderRoute: typeof AppDriversDriverIdRouteImport
       parentRoute: typeof AppRoute
     }
     '/_app/items/': {
@@ -684,6 +703,7 @@ interface AppRouteChildren {
   AppSettingsRoute: typeof AppSettingsRoute
   AppIndexRoute: typeof AppIndexRoute
   AppCustomersNewRoute: typeof AppCustomersNewRoute
+  AppDriversDriverIdRoute: typeof AppDriversDriverIdRoute
   AppItemsNewRoute: typeof AppItemsNewRoute
   AppOrdersNewRoute: typeof AppOrdersNewRoute
   AppPaymentsNewRoute: typeof AppPaymentsNewRoute
@@ -714,6 +734,7 @@ const AppRouteChildren: AppRouteChildren = {
   AppSettingsRoute: AppSettingsRoute,
   AppIndexRoute: AppIndexRoute,
   AppCustomersNewRoute: AppCustomersNewRoute,
+  AppDriversDriverIdRoute: AppDriversDriverIdRoute,
   AppItemsNewRoute: AppItemsNewRoute,
   AppOrdersNewRoute: AppOrdersNewRoute,
   AppPaymentsNewRoute: AppPaymentsNewRoute,

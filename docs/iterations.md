@@ -408,6 +408,21 @@ The orders and users filters say the field's name, or "All …" for a no-filter 
 characters as they are typed. **Exit:** `lib/date-input.test.ts` (sanitizeTypedDate), `history.spec.ts` "Q148"
 (proven failing without the filter); the existing e2e suite for the filter labels.
 
+### 10j — A page for each driver (Q149)
+
+Read: §7.3.12, §7.3.13, §7.3.18.
+
+`/drivers/$driverId`: the driver's phone, car number and date added, Edit through the drivers' dialog, and every
+order they were given with a status choice (default all), the order columns without the driver; reached from the
+drivers list, the order page's driver and a driver's history entry. The customer profile's orders tab and the
+driver's orders are one component (`RelatedOrders`). **Exit:** `drivers.spec.ts` "Q149" (the row opens the page;
+the orders asked for by driver and ALL, no driver column, the status choice; Edit sends the version it opened
+with and the page shows the saved driver; an archived driver has the banner and no Edit; the order page's driver
+and the history entry link here; a phone card's menu action stays on the list; selecting a phone number in a row stays on the list; Back to an order after an edit
+shows the saved driver) — the ALL default, the order page's link, the card menu and the order refresh each
+proven failing when broken;
+`/drivers/4` added to the responsive, contrast and direction sweeps.
+
 ---
 
 ## Environments

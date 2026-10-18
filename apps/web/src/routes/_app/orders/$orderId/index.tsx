@@ -242,9 +242,14 @@ function OrderDetailPage() {
             <div className="flex flex-col gap-1">
               <dt className="text-muted-foreground text-sm">{t('orders.fields.driver')}</dt>
               <dd className="flex flex-col gap-1">
-                <span className="truncate">
+                {/* orders.view grants drivers.view, so the link is never a dead end (§3). */}
+                <Link
+                  to="/drivers/$driverId"
+                  params={{ driverId: String(data.driver.id) }}
+                  className="text-primary truncate underline-offset-4 hover:underline"
+                >
                   <bdi>{data.driver.name}</bdi>
-                </span>
+                </Link>
                 {/* The phone and the car number are told apart by an icon each; numbers read left to right (§7.11). */}
                 <span className="text-muted-foreground flex flex-wrap gap-x-4 gap-y-1 text-sm">
                   <span className="inline-flex items-center gap-1.5">

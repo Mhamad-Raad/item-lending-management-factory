@@ -29,7 +29,8 @@ Pallet System: a web app for a single pallet factory in Iraq (Kurdistan Region) 
   10e: the return form refuses a row over what is out as it is typed, and that row prices nothing (Q141); 10f:
   the order page's returns as a table (Q142); 10g: the hand cursor everywhere, Active in list status columns, and
   the customer form in sections with icons (Q143–Q145); 10h: the damage refund shows its currency and what it
-  gives back and keeps (Q146); 10i: filters without "any", date boxes that take only dates (Q147, Q148).
+  gives back and keeps (Q146); 10i: filters without "any", date boxes that take only dates (Q147, Q148). Then
+  (2026-10-18) 10j: a page for each driver — details, Edit, and the orders they were given (Q149).
 - **The maintainer's one page** is "Maintainer quick start" in `README.md` (run, test, deploy, restore, recover,
   traps, yearly checklist). Keep it true when a command or a runbook changes.
 - **Open, needing people rather than code:** the E6 screenshot baselines (rendered by CI, then committed; after

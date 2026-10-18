@@ -102,8 +102,14 @@ const HIDE_BELOW = {
   '2xl': 'hidden 2xl:table-cell',
 } as const;
 
-/** A click on a row opens its link, unless the click was on something interactive of its own. */
+/**
+ * A click on a row opens its link, unless the click was on something interactive of its own. A click from a
+ * portal — a menu item of the row's actions menu — reaches the row through React, not the page: it is not the row's.
+ * Nor is the end of a drag that selected text, a phone number to copy.
+ */
 function openRowLink(event: React.MouseEvent<HTMLElement>): void {
+  if (!event.currentTarget.contains(event.target as Node)) return;
+  if (window.getSelection()?.isCollapsed === false) return;
   if ((event.target as HTMLElement).closest('a, button, input, [role="button"], [role="switch"]')) return;
   event.currentTarget.querySelector<HTMLAnchorElement>('a[href]')?.click();
 }

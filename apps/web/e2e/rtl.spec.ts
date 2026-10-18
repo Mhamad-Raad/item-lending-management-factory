@@ -64,6 +64,7 @@ test('names people typed keep their own direction on every page that shows them'
     '/items',
     '/items/5',
     '/drivers',
+    '/drivers/4',
     '/users',
     '/users/2',
     '/history',

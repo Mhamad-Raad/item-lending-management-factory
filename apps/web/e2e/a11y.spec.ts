@@ -71,6 +71,7 @@ test.describe('text keeps its contrast across the pages with badges, notices and
       '/orders',
       '/orders/9',
       '/customers/3',
+      '/drivers/4',
       '/items',
       '/items/5',
       '/reports/stock',

@@ -26,6 +26,7 @@ export function EntityRef({ row }: { row: AuditLogDto }) {
   const isAdmin = useAuth().user?.role === 'ADMIN';
   const canViewItems = useCan('items.view');
   const canViewCustomers = useCan('customers.view');
+  const canViewDrivers = useCan('drivers.view');
   const canViewOrders = useCan('orders.view');
   const label = t(`enums.auditEntityType.${row.entityType}`);
   if (!row.entityId) return <>{label}</>;
@@ -43,7 +44,6 @@ export function EntityRef({ row }: { row: AuditLogDto }) {
       : row.entityType === 'RETURN' || row.entityType === 'LEDGER_ENTRY'
         ? owningOrderId(row)
         : null;
-  // Drivers have no page of their own: they are edited in a dialog on their list.
   const target =
     row.entityType === 'ITEM' && canViewItems ? (
       <Link to="/items/$itemId" params={{ itemId: id }} className={LINK}>
@@ -51,6 +51,10 @@ export function EntityRef({ row }: { row: AuditLogDto }) {
       </Link>
     ) : row.entityType === 'CUSTOMER' && canViewCustomers ? (
       <Link to="/customers/$customerId" params={{ customerId: id }} className={LINK}>
+        {text}
+      </Link>
+    ) : row.entityType === 'DRIVER' && canViewDrivers ? (
+      <Link to="/drivers/$driverId" params={{ driverId: id }} className={LINK}>
         {text}
       </Link>
     ) : row.entityType === 'USER' && isAdmin ? (

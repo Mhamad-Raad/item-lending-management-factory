@@ -54,7 +54,7 @@ function PhoneDuplicateWarning({ phone, excludeId }: { phone: string; excludeId?
 }
 
 /**
- * Drivers are created and edited in a dialog, not on a page of their own (§7.3.13) — from the drivers list, and
+ * Drivers are created and edited in a dialog (§7.3.13) — from the drivers list, from a driver's page (Q149), and
  * from an order's driver field for one who is not on file yet (§7.4.1, Q135).
  */
 export function DriverDialog({
@@ -113,6 +113,8 @@ export function DriverDialog({
         queryKey: qk.drivers.all(),
         predicate: (query) => query.queryKey[1] !== phoneChecks[1],
       });
+      // Orders carry their driver's name, phone and car number: an edit changes what every order page shows (Q149).
+      if (driver) void queryClient.invalidateQueries({ queryKey: qk.orders.all() });
       // After the invalidation, which would mark it stale again: a picker shows the new driver without asking.
       queryClient.setQueryData(qk.drivers.detail(saved.id), saved);
       toast.success(t(driver ? 'drivers.dialog.saved' : 'drivers.dialog.created'));
