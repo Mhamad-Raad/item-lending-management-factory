@@ -37,8 +37,10 @@ const HANDOVER: ReceiptDto = {
   factory: FACTORY,
   customer: { ...CUSTOMER, altPhone: null },
   driver: { name: 'Karwan', phone: '07701234567', carNumber: '22 Erbil 12345' },
-  linesPerHalf: 6,
-  sheets: [{ sheetNumber: 1, sheetCount: 1, lines: [], showTotal: true }],
+  layout: 'halves',
+  rowsPerCopy: 6,
+  sheets: [{ sheetNumber: 1, sheetCount: 1, rows: [], showTotal: true }],
+  older: null,
 };
 
 const NO_RECEIPT = {

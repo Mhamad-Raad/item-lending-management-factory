@@ -437,13 +437,16 @@ export const RECEIPT: ReceiptDto = {
   factory: { name: 'Pallet Factory', phone: '07500000000', address: 'Erbil', logoUrl: null },
   customer: { name: CUSTOMER.name, phone: '07501234567', altPhone: null, address: 'Erbil' },
   driver: { name: DRIVER.name, phone: '07701112233', carNumber: 'Erbil 12 A 34567' },
-  linesPerHalf: 6,
+  layout: 'halves',
+  rowsPerCopy: 6,
   sheets: [
     {
       sheetNumber: 1,
       sheetCount: 1,
-      lines: [
+      rows: [
         {
+          kind: 'line',
+          no: 1,
           itemName: ITEM.name,
           quantity: 10,
           unitDeposit: 1_000,
@@ -456,6 +459,7 @@ export const RECEIPT: ReceiptDto = {
       showTotal: true,
     },
   ],
+  older: null,
 };
 
 const page1 = <T>(items: T[]): PageDto<T> => ({ items, page: 1, pageSize: 25, total: items.length * 40 });

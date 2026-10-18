@@ -12,6 +12,7 @@ import type {
   StockMovementReason,
   UploadKind,
 } from '../enums.js';
+import type { ReceiptLayout } from '../domain/ledger-math.js';
 
 export interface UserRefDto {
   id: number;
@@ -449,12 +450,37 @@ export interface ReceiptLineDto {
   outQuantity: number;
 }
 
+/**
+ * A line of one of the customer's earlier orders that is still out (Q150), printed under this order's lines. Its
+ * total column is `outValue`, the deposit of what the customer still holds of it, not the line's whole total.
+ */
+export interface ReceiptOlderLineDto {
+  orderNumberDisplay: string;
+  itemName: string;
+  quantity: number;
+  unitDeposit: number;
+  returnedAccepted: number;
+  returnedDamaged: number;
+  outQuantity: number;
+  /** `outQuantity × unitDeposit`. */
+  outValue: number;
+}
+
+/**
+ * A row of the hand-over receipt's table (Q150): one of this order's lines, the heading over the earlier orders'
+ * lines, or one of those. `no` is the row's number on the paper, running on from this order's lines.
+ */
+export type ReceiptRowDto =
+  | ({ kind: 'line'; no: number } & ReceiptLineDto)
+  | { kind: 'olderHeading' }
+  | ({ kind: 'older'; no: number } & ReceiptOlderLineDto);
+
 export interface ReceiptSheetDto {
   /** 1-based. */
   sheetNumber: number;
   sheetCount: number;
-  /** At most `RECEIPT_LINES_PER_HALF`. */
-  lines: ReceiptLineDto[];
+  /** At most `rowsPerCopy`. */
+  rows: ReceiptRowDto[];
   /** True only on the last sheet. */
   showTotal: boolean;
 }
@@ -472,9 +498,20 @@ export interface ReceiptDto {
   factory: ReceiptFactoryDto;
   customer: { name: string; phone: string; altPhone: string | null; address: string };
   driver: { name: string; phone: string; carNumber: string };
-  linesPerHalf: number;
-  /** One per `chunkReceiptLines` chunk; each A4 sheet prints its chunk twice. */
+  /**
+   * `layoutReceiptRows` (Q150): `halves` prints each chunk's two copies on one A4 sheet, `pages` gives each copy an
+   * A4 page of its own.
+   */
+  layout: ReceiptLayout;
+  /** The rows a copy's table has room for: `RECEIPT_LINES_PER_HALF` or `RECEIPT_ROWS_PER_PAGE`. */
+  rowsPerCopy: number;
+  /** One per chunk of rows; each chunk is printed twice, the factory's copy and the customer's. */
   sheets: ReceiptSheetDto[];
+  /**
+   * The customer's earlier orders' lines still out (Q150): their deposit, and that added to `depositTotal`. Null
+   * when there are none, and the footer prints the order's total alone.
+   */
+  older: { outValue: number; combinedTotal: number } | null;
 }
 
 /**

@@ -1,9 +1,8 @@
 import { Injectable } from '@nestjs/common';
 import {
-  RECEIPT_LINES_PER_HALF,
+  assertSafe,
   businessDateToDb,
   businessToday,
-  chunkReceiptLines,
   dbDateToBusiness,
   formatOrderNumber,
   toWesternDigits,
@@ -12,7 +11,9 @@ import {
   type OrderListItemDto,
   type OrderListQuery,
   type PageDto,
+  layoutReceiptRows,
   type ReceiptDto,
+  type ReceiptRowDto,
 } from '@pallet/shared';
 import type { AuthContext } from '../../common/auth-context';
 import { Clock } from '../../common/clock';
@@ -282,9 +283,10 @@ export class OrdersService {
   }
 
   /**
-   * The printed hand-over (§6.19, §7.16): lines in chunks of six, each chunk on its own A4 sheet. A line also says
-   * what has come back so far (Q134), from the totals `recomputeOrder()` keeps on it, and the receipt the day
-   * those figures were read.
+   * The printed hand-over (§6.19, §7.16): this order's lines, then those of the customer's earlier orders still out
+   * (Q150), in one table — six rows to a half, both copies on one A4 sheet, or a page per copy when there are more.
+   * A line also says what has come back so far (Q134), from the totals `recomputeOrder()` keeps on it, and the
+   * receipt the day those figures were read.
    */
   async receipt(orderId: number): Promise<ReceiptDto> {
     const order = await this.prisma.order.findUnique({
@@ -294,17 +296,51 @@ export class OrdersService {
     if (!order) throw new ApiError('ORDER_NOT_FOUND', { orderId });
     if (order.cancelledAt) throw new ApiError('ORDER_CANCELLED', { orderId });
 
-    const chunks = chunkReceiptLines(
-      order.lines.map((line) => ({
+    // Earlier by order number, the order of creation (A6): a reprint never takes in an order made after this one.
+    // Pallets still out are only ever on an OPEN order (a settled one holds nothing, a cancelled one is zeroed), so
+    // the customer's settled history is never read: `orders (customer_id, status)` narrows to the open ones.
+    const olderLines = await this.prisma.orderLine.findMany({
+      where: {
+        outQuantity: { gt: 0 },
+        order: { customerId: order.customerId, status: 'OPEN', orderNumber: { lt: order.orderNumber } },
+      },
+      include: { item: { select: { name: true } }, order: { select: { orderNumber: true } } },
+      orderBy: [{ order: { orderNumber: 'asc' } }, { id: 'asc' }],
+    });
+
+    const rows: ReceiptRowDto[] = order.lines.map((line, index) => ({
+      kind: 'line',
+      no: index + 1,
+      itemName: line.item.name,
+      quantity: line.quantity,
+      unitDeposit: toSafeMoney(line.unitDeposit),
+      lineTotal: toSafeMoney(line.lineTotal),
+      returnedAccepted: line.returnedAccepted,
+      returnedDamaged: line.returnedDamaged,
+      outQuantity: line.outQuantity,
+    }));
+    let olderOutValue = 0;
+    if (olderLines.length > 0) rows.push({ kind: 'olderHeading' });
+    olderLines.forEach((line, index) => {
+      const unitDeposit = toSafeMoney(line.unitDeposit);
+      const outValue = assertSafe(line.outQuantity * unitDeposit, 'outValue');
+      olderOutValue = assertSafe(olderOutValue + outValue, 'olderOutValue');
+      rows.push({
+        kind: 'older',
+        no: order.lines.length + index + 1,
+        orderNumberDisplay: formatOrderNumber(line.order.orderNumber),
         itemName: line.item.name,
         quantity: line.quantity,
-        unitDeposit: toSafeMoney(line.unitDeposit),
-        lineTotal: toSafeMoney(line.lineTotal),
+        unitDeposit,
         returnedAccepted: line.returnedAccepted,
         returnedDamaged: line.returnedDamaged,
         outQuantity: line.outQuantity,
-      })),
-    );
+        outValue,
+      });
+    });
+
+    const { layout, rowsPerCopy, chunks } = layoutReceiptRows(rows, (row) => row.kind === 'olderHeading');
+    const depositTotal = toSafeMoney(order.depositTotal);
     return {
       orderId: order.id,
       orderNumber: order.orderNumber,
@@ -312,7 +348,7 @@ export class OrdersService {
       date: dbDateToBusiness(order.date),
       printedOn: businessToday(this.clock.now()),
       paymentType: order.paymentType,
-      depositTotal: toSafeMoney(order.depositTotal),
+      depositTotal,
       factory: await loadReceiptFactory(this.prisma),
       customer: {
         name: order.customer.name,
@@ -321,13 +357,18 @@ export class OrdersService {
         address: order.customer.address,
       },
       driver: { name: order.driver.name, phone: order.driver.phone, carNumber: order.driver.carNumber },
-      linesPerHalf: RECEIPT_LINES_PER_HALF,
-      sheets: chunks.map((lines, index) => ({
+      layout,
+      rowsPerCopy,
+      sheets: chunks.map((chunk, index) => ({
         sheetNumber: index + 1,
         sheetCount: chunks.length,
-        lines,
+        rows: chunk,
         showTotal: index === chunks.length - 1,
       })),
+      older:
+        olderLines.length > 0
+          ? { outValue: olderOutValue, combinedTotal: assertSafe(depositTotal + olderOutValue, 'combinedTotal') }
+          : null,
     };
   }
 }

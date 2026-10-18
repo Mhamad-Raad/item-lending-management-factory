@@ -2,11 +2,14 @@ import { expect, test } from '@playwright/test';
 import { adminApi, figure, shown, signIn, sorani, stage, today, LIVE_ADMIN, RUN } from './live';
 
 /**
- * E5 (§14.6): a seven-line order prints on two A4 sheets, each with two copies — six lines on the first, the last
- * line and the total on the second — in Sorani, with Western digits and dd/MM/yyyy. A return recorded afterwards is
- * on the reprint (Q134).
+ * E5 (§14.6): a seven-line order is more than a half holds, so each copy — the factory's and the customer's —
+ * prints on an A4 page of its own, all seven lines and the total on each (Q150), in Sorani, with Western digits and
+ * dd/MM/yyyy. A return recorded afterwards is on the reprint (Q134).
  */
-test('E5: a seven-line receipt prints on exactly two A4 sheets, total on the last', async ({ page, request }) => {
+test('E5: a seven-line receipt prints each copy on an A4 page of its own, with the total', async ({
+  page,
+  request,
+}) => {
   const api = await adminApi(request);
   const staged = stage(api);
   const [customer, driver] = await Promise.all([
@@ -29,23 +32,23 @@ test('E5: a seven-line receipt prints on exactly two A4 sheets, total on the las
     window.print = () => {
       const state = window as unknown as { printed: number; rowAtPrint: string };
       state.printed += 1;
-      state.rowAtPrint = document.querySelector('.half tbody tr')?.textContent ?? '';
+      state.rowAtPrint = document.querySelector('.page tbody tr')?.textContent ?? '';
     };
   });
   await page.goto(`/print/orders/${order.id}`);
 
   const sheets = page.locator('.sheet');
   await expect(sheets).toHaveCount(2);
-  await expect(page.locator('.half')).toHaveCount(4);
+  await expect(page.locator('.page')).toHaveCount(2);
   await expect(page.locator('.receipt')).toHaveAttribute('dir', 'rtl');
   await expect.poll(() => page.evaluate(() => (window as unknown as { printed: number }).printed)).toBe(1);
 
   const total = sorani('receipt.depositTotal');
-  await expect(sheets.first()).toContainText(sorani('receipt.sheetOf', { x: 1, y: 2 }));
-  await expect(sheets.last()).toContainText(sorani('receipt.sheetOf', { x: 2, y: 2 }));
-  await expect(sheets.first()).not.toContainText(total);
-  await expect(sheets.last()).toContainText(total);
-  await expect(sheets.last()).toContainText(figure(70_000));
+  for (const sheet of await sheets.all()) {
+    await expect(sheet).toContainText(sorani('receipt.sheetOf', { x: 1, y: 1 }));
+    await expect(sheet).toContainText(total);
+    await expect(sheet).toContainText(figure(70_000));
+  }
   await expect(sheets.first()).toContainText(shown(today()));
   await expect(sheets.first()).toContainText(String(order.orderNumber).padStart(6, '0'));
   // Western digits only: no Arabic-Indic or Persian digit anywhere on the printout.
@@ -54,7 +57,7 @@ test('E5: a seven-line receipt prints on exactly two A4 sheets, total on the las
   // Q134: a return recorded while this tab stays open; its Print button reads the order again before printing.
   const [firstLine] = order.lines;
   if (!firstLine) throw new Error('the order has lines');
-  const firstRow = sheets.first().locator('.half').first().locator('tbody tr').first().locator('td');
+  const firstRow = sheets.first().locator('.page tbody tr').first().locator('td');
   await expect(firstRow).toHaveText(['1', items[0]?.name ?? '', '10', '0', '0', '10', figure(1_000), figure(10_000)]);
   await staged.return(order.id, [{ orderLineId: firstLine.id, acceptedQuantity: 6, damagedQuantity: 1 }]);
   await page.getByRole('button', { name: sorani('receipt.print') }).click();

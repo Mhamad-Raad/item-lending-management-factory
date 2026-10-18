@@ -379,42 +379,41 @@ describe('order changes: edit, cancel, receipt, ledger (§4.8.2, §4.8.3, §6.19
     await patch(admin, created.id, { version: 3, notes: 'Paid in part' }).expect(200);
   });
 
-  it('prints a receipt: six lines a sheet, the total on the last one', async () => {
+  it('prints a receipt: six lines in halves, more a page per copy, the total on the last one (A15, Q150)', async () => {
     const items = await Promise.all(
-      Array.from({ length: 14 }, (_, index) =>
+      Array.from({ length: 30 }, (_, index) =>
         createItem(app, admin, { name: `Pallet ${String(index + 1).padStart(2, '0')}`, depositPrice: 100, stock: 5 }),
       ),
     );
-    const order = await createOrder(app, admin, {
-      customerId: customer.id,
-      driverId: driver.id,
-      date: TODAY,
-      lines: items.map((each) => ({ itemId: each.id, quantity: 2 })),
-    });
+    const receiptOf = async (count: number): Promise<ReceiptDto> => {
+      const order = await createOrder(app, admin, {
+        customerId: (await createCustomer(app, admin, { name: `Customer ${count}`, phone: `0750000${1000 + count}` }))
+          .id,
+        driverId: driver.id,
+        date: TODAY,
+        lines: items.slice(0, count).map((each) => ({ itemId: each.id, quantity: 2 })),
+      });
+      return (await http().get(`/api/orders/${order.id}/receipt`).set(asUser(admin)).expect(200)).body as ReceiptDto;
+    };
 
-    const receipt = (await http().get(`/api/orders/${order.id}/receipt`).set(asUser(admin)).expect(200))
-      .body as ReceiptDto;
-
-    expect(receipt).toMatchObject({
+    const six = await receiptOf(6);
+    expect(six).toMatchObject({
       orderNumber: 1,
       orderNumberDisplay: '000001',
       date: TODAY,
       printedOn: TODAY,
       paymentType: 'LENT',
-      depositTotal: 2_800,
+      depositTotal: 1_200,
       factory: { name: 'Pallet Factory', logoUrl: null },
-      customer: { name: customer.name, phone: customer.phone },
       driver: { name: driver.name, carNumber: driver.carNumber },
-      linesPerHalf: 6,
+      layout: 'halves',
+      rowsPerCopy: 6,
+      older: null,
     });
-    expect(
-      receipt.sheets.map((sheet) => [sheet.sheetNumber, sheet.sheetCount, sheet.lines.length, sheet.showTotal]),
-    ).toEqual([
-      [1, 3, 6, false],
-      [2, 3, 6, false],
-      [3, 3, 2, true],
-    ]);
-    expect(receipt.sheets[0]?.lines[0]).toEqual({
+    expect(six.sheets.map((sheet) => [sheet.sheetCount, sheet.rows.length, sheet.showTotal])).toEqual([[1, 6, true]]);
+    expect(six.sheets[0]?.rows[0]).toEqual({
+      kind: 'line',
+      no: 1,
       itemName: 'Pallet 01',
       quantity: 2,
       unitDeposit: 100,
@@ -423,6 +422,88 @@ describe('order changes: edit, cancel, receipt, ledger (§4.8.2, §4.8.3, §6.19
       returnedDamaged: 0,
       outQuantity: 2,
     });
+
+    const thirty = await receiptOf(30);
+    expect(thirty).toMatchObject({ layout: 'pages', rowsPerCopy: 27, depositTotal: 6_000 });
+    expect(
+      thirty.sheets.map((sheet) => [sheet.sheetNumber, sheet.sheetCount, sheet.rows.length, sheet.showTotal]),
+    ).toEqual([
+      [1, 2, 27, false],
+      [2, 2, 3, true],
+    ]);
+    expect(thirty.sheets[1]?.rows.map((row) => (row.kind === 'olderHeading' ? null : row.no))).toEqual([28, 29, 30]);
+  });
+
+  it("lists under the order the customer's earlier orders' pallets still out, with the totals (Q150)", async () => {
+    const other = await createItem(app, admin, { name: 'Plastic pallet', depositPrice: 500, stock: 50 });
+    const earlier = await createOrder(app, admin, {
+      customerId: customer.id,
+      driverId: driver.id,
+      date: '2026-09-02',
+      lines: [
+        { itemId: item.id, quantity: 20 },
+        { itemId: other.id, quantity: 4 },
+      ],
+    });
+    const [earlierPallets, earlierPlastic] = earlier.lines;
+    if (!earlierPallets || !earlierPlastic) throw new Error('the earlier order has two lines');
+    // All of the plastic pallets came back: that line is not listed. Of the 20 others, 15 are still out.
+    await recordReturn(app, admin, {
+      orderId: earlier.id,
+      date: '2026-09-05',
+      lines: [
+        { orderLineId: earlierPallets.id, acceptedQuantity: 4, damagedQuantity: 1 },
+        { orderLineId: earlierPlastic.id, acceptedQuantity: 4 },
+      ],
+    });
+    const cancelled = await order100('LENT');
+    await cancel(admin, cancelled.id, cancelled.version).expect(200);
+    const otherCustomer = await createCustomer(app, admin, { name: 'Baban Cement', phone: '07502223344' });
+    await order100('LENT', otherCustomer.id);
+
+    const order = await createOrder(app, admin, {
+      customerId: customer.id,
+      driverId: driver.id,
+      date: TODAY,
+      lines: [{ itemId: item.id, quantity: 10 }],
+    });
+    // Made after the order: not on its receipt, nor on a reprint.
+    await createOrder(app, admin, {
+      customerId: customer.id,
+      driverId: driver.id,
+      date: TODAY,
+      lines: [{ itemId: other.id, quantity: 1 }],
+    });
+
+    const receipt = (await http().get(`/api/orders/${order.id}/receipt`).set(asUser(admin)).expect(200))
+      .body as ReceiptDto;
+    expect(receipt).toMatchObject({
+      layout: 'halves',
+      depositTotal: 10_000,
+      older: { outValue: 15_000, combinedTotal: 25_000 },
+    });
+    expect(receipt.sheets[0]?.rows).toEqual([
+      expect.objectContaining({ kind: 'line', no: 1, quantity: 10, lineTotal: 10_000 }),
+      { kind: 'olderHeading' },
+      {
+        kind: 'older',
+        no: 2,
+        orderNumberDisplay: String(earlier.orderNumber).padStart(6, '0'),
+        itemName: 'Pallet 120×100',
+        quantity: 20,
+        unitDeposit: 1_000,
+        returnedAccepted: 4,
+        returnedDamaged: 1,
+        outQuantity: 15,
+        outValue: 15_000,
+      },
+    ]);
+
+    // The earliest order has nothing earlier to list.
+    const first = (await http().get(`/api/orders/${earlier.id}/receipt`).set(asUser(admin)).expect(200))
+      .body as ReceiptDto;
+    expect(first.older).toBeNull();
+    expect(first.sheets[0]?.rows.map((row) => row.kind)).toEqual(['line', 'line']);
   });
 
   it('prints on each receipt line what came back of it, and forgets a deleted return (Q134)', async () => {
@@ -441,12 +522,9 @@ describe('order changes: edit, cancel, receipt, ledger (§4.8.2, §4.8.3, §6.19
     const returned = async (): Promise<number[][]> => {
       const receipt = (await http().get(`/api/orders/${order.id}/receipt`).set(asUser(admin)).expect(200))
         .body as ReceiptDto;
-      return (receipt.sheets[0]?.lines ?? []).map((line) => [
-        line.quantity,
-        line.returnedAccepted,
-        line.returnedDamaged,
-        line.outQuantity,
-      ]);
+      return (receipt.sheets[0]?.rows ?? []).flatMap((row) =>
+        row.kind === 'line' ? [[row.quantity, row.returnedAccepted, row.returnedDamaged, row.outQuantity]] : [],
+      );
     };
 
     await recordReturn(app, admin, {

@@ -95,6 +95,25 @@
   flex-direction: column;
   justify-content: space-between;
 }
+/* Q150: the footer of the last sheet when the customer's earlier orders are listed — their total and the two added
+   up join the order's, five rows in 25 mm: 5 of the half's 5.5 mm to spare (§7.16.3). */
+.block-footer.with-older {
+  height: 25mm;
+}
+/* Q150: a copy on an A4 page of its own, when the rows are more than a half holds: the half's padding and blocks,
+   the table 196 mm high — a header row and 27 rows of 7 mm (RECEIPT_ROWS_PER_PAGE). */
+.page {
+  height: 297mm;
+  box-sizing: border-box;
+  padding: 8mm 10mm;
+  display: flex;
+  flex-direction: column;
+  gap: 4mm;
+  overflow: hidden;
+}
+.page .block-lines {
+  height: 196mm;
+}
 .lines {
   width: 100%;
   border-collapse: collapse;
@@ -116,6 +135,16 @@
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+/* Q150: the customer's earlier orders' lines, under a heading row, shaded so that a black-and-white print still
+   tells them from this order's. */
+.lines tr.older-heading td {
+  font-size: 8.5pt;
+  font-weight: 600;
+  background: #d9d9d9;
+}
+.lines tr.older td {
+  background: #f0f0f0;
 }
 .lines .num-cell {
   text-align: end;

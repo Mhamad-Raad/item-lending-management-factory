@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import {
   checkCreditLimit,
   chunkReceiptLines,
+  layoutReceiptRows,
   LedgerInvariantError,
   computeOrderTotals,
   orderStateWithoutReturn,
@@ -302,5 +303,28 @@ describe('receipt chunking (A15)', () => {
     // U5 (§14.2): full sheets stay whole, one line more starts a new sheet.
     expect(chunkReceiptLines(Array.from({ length: 12 }, (_, i) => i)).map((c) => c.length)).toEqual([6, 6]);
     expect(chunkReceiptLines(Array.from({ length: 13 }, (_, i) => i)).map((c) => c.length)).toEqual([6, 6, 1]);
+  });
+});
+
+describe('receipt layout (A15, Q150)', () => {
+  const rows = (count: number) => Array.from({ length: count }, (_, i) => i);
+
+  it('keeps up to six rows in halves, two copies to a sheet', () => {
+    expect(layoutReceiptRows([])).toEqual({ layout: 'halves', rowsPerCopy: 6, chunks: [[]] });
+    expect(layoutReceiptRows(rows(6))).toEqual({ layout: 'halves', rowsPerCopy: 6, chunks: [rows(6)] });
+  });
+
+  it('gives each copy a page from the seventh row, 27 rows to a page', () => {
+    expect(layoutReceiptRows(rows(7))).toMatchObject({ layout: 'pages', rowsPerCopy: 27, chunks: [rows(7)] });
+    expect(layoutReceiptRows(rows(27)).chunks.map((c) => c.length)).toEqual([27]);
+    expect(layoutReceiptRows(rows(28)).chunks.map((c) => c.length)).toEqual([27, 1]);
+    expect(layoutReceiptRows(rows(60)).chunks.map((c) => c.length)).toEqual([27, 27, 6]);
+  });
+
+  it('never ends a page on a heading row: it goes over with the rows it heads', () => {
+    const withHeading = [...rows(26), 'heading', 'older'];
+    const { chunks } = layoutReceiptRows<number | string>(withHeading, (row) => row === 'heading');
+    expect(chunks.map((c) => c.length)).toEqual([26, 2]);
+    expect(chunks[1]).toEqual(['heading', 'older']);
   });
 });

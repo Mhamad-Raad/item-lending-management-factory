@@ -125,3 +125,12 @@ export function ReceiptSheet({ half }: { half: (first: boolean) => ReactNode }) 
     </div>
   );
 }
+
+/** One copy of a chunk of rows too many for a half, on an A4 page of its own with no cut line (Q150). */
+export function ReceiptPage({ children }: { children: ReactNode }) {
+  return (
+    <div className="sheet">
+      <div className="page">{children}</div>
+    </div>
+  );
+}

@@ -1,11 +1,72 @@
-import { formatBusinessDate, formatMoney, formatNumber, type ReceiptDto, type ReceiptSheetDto } from '@pallet/shared';
+import {
+  formatBusinessDate,
+  formatMoney,
+  formatNumber,
+  type ReceiptDto,
+  type ReceiptRowDto,
+  type ReceiptSheetDto,
+} from '@pallet/shared';
 import { tr } from './receipt-i18n';
-import { NumberCell, ReceiptCustomer, ReceiptFactory, ReceiptPaper, ReceiptSheet, ReceiptTitle } from './receipt-parts';
+import {
+  NumberCell,
+  ReceiptCustomer,
+  ReceiptFactory,
+  ReceiptPage,
+  ReceiptPaper,
+  ReceiptSheet,
+  ReceiptTitle,
+} from './receipt-parts';
 
 /** How many characters each numeric column holds at the receipt's 10 pt (§7.16.3; `NumberCell`). */
 const FITS = { quantity: 7, unitDeposit: 9, lineTotal: 11 } as const;
 
-function Half({
+/** One figure of the footer, in dinars (§7.16.3, Q150). */
+function Total({ label, amount, size, weight }: { label: string; amount: number; size: string; weight: number }) {
+  return (
+    <div style={{ fontSize: size, fontWeight: weight }}>
+      {label}: <span className="num">{formatMoney(amount)}</span> {tr('receipt.currency')}
+    </div>
+  );
+}
+
+/**
+ * A row of the table: one of this order's lines, the heading over the customer's earlier orders' lines still out,
+ * or one of those — its order's number before the item, and in the total column what of it is still out (Q150).
+ * A row past the last stays empty, so the grid keeps its height.
+ */
+function Row({ row }: { row: ReceiptRowDto | null }) {
+  if (row?.kind === 'olderHeading') {
+    return (
+      <tr className="older-heading">
+        <td colSpan={8}>{tr('receipt.olderHeading')}</td>
+      </tr>
+    );
+  }
+  return (
+    <tr className={row?.kind === 'older' ? 'older' : undefined}>
+      <td className="num num-cell">{row ? row.no : ''}</td>
+      <td className="col-item">
+        {row?.kind === 'older' ? (
+          <>
+            <span className="num">{row.orderNumberDisplay}</span> ·{' '}
+          </>
+        ) : null}
+        <bdi>{row?.itemName ?? ''}</bdi>
+      </td>
+      <NumberCell text={row && formatNumber(row.quantity)} fits={FITS.quantity} />
+      <NumberCell text={row && formatNumber(row.returnedAccepted)} fits={FITS.quantity} />
+      <NumberCell text={row && formatNumber(row.returnedDamaged)} fits={FITS.quantity} />
+      <NumberCell text={row && formatNumber(row.outQuantity)} fits={FITS.quantity} />
+      <NumberCell text={row && formatMoney(row.unitDeposit)} fits={FITS.unitDeposit} />
+      <NumberCell
+        text={row && formatMoney(row.kind === 'older' ? row.outValue : row.lineTotal)}
+        fits={FITS.lineTotal}
+      />
+    </tr>
+  );
+}
+
+function Copy({
   receipt,
   sheet,
   onLogoSettled,
@@ -14,8 +75,7 @@ function Half({
   sheet: ReceiptSheetDto;
   onLogoSettled?: () => void;
 }) {
-  const rows = Array.from({ length: receipt.linesPerHalf }, (_, index) => sheet.lines[index] ?? null);
-  const firstNumber = (sheet.sheetNumber - 1) * receipt.linesPerHalf + 1;
+  const rows = Array.from({ length: receipt.rowsPerCopy }, (_, index) => sheet.rows[index] ?? null);
   const { factory, customer, driver } = receipt;
 
   return (
@@ -77,30 +137,22 @@ function Half({
             </tr>
           </thead>
           <tbody>
-            {rows.map((line, index) => (
-              <tr key={index}>
-                <td className="num num-cell">{line ? firstNumber + index : ''}</td>
-                <td className="col-item">
-                  <bdi>{line?.itemName ?? ''}</bdi>
-                </td>
-                <NumberCell text={line && formatNumber(line.quantity)} fits={FITS.quantity} />
-                <NumberCell text={line && formatNumber(line.returnedAccepted)} fits={FITS.quantity} />
-                <NumberCell text={line && formatNumber(line.returnedDamaged)} fits={FITS.quantity} />
-                <NumberCell text={line && formatNumber(line.outQuantity)} fits={FITS.quantity} />
-                <NumberCell text={line && formatMoney(line.unitDeposit)} fits={FITS.unitDeposit} />
-                <NumberCell text={line && formatMoney(line.lineTotal)} fits={FITS.lineTotal} />
-              </tr>
+            {rows.map((row, index) => (
+              <Row key={index} row={row} />
             ))}
           </tbody>
         </table>
       </div>
 
-      <div className="block-footer">
-        {sheet.showTotal ? (
-          <div style={{ fontSize: '11pt', fontWeight: 700 }}>
-            {tr('receipt.depositTotal')}: <span className="num">{formatMoney(receipt.depositTotal)}</span>{' '}
-            {tr('receipt.currency')}
-          </div>
+      <div className={sheet.showTotal && receipt.older ? 'block-footer with-older' : 'block-footer'}>
+        {sheet.showTotal && receipt.older ? (
+          <>
+            <Total label={tr('receipt.orderTotal')} amount={receipt.depositTotal} size="10pt" weight={600} />
+            <Total label={tr('receipt.olderOutValue')} amount={receipt.older.outValue} size="10pt" weight={600} />
+            <Total label={tr('receipt.combinedTotal')} amount={receipt.older.combinedTotal} size="11pt" weight={700} />
+          </>
+        ) : sheet.showTotal ? (
+          <Total label={tr('receipt.depositTotal')} amount={receipt.depositTotal} size="11pt" weight={700} />
         ) : (
           <div style={{ fontSize: '9pt', fontStyle: 'italic' }}>{tr('receipt.continued')}</div>
         )}
@@ -121,24 +173,38 @@ function Half({
 }
 
 /**
- * The hand-over receipt (§7.16): one A4 sheet per chunk the server made, each printing its chunk twice
- * — the factory's copy and the customer's — above and below a dashed cut line. Each line also says what
- * of it has come back so far (Q134), so a reprint after a return is the order's current position.
+ * The hand-over receipt (§7.16): one chunk of rows per sheet the server made, each printed twice — the factory's
+ * copy and the customer's. Six rows or fewer print both copies on one A4 sheet, above and below a dashed cut line;
+ * more give each copy a page of its own, all of the factory's pages before the customer's (Q150). Each line also says what of it has come back so far (Q134), so a
+ * reprint after a return is the order's current position; under them are the customer's earlier orders' pallets
+ * still out (Q150).
  */
 export function Receipt({ receipt, onLogoSettled }: { receipt: ReceiptDto; onLogoSettled?: () => void }) {
+  const copy = (sheet: ReceiptSheetDto, first: boolean) => (
+    <Copy
+      receipt={receipt}
+      sheet={sheet}
+      onLogoSettled={first && sheet.sheetNumber === 1 ? onLogoSettled : undefined}
+    />
+  );
+  if (receipt.layout === 'pages') {
+    // All of the factory's pages, then all of the customer's: each copy comes off the printer in one stack.
+    return (
+      <ReceiptPaper>
+        {[true, false].flatMap((first) =>
+          receipt.sheets.map((sheet) => (
+            <ReceiptPage key={`${first ? 'factory' : 'customer'}-${sheet.sheetNumber}`}>
+              {copy(sheet, first)}
+            </ReceiptPage>
+          )),
+        )}
+      </ReceiptPaper>
+    );
+  }
   return (
     <ReceiptPaper>
       {receipt.sheets.map((sheet) => (
-        <ReceiptSheet
-          key={sheet.sheetNumber}
-          half={(first) => (
-            <Half
-              receipt={receipt}
-              sheet={sheet}
-              onLogoSettled={first && sheet.sheetNumber === 1 ? onLogoSettled : undefined}
-            />
-          )}
-        />
+        <ReceiptSheet key={sheet.sheetNumber} half={(first) => copy(sheet, first)} />
       ))}
     </ReceiptPaper>
   );

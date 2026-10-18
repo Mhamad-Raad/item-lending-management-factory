@@ -423,6 +423,19 @@ shows the saved driver) — the ALL default, the order page's link, the card men
 proven failing when broken;
 `/drivers/4` added to the responsive, contrast and direction sweeps.
 
+### 10k — Earlier pallets still out on the hand-over receipt (Q150)
+
+Read: §6.19 (`GET /api/orders/:id/receipt`), §7.16.
+
+Under this order's lines, in the same table, a heading row and the customer's earlier orders' lines still out
+(earlier by order number; open orders; `out_quantity > 0`), shaded, each with its order's number and in the total
+column what of it is still out. The last sheet's footer: this order's deposit, the earlier pallets' deposit, the two
+added. Up to six rows print as before, two copies to a sheet; more give each copy an A4 page of its own, 27 rows to a
+page (`layoutReceiptRows`), all of the factory's pages before the customer's. **Exit:** `ledger-math.test.ts` "receipt layout"; `order-changes.test.ts` "six lines in
+halves, more a page per copy" and "earlier orders' pallets still out" (another customer's, a cancelled order's, a
+returned line's and a later order's left out); `receipt.test.tsx` (the factory's pages first); `receipt.spec.ts` E5 and "Q150" (the half's
+five-row footer proven failing at 20 mm); `e2e-live/e5-receipt.spec.ts`.
+
 ---
 
 ## Environments

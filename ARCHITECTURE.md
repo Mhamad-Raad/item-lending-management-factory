@@ -150,13 +150,13 @@ Every item below is an ambiguity, contradiction or gap in the brief. The builder
 | A6 | How are order numbers allocated? | Gap-free increasing integers from 1, allocated inside the creation transaction from the locked single-row `order_counter`; shown zero-padded to 6 digits (`000123`) on the receipt and in the UI; numbers above 999999 are shown unpadded. Cancelled orders keep their number. |
 | A7 | Payment limits and scope? | A payment on a `LENT` order cannot exceed the order's current `owed`. Payments are per order; there is no customer-level payment. Manual payments on `CASH` orders are rejected (`PAYMENT_ORDER_NOT_LENT`). |
 | A8 | Cardinalities? | One customer per order; one driver per order; an item appears at most once per order (`VALIDATION_FAILED` `duplicate`, Q38; DB unique `(order_id, item_id)`). |
-| A9 | Receipt content? | Only the fields listed in section 7 (receipt print route); no notes, no signature lines. Since Q134 the lines also say what has come back of each. |
+| A9 | Receipt content? | Only the fields listed in section 7 (receipt print route); no notes, no signature lines. Since Q134 the lines also say what has come back of each, and since Q150 the customer's earlier orders' pallets still out follow them, with the totals. |
 | A10 | Report export? | On screen and printable only; CSV/Excel export is out of scope (section 16). |
 | A11 | Password policy and recovery? | Minimum 10, maximum 128 characters; rejected if in the bundled common-password list or equal to the username; admins reset passwords; no email or self-service reset. |
 | A12 | Low-stock flag without `minStock`? | `minStock` is optional; items without it are never flagged. `isLowStock = minStock IS NOT NULL AND quantityOnHand ≤ minStock`. Archived items are never flagged on the dashboard. |
 | A13 | Duplicate customer phones? | Warning with confirmation, not a hard block (`CUSTOMER_PHONE_DUPLICATE` unless `confirmDuplicatePhone = true`). See Q13. |
 | A14 | Can status be edited? | No. `status` is derived by section 4.2 and written only by `recomputeOrder()`. |
-| A15 | Receipt overflow? | Lines are split into chunks of `RECEIPT_LINES_PER_HALF = 6`; each A4 sheet carries the same chunk twice; every chunk repeats the header and shows "sheet X of Y"; the deposit total is on the last sheet only. |
+| A15 | Receipt overflow? | Lines are split into chunks of `RECEIPT_LINES_PER_HALF = 6`; each A4 sheet carries the same chunk twice; every chunk repeats the header and shows "sheet X of Y"; the deposit total is on the last sheet only. Since Q150, more than six rows give each copy an A4 page of its own, 27 rows to a page (`layoutReceiptRows`); the transactions receipt keeps the halves. |
 | A16 | How are ledger corrections made? | Always by reversing rows. Nothing in `stock_movements` or `ledger_entries`, and no `returns` row, is ever updated (except Q5) or physically deleted. Reversal rows are dated the day the correction is recorded. The automatic hand-over payment has no stored date; its date is the order's `date`. |
 | A17 | Display timezone? | All dates and times are displayed in Asia/Baghdad (UTC+3, no DST) regardless of the browser's zone. |
 
@@ -299,6 +299,7 @@ Every item below is an ambiguity, contradiction or gap in the brief. The builder
 | Q147 | The maintainer asked (2026-10-14, iteration 10i) to remove the word "any" from the filter inputs. The orders list's customer, driver and item boxes and its payment-type choice, and the users list's status choice, read "Any customer", "Any driver"… What do they say? | **The field's name in the search boxes**: Customer, Driver, Item (ckb کڕیار, شۆفێر, کاڵا; ar الزبون, السائق, الصنف) — an empty box means no filter. The two choices whose first option is the no-filter one say "All", like the role choice beside them: All payment types, All statuses (ckb هەموو جۆرەکانی پارەدان, هەموو دۆخەکان; ar كل أنواع الدفع, كل الحالات), since an option reading only "Status" among Active and Inactive would not say it means all. The keys keep their names (`orders.list.anyCustomer`, …); the users list's role choice already said "All roles" and is unchanged. |
 | Q148 | The maintainer asked (2026-10-14, iteration 10i) that the From–To date boxes not take text. The `DatePicker` box took any keystroke and only refused a non-date when it was left. What may be typed? | **Only a date's characters.** Each change passes through `sanitizeTypedDate` (`lib/date-input.ts`): Eastern digits become Western, `-` and `.` become `/`, everything else is dropped — so a letter typed never shows — and the caret stays where the user typed. A keystroke that would make the box longer than ten characters (`TYPED_DATE_MAX_LENGTH`, `dd/MM/yyyy`) is refused whole rather than cutting the end off the year. It is the one date box of the app, so every date field (order, return and payment dates, the report and history ranges) behaves the same. Parsing on leaving the box is unchanged (every form `parseTypedDate` read still reaches it, a unit test checks), and the calendar button still picks a day. |
 | Q149 | The business asked (2026-10-18, iteration 10j) for a driver details page, where a user can edit the driver and see the orders they were given before. §7.3.13 kept drivers to a list with a dialog, and §7.3.18 said drivers have no page of their own. What holds? | **`/drivers/$driverId`** (`_app/drivers/$driverId.tsx`, `drivers.view`, title `drivers.detail.title`). Data: `GET /api/drivers/:id` (`driverQuery`, key `['drivers','detail',id]`, prefetched by the loader). The header is the driver's name with "Edit" (`drivers.edit`, not archived), which opens the same `DriverDialog` as the list with the driver as it was when pressed, so a refetch under the open dialog cannot hand it a newer `version`; an archived driver shows `drivers.detail.archivedBanner` and no Edit. A card lists phone, car number (both left to right) and the date added. Below it, only with `orders.view`, the section `drivers.detail.orders`: `GET /api/orders?driverId=<id>&status=<choice>` with its own status `Select`, default **ALL** (the page answers "what did this driver carry", settled orders included; the customer profile keeps OPEN), the order columns without the driver's own. That table is `RelatedOrders` (`features/orders/related-orders.tsx`), which the customer profile's orders tab now uses too. The page is reached from the drivers list (the name links, the row opens it, as on the other lists), from the order page's driver name (`orders.view` grants `drivers.view`, so it never leads to a refusal) and from a `DRIVER` history entry (with `drivers.view`). Saving an edit also invalidates `['orders']`, since every order carries its driver's name, phone and car number. A linked list row now ignores a click that reaches it through React from a portal (`openRowLink` checks the row contains the target), nor one that ends a drag selecting text (a phone number to copy): the drivers list is the first with both a row link and a card menu, whose Edit and Archive otherwise opened the page. No API change, no migration, no new permission. Archive stays on the list. |
+| Q150 | The business asked (2026-10-18, iteration 10k) for the hand-over receipt to also show what the customer still holds of earlier orders, with its price, then this order's total, those earlier pallets' total, and the two added together; the maintainer asked for them in the same table, marked as older, on the same sheet when there is room, and for each copy to take a page of its own when the table grows too big. A15 printed this order's lines alone, six to a half, and Q134 found no room in a half for a second table. What holds? | **One table:** this order's lines, then — when there are any — a heading row `receipt.olderHeading` (`tr.older-heading`, one cell over all eight columns, 8.5 pt, 600, shaded `#d9d9d9`) and the customer's earlier orders' lines still out (`tr.older`, shaded `#f0f0f0`, so a black-and-white print still tells them apart). **Earlier** is by order number, the order of creation (A6), never by date: a reprint of an old receipt takes in no order made after it, and a back-dated order counts by when it was made. An earlier line is listed while its maintained `out_quantity > 0`, of the same customer's `OPEN` orders (pallets still out are only ever on an open order: a settled one holds nothing, a cancelled one is zeroed — so the customer's settled history is never read, and `orders (customer_id, status)` serves the query), by order number then line id; its row is the order line's own figures (quantity, accepted, damaged, still out, unit deposit) with its order's number before the item name (`000041 · Euro pallet`), and in the total column `outValue = out_quantity × unit_deposit`, what of it the customer still holds — not the line's whole total, so the column adds up to the footer's figure. The rows are numbered on from this order's lines (`no`). The figures are the position on the day of printing, as Q134's. **Footer, on the last sheet:** with no earlier lines, as before (`receipt.depositTotal`); with them, three rows in place of that one — `receipt.orderTotal` (the order's `depositTotal`, 10 pt, 600), `receipt.olderOutValue` (the earlier lines' `outValue` summed, 10 pt, 600) and `receipt.combinedTotal` (the two added, 11 pt, 700) — then the payment type and the print date as before. The order's total stays its whole deposit, as the business worded it, not what of it is still out: each line already says what of it came back. The footer is then `.block-footer.with-older`, 25 mm (five rows of 23.6 mm at their sizes), using 5 of the half's 5.5 mm to spare: 22 + 24 + 49 + 25 + 3 × 4 = 132 ≤ 132.5 mm. **Layout** (`layoutReceiptRows`, `packages/shared`, replacing `chunkReceiptLines` for this receipt — the transactions receipt keeps it): up to `RECEIPT_LINES_PER_HALF` (6) rows, the heading counted, print as before: both copies on one A4 sheet, above and below the cut line (`layout: 'halves'`). More rows give each copy an A4 page of its own (`layout: 'pages'`, `.sheet > .page`, no cut line): the half's padding and blocks with the table 196 mm high, a header row and `RECEIPT_ROWS_PER_PAGE` = 27 rows (22 + 24 + 196 + 25 + 3 × 4 = 279 ≤ 281 mm); past 27, the rows go on to further pages — all of the factory's pages first, then all of the customer's, so each copy comes off the printer in one stack — `receipt.continued` and `receipt.sheetOf` as before (a sheet number counts chunks, so both copies of a chunk say the same). A heading row never ends a page; it goes over with the rows it heads. This applies to an order of seven lines or more with no earlier lines too, which printed on two sheets of two halves before and now prints all its lines on each copy's page. **`ReceiptDto`:** `linesPerHalf` is replaced by `layout` and `rowsPerCopy`; a sheet's `lines` by `rows: ReceiptRowDto[]` (`kind` `line` | `olderHeading` | `older`); `older: { outValue, combinedTotal } | null`. Every money figure the receipt adds up is checked as a safe integer (`assertSafe`, exported from `ledger-math.ts`; a sum past it is a `LedgerInvariantError`, never a wrong total). One query more per receipt: the customer's open orders by `(customer_id, status)`, their lines by `order_id`, both indexed. No migration, no new permission, no change to what an order or the ledger holds. Always Sorani; the four new labels join the strings to be proofread (Q22). Amends A15, A9, Q134 and §6.19, §7.16. |
 
 ## 3. Actors, roles and permissions
 
@@ -369,7 +370,7 @@ Constants live in `packages/shared/src/permissions.ts` (`GRANTABLE_PERMISSION_KE
 
 ## 4. Domain model and business rules
 
-All money is whole IQD (PostgreSQL `bigint`, JavaScript safe integer). All quantities are integers. Every rule in this section is implemented once, as pure functions in `packages/shared/src/domain/ledger-math.ts` (`computeOrderTotals`, `returnRefundDue`, `returnMoney`, `checkCreditLimit`, `chunkReceiptLines`), and used by the API (authoritative) and by the web app (live previews while typing).
+All money is whole IQD (PostgreSQL `bigint`, JavaScript safe integer). All quantities are integers. Every rule in this section is implemented once, as pure functions in `packages/shared/src/domain/ledger-math.ts` (`computeOrderTotals`, `returnRefundDue`, `returnMoney`, `checkCreditLimit`, `chunkReceiptLines`, `layoutReceiptRows`), and used by the API (authoritative) and by the web app (live previews while typing).
 
 "The customer's orders", "pallets out", "owed", "held" and every derived value **exclude cancelled orders** (section 4.2, "Cancelled orders").
 
@@ -2899,10 +2900,19 @@ interface ReceiptLineDto {
   itemName: string; quantity: number; unitDeposit: number; lineTotal: number;
   returnedAccepted: number; returnedDamaged: number; outQuantity: number;   // the order line's maintained totals (Q134)
 }
+interface ReceiptOlderLineDto {     // Q150: a line of one of the customer's earlier orders, still out
+  orderNumberDisplay: string; itemName: string; quantity: number; unitDeposit: number;
+  returnedAccepted: number; returnedDamaged: number; outQuantity: number;
+  outValue: number;                 // outQuantity × unitDeposit: the row's total column
+}
+type ReceiptRowDto =                // Q150: `no` is the row's number on the paper, running on from the order's lines
+  | ({ kind: 'line'; no: number } & ReceiptLineDto)
+  | { kind: 'olderHeading' }
+  | ({ kind: 'older'; no: number } & ReceiptOlderLineDto);
 interface ReceiptSheetDto {
   sheetNumber: number;              // 1-based
   sheetCount: number;
-  lines: ReceiptLineDto[];          // ≤ RECEIPT_LINES_PER_HALF (6)
+  rows: ReceiptRowDto[];            // ≤ rowsPerCopy
   showTotal: boolean;               // true only on the last sheet
 }
 interface ReceiptDto {
@@ -2912,8 +2922,10 @@ interface ReceiptDto {
   factory: { name: string; phone: string; address: string; logoUrl: string | null };
   customer: { name: string; phone: string; altPhone: string | null; address: string };
   driver: { name: string; phone: string; carNumber: string };
-  linesPerHalf: number;             // RECEIPT_LINES_PER_HALF
-  sheets: ReceiptSheetDto[];        // chunkReceiptLines(lines) — one sheet per chunk; each A4 sheet prints its chunk twice
+  layout: 'halves' | 'pages';       // Q150: two copies to an A4 sheet, or an A4 page per copy
+  rowsPerCopy: number;              // RECEIPT_LINES_PER_HALF (6) or RECEIPT_ROWS_PER_PAGE (27)
+  sheets: ReceiptSheetDto[];        // layoutReceiptRows(rows) — one per chunk; each chunk prints twice
+  older: { outValue: number; combinedTotal: number } | null;   // Q150: the earlier lines' outValue, and + depositTotal
 }
 interface ReceiptFactoryDto { name: string; phone: string; address: string; logoUrl: string | null }   // every receipt's header (Q137)
 interface MoneyReceiptDto {         // Q137: one payment or refund, with the order's balance when the money moved
@@ -3460,8 +3472,8 @@ OrderUpdateBody = z.strictObject({
 
 #### `GET /api/orders/:id/receipt`
 - **Access:** `@RequirePermission('orders.view')`.
-- **Steps:** load order, customer, driver, lines (by `order_lines.id` asc, item name, and each line's maintained `returned_accepted`, `returned_damaged`, `out_quantity` — Q134), settings with logo; cancelled → `ORDER_CANCELLED`; `printedOn = businessToday(clock.now())`; `sheets = chunkReceiptLines(lines, RECEIPT_LINES_PER_HALF).map((chunk, i, all) => ({ sheetNumber: i + 1, sheetCount: all.length, lines: chunk, showTotal: i === all.length − 1 }))`; `orderNumberDisplay = String(orderNumber).padStart(6, '0')`.
-- **Response:** 200 `ReceiptDto`. Worked example: 14 lines → 3 sheets with 6, 6, 2 lines; `depositTotal` printed only on sheet 3; each sheet shows "sheet X of 3".
+- **Steps:** load order, customer, driver, lines (by `order_lines.id` asc, item name, and each line's maintained `returned_accepted`, `returned_damaged`, `out_quantity` — Q134), settings with logo; cancelled → `ORDER_CANCELLED`; the customer's earlier orders' lines still out (Q150: `out_quantity > 0`, same customer, not cancelled, `order_number` below this order's; by order number, then line id); `rows` = this order's lines (`kind: 'line'`), then, when there are earlier lines, `{ kind: 'olderHeading' }` and those (`kind: 'older'`, `outValue = out_quantity × unit_deposit`), numbered on (`no`); `printedOn = businessToday(clock.now())`; `{ layout, rowsPerCopy, chunks } = layoutReceiptRows(rows, isHeading)`; `sheets = chunks.map((chunk, i, all) => ({ sheetNumber: i + 1, sheetCount: all.length, rows: chunk, showTotal: i === all.length − 1 }))`; `older = earlier lines ? { outValue: Σ outValue, combinedTotal: depositTotal + Σ outValue } : null`; `orderNumberDisplay = String(orderNumber).padStart(6, '0')`.
+- **Response:** 200 `ReceiptDto`. Worked examples: 6 lines → `halves`, 1 sheet of 6 rows; 30 lines → `pages`, 2 sheets of 27 and 3 rows, `depositTotal` printed only on sheet 2, each sheet shows "sheet X of 2"; 1 line with one earlier line still out → `halves`, rows line, heading, older (Q150).
 - **Errors:** `ORDER_NOT_FOUND`, `ORDER_CANCELLED`.
 
 ### 6.20 Returns (`apps/api/src/modules/returns/returns.controller.ts`)
@@ -4485,7 +4497,7 @@ Responsive:
 
 #### 7.16.1 Behaviour
 - **Layout** `_print.tsx`: authenticated (`requireAuthenticated`), no AppShell; removes `dark` from `<html>` while mounted; renders a screen-only toolbar (`print:hidden`) with the buttons "Print" (refetches the receipt, then `window.print()` only if that succeeded — Q134) and "Close" (`window.close()`), labelled in the **UI** language.
-- **Data:** `GET /api/orders/:id/receipt` (key `['orders','receipt',id]`). Response `ReceiptDto` exactly as defined in §6.9 (the server does the chunking): `orderNumber`, `orderNumberDisplay` (zero-padded), `date`, `printedOn`, `paymentType`, `depositTotal`, `factory { name, phone, address, logoUrl | null }`, `customer { name, phone, altPhone, address }` (the receipt prints name, phone, address only), `driver { name, phone, carNumber }`, `linesPerHalf`, `sheets [{ sheetNumber, sheetCount, lines [{ itemName, quantity, unitDeposit, lineTotal, returnedAccepted, returnedDamaged, outQuantity }], showTotal }]` (lines ordered by order line id). The last three are the line's position when the receipt is asked for (Q134), so the query has `staleTime: 0` — a tab left open reads the order again when it is returned to.
+- **Data:** `GET /api/orders/:id/receipt` (key `['orders','receipt',id]`). Response `ReceiptDto` exactly as defined in §6.9 (the server does the chunking): `orderNumber`, `orderNumberDisplay` (zero-padded), `date`, `printedOn`, `paymentType`, `depositTotal`, `factory { name, phone, address, logoUrl | null }`, `customer { name, phone, altPhone, address }` (the receipt prints name, phone, address only), `driver { name, phone, carNumber }`, `layout`, `rowsPerCopy`, `sheets [{ sheetNumber, sheetCount, rows [line | olderHeading | older], showTotal }]` (this order's lines by order line id, then the earlier orders' lines still out — Q150), `older`. The last three are the line's position when the receipt is asked for (Q134), so the query has `staleTime: 0` — a tab left open reads the order again when it is returned to.
 - `409 ORDER_CANCELLED` → an error page `receipt.cancelledError` with a Close button. The API refuses cancelled orders (Q10).
 - **Where:** the app's buttons print every receipt in place, from a blank frame of the page, with the same components and CSS (`ReceiptPrinter`, Q140); the route is the receipt as a page of its own, at its address.
 - **Auto-print:** after data is loaded, `await document.fonts.ready`, and the logo `<img>` has fired `load` or `error` (or there is no logo), call `window.print()` once (guarded by a ref). Printing in place waits for the same, in the frame (Q140). Reprinting is always possible with the toolbar button or the order page.
@@ -4493,15 +4505,16 @@ Responsive:
 - **Formatting:** Western digits; money `formatMoney(n)` + ` ` + `tr('receipt.currency')`; date `dd/MM/yyyy` (`formatBusinessDate`); receipt number `formatOrderNumber(orderNumber)` (zero-padded to 6 digits).
 
 #### 7.16.2 Chunking (A15)
-The API has already chunked the lines (`sheets = chunkReceiptLines(lines, RECEIPT_LINES_PER_HALF)`, §6); the route renders `sheets` as given and never re-chunks.
+The API has already laid the rows out (`layoutReceiptRows`, §6, Q150); the route renders `sheets` as given and never re-chunks.
 ```
 Y      = sheets.length (= sheets[k].sheetCount)
-sheet k (1-based, sheets[k−1]) renders its lines twice: half 1 (top) and half 2 (bottom), identical
-line number column "#" = (k − 1) × linesPerHalf + index within the sheet + 1 (continues across sheets)
-depositTotal row only where showTotal = true (sheet Y); other sheets show receipt.continued instead
-"sheet k of Y" on every half
+layout 'halves' (≤ 6 rows): one A4 sheet, its rows twice — half 1 (top) and half 2 (bottom), identical
+layout 'pages' (> 6 rows): chunk k (≤ 27 rows) on two A4 pages — the factory's copy, then the customer's, identical
+line number column "#" = the row's `no` (continues across sheets and into the earlier orders' lines)
+the totals only where showTotal = true (chunk Y); other chunks show receipt.continued instead
+"sheet k of Y" on every copy
 ```
-Example: an order with 14 lines → chunks of 6, 6, 2 → 3 A4 sheets; sheet 3 shows lines 13–14, four empty rows, and the deposit total; each sheet prints the header and "پەڕەی k لە 3".
+Example: an order with 30 lines → `pages`, chunks of 27 and 3 → 4 A4 pages; the last two show lines 28–30, 24 empty rows, and the deposit total; each prints the header and "پەڕەی k لە 2". An order with 6 lines → one sheet of two halves.
 
 #### 7.16.3 Exact layout (`src/features/receipt/receipt.css`, inlined only by the receipt routes, Q137, Q139)
 ```css
@@ -4533,9 +4546,15 @@ Example: an order with 14 lines → chunks of 6, 6, 2 → 3 A4 sheets; sheet 3 s
 /* .col-qty is the quantity and the three columns of Q134 alike */
 .lines .num-tight { font-size: 7pt; }   /* a figure longer than its column holds at 10 pt (Q134) */
 /* .col-item takes the remaining width; item names are clipped with text-overflow: ellipsis; white-space: nowrap */
+.block-footer.with-older { height: 25mm; }   /* Q150: the three totals, the payment type and the print date */
+.page { height: 297mm; box-sizing: border-box; padding: 8mm 10mm;   /* Q150: a copy on a page of its own */
+        display: flex; flex-direction: column; gap: 4mm; overflow: hidden; }
+.page .block-lines { height: 196mm; }        /* 1 header row + 27 body rows, 7mm each */
+.lines tr.older-heading td { font-size: 8.5pt; font-weight: 600; background: #d9d9d9; }   /* Q150 */
+.lines tr.older td { background: #f0f0f0; }  /* Q150: the earlier orders' lines, shaded */
 @media screen { body { background: #e5e5e5; } .sheet { margin: 8mm auto; box-shadow: 0 1mm 4mm rgb(0 0 0 / 0.25); } }
 ```
-Height budget per half: content area 148.5 − 2 × 8 = 132.5 mm; blocks 22 + 24 + 49 + 20 = 115 mm; three gaps × 4 mm = 12 mm; total 127 mm ≤ 132.5 mm (5.5 mm spare). The CSS forbids overflow, so the font size is fixed at 10 pt (the UI font-size preference does not apply). The cut line is the dashed top border of the second half. A lucide `Scissors` icon (5 mm, `.cut-mark`) sits on the line at the inline-start edge of the second half (position the half `relative`).
+Height budget per half: content area 148.5 − 2 × 8 = 132.5 mm; blocks 22 + 24 + 49 + 20 = 115 mm; three gaps × 4 mm = 12 mm; total 127 mm ≤ 132.5 mm (5.5 mm spare; 0.5 mm with the 25 mm footer of Q150). Per page (Q150): 297 − 2 × 8 = 281 mm; 22 + 24 + 196 + 25 + 12 = 279 mm. The CSS forbids overflow, so the font size is fixed at 10 pt (the UI font-size preference does not apply). The cut line is the dashed top border of the second half. A lucide `Scissors` icon (5 mm, `.cut-mark`) sits on the line at the inline-start edge of the second half (position the half `relative`).
 
 Block contents, in reading order (RTL: "start" = right side of the page):
 
@@ -4545,13 +4564,13 @@ Block contents, in reading order (RTL: "start" = right side of the page):
 2. **Parties** (`.block-parties`, two equal columns separated by 4 mm, each boxed with a 0.2 mm border and 2 mm padding):
    - Customer column: heading `receipt.customer` (9 pt, 600); rows `receipt.name`: name; `receipt.phone`: `<bdi class="num">phone</bdi>`; `receipt.address`: address (clamped to 1 line with ellipsis).
    - Driver column: heading `receipt.driver`; rows `receipt.name`, `receipt.phone`, `receipt.carNumber` (`<bdi class="num">`).
-3. **Lines** (`.block-lines`): table with header row `#` | `receipt.item` | `receipt.quantity` | `receipt.returnedAccepted` | `receipt.returnedDamaged` | `receipt.outQuantity` | `receipt.unitDeposit` | `receipt.lineTotal` (the three after the quantity since Q134; a heading must stay on one line, or the table outgrows its block), then exactly 6 body rows (empty rows render empty cells so the grid is stable). Numeric cells are `.num`, aligned `text-align: end`.
+3. **Lines** (`.block-lines`): table with header row `#` | `receipt.item` | `receipt.quantity` | `receipt.returnedAccepted` | `receipt.returnedDamaged` | `receipt.outQuantity` | `receipt.unitDeposit` | `receipt.lineTotal` (the three after the quantity since Q134; a heading must stay on one line, or the table outgrows its block), then exactly `rowsPerCopy` body rows — 6 in a half, 27 on a page (Q150) — empty rows render empty cells so the grid is stable. Numeric cells are `.num`, aligned `text-align: end`. After this order's lines, the earlier orders' (Q150): the heading row `receipt.olderHeading` over all eight columns, then each earlier line with its order's number before the item (`<span class="num">000041</span> · name`) and `outValue` in the total column.
 4. **Footer** (`.block-footer`, three rows):
-   - row 1: on sheet Y → `receipt.depositTotal`: `<span class="num">125,000</span> دینار` (11 pt, 700); on other sheets → `receipt.continued` (9 pt, italic).
+   - row 1: on sheet Y → `receipt.depositTotal`: `<span class="num">125,000</span> دینار` (11 pt, 700); on other sheets → `receipt.continued` (9 pt, italic). On sheet Y with earlier lines (`older`, Q150), three rows instead: `receipt.orderTotal` (`depositTotal`, 10 pt, 600), `receipt.olderOutValue` (`older.outValue`, 10 pt, 600), `receipt.combinedTotal` (`older.combinedTotal`, 11 pt, 700); the footer is then `.with-older`.
    - row 2: `receipt.paymentType`: `receipt.paymentCash` or `receipt.paymentLent` (10 pt, 600).
    - row 3 (8.5 pt, `justify-content: space-between`): at the start `receipt.printedOn`: `<span class="num">15/09/2026</span>` (`printedOn`, Q134); at the end `receipt.sheetOf` with `{{x}}`, `{{y}}` as `.num`.
 
-No notes, no signature lines (A9). What has come back is three columns of the lines table, not a block of its own (Q134).
+No notes, no signature lines (A9). What has come back is three columns of the lines table, not a block of its own (Q134); the earlier orders' pallets are rows of the same table (Q150).
 
 #### 7.16.4 Sorani receipt strings (`receipt.*` in `ckb.json`)
 
@@ -4580,6 +4599,10 @@ The `en.json` and `ar.json` files carry translated counterparts of the same keys
 | `receipt.outQuantity` | `لای کڕیار` | Still with the customer (Q134) |
 | `receipt.printedOn` | `بەرواری چاپ` | Printed on (Q134) |
 | `receipt.depositTotal` | `کۆی گشتی تەئمینات` | Total deposit |
+| `receipt.olderHeading` | `پالێتی داواکارییە پێشووەکان کە هێشتا لای کڕیارن` | From earlier orders, still with the customer (Q150) |
+| `receipt.orderTotal` | `کۆی تەئمیناتی ئەم داواکارییە` | This order's deposit (Q150) |
+| `receipt.olderOutValue` | `تەئمیناتی پالێتە پێشووەکانی لای کڕیار` | Earlier pallets still with the customer (Q150) |
+| `receipt.combinedTotal` | `کۆی گشتی لەگەڵ داواکارییە پێشووەکان` | Total with earlier orders (Q150) |
 | `receipt.paymentType` | `جۆری پارەدان` | Payment type |
 | `receipt.paymentCash` | `پارە دراوە (نەقد)` | Paid cash |
 | `receipt.paymentLent` | `بە قەرز` | Lent (not paid) |
@@ -4589,8 +4612,8 @@ The `en.json` and `ar.json` files carry translated counterparts of the same keys
 | `receipt.cancelledError` | `ئەم داواکارییە هەڵوەشێنراوەتەوە و پسووڵەی بۆ چاپ ناکرێت` | This order is cancelled; its receipt cannot be printed |
 
 #### 7.16.5 Receipt tests
-- Unit (`src/features/receipt/receipt.test.tsx`, jsdom): 1 line → 1 sheet, 2 halves, total present; 6 lines → 1 sheet; 7 lines → 2 sheets, lines 1–6 then 7, total only on sheet 2, text `پەڕەی 2 لە 2`; 14 lines → 3 sheets; both halves of a sheet have identical text content; labels are Sorani while `i18n.language === 'en'`; the cells after a line's quantity are its accepted, damaged and outstanding quantities, and an empty row stays empty; the print date is in the footer; a figure longer than its column is `.num-tight` (Q134).
-- E2E (`e2e/receipt.spec.ts`, Chromium): open the print route for a seeded 7-line order, wait for the `.sheet` elements, `page.emulateMedia({ media: 'print' })`, generate `page.pdf({ format: 'A4', printBackground: true, preferCSSPageSize: true })`, and assert the PDF has exactly 2 pages (count `/Type /Page` objects). The eight headings are on the page in order, no cell but the item name is wider than its column — one line of the fixture carries the input maxima — and every row of the table is still 7 mm high (Q134). The screenshot `receipt-7-lines.png` is compared against the committed baseline.
+- Unit (`src/features/receipt/receipt.test.tsx`, jsdom): 1 line → 1 sheet, 2 halves, total present; 6 lines → 1 sheet of 2 halves; 7 lines → 2 sheets of one `.page` each, identical, each with all seven lines, 27 grid rows and the total, no cut mark (Q150); 30 lines → 4 pages, lines 28–30 on the third, total only on the last two, text `پەڕەی 2 لە 2`; two lines and one earlier line → halves, rows `older-heading` and `older` with the order number before the item and `outValue` in the total column, the three totals in a `.with-older` footer; four lines and two earlier → pages (Q150); both halves of a sheet have identical text content; labels are Sorani while `i18n.language === 'en'`; the cells after a line's quantity are its accepted, damaged and outstanding quantities, and an empty row stays empty; the print date is in the footer; a figure longer than its column is `.num-tight` (Q134).
+- E2E (`e2e/receipt.spec.ts`, Chromium): open the print route for a seeded 7-line order, wait for the `.sheet` elements, `page.emulateMedia({ media: 'print' })`, generate `page.pdf({ format: 'A4', printBackground: true, preferCSSPageSize: true })`, and assert the PDF has exactly 2 pages (count `/Type /Page` objects) — a page per copy (Q150). The eight headings are on the page in order, no cell but the item name is wider than its column — one line of the fixture carries the input maxima — every row of the table is still 7 mm high (Q134), and no block nor footer line passes the copy's padding. "Q150": two lines and three earlier lines on one sheet of two halves, shaded apart, the footer's five rows inside the half with the largest totals (proven failing with a 20 mm footer), 1 PDF page. The screenshot `receipt-7-lines.png` is compared against the committed baseline.
 
 #### 7.16.6 Money receipt (`/print/ledger/$entryId`, Q137)
 - **Data:** `GET /api/ledger-entries/:id/receipt` (key `['ledger','receipt',id]`, `staleTime: 0`: a payment deleted since the tab was opened must print as deleted). `409 LEDGER_ENTRY_NO_RECEIPT` → the page says `errors.LEDGER_ENTRY_NO_RECEIPT` in Sorani, with the toolbar, and prints nothing.
@@ -4664,7 +4687,7 @@ Exports value arrays, value objects and types (identical to the Prisma enums; th
 `ERROR_CODES` (code → HTTP status), `ErrorCode`, `ERROR_CODE_LIST`, `ErrorDetailsByCode` and `ErrorDetails<C>` (Q89), `ApiErrorBody`, `ApiFieldError`, `VALIDATION_CODES`, `ValidationCode`. The web-only codes, never sent by the API (`NETWORK_ERROR`, `REQUEST_TIMEOUT`, `UNKNOWN_ERROR`), are the web's `ClientErrorCode` in `apps/web/src/lib/api-error.ts`; `i18n/locales.test.ts` lists them for the completeness test.
 
 ### 8.4 `src/domain/ledger-math.ts`
-`RECEIPT_LINES_PER_HALF` (6), `MONEY_INPUT_MAX` (1,000,000,000,000), `QUANTITY_INPUT_MAX` (1,000,000); types `OrderLineState`, `ReturnLineState`, `ReturnState`, `LedgerEntryState`, `OrderState`, `LineTotals`, `OrderTotals`, `CreditCheckInput`, `CreditCheckResult`; class `LedgerInvariantError`; functions `returnRefundDue()`, `returnMoney()`, `computeOrderTotals()`, `checkCreditLimit()`, `chunkReceiptLines()`. The test `ledger-math.test.ts` encodes every worked example of section 4.
+`RECEIPT_LINES_PER_HALF` (6), `RECEIPT_ROWS_PER_PAGE` (27, Q150), `MONEY_INPUT_MAX` (1,000,000,000,000), `QUANTITY_INPUT_MAX` (1,000,000); types `ReceiptLayout` (`'halves' | 'pages'`, Q150), `OrderLineState`, `ReturnLineState`, `ReturnState`, `LedgerEntryState`, `OrderState`, `LineTotals`, `OrderTotals`, `CreditCheckInput`, `CreditCheckResult`; class `LedgerInvariantError`; functions `returnRefundDue()`, `returnMoney()`, `computeOrderTotals()`, `checkCreditLimit()`, `chunkReceiptLines()`, `layoutReceiptRows()` (Q150), `assertSafe()`. The test `ledger-math.test.ts` encodes every worked example of section 4.
 
 ### 8.5 `src/schemas/` (zod 4 schemas for every request body and query string)
 **Naming rule (binding, identical to §6.27):** request bodies `<Entity><Action>Body` (`OrderCreateBody`, `ReturnReplaceBody`), query strings `<Entity>ListQuery` or `<Name>Query` (`CustomerPhoneCheckQuery`), shared primitive schemas PascalCase (`Money`, `BusinessDate`, `Phone`), schema factories camelCase (`sortParam(fields)`, `dateRange()`, `optionalText(max)`). For each schema `X` the package exports `type X = z.infer<typeof X>` and `type XInput = z.input<typeof X>` (form values). Every object schema is `z.strictObject(...)` (unknown keys rejected). Field lists and limits are exactly those of section 6; the API validates with these schemas through `ZodValidationPipe` and the web app passes the same schemas to `zodResolver`.
@@ -5476,7 +5499,7 @@ Coverage gates (vitest `coverage.thresholds`): `packages/shared/src/domain/**` 1
 | U2 | Return edit | CASH 100 × 1,000; return A 50 accepted → REFUND 50,000; edit A to 40 accepted: A reversed + REFUND_REVERSAL 50,000 → owedBefore of B = 0; B refundDue 40,000 → cashRefund 40,000; final: depositTotal 100,000, payments 100,000, credits 40,000, refundsNet 40,000, owed 0, outQuantity 60, outValue 60,000, held 60,000, OPEN |
 | U3 | Cancel | CASH 100 × 1,000 with automatic payment 100,000 and its PAYMENT_REVERSAL 100,000, `cancelled: true` → owed 0, outValue 0, held 0, compensation 0, every line outQuantity 0, status CANCELLED |
 | U4 | `checkCreditLimit` | limit null, delta 5,000,000 → allowed; limit 0, delta 0 → allowed; limit 0, delta 1,000 → blocked, excess 1,000; limit 150,000, out 100,000, delta 60,000 → blocked, excess 10,000; limit 150,000, out 100,000, delta 50,000 → allowed (equality); out 200,000 (already over), delta −20,000 → allowed |
-| U5 | `chunkReceiptLines` | 0 lines → 1 chunk of 0; 6 → [6]; 7 → [6, 1]; 12 → [6, 6]; 13 → [6, 6, 1] |
+| U5 | `chunkReceiptLines`, `layoutReceiptRows` | 0 lines → 1 chunk of 0; 6 → [6]; 7 → [6, 1]; 12 → [6, 6]; 13 → [6, 6, 1]. Layout (Q150): 0 and 6 rows → `halves`, one chunk; 7 → `pages` [7]; 27 → [27]; 28 → [27, 1]; 60 → [27, 27, 6]; a heading at row 27 goes over with the row after it → [26, 2] |
 | U6 | permissions | `closePermissionSet(['reports.viewPurchases'])` = {reports.viewPurchases, items.viewCost, items.view}; `missingPermissionDependencies(['orders.create'])` = [customers.view, drivers.view, items.view, orders.view]; every key in `PERMISSION_DEPENDENCIES` is grantable; no admin-only key is grantable |
 | U7 | enum parity | parse `apps/api/prisma/schema.prisma` enums and assert equality with `packages/shared/src/enums.ts` arrays |
 | U8 | error codes | every `ERROR_CODES` value is 400–503; no duplicates |
@@ -5565,7 +5588,7 @@ U1 expected values (`O` = OPEN, `S` = SETTLED):
 | E2 | Create order (daily flow 1) in `ckb` | `<html dir="rtl" lang="ckb">`; searchable customer/driver/item selects; live deposit total updates while typing; submit → order page with number; stock decreased on item page |
 | E3 | Record return (daily flow 2) | from dashboard quick action; refund due, cash refund and owed-after update live; submit → order shows returned quantities |
 | E4 | Record payment (daily flow 3) | LENT order; amount > owed shows inline error; valid payment updates owed |
-| E5 | Receipt print route | `page.emulateMedia({ media: 'print' })`; 2 copies per sheet separated by the dashed cut line; Sorani labels; Western digits; `dd/MM/yyyy` date; an order with 7 lines renders 2 sheets, "sheet 1 of 2", total only on sheet 2; `page.pdf({ format: 'A4' })` produces exactly 2 pages; a return recorded while the tab is open is on the paper after the toolbar's Print, with the print date (Q134) |
+| E5 | Receipt print route | `page.emulateMedia({ media: 'print' })`; 2 copies per sheet separated by the dashed cut line; Sorani labels; Western digits; `dd/MM/yyyy` date; an order with 7 lines renders each copy on an A4 page of its own (Q150), "sheet 1 of 1" and the total on both; `page.pdf({ format: 'A4' })` produces exactly 2 pages; a return recorded while the tab is open is on the paper after the toolbar's Print, with the print date (Q134) |
 | E6 | RTL screenshots | `expect(page).toHaveScreenshot()` of E2–E4 final forms in `ckb` at 1280 × 800 and 390 × 844, `maxDiffPixelRatio: 0.01`; baselines committed under `apps/web/e2e-live/__screenshots__/` (generated on the CI runner image, Q63) |
 | E7 | Language + theme switch | switching to `en` flips `dir` to `ltr` without reload; dark theme toggles `html.dark`; receipt stays light |
 | E8 | Permission-hidden UI | employee without `orders.cancel` sees no Cancel button |

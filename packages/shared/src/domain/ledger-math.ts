@@ -6,6 +6,11 @@
 import type { LedgerEntryType, OrderStatus } from '../enums.js';
 
 export const RECEIPT_LINES_PER_HALF = 6;
+/**
+ * The rows of a hand-over receipt copy that has an A4 page to itself (Q150): the page's 281 mm, less the header,
+ * parties and footer blocks and their gaps, leaves 196 mm for the table — a header row and 27 rows of 7 mm.
+ */
+export const RECEIPT_ROWS_PER_PAGE = 27;
 export const MONEY_INPUT_MAX = 1_000_000_000_000;
 export const QUANTITY_INPUT_MAX = 1_000_000;
 
@@ -70,7 +75,8 @@ export class LedgerInvariantError extends Error {
   }
 }
 
-function assertSafe(n: number, label: string): number {
+/** Money stays a safe integer (§4); a sum that would leave it is an invariant broken, not a figure to print. */
+export function assertSafe(n: number, label: string): number {
   if (!Number.isSafeInteger(n)) throw new LedgerInvariantError(`${label} is not a safe integer: ${n}`);
   return n;
 }
@@ -231,4 +237,29 @@ export function chunkReceiptLines<T>(lines: readonly T[], perHalf = RECEIPT_LINE
   const chunks: T[][] = [];
   for (let i = 0; i < lines.length; i += perHalf) chunks.push(lines.slice(i, i + perHalf));
   return chunks;
+}
+
+export type ReceiptLayout = 'halves' | 'pages';
+
+/**
+ * The hand-over receipt's layout (A15, amended by Q150): rows that fit a half print as before, both copies on one
+ * A4 sheet; more give each copy an A4 page of its own, `RECEIPT_ROWS_PER_PAGE` rows to a page. A heading row
+ * (`isHeading`) never ends a page: it moves to the next, with the rows it heads.
+ */
+export function layoutReceiptRows<T>(
+  rows: readonly T[],
+  isHeading: (row: T) => boolean = () => false,
+): { layout: ReceiptLayout; rowsPerCopy: number; chunks: T[][] } {
+  if (rows.length <= RECEIPT_LINES_PER_HALF) {
+    return { layout: 'halves', rowsPerCopy: RECEIPT_LINES_PER_HALF, chunks: [[...rows]] };
+  }
+  const chunks: T[][] = [];
+  for (let start = 0; start < rows.length;) {
+    let size = Math.min(RECEIPT_ROWS_PER_PAGE, rows.length - start);
+    const last = rows[start + size - 1];
+    if (start + size < rows.length && size > 1 && last !== undefined && isHeading(last)) size -= 1;
+    chunks.push(rows.slice(start, start + size));
+    start += size;
+  }
+  return { layout: 'pages', rowsPerCopy: RECEIPT_ROWS_PER_PAGE, chunks };
 }

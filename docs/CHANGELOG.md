@@ -92,3 +92,6 @@ The build history that used to sit in `CLAUDE.md` "Status", oldest first, moved 
 - **10j driver page** (2026-10-18, Q149): `/drivers/$driverId` shows a driver's details, edits them in the
   drivers' dialog and lists every order they were given; the drivers list, the order page and the history link
   to it.
+- **10k earlier pallets on the receipt** (2026-10-18, Q150): the hand-over receipt lists, under the order's lines
+  and shaded, the customer's earlier orders' pallets still out, with this order's total, theirs and the two added;
+  more than six rows give each copy an A4 page of its own.
