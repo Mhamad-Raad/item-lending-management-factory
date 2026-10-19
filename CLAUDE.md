@@ -33,7 +33,9 @@ Pallet System: a web app for a single pallet factory in Iraq (Kurdistan Region) 
   (2026-10-18) 10j: a page for each driver — details, Edit, and the orders they were given (Q149);
   10k: the hand-over receipt also lists the customer's earlier pallets still out, with this order's total, theirs
   and the two added, and gives each copy a page of its own when the rows outgrow a half (Q150); 10l: the hand-over
-  receipt in the design the business chose from five — blue, the earlier pallets in amber (Q151).
+  receipt in the design the business chose from five — blue, the earlier pallets in amber (Q151). Then (2026-10-19)
+  10m: running for years unattended — a hung API restarts itself (Q152), a lost connection proven harmless (Q153),
+  nightly security and Docker updates with reboots (Q154), a missed prune reported (Q155).
 - **The maintainer's one page** is "Maintainer quick start" in `README.md` (run, test, deploy, restore, recover,
   traps, yearly checklist). Keep it true when a command or a runbook changes.
 - **Open, needing people rather than code:** the E6 screenshot baselines (rendered by CI, then committed; after

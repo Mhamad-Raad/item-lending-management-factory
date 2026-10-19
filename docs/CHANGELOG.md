@@ -97,3 +97,8 @@ The build history that used to sit in `CLAUDE.md` "Status", oldest first, moved 
   more than six rows give each copy an A4 page of its own.
 - **10l receipt design** (2026-10-18, Q151): of five designs sent to the business, the hand-over receipt takes
   design 5 — blue for the receipt and this order, amber for the earlier pallets, the totals ending in blue.
+- **10m running for years unattended** (2026-10-19, Q152–Q155): load-tested on 125,000 orders (15 users at the
+  per-user limit for ten minutes: no server error, screens p95 < 125 ms, memory flat, reconcile clean). A hung API
+  is restarted by its own healthcheck (`init: true`, SIGTERM at the third failure, SIGKILL at the fourth); a lost
+  database connection fails only its request (`connection-loss.test.ts`); the host takes security and Docker
+  updates and reboots at night; `HEALTHCHECKS_PRUNE_URL` is required and `prune.sh` clears stale restic locks.

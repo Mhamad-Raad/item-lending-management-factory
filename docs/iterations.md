@@ -448,6 +448,22 @@ the rows per half or page, and the money and transactions receipts. **Exit:** th
 the fit check measuring the footer across at the largest totals and the header under a long factory name (each
 proven failing when broken); the real receipt compared by eye with the sample, with and without earlier pallets.
 
+### 10m — Running for years unattended (Q152–Q155)
+
+Read: §10.7, §13.3, §13.6, §13.8, §13.9.
+
+The maintainer asked whether five people a day for five years, with no updates, holds. A load test on 125,000
+orders (more than twenty years at "thousands a year") said the application does: 15 users at the per-user limit
+for ten minutes, 59,000 requests, every screen p95 under 125 ms, reports under 0.4 s, the API flat at about
+470 MB, no server error, reconcile clean. What would not hold is the operation around it, so: a hung API restarts
+itself through its healthcheck (Q152); a lost database connection, which crashed a sibling project, is proven
+harmless here and kept so by a test (Q153); the host installs security and Docker updates and reboots at night
+(Q154); a monthly prune that stops being run is reported, and a stale restic lock no longer blocks it (Q155).
+**Exit:** `decide` unit-tested; the restart proven in a real container (frozen at 10:02:21, restarted at
+10:04:31); `connection-loss.test.ts` green and failing with either adapter listener removed; shellcheck,
+`bash -n` and every gate green. **By hand:** the one-line command of `deploy.md` "The server keeps itself
+patched" on the live server, and the healthchecks.io check "pallet-prune" before the next prune.
+
 ---
 
 ## Environments
