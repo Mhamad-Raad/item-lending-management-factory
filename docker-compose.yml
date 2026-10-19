@@ -73,6 +73,9 @@ services:
   api:
     image: ghcr.io/mhamad-raad/pallet-api:${APP_VERSION:?APP_VERSION is required}
     restart: unless-stopped
+    # tini as PID 1, node its child: the kernel drops signals to a PID 1 that has no handler for them, so the
+    # healthcheck could not stop a hung node that was PID 1 (Q152).
+    init: true
     <<: [*hardening, *limits-api]
     read_only: true
     tmpfs:
@@ -87,12 +90,14 @@ services:
     depends_on:
       postgres:
         condition: service_healthy
+    # Docker never restarts an unhealthy container; the check itself stops a hung API after three failures in a
+    # row (≈ 90 s), never in its first 120 s, so a slow first start is not killed and Caddy still comes up (Q152).
     healthcheck:
       test: ['CMD', 'node', 'dist/scripts/healthcheck.js']
       interval: 30s
-      timeout: 5s
+      timeout: 10s
       retries: 3
-      start_period: 30s
+      start_period: 120s
     logging: *default-logging
 
   # One-shot: `docker compose --profile migrate run --rm migrate`
