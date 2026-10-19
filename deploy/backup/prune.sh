@@ -4,7 +4,8 @@
 # second key that can, kept only on the maintainer's machine and in the password manager.
 # Usage: deploy/backup/prune.sh [--accept-day YYYY-MM-DD]...
 #        (reads ~/.config/pallet/prune.env, or PALLET_PRUNE_ENV=<file>)
-# Schedule: monthly (a calendar reminder or a local cron/launchd job). A missed month only costs storage.
+# Schedule: monthly (a calendar reminder or a local cron/launchd job). HEALTHCHECKS_PRUNE_URL is required, so a
+# prune that stops being run is reported (Q155).
 # Needs restic and jq (macOS 15+ ships jq; otherwise `brew install jq`).
 set -Eeuo pipefail
 
@@ -44,8 +45,14 @@ command -v jq >/dev/null || { echo "prune: jq is required (brew install jq)" >&2
 source "$ENV_FILE"
 : "${RESTIC_REPOSITORY:?}" "${RESTIC_PASSWORD:?}" "${AWS_ACCESS_KEY_ID:?}" "${AWS_SECRET_ACCESS_KEY:?}"
 export RESTIC_REPOSITORY RESTIC_PASSWORD AWS_ACCESS_KEY_ID AWS_SECRET_ACCESS_KEY
+# Required (Q155): this check is the only thing that notices when the monthly prune stops being run.
+if [[ -z "${HEALTHCHECKS_PRUNE_URL:-}" ]]; then
+  echo "prune: HEALTHCHECKS_PRUNE_URL is empty in $ENV_FILE — create a healthchecks.io check (period 31 days," >&2
+  echo "grace 3 days) and put its ping URL there (docs/runbooks/backup-keys.md, step 4)." >&2
+  exit 1
+fi
 
-ping() { [[ -n "${HEALTHCHECKS_PRUNE_URL:-}" ]] && curl -fsS -m 10 --retry 3 "$HEALTHCHECKS_PRUNE_URL$1" >/dev/null || true; }
+ping() { curl -fsS -m 10 --retry 3 "$HEALTHCHECKS_PRUNE_URL$1" >/dev/null || true; }
 trap 'ping /fail' ERR
 ping /start
 
@@ -139,6 +146,12 @@ record_state() {
   chmod 600 "$STATE_FILE.tmp"
   mv "$STATE_FILE.tmp" "$STATE_FILE"
 }
+
+# A backup that crashed or was cut off by a reboot leaves its lock in the repository, and every later prune would
+# then stop at "repository is already locked". Plain `restic unlock` removes only stale locks (not refreshed for
+# 30 minutes, or left by a process on this machine that no longer runs); a backup running right now keeps its
+# lock, and the prune below then fails and alerts as it should. Never --remove-all here (Q155).
+restic unlock
 
 check_snapshots
 

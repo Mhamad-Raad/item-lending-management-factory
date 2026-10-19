@@ -89,6 +89,9 @@ and the commands; [`docs/CHANGELOG.md`](docs/CHANGELOG.md) is how it was built.
 - [ ] **Backups:** run the restore drill ([`quarterly-restore-test.md`](docs/runbooks/quarterly-restore-test.md) —
       quarterly is the goal, yearly the minimum); confirm the healthchecks.io backup and prune checks are green;
       check the B2 Object Lock and keys still match [`backup-keys.md`](docs/runbooks/backup-keys.md).
+- [ ] **Server updates:** `last reboot | head -3` shows recent night-time reboots and `apt-cache policy docker-ce` a
+      recent version; if not, re-apply "The server keeps itself patched" in [`deploy.md`](docs/runbooks/deploy.md).
+      The "pallet-prune" check must be green too — `prune.sh` will not run without it.
 - [ ] **Access:** in Users, deactivate people who left; make sure at least two admins can sign in.
 
 ## Repository layout

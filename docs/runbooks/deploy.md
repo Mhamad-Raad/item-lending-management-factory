@@ -49,6 +49,40 @@ Repository settings (by hand, GitHub → Settings → Environments → `producti
 
 Servers set up before 2026-09-26 gave the owner role `CREATEDB`, which production never needs. Remove it once: `docker compose exec -T postgres psql -U postgres -c "ALTER ROLE pallet_owner NOCREATEDB;"`.
 
+## The server keeps itself patched
+
+The server is in UTC (`timedatectl set-timezone UTC`, ARCHITECTURE.md §10.7); Baghdad is UTC+3. Ubuntu installs
+security updates by itself (`unattended-upgrades`), and since Q154 also:
+
+- **updates Docker** (`docker-ce`, `containerd.io`, …), which comes from Docker's own apt repository — Ubuntu's
+  default settings leave it out, so Docker was never updated;
+- **installs at night**: 01:00 UTC (04:00 in Baghdad), after the 23:30 UTC backup, instead of Ubuntu's default of
+  06:00–07:00 UTC (09:00–10:00 in Baghdad, working hours) — a Docker update restarts Docker;
+- **reboots when an update needs it** (a new kernel or system library only takes effect after a reboot), at 02:00 UTC
+  (05:00 in Baghdad), before work starts and long after the backup.
+
+After a reboot nothing needs doing by hand: Docker starts at boot and every service has `restart: unless-stopped`. For
+a minute or so the site may answer `502` while the API starts and checks the database; the uptime monitor only
+alerts when it lasts longer.
+
+**Apply it** — on a new server it is part of §10.7; on an existing server (such as `jiyan.krdsuli.com`) run once:
+
+```bash
+printf '%s\n' 'Unattended-Upgrade::Allowed-Origins:: "Docker:${distro_codename}";' 'Unattended-Upgrade::Automatic-Reboot "true";' 'Unattended-Upgrade::Automatic-Reboot-Time "02:00";' | sudo tee /etc/apt/apt.conf.d/52pallet-unattended && sudo mkdir -p /etc/systemd/system/apt-daily-upgrade.timer.d && printf '[Timer]\nOnCalendar=\nOnCalendar=*-*-* 01:00\nRandomizedDelaySec=10m\n' | sudo tee /etc/systemd/system/apt-daily-upgrade.timer.d/pallet.conf && sudo systemctl daemon-reload
+```
+
+**Check it** (and once a year, README "Yearly checklist"):
+
+- `apt-cache policy docker-ce` — the Docker line must read `o=Docker`, `a=noble`, `l=Docker CE`; that origin and
+  suite are what `"Docker:${distro_codename}"` matches. If it reads differently, change the line to match.
+- `sudo unattended-upgrade --dry-run --debug 2>&1 | grep -i 'allowed origins'` lists `o=Docker,a=noble`.
+- `systemctl list-timers apt-daily-upgrade` shows the next run at 01:00–01:10 UTC.
+- `last reboot | head -3` shows the reboots that happened; `/var/log/unattended-upgrades/` what was installed.
+
+**Optional — security fixes until 2034.** Ubuntu 24.04's standard support ends in April 2029. Ubuntu Pro is free for a
+few machines: sign up at ubuntu.com/pro, then `sudo pro attach <token>`. The same `unattended-upgrades` then installs
+its fixes (ESM) until 2034. Moving to the next Ubuntu LTS (ARCHITECTURE.md §13.9) is still the plan.
+
 ## The deploy key
 
 The `Deploy` workflow connects with the runner's own `ssh` (ARCHITECTURE.md Q128). It trusts the server only through the
