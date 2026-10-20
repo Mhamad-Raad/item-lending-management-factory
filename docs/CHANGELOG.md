@@ -102,3 +102,9 @@ The build history that used to sit in `CLAUDE.md` "Status", oldest first, moved 
   is restarted by its own healthcheck (`init: true`, SIGTERM at the third failure, SIGKILL at the fourth); a lost
   database connection fails only its request (`connection-loss.test.ts`); the host takes security and Docker
   updates and reboots at night; `HEALTHCHECKS_PRUNE_URL` is required and `prune.sh` clears stale restic locks.
+- **10n returns from the customer** (2026-10-20, Q156): the business asked to record a return by choosing the
+  customer, not the order. `/returns/new` now shows everything the customer holds, a card per open order (its
+  number opens the order in a new tab), counted with − / + and "All", damaged pallets behind a toggle; one save
+  records a return on each order touched, all or none (`GET /api/customers/:id/returnable`,
+  `POST /api/customers/:id/returns`, each order priced as its own return). Cash paid out opens a dialog with each
+  refund's receipt. From an order's page the one-order form is unchanged.

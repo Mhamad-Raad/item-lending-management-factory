@@ -464,6 +464,25 @@ harmless here and kept so by a test (Q153); the host installs security and Docke
 `bash -n` and every gate green. **By hand:** the one-line command of `deploy.md` "The server keeps itself
 patched" on the live server, and the healthchecks.io check "pallet-prune" before the next prune.
 
+### 10n — Returns from the customer (Q156)
+
+Read: §4.8.4, §6.20, §7.4.2.
+
+The business asked that recording a return start from the customer: choosing them shows every pallet they still
+hold with the order it belongs to, the order openable, and the count that came back entered there with buttons.
+`GET /api/customers/:customerId/returnable` lists the open orders with pallets out and their lines still out;
+`POST /api/customers/:customerId/returns` records a return on each order named in one transaction — each exactly
+an order's return, checked and priced against its own order — all or none, idempotent. The screen: a card per
+order (number opening it in a new tab, date, payment type, owed, "All of this order back"), a row per line with
+− / + and "All" for pallets accepted and a "Damaged" toggle, the summary adding up each order's return, a dialog
+with each refund's receipt when cash goes out. **Exit:** `customer-returns.test.ts` (the list; two orders priced
+each on its own; nothing written when any order refuses, every line over named; another customer's (open or
+cancelled) and a missing order not found, cancelled,
+early date, foreign line, empty, duplicate order; idempotent replay); `customer-returns.spec.ts` (counting with the
+buttons, the summary's figures, the body sent, the dialog's print, refused as typed, one order to its page, a
+server refusal marking rows and re-reading; a count on a line a reload drops named and held until let go; a
+date before a touched order refused as typed; the row's controls on one line — each proven failing when broken); the route in `responsive.spec.ts` and `a11y.spec.ts`; every gate green.
+
 ---
 
 ## Environments
