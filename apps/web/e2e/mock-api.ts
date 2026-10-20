@@ -6,12 +6,14 @@ import type {
   PurchasesReportDto,
   StockReportDto,
   CustomerDetailDto,
+  CustomerReturnableDto,
   CustomerHistoryItemDto,
   DriverDto,
   ItemDto,
   LedgerEntryDto,
   MeDto,
   OrderDetailDto,
+  OrderLineDto,
   OrderListItemDto,
   PageDto,
   PurchaseBatchDto,
@@ -215,6 +217,34 @@ const BATCH: PurchaseBatchDto = {
   createdAt: AT,
   updatedAt: AT,
   createdBy: BY,
+};
+
+/** What the customer still holds (Q156): the order above, and an older one with two lines. */
+export const RETURNABLE: CustomerReturnableDto = {
+  customer: { id: CUSTOMER.id, name: CUSTOMER.name, phone: CUSTOMER.phone, archived: false },
+  orders: [
+    {
+      id: 8,
+      orderNumber: 123_455,
+      date: '2026-09-01',
+      paymentType: 'CASH',
+      owed: 0,
+      outQuantityTotal: 1_200,
+      lines: [
+        { ...(ORDER.lines[0] as OrderLineDto), id: 31, quantity: 1_000, outQuantity: 1_000 },
+        { ...(ORDER.lines[0] as OrderLineDto), id: 32, quantity: 200, outQuantity: 200 },
+      ],
+    },
+    {
+      id: ORDER.id,
+      orderNumber: ORDER.orderNumber,
+      date: ORDER.date,
+      paymentType: ORDER.paymentType,
+      owed: ORDER.owed,
+      outQuantityTotal: ORDER.outQuantityTotal,
+      lines: ORDER.lines,
+    },
+  ],
 };
 
 export const AUDIT_ROW: AuditLogDto = {
@@ -493,6 +523,7 @@ export async function mockApi(
     [/\/api\/customers(\?.*)?$/, page1([CUSTOMER])],
     [/\/api\/customers\/\d+$/, CUSTOMER],
     [/\/api\/customers\/\d+\/history(\?.*)?$/, page1(HISTORY)],
+    [/\/api\/customers\/\d+\/returnable$/, RETURNABLE],
     [/\/api\/drivers(\?.*)?$/, page1([DRIVER])],
     [/\/api\/drivers\/\d+$/, DRIVER],
     [/\/api\/items(\?.*)?$/, page1([ITEM])],

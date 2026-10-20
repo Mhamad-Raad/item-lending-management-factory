@@ -38,6 +38,8 @@ export const qk = {
     detail: (id: number) => ['orders', 'detail', id] as const,
     receipt: (id: number) => ['orders', 'receipt', id] as const,
     transactionsReceipt: (id: number) => ['orders', 'transactionsReceipt', id] as const,
+    /** Under `orders`: every order change can move what a customer still holds (Q156). */
+    returnable: (customerId: number) => ['orders', 'returnable', customerId] as const,
   },
   ledger: {
     all: () => ['ledger'] as const,

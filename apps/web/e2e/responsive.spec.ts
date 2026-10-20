@@ -16,6 +16,7 @@ const ROUTES = [
   '/payments/new?orderId=9',
   '/returns/new',
   '/returns/new?orderId=9',
+  '/returns/new?customerId=3',
   '/customers',
   '/customers/new',
   '/customers/3',

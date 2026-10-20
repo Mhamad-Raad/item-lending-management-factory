@@ -1162,6 +1162,25 @@
       "backToOrder": "Back to the order",
       "nothingOut": "Nothing is out on this order",
       "damageSplit": "Of their {{deposit}} deposit, {{refund}} is refunded and {{kept}} is kept for the damage."
+    },
+    "customer": {
+      "heading": "{{pallets}} pallets out on {{orders}} orders",
+      "everythingBack": "Everything came back",
+      "orderAllBack": "All of this order back",
+      "opensInNewTab": "(opens in a new tab)",
+      "less": "One fewer",
+      "more": "One more",
+      "all": "All",
+      "palletsBack": "Pallets coming back",
+      "byOrder": "By order",
+      "orderBack": "{{pallets}} back",
+      "created": "Returns recorded on {{orders}} orders",
+      "ordersChanged": "This customer's orders changed meanwhile; the list has been reloaded",
+      "nothingOut": "This customer has no pallets out",
+      "savedTitle": "Return recorded",
+      "savedLine": "{{accepted}} accepted · {{damaged}} damaged",
+      "goneTitle": "These counts are for pallets no longer out — returned or cancelled meanwhile — and will not be saved:",
+      "goneDismiss": "Remove them"
     }
   },
   "reports": {

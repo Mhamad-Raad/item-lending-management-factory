@@ -2,8 +2,8 @@ import AxeBuilder from '@axe-core/playwright';
 import { expect, test, type Page } from './fixtures';
 import { ADMIN, mockApi } from './mock-api';
 
-/** The three daily flows (§7.4), opened on an order where one applies. */
-const FLOWS = ['/orders/new', '/returns/new?orderId=9', '/payments/new?orderId=9'];
+/** The three daily flows (§7.4), opened on an order where one applies, and returns from the customer (Q156). */
+const FLOWS = ['/orders/new', '/returns/new?orderId=9', '/returns/new?customerId=3', '/payments/new?orderId=9'];
 
 /**
  * Axe's findings once the page has settled. Entry fades can outlast their 300 ms while the machine is busy, and

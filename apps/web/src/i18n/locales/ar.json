@@ -1162,6 +1162,25 @@
       "backToOrder": "العودة إلى الطلب",
       "nothingOut": "لا شيء لدى الزبون من هذا الطلب",
       "damageSplit": "تأمينها {{deposit}}: يُردّ منه {{refund}} ويُحتجز {{kept}} تعويضاً عن التلف."
+    },
+    "customer": {
+      "heading": "لدى الزبون {{pallets}} طبلية في {{orders}} طلب",
+      "everythingBack": "عاد كل شيء",
+      "orderAllBack": "عاد كل هذا الطلب",
+      "opensInNewTab": "(يُفتح في علامة تبويب جديدة)",
+      "less": "واحدة أقل",
+      "more": "واحدة أكثر",
+      "all": "الكل",
+      "palletsBack": "الطبليات العائدة",
+      "byOrder": "حسب الطلب",
+      "orderBack": "عاد {{pallets}}",
+      "created": "سُجّل الإرجاع على {{orders}} طلب",
+      "ordersChanged": "تغيّرت طلبات هذا الزبون في الأثناء؛ أُعيد تحميل القائمة",
+      "nothingOut": "لا توجد طبليات لدى هذا الزبون",
+      "savedTitle": "سُجّل الإرجاع",
+      "savedLine": "{{accepted}} مقبولة · {{damaged}} تالفة",
+      "goneTitle": "هذه الأعداد لطبليات لم تعد لدى الزبون — أُرجعت أو أُلغيت في الأثناء — ولن تُحفظ:",
+      "goneDismiss": "أزِلها"
     }
   },
   "reports": {

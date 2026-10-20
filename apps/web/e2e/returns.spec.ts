@@ -1,7 +1,7 @@
-import type { LedgerEntryDto, OrderDetailDto, OrderListItemDto, ReturnDto, ReturnResultDto } from '@pallet/shared';
+import type { LedgerEntryDto, OrderDetailDto, ReturnDto, ReturnResultDto } from '@pallet/shared';
 import type { Route } from '@playwright/test';
 import { expect, test, type Page } from './fixtures';
-import { ADMIN, CUSTOMER, ORDER, mockApi } from './mock-api';
+import { ADMIN, ORDER, mockApi } from './mock-api';
 
 const ITEM_REF = ORDER.lines[0]?.item ?? { id: 5, name: 'Pallet', imageUrl: null, archived: false };
 const LINE = {
@@ -204,30 +204,6 @@ test('a return already corrected or deleted elsewhere sends the user back to its
   await summary(page).getByRole('button', { name: 'Save the corrected return' }).click();
 
   await expect(page).toHaveURL(/\/orders\/9$/);
-});
-
-test('without an order, the customer is picked and their orders with pallets out are offered', async ({ page }) => {
-  await mockReturns(page, LENT);
-  const row9: OrderListItemDto = { ...LENT };
-  await page.route(/\/api\/orders\?/, (route) =>
-    route.fulfill({
-      json: {
-        items: [row9, { ...row9, id: 10, orderNumber: 43 }, { ...row9, id: 11, orderNumber: 44, outQuantityTotal: 0 }],
-        page: 1,
-        pageSize: 100,
-        total: 3,
-      },
-    }),
-  );
-
-  await page.goto('/returns/new');
-  await page.getByRole('combobox', { name: 'Customer' }).click();
-  await page.getByRole('option', { name: new RegExp(CUSTOMER.name.slice(0, 20)) }).click();
-
-  await expect(page.getByRole('button', { name: /#123456/ })).toBeVisible();
-  await expect(page.getByRole('button', { name: /#000044/ })).toHaveCount(0);
-  await page.getByRole('button', { name: /#123456/ }).click();
-  await expect(page).toHaveURL(/orderId=9/);
 });
 
 test('Q141: more than is out is refused as it is typed and prices nothing', async ({ page }) => {

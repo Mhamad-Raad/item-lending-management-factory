@@ -52,7 +52,7 @@ export interface ReturnRow {
 }
 
 /** The live summary of a return being typed (§7.4.2), from the shared formulas only. */
-export function returnSummary(base: OrderTotals, rows: readonly ReturnRow[]) {
+export function returnSummary(base: Pick<OrderTotals, 'owed' | 'outQuantityTotal'>, rows: readonly ReturnRow[]) {
   const refundDue = returnRefundDue(rows);
   const owedBefore = base.owed;
   const { cashRefund, owedAfter } = returnMoney(owedBefore, refundDue);
