@@ -4,6 +4,11 @@ import {
   businessToday,
   computeOrderTotals,
   dbDateToBusiness,
+  type CustomerReturnCreateBody,
+  type CustomerReturnRecordedDto,
+  type CustomerReturnResultDto,
+  type CustomerReturnableDto,
+  type ErrorDetails,
   type OrderState,
   type ReturnCreateBody,
   type ReturnResultDto,
@@ -15,7 +20,7 @@ import { ApiError } from '../../common/errors/api-error';
 import { assertNotInFuture } from '../../common/utils/dates';
 import { toDbMoney, toSafeMoney } from '../../common/utils/money';
 import type { LedgerEntry, Prisma } from '../../generated/prisma/client';
-import { lockCustomer, lockItems, lockOrder } from '../../prisma/locks';
+import { lockCustomer, lockItems, lockOrder, lockOrders } from '../../prisma/locks';
 import { PrismaService } from '../../prisma/prisma.service';
 import { runInTransaction } from '../../prisma/transaction';
 import { toAuditSnapshot } from '../audit/audit-snapshot';
@@ -23,7 +28,10 @@ import { AuditService } from '../audit/audit.service';
 import { IdempotencyService, type IdempotentRequest, type IdempotentResult } from '../idempotency/idempotency.service';
 import { ledgerAuditEntry } from '../ledger/ledger.mapper';
 import { MoneyLedger } from '../ledger/money-ledger';
+import { toCustomerRef } from '../customers/customers.mapper';
+import { ITEM_REF_INCLUDE } from '../items/items.mapper';
 import { recomputeOrder, toOrderState } from '../orders/order-state';
+import { toOrderLineDto } from '../orders/orders.mapper';
 import { loadOrderDetail } from '../orders/orders.queries';
 import { StockLedger, type StockMovementInput } from '../stock/stock-ledger';
 import { priceReturn, validateReturnAgainstOrder, type PricedReturnLine } from './return-rules';
@@ -70,33 +78,165 @@ export class ReturnsService {
         const order = await this.loadOrder(tx, orderId);
         await lockItems(tx, this.itemIdsOf(order, body.lines));
 
-        const priced = validateReturnAgainstOrder(this.returnable(order, toOrderState(order)), body);
-        const money = priceReturn(priced, computeOrderTotals(toOrderState(order)).owed);
-        const created = await this.insertReturn(tx, order.id, body, priced, money, actor.userId);
-        await this.stock.apply(tx, this.accepted(priced, 'RETURN_ACCEPTED', order.id, created.id, 1), actor.userId);
-        const refund = await this.refund(tx, order.id, created.id, 'RETURN_CREATE', body.date, money.cashRefund, actor);
-        await recomputeOrder(tx, order.id, { bumpVersion: true });
+        const { priced, money } = this.check(order, body);
+        const created = await this.write(tx, order, body, priced, money, actor);
 
-        await this.audit.record(tx, {
-          action: 'RETURN_CREATE',
-          entityType: 'RETURN',
-          entityId: String(created.id),
-          summaryParams: {
-            orderNumber: order.orderNumber,
-            accepted: priced.reduce((total, line) => total + line.acceptedQuantity, 0),
-            damaged: priced.reduce((total, line) => total + line.damagedQuantity, 0),
-            refundDue: money.refundDue,
-            cashRefund: money.cashRefund,
-          },
-          after: await this.snapshot(tx, created.id),
-        });
-        if (refund) await this.audit.record(tx, ledgerAuditEntry(refund, order.orderNumber));
-
-        const result = { returnId: created.id, order: await loadOrderDetail(tx, order.id) };
+        const result = { returnId: created.returnId, order: await loadOrderDetail(tx, order.id) };
         await store(tx, result);
         return result;
       });
     });
+  }
+
+  /** A customer's pallets still out, on their open orders, oldest order first (Q156). */
+  async returnableFor(customerId: number): Promise<CustomerReturnableDto> {
+    // Pallets are out only on an OPEN order (Q150): `orders (customer_id, status)` narrows to those.
+    const [customer, orders] = await Promise.all([
+      this.prisma.customer.findUnique({ where: { id: customerId } }),
+      this.prisma.order.findMany({
+        where: { customerId, status: 'OPEN', outQuantityTotal: { gt: 0 } },
+        include: {
+          lines: { where: { outQuantity: { gt: 0 } }, orderBy: { id: 'asc' }, include: { item: ITEM_REF_INCLUDE } },
+        },
+        orderBy: { orderNumber: 'asc' },
+      }),
+    ]);
+    if (!customer) throw new ApiError('CUSTOMER_NOT_FOUND', { customerId });
+    return {
+      customer: toCustomerRef(customer),
+      orders: orders.map((order) => ({
+        id: order.id,
+        orderNumber: order.orderNumber,
+        date: dbDateToBusiness(order.date),
+        paymentType: order.paymentType,
+        owed: toSafeMoney(order.owed),
+        outQuantityTotal: order.outQuantityTotal,
+        lines: order.lines.map(toOrderLineDto),
+      })),
+    };
+  }
+
+  /**
+   * What came back of a customer's pallets, across their open orders (Q156): a return on each order named, each
+   * checked and priced against its own order exactly as `create`, all in one transaction — every one or none. Locks
+   * in the order of §6.6: the customer, the orders by id, then their items. Once per idempotency key (§6.7).
+   */
+  createForCustomer(
+    customerId: number,
+    body: CustomerReturnCreateBody,
+    actor: AuthContext,
+    request: IdempotentRequest,
+  ): Promise<IdempotentResult<CustomerReturnResultDto>> {
+    return this.idempotency.run(request, ({ store, replayIfStored }) => {
+      assertNotInFuture(this.clock, body.date, 'date');
+      return runInTransaction(this.prisma, async (tx) => {
+        await lockCustomer(tx, customerId);
+        await replayIfStored(tx);
+        const customer = await tx.customer.findUnique({ where: { id: customerId } });
+        if (!customer) throw new ApiError('CUSTOMER_NOT_FOUND', { customerId });
+        if (body.orders.length === 0) throw new ApiError('RETURN_EMPTY');
+
+        // An order's customer never changes, so it is read before any order is locked: another customer's order is
+        // refused as not found here — whatever its state — and never locked under the wrong customer (§6.6).
+        const ids = body.orders.map((entry) => entry.orderId);
+        const owners = new Map(
+          (await tx.order.findMany({ where: { id: { in: ids } }, select: { id: true, customerId: true } })).map(
+            (row) => [row.id, row.customerId],
+          ),
+        );
+        const foreign = ids.find((id) => owners.get(id) !== customerId);
+        if (foreign !== undefined) throw new ApiError('ORDER_NOT_FOUND', { orderId: foreign });
+        await lockOrders(tx, ids);
+        const loaded = await tx.order.findMany({
+          where: { id: { in: ids } },
+          include: RETURN_ORDER_INCLUDE,
+          orderBy: { id: 'asc' },
+        });
+        const orders = loaded.map((order) => {
+          if (order.cancelledAt) throw new ApiError('ORDER_CANCELLED', { orderId: order.id });
+          const entry = body.orders.find((named) => named.orderId === order.id);
+          return { order, body: { date: body.date, notes: body.notes, lines: entry?.lines ?? [] } };
+        });
+        await lockItems(
+          tx,
+          orders.flatMap(({ order, body: one }) => this.itemIdsOf(order, one.lines)),
+        );
+
+        // Every order is checked before any is written, so one answer names every line over what is out.
+        const over: ErrorDetails<'RETURN_EXCEEDS_OUT'>['lines'] = [];
+        const checked = orders.flatMap(({ order, body: one }) => {
+          try {
+            return [{ order, body: one, ...this.check(order, one) }];
+          } catch (error) {
+            if (!(error instanceof ApiError) || error.code !== 'RETURN_EXCEEDS_OUT') throw error;
+            over.push(...(error.details as ErrorDetails<'RETURN_EXCEEDS_OUT'>).lines);
+            return [];
+          }
+        });
+        if (over.length > 0) {
+          throw new ApiError('RETURN_EXCEEDS_OUT', { lines: over } satisfies ErrorDetails<'RETURN_EXCEEDS_OUT'>);
+        }
+
+        const returns: CustomerReturnRecordedDto[] = [];
+        for (const { order, body: one, priced, money } of checked.sort(
+          (a, b) => a.order.orderNumber - b.order.orderNumber,
+        )) {
+          const written = await this.write(tx, order, one, priced, money, actor);
+          returns.push({
+            ...written,
+            orderId: order.id,
+            orderNumber: order.orderNumber,
+            refundDue: money.refundDue,
+            owedBefore: money.owedBefore,
+            cashRefund: money.cashRefund,
+            owedAfter: money.owedAfter,
+          });
+        }
+        const result = { customer: toCustomerRef(customer), returns };
+        await store(tx, result);
+        return result;
+      });
+    });
+  }
+
+  /** `validateReturnAgainstOrder` and the price of §4.3, against the locked order as it stands. */
+  private check(order: ReturnOrder, body: ReturnCreateBody) {
+    const state = toOrderState(order);
+    const priced = validateReturnAgainstOrder(this.returnable(order, state), body);
+    return { priced, money: priceReturn(priced, computeOrderTotals(state).owed) };
+  }
+
+  /** Writes a checked return on its locked order (§4.8.4): the row, its stock, its refund, the totals, the audit. */
+  private async write(
+    tx: Prisma.TransactionClient,
+    order: ReturnOrder,
+    body: ReturnCreateBody,
+    priced: PricedReturnLine[],
+    money: ReturnType<typeof priceReturn>,
+    actor: AuthContext,
+  ): Promise<{ returnId: number; refundEntryId: number | null; accepted: number; damaged: number }> {
+    const accepted = priced.reduce((total, line) => total + line.acceptedQuantity, 0);
+    const damaged = priced.reduce((total, line) => total + line.damagedQuantity, 0);
+    const created = await this.insertReturn(tx, order.id, body, priced, money, actor.userId);
+    await this.stock.apply(tx, this.accepted(priced, 'RETURN_ACCEPTED', order.id, created.id, 1), actor.userId);
+    const refund = await this.refund(tx, order.id, created.id, 'RETURN_CREATE', body.date, money.cashRefund, actor);
+    await recomputeOrder(tx, order.id, { bumpVersion: true });
+
+    await this.audit.record(tx, {
+      action: 'RETURN_CREATE',
+      entityType: 'RETURN',
+      entityId: String(created.id),
+      summaryParams: {
+        orderNumber: order.orderNumber,
+        accepted,
+        damaged,
+        refundDue: money.refundDue,
+        cashRefund: money.cashRefund,
+      },
+      after: await this.snapshot(tx, created.id),
+    });
+    if (refund) await this.audit.record(tx, ledgerAuditEntry(refund, order.orderNumber));
+    return { returnId: created.id, refundEntryId: refund?.id ?? null, accepted, damaged };
   }
 
   /**

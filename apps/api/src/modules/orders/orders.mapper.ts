@@ -1,4 +1,10 @@
-import { dbDateToBusiness, type OrderDetailDto, type OrderListItemDto, type ReturnDto } from '@pallet/shared';
+import {
+  dbDateToBusiness,
+  type OrderDetailDto,
+  type OrderLineDto,
+  type OrderListItemDto,
+  type ReturnDto,
+} from '@pallet/shared';
 import { toSafeMoney } from '../../common/utils/money';
 import type { Prisma } from '../../generated/prisma/client';
 import { toCustomerRef } from '../customers/customers.mapper';
@@ -30,6 +36,22 @@ export const ORDER_DETAIL_INCLUDE = {
   },
   ledgerEntries: { orderBy: { id: 'asc' }, include: LEDGER_ENTRY_INCLUDE },
 } as const satisfies Prisma.OrderInclude;
+
+type OrderLineRow = Prisma.OrderLineGetPayload<{ include: { item: typeof ITEM_REF_INCLUDE } }>;
+
+/** A line with the totals `recomputeOrder()` keeps on it (§6.19). */
+export function toOrderLineDto(line: OrderLineRow): OrderLineDto {
+  return {
+    id: line.id,
+    item: toItemRef(line.item),
+    quantity: line.quantity,
+    unitDeposit: toSafeMoney(line.unitDeposit),
+    lineTotal: toSafeMoney(line.lineTotal),
+    returnedAccepted: line.returnedAccepted,
+    returnedDamaged: line.returnedDamaged,
+    outQuantity: line.outQuantity,
+  };
+}
 
 type OrderListRow = Prisma.OrderGetPayload<{ include: typeof ORDER_LIST_INCLUDE }>;
 type OrderDetailRow = Prisma.OrderGetPayload<{ include: typeof ORDER_DETAIL_INCLUDE }>;
@@ -110,16 +132,7 @@ export function toOrderDetailDto(order: OrderDetailRow): OrderDetailDto {
       order.creditOverrideBy && order.creditOverrideAt
         ? { by: toUserRef(order.creditOverrideBy), at: order.creditOverrideAt.toISOString() }
         : null,
-    lines: order.lines.map((line) => ({
-      id: line.id,
-      item: toItemRef(line.item),
-      quantity: line.quantity,
-      unitDeposit: toSafeMoney(line.unitDeposit),
-      lineTotal: toSafeMoney(line.lineTotal),
-      returnedAccepted: line.returnedAccepted,
-      returnedDamaged: line.returnedDamaged,
-      outQuantity: line.outQuantity,
-    })),
+    lines: order.lines.map(toOrderLineDto),
     returns: order.returns.map((pr) => toReturnDto(order, pr)),
     ledgerEntries: order.ledgerEntries.map((entry) => toLedgerEntryDto(entry, order)),
     canEditLines: open,

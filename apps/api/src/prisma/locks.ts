@@ -60,6 +60,13 @@ export async function lockOrder(tx: Prisma.TransactionClient, orderId: number): 
   await tx.$queryRaw`SELECT id FROM orders WHERE id = ${orderId} FOR UPDATE`;
 }
 
+/** Locks several orders in ascending id order, after their customer (§6.6); one statement for them all. */
+export async function lockOrders(tx: Prisma.TransactionClient, ids: readonly number[]): Promise<void> {
+  const sorted = [...new Set(ids)].sort((a, b) => a - b);
+  if (sorted.length === 0) return;
+  await tx.$queryRaw`SELECT id FROM orders WHERE id = ANY(${sorted}::int[]) ORDER BY id FOR UPDATE`;
+}
+
 /** Locks the order counter — last in the chain — and returns the last number handed out. */
 export async function lockOrderCounter(tx: Prisma.TransactionClient): Promise<number> {
   const [row] = await tx.$queryRaw<{ last_number: number }[]>`

@@ -75,8 +75,9 @@ export function validateReturnAgainstOrder(
   }));
 }
 
-/** §4.3: what the return credits, and how much of it is paid out because it exceeds what was owed. */
+/** §4.3: what the return credits, how much of it is paid out because it exceeds what was owed, and what is owed after. */
 export function priceReturn(lines: readonly PricedReturnLine[], owedBefore: number) {
   const refundDue = returnRefundDue(lines);
-  return { refundDue, owedBefore, cashRefund: returnMoney(owedBefore, refundDue).cashRefund };
+  const { cashRefund, owedAfter } = returnMoney(owedBefore, refundDue);
+  return { refundDue, owedBefore, cashRefund, owedAfter };
 }

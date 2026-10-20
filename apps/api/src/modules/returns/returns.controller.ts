@@ -1,5 +1,8 @@
-import { Body, Controller, Delete, Headers, HttpCode, Param, Post, Req, Res } from '@nestjs/common';
+import { Body, Controller, Delete, Get, Headers, HttpCode, Param, Post, Req, Res } from '@nestjs/common';
 import {
+  CustomerReturnCreateBody,
+  type CustomerReturnResultDto,
+  type CustomerReturnableDto,
   IDEMPOTENCY_HEADER_NAME,
   IDEMPOTENCY_REPLAYED_HEADER,
   IdParam,
@@ -15,7 +18,10 @@ import { ZodValidationPipe } from '../../common/pipes/zod-validation.pipe';
 import { IdempotencyService } from '../idempotency/idempotency.service';
 import { ReturnsService } from './returns.service';
 
-/** §6.20: a return is recorded on its order, and edited or deleted by its own id. */
+/**
+ * §6.20: a return is recorded on its order, or on several of a customer's orders at once (Q156), and edited or
+ * deleted by its own id.
+ */
 @Controller()
 export class ReturnsController {
   constructor(
@@ -37,6 +43,31 @@ export class ReturnsController {
   ): Promise<ReturnResultDto> {
     const request = this.idempotency.requestFor(req, key, 'RETURN_CREATE', actor.userId, body);
     const result = await this.returns.create(orderId, body, actor, request);
+    if (result.replayed) res.setHeader(IDEMPOTENCY_REPLAYED_HEADER, 'true');
+    return result.body;
+  }
+
+  /** What the customer still holds, for the return flow (Q156). */
+  @Get('customers/:customerId/returnable')
+  @RequirePermission('returns.create')
+  returnable(@Param('customerId', new ZodValidationPipe(IdParam)) customerId: number): Promise<CustomerReturnableDto> {
+    return this.returns.returnableFor(customerId);
+  }
+
+  /** Idempotent (§6.7), as a return on one order. */
+  @Post('customers/:customerId/returns')
+  @RequirePermission('returns.create')
+  @HttpCode(201)
+  async createForCustomer(
+    @Param('customerId', new ZodValidationPipe(IdParam)) customerId: number,
+    @Body(new ZodValidationPipe(CustomerReturnCreateBody)) body: CustomerReturnCreateBody,
+    @CurrentUser() actor: AuthContext,
+    @Headers(IDEMPOTENCY_HEADER_NAME.toLowerCase()) key: string | undefined,
+    @Req() req: Request,
+    @Res({ passthrough: true }) res: Response,
+  ): Promise<CustomerReturnResultDto> {
+    const request = this.idempotency.requestFor(req, key, 'RETURN_CREATE', actor.userId, body);
+    const result = await this.returns.createForCustomer(customerId, body, actor, request);
     if (result.replayed) res.setHeader(IDEMPOTENCY_REPLAYED_HEADER, 'true');
     return result.body;
   }

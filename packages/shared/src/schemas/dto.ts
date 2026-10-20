@@ -377,6 +377,45 @@ export interface ReturnResultDto {
   order: OrderDetailDto;
 }
 
+/** One of a customer's open orders with pallets still out, as the return flow offers it (§6.20, Q156). */
+export interface ReturnableOrderDto {
+  id: number;
+  orderNumber: number;
+  date: string;
+  paymentType: PaymentType;
+  owed: number;
+  outQuantityTotal: number;
+  /** Only the lines with pallets still out, by line id. */
+  lines: OrderLineDto[];
+}
+
+/** Everything a customer still holds, order by order, oldest first (Q156). */
+export interface CustomerReturnableDto {
+  customer: CustomerRefDto;
+  orders: ReturnableOrderDto[];
+}
+
+/** A return the customer flow recorded on one order (Q156), with what it paid out. */
+export interface CustomerReturnRecordedDto {
+  returnId: number;
+  orderId: number;
+  orderNumber: number;
+  accepted: number;
+  damaged: number;
+  refundDue: number;
+  owedBefore: number;
+  cashRefund: number;
+  owedAfter: number;
+  /** The REFUND row the return paid out, for its receipt (Q137); null when it paid nothing. */
+  refundEntryId: number | null;
+}
+
+/** What `POST /customers/:customerId/returns` recorded: a return per order, by order number (Q156). */
+export interface CustomerReturnResultDto {
+  customer: CustomerRefDto;
+  returns: CustomerReturnRecordedDto[];
+}
+
 /** A payment recorded or reversed (§6.21): the ledger row written and the order as it now stands. */
 export interface PaymentResultDto {
   ledgerEntryId: number;
