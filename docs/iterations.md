@@ -475,7 +475,8 @@ hold with the order it belongs to, the order openable, and the count that came b
 an order's return, checked and priced against its own order — all or none, idempotent. The screen: a card per
 order (number opening it in a new tab, date, payment type, owed, "All of this order back"), a row per line with
 − / + and "All" for pallets accepted and a "Damaged" toggle, the summary adding up each order's return, a dialog
-with each refund's receipt when cash goes out. **Exit:** `customer-returns.test.ts` (the list; two orders priced
+with each refund's receipt when cash goes out. The maintainer then asked for it in the sidebar, under Orders
+(Q157). **Exit:** `customer-returns.test.ts` (the list; two orders priced
 each on its own; nothing written when any order refuses, every line over named; another customer's (open or
 cancelled) and a missing order not found, cancelled,
 early date, foreign line, empty, duplicate order; idempotent replay); `customer-returns.spec.ts` (counting with the

@@ -107,4 +107,5 @@ The build history that used to sit in `CLAUDE.md` "Status", oldest first, moved 
   number opens the order in a new tab), counted with − / + and "All", damaged pallets behind a toggle; one save
   records a return on each order touched, all or none (`GET /api/customers/:id/returnable`,
   `POST /api/customers/:id/returns`, each order priced as its own return). Cash paid out opens a dialog with each
-  refund's receipt. From an order's page the one-order form is unchanged.
+  refund's receipt. From an order's page the one-order form is unchanged. "Returns" joins the sidebar under
+  Orders (Q157).
