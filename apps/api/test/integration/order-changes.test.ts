@@ -485,18 +485,8 @@ describe('order changes: edit, cancel, receipt, ledger (§4.8.2, §4.8.3, §6.19
     expect(receipt.sheets[0]?.rows).toEqual([
       expect.objectContaining({ kind: 'line', no: 1, quantity: 10, lineTotal: 10_000 }),
       { kind: 'olderHeading' },
-      {
-        kind: 'older',
-        no: 2,
-        orderNumberDisplay: String(earlier.orderNumber).padStart(6, '0'),
-        itemName: 'Pallet 120×100',
-        quantity: 20,
-        unitDeposit: 1_000,
-        returnedAccepted: 4,
-        returnedDamaged: 1,
-        outQuantity: 15,
-        outValue: 15_000,
-      },
+      // Only what is still out of it (Q158): no quantity, returns or damage of the earlier order.
+      { kind: 'older', no: 2, itemName: 'Pallet 120×100', unitDeposit: 1_000, outQuantity: 15, outValue: 15_000 },
     ]);
 
     // The earliest order has nothing earlier to list.
@@ -504,6 +494,44 @@ describe('order changes: edit, cancel, receipt, ledger (§4.8.2, §4.8.3, §6.19
       .body as ReceiptDto;
     expect(first.older).toBeNull();
     expect(first.sheets[0]?.rows.map((row) => row.kind)).toEqual(['line', 'line']);
+  });
+
+  it('adds up the earlier pallets per item over the orders, an item at another price on its own row (Q158)', async () => {
+    const plastic = await createItem(app, admin, { name: 'Plastic pallet', depositPrice: 500, stock: 50 });
+    const earlier = (lines: { itemId: number; quantity: number; unitDeposit?: number }[]) =>
+      createOrder(app, admin, { customerId: customer.id, driverId: driver.id, date: '2026-09-02', lines });
+    // Plastic first, so the rows keep the order each item first appears in, not the item's id.
+    await earlier([
+      { itemId: plastic.id, quantity: 3 },
+      { itemId: item.id, quantity: 10 },
+    ]);
+    const second = await earlier([{ itemId: item.id, quantity: 7 }]);
+    await earlier([{ itemId: item.id, quantity: 2, unitDeposit: 1_200 }]);
+    const [secondLine] = second.lines;
+    if (!secondLine) throw new Error('the second order has a line');
+    await recordReturn(app, admin, {
+      orderId: second.id,
+      date: '2026-09-05',
+      lines: [{ orderLineId: secondLine.id, acceptedQuantity: 2, damagedQuantity: 1 }],
+    });
+
+    const order = await createOrder(app, admin, {
+      customerId: customer.id,
+      driverId: driver.id,
+      date: TODAY,
+      lines: [{ itemId: item.id, quantity: 1 }],
+    });
+    const receipt = (await http().get(`/api/orders/${order.id}/receipt`).set(asUser(admin)).expect(200))
+      .body as ReceiptDto;
+
+    expect(receipt.sheets[0]?.rows.slice(1)).toEqual([
+      { kind: 'olderHeading' },
+      { kind: 'older', no: 2, itemName: 'Plastic pallet', unitDeposit: 500, outQuantity: 3, outValue: 1_500 },
+      // 10 of the first order and the 4 of 7 the second still has out, at the same price: one row.
+      { kind: 'older', no: 3, itemName: 'Pallet 120×100', unitDeposit: 1_000, outQuantity: 14, outValue: 14_000 },
+      { kind: 'older', no: 4, itemName: 'Pallet 120×100', unitDeposit: 1_200, outQuantity: 2, outValue: 2_400 },
+    ]);
+    expect(receipt.older).toEqual({ outValue: 17_900, combinedTotal: 18_900 });
   });
 
   it('prints on each receipt line what came back of it, and forgets a deleted return (Q134)', async () => {

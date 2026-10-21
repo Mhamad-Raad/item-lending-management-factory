@@ -7,7 +7,7 @@ import { Receipt } from './receipt';
 
 /**
  * A receipt as the API builds it (§6.19): the server lays the rows out, the page renders what it is given. `older`
- * are the customer's earlier orders' lines still out (Q150).
+ * are what the customer still holds of earlier orders, a row per item and price (Q150, Q158).
  */
 function receiptWith(
   lineCount: number,
@@ -52,16 +52,8 @@ function receiptWith(
   };
 }
 
-/** One of the customer's earlier order lines, 15 of 20 still out at 5,000 each. */
-const EARLIER = {
-  orderNumberDisplay: '000041',
-  itemName: 'Euro pallet',
-  quantity: 20,
-  unitDeposit: 5_000,
-  returnedAccepted: 4,
-  returnedDamaged: 1,
-  outQuantity: 15,
-};
+/** What the customer still holds of an item over their earlier orders: 15 at 5,000 each (Q158). */
+const EARLIER = { itemName: 'Euro pallet', unitDeposit: 5_000, outQuantity: 15 };
 
 const TOTAL_LABEL = 'کۆی گشتی تەئمینات';
 
@@ -124,17 +116,11 @@ describe('receipt (§7.16.5)', () => {
     const body = [...(half?.querySelectorAll('tbody tr') ?? [])];
     expect(body.map((row) => row.className)).toEqual(['', '', 'older-heading', 'older', '', '']);
     expect(body[2]?.textContent).toBe('پالێتی داواکارییە پێشووەکان کە هێشتا لای کڕیارن');
-    // Its order's number before the item, and in the total column the deposit of the 15 still out.
-    expect([...(body[3]?.querySelectorAll('td') ?? [])].map((cell) => cell.textContent)).toEqual([
-      '3',
-      '000041 · Euro pallet',
-      '20',
-      '4',
-      '1',
-      '15',
-      '5,000',
-      '75,000',
-    ]);
+    // Only what is still out (Q158): the item over the quantity, accepted and damaged columns, then the 15 still out,
+    // its deposit, and in the total column the deposit of those 15.
+    const cells = [...(body[3]?.querySelectorAll('td') ?? [])];
+    expect(cells.map((cell) => cell.textContent)).toEqual(['3', 'Euro pallet', '15', '5,000', '75,000']);
+    expect(cells.map((cell) => cell.colSpan)).toEqual([1, 4, 1, 1, 1]);
     const footer = half?.querySelector('.block-footer');
     expect(footer?.classList.contains('with-older')).toBe(true);
     expect(footer?.textContent).toContain('کۆی تەئمیناتی ئەم داواکارییە: 20,000 دینار');

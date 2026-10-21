@@ -76,18 +76,23 @@ const WITH_OLDER: ReceiptDto = {
         lines[0]!,
         { ...lines[2]!, no: 2 },
         { kind: 'olderHeading' },
-        ...[41, 41, 57].map((order, index): ReceiptRowDto => ({
+        ...[1, 2].map((index): ReceiptRowDto => ({
           kind: 'older',
-          no: 3 + index,
-          orderNumberDisplay: String(order).padStart(6, '0'),
-          itemName: `Euro pallet ${index + 1}`,
-          quantity: 20,
+          no: 2 + index,
+          itemName: `Euro pallet ${index}`,
           unitDeposit: 5_000,
-          returnedAccepted: 4,
-          returnedDamaged: 1,
           outQuantity: 15,
           outValue: 75_000,
         })),
+        // Summed over many earlier orders (Q158): ten of the largest lines, wider than any one line can be.
+        {
+          kind: 'older',
+          no: 5,
+          itemName: 'Euro pallet 3',
+          unitDeposit: 1_000_000,
+          outQuantity: 10_000_000,
+          outValue: 10_000_000_000_000,
+        },
       ],
       showTotal: true,
     },
@@ -250,16 +255,15 @@ test("Q150: the customer's earlier pallets still out share the order's table, an
   const half = page.locator('.half').first();
   await expect(half.locator('tbody tr.older-heading')).toHaveText('پالێتی داواکارییە پێشووەکان کە هێشتا لای کڕیارن');
   await expect(half.locator('tbody tr.older')).toHaveCount(3);
+  // Only what is still out (Q158): the item spans the quantity, accepted and damaged columns.
   await expect(half.locator('tbody tr.older').first().locator('td')).toHaveText([
     '3',
-    '000041 · Euro pallet 1',
-    '20',
-    '4',
-    '1',
+    'Euro pallet 1',
     '15',
     '5,000',
     '75,000',
   ]);
+  await expect(half.locator('tbody tr.older').first().locator('td.col-item')).toHaveAttribute('colspan', '4');
   // Shaded apart from the order's own lines, so a black-and-white print still tells them apart.
   const shade = (row: string) =>
     half

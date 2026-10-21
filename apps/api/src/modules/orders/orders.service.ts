@@ -13,6 +13,7 @@ import {
   type PageDto,
   layoutReceiptRows,
   type ReceiptDto,
+  type ReceiptOlderLineDto,
   type ReceiptRowDto,
 } from '@pallet/shared';
 import type { AuthContext } from '../../common/auth-context';
@@ -304,7 +305,7 @@ export class OrdersService {
         outQuantity: { gt: 0 },
         order: { customerId: order.customerId, status: 'OPEN', orderNumber: { lt: order.orderNumber } },
       },
-      include: { item: { select: { name: true } }, order: { select: { orderNumber: true } } },
+      include: { item: { select: { name: true } } },
       orderBy: [{ order: { orderNumber: 'asc' } }, { id: 'asc' }],
     });
 
@@ -319,24 +320,22 @@ export class OrdersService {
       returnedDamaged: line.returnedDamaged,
       outQuantity: line.outQuantity,
     }));
-    let olderOutValue = 0;
-    if (olderLines.length > 0) rows.push({ kind: 'olderHeading' });
-    olderLines.forEach((line, index) => {
+    // One row per item and deposit price over all the earlier orders (Q158), in the order each first appears: the
+    // same item lent at another price keeps its own row, so every row's out × unit deposit is its total.
+    const older = new Map<string, Omit<ReceiptOlderLineDto, 'outValue'>>();
+    for (const line of olderLines) {
       const unitDeposit = toSafeMoney(line.unitDeposit);
-      const outValue = assertSafe(line.outQuantity * unitDeposit, 'outValue');
+      const key = `${line.itemId}:${unitDeposit}`;
+      const row = older.get(key) ?? { itemName: line.item.name, unitDeposit, outQuantity: 0 };
+      row.outQuantity = assertSafe(row.outQuantity + line.outQuantity, 'outQuantity');
+      older.set(key, row);
+    }
+    let olderOutValue = 0;
+    if (older.size > 0) rows.push({ kind: 'olderHeading' });
+    [...older.values()].forEach((row, index) => {
+      const outValue = assertSafe(row.outQuantity * row.unitDeposit, 'outValue');
       olderOutValue = assertSafe(olderOutValue + outValue, 'olderOutValue');
-      rows.push({
-        kind: 'older',
-        no: order.lines.length + index + 1,
-        orderNumberDisplay: formatOrderNumber(line.order.orderNumber),
-        itemName: line.item.name,
-        quantity: line.quantity,
-        unitDeposit,
-        returnedAccepted: line.returnedAccepted,
-        returnedDamaged: line.returnedDamaged,
-        outQuantity: line.outQuantity,
-        outValue,
-      });
+      rows.push({ kind: 'older', no: order.lines.length + index + 1, ...row, outValue });
     });
 
     const { layout, rowsPerCopy, chunks } = layoutReceiptRows(rows, (row) => row.kind === 'olderHeading');
@@ -366,7 +365,7 @@ export class OrdersService {
         showTotal: index === chunks.length - 1,
       })),
       older:
-        olderLines.length > 0
+        older.size > 0
           ? { outValue: olderOutValue, combinedTotal: assertSafe(depositTotal + olderOutValue, 'combinedTotal') }
           : null,
     };

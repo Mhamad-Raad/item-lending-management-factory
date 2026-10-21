@@ -490,16 +490,14 @@ export interface ReceiptLineDto {
 }
 
 /**
- * A line of one of the customer's earlier orders that is still out (Q150), printed under this order's lines. Its
- * total column is `outValue`, the deposit of what the customer still holds of it, not the line's whole total.
+ * What the customer still holds of one item at one deposit price, over all their earlier orders (Q150, Q158), printed
+ * under this order's lines. Only what is still out: the business does not want the quantities, returns and damage
+ * of those orders on this receipt. Its total column is `outValue`, the deposit of what the customer still holds.
  */
 export interface ReceiptOlderLineDto {
-  orderNumberDisplay: string;
   itemName: string;
-  quantity: number;
   unitDeposit: number;
-  returnedAccepted: number;
-  returnedDamaged: number;
+  /** Summed over the earlier orders' lines of this item at this price. */
   outQuantity: number;
   /** `outQuantity × unitDeposit`. */
   outValue: number;
@@ -547,7 +545,7 @@ export interface ReceiptDto {
   /** One per chunk of rows; each chunk is printed twice, the factory's copy and the customer's. */
   sheets: ReceiptSheetDto[];
   /**
-   * The customer's earlier orders' lines still out (Q150): their deposit, and that added to `depositTotal`. Null
+   * What the customer still holds of earlier orders (Q150, Q158): its deposit, and that added to `depositTotal`. Null
    * when there are none, and the footer prints the order's total alone.
    */
   older: { outValue: number; combinedTotal: number } | null;

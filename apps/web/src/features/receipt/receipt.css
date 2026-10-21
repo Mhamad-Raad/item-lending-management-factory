@@ -154,8 +154,8 @@
   text-overflow: ellipsis;
   white-space: nowrap;
 }
-/* Q150: the customer's earlier orders' lines, under a heading row, shaded so that a black-and-white print still
-   tells them from this order's. */
+/* Q150: what the customer still holds of earlier orders, a row per item and price (Q158), under a heading row,
+   shaded so that a black-and-white print still tells them from this order's. */
 .lines tr.older-heading td {
   font-size: 8.5pt;
   font-weight: 600;
@@ -371,8 +371,7 @@
   border-color: var(--amber-line);
   background: var(--amber-soft);
 }
-.handover .lines tr.older td.line-total,
-.handover .lines tr.older td.col-item > .num {
+.handover .lines tr.older td.line-total {
   font-weight: 700;
   color: var(--amber-ink);
 }

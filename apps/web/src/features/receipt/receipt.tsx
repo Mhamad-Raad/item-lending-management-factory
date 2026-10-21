@@ -36,9 +36,10 @@ function Total({ label, amount, kind }: { label: string; amount: number; kind: '
 }
 
 /**
- * A row of the table: one of this order's lines, the heading over the customer's earlier orders' lines still out,
- * or one of those — its order's number before the item, and in the total column what of it is still out (Q150).
- * A row past the last stays empty, so the grid keeps its height.
+ * A row of the table: one of this order's lines, the heading over what the customer still holds of earlier orders, or
+ * one of those (Q150). An earlier row is an item at one price over all the earlier orders and shows only what is
+ * still out (Q158): its name takes the quantity, accepted and damaged cells, which say nothing of it, and its total
+ * column is what of it is still out. A row past the last stays empty, so the grid keeps its height.
  */
 function Row({ row }: { row: ReceiptRowDto | null }) {
   if (row?.kind === 'olderHeading') {
@@ -48,15 +49,23 @@ function Row({ row }: { row: ReceiptRowDto | null }) {
       </tr>
     );
   }
+  if (row?.kind === 'older') {
+    return (
+      <tr className="older">
+        <td className="num num-cell">{row.no}</td>
+        <td className="col-item" colSpan={4}>
+          <bdi>{row.itemName}</bdi>
+        </td>
+        <NumberCell text={formatNumber(row.outQuantity)} fits={FITS.quantity} />
+        <NumberCell text={formatMoney(row.unitDeposit)} fits={FITS.unitDeposit} />
+        <NumberCell text={formatMoney(row.outValue)} fits={FITS.lineTotal} className="line-total" />
+      </tr>
+    );
+  }
   return (
-    <tr className={row?.kind === 'older' ? 'older' : undefined}>
+    <tr>
       <td className="num num-cell">{row ? row.no : ''}</td>
       <td className="col-item">
-        {row?.kind === 'older' ? (
-          <>
-            <span className="num">{row.orderNumberDisplay}</span> ·{' '}
-          </>
-        ) : null}
         <bdi>{row?.itemName ?? ''}</bdi>
       </td>
       <NumberCell text={row && formatNumber(row.quantity)} fits={FITS.quantity} />
@@ -64,11 +73,7 @@ function Row({ row }: { row: ReceiptRowDto | null }) {
       <NumberCell text={row && formatNumber(row.returnedDamaged)} fits={FITS.quantity} />
       <NumberCell text={row && formatNumber(row.outQuantity)} fits={FITS.quantity} />
       <NumberCell text={row && formatMoney(row.unitDeposit)} fits={FITS.unitDeposit} />
-      <NumberCell
-        text={row && formatMoney(row.kind === 'older' ? row.outValue : row.lineTotal)}
-        fits={FITS.lineTotal}
-        className="line-total"
-      />
+      <NumberCell text={row && formatMoney(row.lineTotal)} fits={FITS.lineTotal} className="line-total" />
     </tr>
   );
 }
