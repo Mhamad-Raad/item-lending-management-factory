@@ -482,7 +482,8 @@ cancelled) and a missing order not found, cancelled,
 early date, foreign line, empty, duplicate order; idempotent replay); `customer-returns.spec.ts` (counting with the
 buttons, the summary's figures, the body sent, the dialog's print, refused as typed, one order to its page, a
 server refusal marking rows and re-reading; a count on a line a reload drops named and held until let go; a
-date before a touched order refused as typed; the row's controls on one line — each proven failing when broken); the route in `responsive.spec.ts` and `a11y.spec.ts`; every gate green.
+date before a touched order refused as typed; the row's controls on one line — each proven failing when broken); the route in `responsive.spec.ts` and `a11y.spec.ts`; live E3 (`e2e-live/e3-return.spec.ts`) through the customer
+flow against the real API; every gate green.
 
 ### 10o — Earlier pallets on the hand-over receipt by item (Q158)
 
