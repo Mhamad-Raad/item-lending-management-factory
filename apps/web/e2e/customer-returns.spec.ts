@@ -643,3 +643,73 @@ test('Q160: a split moved by a list read again in the background is held for a l
   await expect(notice.getByRole('listitem')).toHaveText(['Euro pallet']);
   await expect(summary(page).getByRole('button', { name: 'Record return' })).toBeDisabled();
 });
+
+test('Q160: an item that comes back after a reload dropped it is held for a look before its count goes anywhere', async ({
+  page,
+}) => {
+  await page.clock.install();
+  await mockApi(page, ADMIN, 'en');
+  const newer = SAME_ITEM.orders[0]!;
+  let list: CustomerReturnableDto = { ...SAME_ITEM, orders: [newer] };
+  await page.route(/\/api\/customers\/3\/returnable$/, (route) => route.fulfill({ json: list }));
+  await page.goto('/returns/new?customerId=3');
+  await row(page, 'Euro pallet').getByLabel('Accepted').fill('10');
+  const back = async () => {
+    await page.clock.fastForward(60_000);
+    await page.evaluate(() => window.dispatchEvent(new Event('visibilitychange')));
+  };
+
+  // All of it came back elsewhere: the count is named as no longer out.
+  list = { ...SAME_ITEM, orders: [] };
+  await back();
+  await expect(page.getByRole('alert').filter({ hasText: 'no longer out' })).toBeVisible();
+
+  // A new order lends the item again: the 10 would now go on it — held for a look, not sent.
+  list = { ...SAME_ITEM, orders: [{ ...newer, id: 45, orderNumber: 45 }] };
+  await back();
+  await expect(page.getByRole('alert').filter({ hasText: 'placed again' })).toBeVisible();
+  await expect(summary(page).getByRole('button', { name: 'Record return' })).toBeDisabled();
+});
+
+test("Q160: an order's date moved after the return's reads the list again and holds the moved count", async ({
+  page,
+}) => {
+  await mockApi(page, ADMIN, 'en');
+  let reads = 0;
+  await page.route(/\/api\/customers\/3\/returnable$/, (route) => {
+    reads += 1;
+    const older = SAME_ITEM.orders[1]!;
+    // Meanwhile the older order was re-dated to a day after today's return.
+    return route.fulfill({
+      json: reads === 1 ? SAME_ITEM : { ...SAME_ITEM, orders: [SAME_ITEM.orders[0], { ...older, date: '2099-01-01' }] },
+    });
+  });
+  await page.route(/\/api\/customers\/3\/returns$/, (route) =>
+    route.fulfill({
+      status: 400,
+      json: { error: { code: 'RETURN_DATE_BEFORE_ORDER_DATE', details: { orderDate: '2099-01-01' } } },
+    }),
+  );
+  await page.goto('/returns/new?customerId=3');
+  await row(page, 'Euro pallet').getByLabel('Accepted').fill('10');
+
+  await summary(page).getByRole('button', { name: 'Record return' }).click();
+
+  await expect.poll(() => reads).toBeGreaterThan(1);
+  await expect(page.getByRole('alert').filter({ hasText: 'placed again' })).toBeVisible();
+  await expect(page.getByText('The return is dated before the order')).toHaveCount(0);
+});
+
+test('Q160: a count over what is out is the row’s one error, the refund not judged on what happened to fit', async ({
+  page,
+}) => {
+  await mockHoldings(page, { customer: HOLDINGS.customer, returns: [] });
+  await page.goto('/returns/new?customerId=3');
+  const euro = row(page, 'Euro pallet');
+  await euro.getByRole('button', { name: 'Damaged' }).click();
+  await euro.getByLabel('Damaged', { exact: true }).fill('101');
+  await euro.getByLabel('Damage refund').fill('101000');
+
+  await expect(euro.getByText('At most 100 are out')).toBeVisible();
+  await expect(euro.getByText('At most 100,000')).toHaveCount(0);
+});

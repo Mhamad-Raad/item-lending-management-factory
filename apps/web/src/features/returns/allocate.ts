@@ -59,12 +59,14 @@ export function itemHoldings(data: CustomerReturnableDto): ItemHolding[] {
   return holdings.sort((a, b) => olderFirst(a.lines[0] as HeldLine, b.lines[0] as HeldLine));
 }
 
+/** An order dated after the return took nothing back: its pallets had not gone out yet on that day (Q160). */
+export function isAfterReturn(line: HeldLine, returnDate: string | null): boolean {
+  return returnDate !== null && line.orderDate > returnDate;
+}
+
 /** What an item has out on orders dated on or before the return date (all of it while no date is chosen). */
 export function outBy(lines: readonly HeldLine[], returnDate: string | null): number {
-  return lines.reduce(
-    (total, line) => total + (returnDate !== null && line.orderDate > returnDate ? 0 : line.outQuantity),
-    0,
-  );
+  return lines.reduce((total, line) => total + (isAfterReturn(line, returnDate) ? 0 : line.outQuantity), 0);
 }
 
 /**
@@ -79,7 +81,7 @@ export function allocate(lines: readonly HeldLine[], row: TypedRow, returnDate: 
   let acceptedLeft = row.accepted;
   let refundLeft = row.damagedRefund;
   return lines.map((line) => {
-    const afterDate = returnDate !== null && line.orderDate > returnDate;
+    const afterDate = isAfterReturn(line, returnDate);
     if (afterDate) return { ...line, accepted: 0, damaged: 0, damagedRefund: 0, afterDate };
     const damaged = Math.min(line.outQuantity, damagedLeft);
     damagedLeft -= damaged;

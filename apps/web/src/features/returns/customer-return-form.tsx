@@ -61,8 +61,8 @@ const splitOf = (shares: readonly LineShare[]): string =>
     .join(',');
 
 /** Each item's name, by item id. */
-function namesOf(data: CustomerReturnableDto): Map<number, string> {
-  return new Map(data.orders.flatMap((order) => order.lines.map((line) => [line.item.id, line.item.name] as const)));
+function namesOf(holdings: readonly ItemHolding[]): Map<number, string> {
+  return new Map(holdings.map((holding) => [holding.item.id, holding.item.name] as const));
 }
 
 /**
@@ -88,14 +88,6 @@ export function CustomerReturnForm({ data, onSaved }: { data: CustomerReturnable
   const rows = useWatch({ control: form.control, name: 'rows' });
   const date = useWatch({ control: form.control, name: 'date' });
   const errors = form.formState.errors;
-  // Every item this form has shown, so a count left on one no longer out can still be named; added to when a reload
-  // brings a new list (state adjusted during render, as React has it for props that change).
-  const [seen, setSeen] = useState(() => namesOf(data));
-  const [seenFor, setSeenFor] = useState(data);
-  if (seenFor !== data) {
-    setSeenFor(data);
-    setSeen((previous) => new Map([...previous, ...namesOf(data)]));
-  }
   // Items whose damaged boxes were opened; an item with damaged pallets typed stays open.
   const [damageOpen, setDamageOpen] = useState<ReadonlySet<number>>(() => new Set());
 
@@ -120,23 +112,28 @@ export function CustomerReturnForm({ data, onSaved }: { data: CustomerReturnable
     () => new Map(holdings.flatMap((holding) => holding.lines.map((line) => [line.orderLineId, holding]))),
     [holdings],
   );
-  // Items whose split changed under a count typed — the list read again for any reason: a refused save, the tab coming
-  // back into view, an order opened beside it. Their new split must be looked at before saving, so a count meant for
-  // one order never moves to another without a word (Q160). Found when the new list arrives (state adjusted during
-  // render, as React has it for props that change): each typed item placed on the list before and on this one.
+  // When the list is read again for any reason — a refused save, the tab coming back into view, an order opened beside
+  // it — the list before is compared with the new one as it arrives (state adjusted during render, as React has it for
+  // props that change). Two things follow from it:
+  // - every item shown is remembered by name, so a count left on one no longer out can still be named;
+  // - an item with a count whose split moved — or that comes back after a reload had dropped it — is held for a look
+  //   before saving, so a count meant for one order never moves to another without a word (Q160).
+  const [seen, setSeen] = useState(() => namesOf(holdings));
   const [recheck, setRecheck] = useState<ReadonlySet<number>>(() => new Set());
-  const [splitFor, setSplitFor] = useState({ data, holdings });
-  if (splitFor.data !== data) {
+  const [previous, setPrevious] = useState({ data, holdings });
+  if (previous.data !== data) {
     const moved = holdings.flatMap((holding) => {
       const row = typedRow(rows[itemKey(holding.item.id)]);
-      const before = splitFor.holdings.find((entry) => entry.item.id === holding.item.id);
-      if (!before || row.accepted + row.damaged === 0) return [];
+      if (row.accepted + row.damaged === 0) return [];
+      const before = previous.holdings.find((entry) => entry.item.id === holding.item.id);
+      if (!before) return [holding.item.id];
       return splitOf(allocate(before.lines, row, date)) === splitOf(allocate(holding.lines, row, date))
         ? []
         : [holding.item.id];
     });
-    setSplitFor({ data, holdings });
-    if (moved.length > 0) setRecheck((previous) => new Set([...previous, ...moved]));
+    setPrevious({ data, holdings });
+    setSeen((names) => new Map([...names, ...namesOf(holdings)]));
+    if (moved.length > 0) setRecheck((ids) => new Set([...ids, ...moved]));
   }
   const checked = (itemId: number): void =>
     setRecheck((previous) => {
@@ -153,15 +150,23 @@ export function CustomerReturnForm({ data, onSaved }: { data: CustomerReturnable
     const row = typedRow(rows[key]);
     const shares = allocate(holding.lines, row, date);
     const outQuantity = outBy(holding.lines, date);
-    const check = checkRow(row, { outQuantity, maximum: refundMaximum(shares) }, errors.rows?.[key]);
+    // While the count is over what is out, it is the row's one error: the refund's limit would be measured on the
+    // damaged pallets that happened to fit, a figure that changes once the count is put right.
+    const countOver = row.accepted + row.damaged > outQuantity;
+    const maximum = countOver ? Number.MAX_SAFE_INTEGER : refundMaximum(shares);
+    const check = checkRow(row, { outQuantity, maximum }, errors.rows?.[key]);
     return { holding, key, row, shares, outQuantity, ...check };
   });
   // Each order's return is its share of the items; a refused row places nothing, so the summary never offers a figure
   // the server would refuse.
+  const sharesByOrder = new Map<number, { share: LineShare; invalid: boolean }[]>();
+  for (const { shares: itemShares, invalid } of items) {
+    for (const share of itemShares) {
+      sharesByOrder.set(share.orderId, [...(sharesByOrder.get(share.orderId) ?? []), { share, invalid }]);
+    }
+  }
   const orders = data.orders.map((order) => {
-    const shares = items.flatMap(({ shares: itemShares, invalid }) =>
-      itemShares.filter((share) => share.orderId === order.id).map((share) => ({ share, invalid })),
-    );
+    const shares = sharesByOrder.get(order.id) ?? [];
     const summary = returnSummary(
       order,
       shares.map(({ share, invalid }) =>
@@ -282,11 +287,12 @@ export function CustomerReturnForm({ data, onSaved }: { data: CustomerReturnable
         reload();
         return;
       }
-      // An order cancelled, or a line taken off an order, meanwhile.
+      // An order cancelled, a line taken off an order, or an order's date moved after the return's, meanwhile.
       if (
         isApiError(error, 'ORDER_CANCELLED') ||
         isApiError(error, 'ORDER_NOT_FOUND') ||
-        isApiError(error, 'RETURN_LINE_NOT_IN_ORDER')
+        isApiError(error, 'RETURN_LINE_NOT_IN_ORDER') ||
+        isApiError(error, 'RETURN_DATE_BEFORE_ORDER_DATE')
       ) {
         toast.error(t('returns.customer.ordersChanged'));
         reload();
@@ -295,7 +301,7 @@ export function CustomerReturnForm({ data, onSaved }: { data: CustomerReturnable
       handleApiError(error, {
         setError: form.setError,
         fields: ['date', 'notes'],
-        fieldMap: { BUSINESS_DATE_IN_FUTURE: 'date', RETURN_DATE_BEFORE_ORDER_DATE: 'date' },
+        fieldMap: { BUSINESS_DATE_IN_FUTURE: 'date' },
       });
     },
   });
@@ -347,7 +353,7 @@ export function CustomerReturnForm({ data, onSaved }: { data: CustomerReturnable
     });
 
   const cashNow = !anyInvalid && totals.cashRefund > 0;
-  // Counts on lines no longer listed, named until they are let go.
+  // Counts on items no longer listed, named until they are let go.
   const goneNotice =
     gone.length > 0 ? (
       <div role="alert" className="border-warning bg-warning/10 flex flex-col gap-2 rounded-lg border p-4 text-sm">
@@ -364,7 +370,13 @@ export function CustomerReturnForm({ data, onSaved }: { data: CustomerReturnable
           variant="outline"
           size="sm"
           className="self-start"
-          onClick={() => gone.forEach((entry) => form.setValue(`rows.${entry.key}`, { ...EMPTY_ROW }))}
+          onClick={() =>
+            gone.forEach((entry) => {
+              form.setValue(`rows.${entry.key}`, { ...EMPTY_ROW });
+              // Let go: should the item come back later, there is no count of its to look at.
+              checked(Number(entry.key.slice(1)));
+            })
+          }
         >
           {t('returns.customer.goneDismiss')}
         </Button>
@@ -697,7 +709,6 @@ export function CustomerReturnForm({ data, onSaved }: { data: CustomerReturnable
             </div>
           ))}
         </dl>
-        {/* Each order's return is its own: where the cash comes from, order by order. */}
         {/* Each order's own return (Q160: the items no longer show their orders' money): what comes back on it, and
             the cash it pays out or what it still owes. */}
         {touched.length > 0 && !anyInvalid ? (
