@@ -33,9 +33,14 @@ export async function lockSettings(tx: Prisma.TransactionClient): Promise<void> 
   await tx.$queryRaw`SELECT id FROM factory_settings WHERE id = 1 FOR UPDATE`;
 }
 
+/** Each id once, ascending: the order every multi-row lock takes its rows in (§4.8), so none can deadlock. */
+function ascendingIds(ids: readonly number[]): number[] {
+  return [...new Set(ids)].sort((a, b) => a - b);
+}
+
 /** Locks items in ascending id order (§4.8) — the order every transaction uses, so none can deadlock. */
 export async function lockItems(tx: Prisma.TransactionClient, ids: readonly number[]): Promise<void> {
-  const sorted = [...new Set(ids)].sort((a, b) => a - b);
+  const sorted = ascendingIds(ids);
   if (sorted.length === 0) return;
   await tx.$queryRaw`SELECT id FROM items WHERE id = ANY(${sorted}::int[]) ORDER BY id FOR UPDATE`;
 }
@@ -62,7 +67,7 @@ export async function lockOrder(tx: Prisma.TransactionClient, orderId: number): 
 
 /** Locks several orders in ascending id order, after their customer (§6.6); one statement for them all. */
 export async function lockOrders(tx: Prisma.TransactionClient, ids: readonly number[]): Promise<void> {
-  const sorted = [...new Set(ids)].sort((a, b) => a - b);
+  const sorted = ascendingIds(ids);
   if (sorted.length === 0) return;
   await tx.$queryRaw`SELECT id FROM orders WHERE id = ANY(${sorted}::int[]) ORDER BY id FOR UPDATE`;
 }

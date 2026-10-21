@@ -338,3 +338,44 @@ test('Q156: more orders than one save takes is refused as they are ticked', asyn
   await expect(page.getByRole('alert').filter({ hasText: 'at most 100 orders' })).toBeVisible();
   await expect(summary(page).getByRole('button', { name: 'Record return' })).toBeDisabled();
 });
+
+test('Q156: "Everything came back" counts the rest as accepted and keeps damaged pallets already typed', async ({
+  page,
+}) => {
+  await mockHoldings(page, { customer: HOLDINGS.customer, returns: [] });
+  await page.goto('/returns/new?customerId=3');
+  const euro = row(page, 'Euro pallet');
+  await euro.getByRole('button', { name: 'Damaged' }).click();
+  await euro.getByLabel('Damaged', { exact: true }).fill('2');
+  await euro.getByLabel('Damage refund').fill('500');
+
+  await page.getByRole('button', { name: 'Everything came back' }).click();
+
+  // 100 out: the 2 broken stay broken, with their refund, and the other 98 come back accepted.
+  await expect(euro.getByLabel('Accepted')).toHaveValue('98');
+  await expect(euro.getByLabel('Damaged', { exact: true })).toHaveValue('2');
+  await expect(euro.getByLabel('Damage refund')).toHaveValue('500');
+  await expect(figure(page, 'Pallets coming back')).toHaveText('110');
+  await expect(figure(page, 'Compensation assessed')).toHaveText(/^1,500/);
+});
+
+test('Q156: a reload that finds nothing out any more still names the counts typed, then says nothing is out', async ({
+  page,
+}) => {
+  await mockHoldings(page, {
+    status: 409,
+    json: { error: { code: 'ORDER_CANCELLED', details: { orderId: 9 } } },
+  });
+  await page.goto('/returns/new?customerId=3');
+  await row(page, 'Euro pallet').getByLabel('Accepted').fill('5');
+  // Meanwhile both orders were cancelled: the reload lists nothing.
+  await page.route(/\/api\/customers\/3\/returnable$/, (route) => route.fulfill({ json: { ...HOLDINGS, orders: [] } }));
+
+  await summary(page).getByRole('button', { name: 'Record return' }).click();
+
+  const notice = page.getByRole('alert').filter({ hasText: 'no longer out' });
+  await expect(notice).toBeVisible();
+  expect(plain(await notice.getByRole('listitem').textContent())).toBe('#000041 · Euro pallet · 5');
+  await notice.getByRole('button', { name: 'Remove them' }).click();
+  await expect(page.getByText('This customer has no pallets out')).toBeVisible();
+});

@@ -25,7 +25,8 @@ export async function invalidateAfterOrderChange(queryClient: QueryClient): Prom
 
 /**
  * What a payment or its reversal can make stale (§7.8.4): its order and the order lists, the customer's
- * totals and timeline, the money ledger, and the pages that sum them. Stock does not move.
+ * totals and timeline and what the return screen shows them owing (Q156), the money ledger, and the pages that sum
+ * them. Stock does not move.
  */
 export async function invalidateAfterPayment(
   queryClient: QueryClient,
@@ -35,6 +36,7 @@ export async function invalidateAfterPayment(
     [
       qk.orders.detail(order.id),
       ['orders', 'list'],
+      qk.orders.returnable(order.customer.id),
       qk.customers.detail(order.customer.id),
       ['customers', 'history', order.customer.id],
       ['customers', 'list'],

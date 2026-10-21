@@ -88,12 +88,16 @@ function CustomerHoldings({ customerId }: { customerId: number }) {
   const holdings = useQuery(customerReturnableQuery(customerId));
   // Once saved, the list stays as it was beneath the saved dialog: refreshed, it would lose the rows just returned.
   const [held, setHeld] = useState<CustomerReturnableDto | null>(null);
+  // Once the form has shown, it stays for a reload that finds nothing out any more: it names the counts typed on what
+  // went meanwhile, and says "nothing out" itself once they are let go.
+  const [shown, setShown] = useState(false);
   const data = held ?? holdings.data;
   if (data === undefined) {
     if (holdings.isError) return <QueryErrorState error={holdings.error} onRetry={() => void holdings.refetch()} />;
     return <PageSkeleton rows={3} />;
   }
-  if (data.orders.length === 0) return <EmptyState title={t('returns.customer.nothingOut')} />;
+  if (data.orders.length === 0 && !shown) return <EmptyState title={t('returns.customer.nothingOut')} />;
+  if (!shown) setShown(true);
   return <CustomerReturnForm data={data} onSaved={() => setHeld(data)} />;
 }
 

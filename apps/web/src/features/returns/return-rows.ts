@@ -3,6 +3,38 @@ import { useTranslation } from 'react-i18next';
 import { isolate } from '@/lib/bidi';
 import { encodeValidationMessage } from '@/lib/validation-message';
 
+/** A return row's boxes as the form holds them; a cleared box is null. */
+export interface RowCounts {
+  accepted: number | null;
+  damaged: number | null;
+  damagedRefund: number | null;
+}
+
+/** The form key of an order line's row (`l<orderLineId>`): line ids are unique, across orders too. */
+export const rowKey = (orderLineId: number): `l${number}` => `l${orderLineId}`;
+
+/** A cleared box counts as 0. */
+export const count = (value: number | null | undefined): number => value ?? 0;
+
+/** A row's boxes as numbers, a missing or cleared box counting as 0. */
+export function typedRow(counts: Partial<RowCounts> | undefined): TypedRow {
+  return {
+    accepted: count(counts?.accepted),
+    damaged: count(counts?.damaged),
+    damagedRefund: count(counts?.damagedRefund),
+  };
+}
+
+/** What a row prices in the summary: a refused row prices nothing, so no figure the server would refuse is offered. */
+export function pricedRow(row: TypedRow, unitDeposit: number, invalid: boolean) {
+  return {
+    acceptedQuantity: invalid ? 0 : row.accepted,
+    damagedQuantity: invalid ? 0 : row.damaged,
+    damagedRefund: invalid ? 0 : row.damagedRefund,
+    unitDeposit,
+  };
+}
+
 /** A row of a return as typed, a cleared box counting as 0. */
 export interface TypedRow {
   accepted: number;

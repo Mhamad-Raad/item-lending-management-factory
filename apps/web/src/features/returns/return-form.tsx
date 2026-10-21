@@ -31,13 +31,10 @@ import { handleApiError } from '@/lib/errors';
 import { qk } from '@/lib/query-keys';
 import { encodeValidationMessage } from '@/lib/validation-message';
 import { isStandingRefundOf, returnBaseline, returnSummary } from './return-math';
-import { checkRow, useRowMessages } from './return-rows';
+import { checkRow, count, pricedRow, rowKey, typedRow, useRowMessages, type RowCounts } from './return-rows';
 
-interface RowValues {
+interface RowValues extends RowCounts {
   orderLineId: number;
-  accepted: number | null;
-  damaged: number | null;
-  damagedRefund: number | null;
 }
 
 interface ReturnValues {
@@ -46,10 +43,6 @@ interface ReturnValues {
   /** Keyed `l<orderLineId>`: a reloaded order with lines added or removed keeps each row on its line. */
   rows: Record<string, RowValues>;
 }
-
-const rowKey = (orderLineId: number): `l${number}` => `l${orderLineId}`;
-
-const count = (value: number | null): number => value ?? 0;
 
 /**
  * Daily flow 2 (§7.4.2): what came back on an order, line by line, with what it credits and pays out
@@ -88,14 +81,7 @@ export function ReturnForm({ order, replaceReturnId }: { order: OrderDetailDto; 
     },
   });
   const rows = useWatch({ control: form.control, name: 'rows' });
-  const rowOf = (orderLineId: number) => {
-    const row = rows[rowKey(orderLineId)];
-    return {
-      accepted: count(row?.accepted ?? null),
-      damaged: count(row?.damaged ?? null),
-      damagedRefund: count(row?.damagedRefund ?? null),
-    };
-  };
+  const rowOf = (orderLineId: number) => typedRow(rows[rowKey(orderLineId)]);
   const errors = form.formState.errors;
   const lines = order.lines
     .map((line) => {
@@ -114,12 +100,7 @@ export function ReturnForm({ order, replaceReturnId }: { order: OrderDetailDto; 
     .filter(({ out, returning }) => out > 0 || returning > 0);
   // A row asking back more than is out, or refunding more than its damaged pallets' deposit, is refused as it is
   // typed and prices nothing: the summary never offers a figure the server would refuse (Q141, Q146).
-  const priced = lines.map(({ line, row, invalid }) => ({
-    acceptedQuantity: invalid ? 0 : row.accepted,
-    damagedQuantity: invalid ? 0 : row.damaged,
-    damagedRefund: invalid ? 0 : row.damagedRefund,
-    unitDeposit: line.unitDeposit,
-  }));
+  const priced = lines.map(({ line, row, invalid }) => pricedRow(row, line.unitDeposit, invalid));
   const summary = returnSummary(base, priced);
   // Nothing can be recorded while a row is refused, so nothing is to be handed over or owed yet.
   const anyInvalid = lines.some(({ invalid }) => invalid);

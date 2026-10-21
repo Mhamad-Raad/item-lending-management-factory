@@ -17,6 +17,7 @@ import { Controller, useForm, useWatch } from 'react-hook-form';
 import { useTranslation } from 'react-i18next';
 import { toast } from 'sonner';
 import { DateField } from '@/components/app/date-field';
+import { EmptyState } from '@/components/app/states';
 import { DateText } from '@/components/app/date-text';
 import { Field, FieldDescription, FieldError, FieldLabel } from '@/components/app/field';
 import { MoneyText } from '@/components/app/money-text';
@@ -37,27 +38,17 @@ import { handleApiError } from '@/lib/errors';
 import { qk } from '@/lib/query-keys';
 import { encodeValidationMessage } from '@/lib/validation-message';
 import { returnSummary } from './return-math';
-import { checkRow, useRowMessages } from './return-rows';
+import { checkRow, count, pricedRow, rowKey, typedRow, useRowMessages, type RowCounts } from './return-rows';
 import { ReturnsSavedDialog } from './returns-saved-dialog';
-
-interface RowValues {
-  accepted: number | null;
-  damaged: number | null;
-  damagedRefund: number | null;
-}
 
 interface CustomerReturnValues {
   date: string | null;
   notes: string;
   /** Keyed `l<orderLineId>`: line ids are unique across orders, and a reloaded list keeps each row on its line. */
-  rows: Record<string, RowValues>;
+  rows: Record<string, RowCounts>;
 }
 
-const rowKey = (orderLineId: number): `l${number}` => `l${orderLineId}`;
-
-const count = (value: number | null | undefined): number => value ?? 0;
-
-const EMPTY_ROW: RowValues = { accepted: 0, damaged: 0, damagedRefund: 0 };
+const EMPTY_ROW: RowCounts = { accepted: 0, damaged: 0, damagedRefund: 0 };
 
 /** Each line's order number and item name, by line id. */
 function namesOf(data: CustomerReturnableDto): Map<number, { orderNumber: number; itemName: string }> {
@@ -123,24 +114,14 @@ export function CustomerReturnForm({ data, onSaved }: { data: CustomerReturnable
   const orders = data.orders.map((order) => {
     const lines = order.lines.map((line) => {
       const key = rowKey(line.id);
-      const typed = rows[key];
-      const row = {
-        accepted: count(typed?.accepted),
-        damaged: count(typed?.damaged),
-        damagedRefund: count(typed?.damagedRefund),
-      };
+      const row = typedRow(rows[key]);
       // Refused as typed, or by the server for a list not yet reloaded (Q141, Q146).
       return { line, key, row, ...checkRow(row, line, errors.rows?.[key]) };
     });
     // A refused row prices nothing: the summary never offers a figure the server would refuse.
     const summary = returnSummary(
       order,
-      lines.map(({ line, row, invalid }) => ({
-        acceptedQuantity: invalid ? 0 : row.accepted,
-        damagedQuantity: invalid ? 0 : row.damaged,
-        damagedRefund: invalid ? 0 : row.damagedRefund,
-        unitDeposit: line.unitDeposit,
-      })),
+      lines.map(({ line, row, invalid }) => pricedRow(row, line.unitDeposit, invalid)),
     );
     const touched = lines.some(({ returning, row }) => returning > 0 || row.damagedRefund > 0);
     return { order, lines, summary, returning: order.outQuantityTotal - summary.outAfter, touched };
@@ -284,14 +265,15 @@ export function CustomerReturnForm({ data, onSaved }: { data: CustomerReturnable
     record.mutate({ date: values.date, notes: notes === '' ? null : notes, orders: body });
   });
 
-  const setRow = (line: OrderLineDto, next: RowValues): void => {
+  // "All", "All of this order back" and "Everything came back" count the rest of a line as accepted: pallets
+  // already typed as damaged, and their refund, stay as typed — never put back into stock without a word.
+  const allBack = (line: OrderLineDto): void => {
     const key = rowKey(line.id);
-    form.setValue(`rows.${key}`, next);
+    const { damaged, damagedRefund } = typedRow(form.getValues(`rows.${key}`));
+    form.setValue(`rows.${key}`, { accepted: Math.max(0, line.outQuantity - damaged), damaged, damagedRefund });
     form.clearErrors(`rows.${key}`);
     form.clearErrors('root');
   };
-  const allBack = (line: OrderLineDto): void =>
-    setRow(line, { accepted: line.outQuantity, damaged: 0, damagedRefund: 0 });
   const toggleDamage = (lineId: number): void =>
     setDamageOpen((open) => {
       const next = new Set(open);
@@ -301,6 +283,8 @@ export function CustomerReturnForm({ data, onSaved }: { data: CustomerReturnable
     });
 
   const cashNow = !anyInvalid && totals.cashRefund > 0;
+  // Nothing out any more and no count left to name: the list emptied by a reload says so.
+  if (data.orders.length === 0 && gone.length === 0) return <EmptyState title={t('returns.customer.nothingOut')} />;
   const submitButton = (
     <Button type="submit" form="customer-return" disabled={record.isPending || anyInvalid}>
       {record.isPending ? <Loader2 className="size-4 animate-spin" aria-hidden /> : null}
