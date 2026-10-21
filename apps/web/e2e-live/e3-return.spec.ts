@@ -1,9 +1,11 @@
+import { formatOrderNumber } from '@pallet/shared';
 import { expect, test } from '@playwright/test';
 import { adminApi, figure, signIn, sorani, soraniPattern, stage, LIVE_ADMIN, RUN } from './live';
 
 /**
- * E3 (§14.6), daily flow 2 from the dashboard's quick action: the refund due, the cash refund and what is owed
- * afterwards follow the quantities as they are typed, and the order shows what came back.
+ * E3 (§14.6), daily flow 2 from the dashboard's quick action, from the customer (Q156): their pallets out by order,
+ * the refund due, the cash refund and what is owed afterwards follow the quantities as they are typed, the cash paid
+ * out opens the dialog with its receipt, and the order shows what came back.
  */
 test('E3: a return recorded from the dashboard pays out what exceeds the debt and shows on its order', async ({
   page,
@@ -35,10 +37,14 @@ test('E3: a return recorded from the dashboard pays out what exceeds the debt an
   await page.getByRole('combobox', { name: sorani('orders.fields.customer') }).click();
   await page.keyboard.type(RUN);
   await page.getByRole('option', { name: new RegExp(customer.name) }).click();
-  // The customer's only order with pallets out is chosen for the clerk.
-  await expect(page).toHaveURL(new RegExp(`orderId=${order.id}`));
+  // Everything the customer holds, by order: here one order, its number opening it.
+  await expect(page).toHaveURL(new RegExp(`customerId=${customer.id}`));
+  await expect(page.getByRole('link', { name: formatOrderNumber(order.orderNumber) }).first()).toHaveAttribute(
+    'href',
+    `/orders/${order.id}`,
+  );
 
-  const line = page.getByRole('group', { name: new RegExp(item.name) });
+  const line = page.getByRole('listitem').filter({ hasText: item.name });
   await expect(line).toContainText('40');
   const summary = page.getByRole('complementary', { name: sorani('returns.new.summary') });
   const figureOf = (key: string) => summary.getByText(sorani(key), { exact: true }).locator('..');
@@ -59,13 +65,21 @@ test('E3: a return recorded from the dashboard pays out what exceeds the debt an
   await expect(figureOf('returns.new.outAfter')).toContainText('10');
 
   await summary.getByRole('button', { name: sorani('returns.new.submit') }).click();
+  // Cash went out: the dialog offers its receipt; closed, the flow goes on to the one order it was recorded on.
+  const saved = page.getByRole('dialog');
+  await expect(saved).toContainText(figure(30_000));
+  await expect(saved.getByRole('button', { name: sorani('orders.money.printReceipt') })).toBeVisible();
+  await saved
+    .getByRole('button', { name: sorani('common.actions.close') })
+    .first()
+    .click();
   await expect(page).toHaveURL(new RegExp(`/orders/${order.id}$`));
   // Item, quantity, deposit each, line total, returned, damaged, still out.
   const row = page.getByRole('row', { name: new RegExp(item.name) }).first();
   await expect(row.getByRole('cell').nth(4)).toHaveText('30');
   await expect(row.getByRole('cell').nth(6)).toHaveText('10');
-  const saved = await api.get<{ owed: number; outQuantityTotal: number; refundsNet: number }>(
+  const stored = await api.get<{ owed: number; outQuantityTotal: number; refundsNet: number }>(
     `/api/orders/${order.id}`,
   );
-  expect(saved).toMatchObject({ owed: 0, outQuantityTotal: 10, refundsNet: 30_000 });
+  expect(stored).toMatchObject({ owed: 0, outQuantityTotal: 10, refundsNet: 30_000 });
 });
