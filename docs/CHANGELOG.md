@@ -115,3 +115,6 @@ The build history that used to sit in `CLAUDE.md` "Status", oldest first, moved 
 - **10p change password only when asked** (2026-10-21, Q159): a phone reopening the browser on `/change-password`
   (the last page, or a shortcut made there) showed the forced change again to users who had already set a password;
   the page now sends them to the dashboard. A voluntary change stays on My account.
+- **10q returns by item** (2026-10-21, Q160): the customer return screen shows an item once over all its orders
+  and places a typed count oldest order first (by date; damaged pallets first, the refund with them), with a split
+  line naming each order; each order still gets its own return, refund and receipt.

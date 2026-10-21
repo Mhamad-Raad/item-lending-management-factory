@@ -507,6 +507,18 @@ there. It now sends a user who need not change their password to the dashboard. 
 phone flow reproduced against the dev API before and after (first sign-in asks once; reopening the page's address
 lands on the dashboard).
 
+### 10q — Returns by item, oldest order first (Q160)
+
+Read: §7.4.2, Q156.
+
+The business asked that an item out on several orders read once on the customer return screen, with its total,
+and that a count typed there fill the oldest order first. The screen now lists one row per item; a count is placed
+oldest first by the order's date (damaged pallets first, the refund with them), shown in a split line under the
+item with each order's number; the save sends each order its share, so the server and every order's return,
+refund and receipt are as before. **Exit:** `allocate.test.ts` (the business's example, damage and refund
+placing, a refund spilling over, over-out left unplaced, grouping and oldest by date); `customer-returns.spec.ts`
+"Q160" (proven failing newest first) and the Q156 tests on the new layout; live E3; every gate green.
+
 ---
 
 ## Environments
