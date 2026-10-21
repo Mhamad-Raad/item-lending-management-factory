@@ -95,7 +95,7 @@ test('Q156: the customer’s pallets show by order, are counted with buttons, an
   await page.getByRole('combobox', { name: 'Customer' }).click();
   await page.getByRole('option', { name: new RegExp(CUSTOMER.name.slice(0, 20)) }).click();
   await expect(page).toHaveURL(/customerId=3/);
-  await expect(page.getByText('110 pallets out on 2 orders')).toBeVisible();
+  await expect(page.getByText('Pallets out: 110 · Orders: 2')).toBeVisible();
 
   // Each order's number opens it beside the form, which keeps what was typed.
   const link = page.getByRole('link', { name: /#000041/ });
@@ -278,4 +278,63 @@ test('Q156: a date before an order being returned is refused as it is typed', as
   await date.press('Tab');
   await expect(page.getByText('The return is dated before the order')).toHaveCount(0);
   await expect(summary(page).getByRole('button', { name: 'Record return' })).toBeEnabled();
+});
+
+test('Q156: a count cleared and typed again reads as typed, not after a 0 put back in front of it', async ({
+  page,
+}) => {
+  await mockHoldings(page, { customer: HOLDINGS.customer, returns: [] });
+  await page.goto('/returns/new?customerId=3');
+  const box = row(page, 'Euro pallet').getByLabel('Accepted');
+
+  await box.fill('3');
+  await box.press('Backspace');
+  await box.pressSequentially('5');
+
+  await expect(box).toHaveValue('5');
+  await expect(figure(page, 'Pallets coming back')).toHaveText('5');
+});
+
+test('Q156: a line taken off an order meanwhile reads the list again and names the count left on it', async ({
+  page,
+}) => {
+  await mockHoldings(page, {
+    status: 400,
+    json: { error: { code: 'RETURN_LINE_NOT_IN_ORDER', details: { orderLineId: 22 } } },
+  });
+  await page.goto('/returns/new?customerId=3');
+  await row(page, 'Crate').getByLabel('Accepted').fill('2');
+  await page.route(/\/api\/customers\/3\/returnable$/, (route) =>
+    route.fulfill({ json: { ...HOLDINGS, orders: HOLDINGS.orders.slice(0, 1) } }),
+  );
+
+  await summary(page).getByRole('button', { name: 'Record return' }).click();
+
+  await expect(page.getByText("This customer's orders changed meanwhile", { exact: false })).toBeVisible();
+  const notice = page.getByRole('alert').filter({ hasText: 'no longer out' });
+  await expect(notice).toBeVisible();
+  expect(plain(await notice.getByRole('listitem').textContent())).toBe('#000042 · Crate · 2');
+});
+
+test('Q156: more orders than one save takes is refused as they are ticked', async ({ page }) => {
+  await mockApi(page, ADMIN, 'en');
+  const many: CustomerReturnableDto = {
+    customer: HOLDINGS.customer,
+    orders: Array.from({ length: 101 }, (_, index) => ({
+      id: 1_000 + index,
+      orderNumber: 1_000 + index,
+      date: '2026-09-01',
+      paymentType: 'LENT' as const,
+      owed: 1_000,
+      outQuantityTotal: 1,
+      lines: [line(5_000 + index, `Pallet ${index}`, 1, 1_000)],
+    })),
+  };
+  await page.route(/\/api\/customers\/3\/returnable$/, (route) => route.fulfill({ json: many }));
+  await page.goto('/returns/new?customerId=3');
+
+  await page.getByRole('button', { name: 'Everything came back' }).click();
+
+  await expect(page.getByRole('alert').filter({ hasText: 'at most 100 orders' })).toBeVisible();
+  await expect(summary(page).getByRole('button', { name: 'Record return' })).toBeDisabled();
 });

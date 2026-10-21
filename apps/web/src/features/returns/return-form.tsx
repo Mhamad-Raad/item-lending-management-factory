@@ -29,9 +29,9 @@ import { apiFetch } from '@/lib/api-client';
 import { detailsOf, isApiError } from '@/lib/api-error';
 import { handleApiError } from '@/lib/errors';
 import { qk } from '@/lib/query-keys';
-import { isolate } from '@/lib/bidi';
 import { encodeValidationMessage } from '@/lib/validation-message';
 import { isStandingRefundOf, returnBaseline, returnSummary } from './return-math';
+import { checkRow, useRowMessages } from './return-rows';
 
 interface RowValues {
   orderLineId: number;
@@ -102,13 +102,14 @@ export function ReturnForm({ order, replaceReturnId }: { order: OrderDetailDto; 
       const key = rowKey(line.id);
       const row = rowOf(line.id);
       const out = outOf(line.id);
-      const returning = row.accepted + row.damaged;
-      // Over what is out here, or refused as over by the server for an order not yet reloaded (Q141).
-      const overOut = returning > out || Boolean(errors.rows?.[key]?.accepted);
-      // The most a damage refund can give back: the whole deposit on the damaged pallets (Q146).
-      const maximum = row.damaged * line.unitDeposit;
-      const refundOver = row.damagedRefund > maximum || Boolean(errors.rows?.[key]?.damagedRefund);
-      return { line, key, row, out, returning, overOut, maximum, refundOver, invalid: overOut || refundOver };
+      // Over what is out here, or refused by the server for an order not yet reloaded (Q141, Q146).
+      return {
+        line,
+        key,
+        row,
+        out,
+        ...checkRow(row, { outQuantity: out, unitDeposit: line.unitDeposit }, errors.rows?.[key]),
+      };
     })
     .filter(({ out, returning }) => out > 0 || returning > 0);
   // A row asking back more than is out, or refunding more than its damaged pallets' deposit, is refused as it is
@@ -123,11 +124,7 @@ export function ReturnForm({ order, replaceReturnId }: { order: OrderDetailDto; 
   // Nothing can be recorded while a row is refused, so nothing is to be handed over or owed yet.
   const anyInvalid = lines.some(({ invalid }) => invalid);
 
-  const exceedsOut = (limit: number) => encodeValidationMessage('returnExceedsOut', { out: limit });
-  const refundTooHigh = (maximum: number) =>
-    encodeValidationMessage('damagedRefundTooHigh', { maximum: formatMoney(maximum) });
-  // An amount with its currency, kept whole inside a right-to-left sentence.
-  const money = (amount: number): string => isolate(`${formatMoney(amount)} ${t('common.currency')}`);
+  const { exceedsOut, refundTooHigh, money } = useRowMessages();
   const hasLine = (orderLineId: number): boolean => order.lines.some((line) => line.id === orderLineId);
 
   const record = useFlowMutation({

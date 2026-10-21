@@ -1,4 +1,5 @@
 import {
+  CUSTOMER_RETURN_MAX_ORDERS,
   businessToday,
   formatMoney,
   formatNumber,
@@ -32,11 +33,11 @@ import { PaymentTypeBadge } from '@/features/orders/payment-type-text';
 import { useFlowMutation } from '@/hooks/use-flow-mutation';
 import { apiFetch } from '@/lib/api-client';
 import { detailsOf, isApiError } from '@/lib/api-error';
-import { isolate } from '@/lib/bidi';
 import { handleApiError } from '@/lib/errors';
 import { qk } from '@/lib/query-keys';
 import { encodeValidationMessage } from '@/lib/validation-message';
 import { returnSummary } from './return-math';
+import { checkRow, useRowMessages } from './return-rows';
 import { ReturnsSavedDialog } from './returns-saved-dialog';
 
 interface RowValues {
@@ -105,11 +106,18 @@ export function CustomerReturnForm({ data, onSaved }: { data: CustomerReturnable
   const [savedOpen, setSavedOpen] = useState(false);
   const closeSaved = useRef<(() => void) | null>(null);
   useEffect(() => () => closeSaved.current?.(), []);
+  // A line a reload adds gets its row at 0, as the first list's did; set here, not passed as a fallback value, so a
+  // box cleared while typing stays empty instead of springing back to 0 under the caret.
+  useEffect(() => {
+    for (const order of data.orders) {
+      for (const line of order.lines) {
+        const key = rowKey(line.id);
+        if (form.getValues(`rows.${key}`) === undefined) form.setValue(`rows.${key}`, { ...EMPTY_ROW });
+      }
+    }
+  }, [data, form]);
 
-  const exceedsOut = (limit: number) => encodeValidationMessage('returnExceedsOut', { out: limit });
-  const refundTooHigh = (maximum: number) =>
-    encodeValidationMessage('damagedRefundTooHigh', { maximum: formatMoney(maximum) });
-  const money = (amount: number): string => isolate(`${formatMoney(amount)} ${t('common.currency')}`);
+  const { exceedsOut, refundTooHigh, money } = useRowMessages();
   const lineIds = new Set(data.orders.flatMap((order) => order.lines.map((line) => line.id)));
 
   const orders = data.orders.map((order) => {
@@ -121,12 +129,8 @@ export function CustomerReturnForm({ data, onSaved }: { data: CustomerReturnable
         damaged: count(typed?.damaged),
         damagedRefund: count(typed?.damagedRefund),
       };
-      const returning = row.accepted + row.damaged;
       // Refused as typed, or by the server for a list not yet reloaded (Q141, Q146).
-      const overOut = returning > line.outQuantity || Boolean(errors.rows?.[key]?.accepted);
-      const maximum = row.damaged * line.unitDeposit;
-      const refundOver = row.damagedRefund > maximum || Boolean(errors.rows?.[key]?.damagedRefund);
-      return { line, key, row, returning, overOut, maximum, refundOver, invalid: overOut || refundOver };
+      return { line, key, row, ...checkRow(row, line, errors.rows?.[key]) };
     });
     // A refused row prices nothing: the summary never offers a figure the server would refuse.
     const summary = returnSummary(
@@ -171,8 +175,13 @@ export function CustomerReturnForm({ data, onSaved }: { data: CustomerReturnable
       form.clearErrors('date');
     }
   }, [dateTooEarly, form]);
+  // One save takes so many orders (Q156); more is refused as they are ticked, the rest go in a second return.
+  const tooManyOrders = touched.length > CUSTOMER_RETURN_MAX_ORDERS;
   const anyInvalid =
-    orders.some((entry) => entry.lines.some(({ invalid }) => invalid)) || gone.length > 0 || dateTooEarly;
+    orders.some((entry) => entry.lines.some(({ invalid }) => invalid)) ||
+    gone.length > 0 ||
+    dateTooEarly ||
+    tooManyOrders;
 
   const record = useFlowMutation({
     request: (body: CustomerReturnCreateBody, idempotencyKey) =>
@@ -226,8 +235,13 @@ export function CustomerReturnForm({ data, onSaved }: { data: CustomerReturnable
         reload();
         return;
       }
-      // An order cancelled or settled meanwhile: the list as it stands now.
-      if (isApiError(error, 'ORDER_CANCELLED') || isApiError(error, 'ORDER_NOT_FOUND')) {
+      // An order cancelled, or a line taken off an order, meanwhile: the list as it stands now, where a count left on a
+      // line no longer listed is named until it is let go.
+      if (
+        isApiError(error, 'ORDER_CANCELLED') ||
+        isApiError(error, 'ORDER_NOT_FOUND') ||
+        isApiError(error, 'RETURN_LINE_NOT_IN_ORDER')
+      ) {
         toast.error(t('returns.customer.ordersChanged'));
         reload();
         return;
@@ -315,6 +329,11 @@ export function CustomerReturnForm({ data, onSaved }: { data: CustomerReturnable
           </Button>
         </div>
 
+        {tooManyOrders ? (
+          <p role="alert" className="text-destructive text-sm font-medium">
+            {t('returns.customer.tooManyOrders', { max: formatNumber(CUSTOMER_RETURN_MAX_ORDERS) })}
+          </p>
+        ) : null}
         {gone.length > 0 ? (
           <div role="alert" className="border-warning bg-warning/10 flex flex-col gap-2 rounded-lg border p-4 text-sm">
             <p className="font-medium">{t('returns.customer.goneTitle')}</p>
@@ -430,7 +449,7 @@ export function CustomerReturnForm({ data, onSaved }: { data: CustomerReturnable
                                   <QuantityInput
                                     id={`accepted-${line.id}`}
                                     className="h-10 min-w-0 flex-1 text-center md:w-20 md:flex-none"
-                                    value={field.value ?? 0}
+                                    value={field.value}
                                     onChange={(next) => accepted(next)}
                                     aria-invalid={Boolean(acceptedError)}
                                     aria-describedby={`row-${line.id}-error`}
@@ -479,7 +498,7 @@ export function CustomerReturnForm({ data, onSaved }: { data: CustomerReturnable
                               render={({ field }) => (
                                 <QuantityInput
                                   id={`damaged-${line.id}`}
-                                  value={field.value ?? 0}
+                                  value={field.value}
                                   onChange={(next) => {
                                     field.onChange(next);
                                     form.clearErrors(`rows.${key}`);
@@ -501,7 +520,7 @@ export function CustomerReturnForm({ data, onSaved }: { data: CustomerReturnable
                               render={({ field }) => (
                                 <MoneyInput
                                   id={`refund-${line.id}`}
-                                  value={field.value ?? 0}
+                                  value={field.value}
                                   onChange={(next) => {
                                     field.onChange(next);
                                     form.clearErrors(`rows.${key}.damagedRefund`);

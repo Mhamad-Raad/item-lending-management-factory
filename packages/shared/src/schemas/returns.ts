@@ -33,6 +33,9 @@ export type ReturnCreateBody = z.infer<typeof ReturnCreateBody>;
 export const ReturnReplaceBody = ReturnCreateBody;
 export type ReturnReplaceBody = ReturnCreateBody;
 
+/** The most orders one customer return names (Q156): a fuller save would near the API's 100 KB body limit. */
+export const CUSTOMER_RETURN_MAX_ORDERS = 100;
+
 /**
  * A return of a customer's pallets across their open orders (§6.20, Q156): one date and note, and for each order
  * the lines that came back. The service records a return on each order that has a line left, all or none; an order
@@ -43,7 +46,7 @@ export const CustomerReturnCreateBody = z.strictObject({
   notes: optionalText(1000),
   orders: z
     .array(z.strictObject({ orderId: Id, lines: returningLines }))
-    .max(100)
+    .max(CUSTOMER_RETURN_MAX_ORDERS)
     .superRefine((orders, ctx) => {
       const seen = new Set<number>();
       orders.forEach((order, index) => {

@@ -162,7 +162,9 @@ export class ReturnsService {
           orders.flatMap(({ order, body: one }) => this.itemIdsOf(order, one.lines)),
         );
 
-        // Every order is checked before any is written, so one answer names every line over what is out.
+        // Every order is checked before any is written. Lines over what is out are collected across the orders into
+        // one answer; any other refusal stops at the first, and the lines collected so far go unnamed — the screen
+        // refuses those as they are typed, so the server's own over-out answer only meets counts gone stale.
         const over: ErrorDetails<'RETURN_EXCEEDS_OUT'>['lines'] = [];
         const checked = orders.flatMap(({ order, body: one }) => {
           try {

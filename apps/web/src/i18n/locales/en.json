@@ -1164,7 +1164,7 @@
       "damageSplit": "Of their {{deposit}} deposit, {{refund}} is refunded and {{kept}} is kept for the damage."
     },
     "customer": {
-      "heading": "{{pallets}} pallets out on {{orders}} orders",
+      "heading": "Pallets out: {{pallets}} · Orders: {{orders}}",
       "everythingBack": "Everything came back",
       "orderAllBack": "All of this order back",
       "opensInNewTab": "(opens in a new tab)",
@@ -1180,7 +1180,8 @@
       "savedTitle": "Return recorded",
       "savedLine": "{{accepted}} accepted · {{damaged}} damaged",
       "goneTitle": "These counts are for pallets no longer out — returned or cancelled meanwhile — and will not be saved:",
-      "goneDismiss": "Remove them"
+      "goneDismiss": "Remove them",
+      "tooManyOrders": "One return takes at most {{max}} orders: record the rest in a second one."
     }
   },
   "reports": {

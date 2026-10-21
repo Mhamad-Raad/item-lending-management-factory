@@ -1164,7 +1164,7 @@
       "damageSplit": "تأمينها {{deposit}}: يُردّ منه {{refund}} ويُحتجز {{kept}} تعويضاً عن التلف."
     },
     "customer": {
-      "heading": "لدى الزبون {{pallets}} طبلية في {{orders}} طلب",
+      "heading": "الطبليات لدى الزبون: {{pallets}} · الطلبات: {{orders}}",
       "everythingBack": "عاد كل شيء",
       "orderAllBack": "عاد كل هذا الطلب",
       "opensInNewTab": "(يُفتح في علامة تبويب جديدة)",
@@ -1180,7 +1180,8 @@
       "savedTitle": "سُجّل الإرجاع",
       "savedLine": "{{accepted}} مقبولة · {{damaged}} تالفة",
       "goneTitle": "هذه الأعداد لطبليات لم تعد لدى الزبون — أُرجعت أو أُلغيت في الأثناء — ولن تُحفظ:",
-      "goneDismiss": "أزِلها"
+      "goneDismiss": "أزِلها",
+      "tooManyOrders": "يأخذ الإرجاع الواحد {{max}} طلباً على الأكثر: سجّل الباقي في إرجاع ثانٍ."
     }
   },
   "reports": {
