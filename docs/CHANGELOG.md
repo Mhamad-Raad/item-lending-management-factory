@@ -109,3 +109,6 @@ The build history that used to sit in `CLAUDE.md` "Status", oldest first, moved 
   `POST /api/customers/:id/returns`, each order priced as its own return). Cash paid out opens a dialog with each
   refund's receipt. From an order's page the one-order form is unchanged. "Returns" joins the sidebar under
   Orders (Q157).
+- **10o earlier pallets by item** (2026-10-21, Q158): the hand-over receipt's earlier pallets are one row per item
+  and price over all the customer's earlier orders, showing only what is still out; the item spans the quantity,
+  accepted and damaged columns, so the table and its design stay as they were.

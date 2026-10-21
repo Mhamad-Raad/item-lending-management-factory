@@ -484,6 +484,17 @@ buttons, the summary's figures, the body sent, the dialog's print, refused as ty
 server refusal marking rows and re-reading; a count on a line a reload drops named and held until let go; a
 date before a touched order refused as typed; the row's controls on one line — each proven failing when broken); the route in `responsive.spec.ts` and `a11y.spec.ts`; every gate green.
 
+### 10o — Earlier pallets on the hand-over receipt by item (Q158)
+
+Read: §6.19, §7.16, Q150, Q151.
+
+The business asked that the receipt's earlier pallets read per item over all the earlier orders, and show only
+what the customer still holds. One row per item and deposit price (a second price keeps its own row), no order
+numbers; in the same table and design, the item spans the quantity, accepted and damaged columns. **Exit:**
+`order-changes.test.ts` (combined over orders, a returned part left out, another price on its own row, first
+appearance order, the totals); `receipt.test.tsx` and `receipt.spec.ts` Q150 (five cells, the span); the real
+receipt compared by eye.
+
 ---
 
 ## Environments
