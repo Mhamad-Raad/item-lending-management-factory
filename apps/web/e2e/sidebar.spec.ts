@@ -70,3 +70,27 @@ test.describe('Q51: collapsible sidebar', () => {
     await expect(page.getByRole('menu')).toBeVisible();
   });
 });
+
+test('Q157: Returns sits under Orders, opens the return page, and only for those who may record one', async ({
+  page,
+}) => {
+  await mockApi(page, ADMIN, 'en');
+  await page.setViewportSize({ width: 1280, height: 800 });
+  await page.goto('/');
+  const links = page.locator('aside').getByRole('navigation', { name: 'Main navigation' }).getByRole('link');
+  await expect(links.filter({ hasText: 'Orders' })).toBeVisible();
+  const names = (await links.allTextContents()).map((name) => name.trim());
+  expect(names.indexOf('Returns')).toBe(names.indexOf('Orders') + 1);
+
+  await page.locator('aside').getByRole('link', { name: 'Returns' }).click();
+  await expect(page).toHaveURL(/\/returns\/new$/);
+  await expect(page.locator('aside').getByRole('link', { name: 'Returns' })).toHaveAttribute('aria-current', 'page');
+});
+
+test('Q157: without returns.create the sidebar has no Returns', async ({ page }) => {
+  await mockApi(page, { ...ADMIN, role: 'EMPLOYEE', permissions: ['orders.view', 'customers.view'] }, 'en');
+  await page.setViewportSize({ width: 1280, height: 800 });
+  await page.goto('/');
+  await expect(page.locator('aside').getByRole('link', { name: 'Orders' })).toBeVisible();
+  await expect(page.locator('aside').getByRole('link', { name: 'Returns' })).toHaveCount(0);
+});

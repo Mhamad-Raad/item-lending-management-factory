@@ -17,6 +17,7 @@ import {
   UserCircle,
   Users,
 } from 'lucide-react';
+import { Undo2 } from '@/components/app/dir-icon';
 import { LogOut, PanelLeftClose, PanelLeftOpen } from '@/components/app/dir-icon';
 import type { LucideIcon } from 'lucide-react';
 import { useState } from 'react';
@@ -65,6 +66,8 @@ const NAV_GROUPS: NavGroup[] = [
     items: [
       { to: '/', labelKey: 'nav.dashboard', icon: LayoutDashboard },
       { to: '/orders', labelKey: 'nav.orders', icon: ClipboardList, permission: 'orders.view' },
+      // Straight to the customer's pallets, from wherever the clerk is (Q157); its arrow mirrors right to left.
+      { to: '/returns/new', labelKey: 'nav.returns', icon: Undo2, permission: 'returns.create' },
     ],
   },
   {
