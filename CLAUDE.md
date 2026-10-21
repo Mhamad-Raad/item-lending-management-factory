@@ -38,7 +38,8 @@ Pallet System: a web app for a single pallet factory in Iraq (Kurdistan Region) 
   nightly security and Docker updates with reboots (Q154), a missed prune reported (Q155). Then (2026-10-20)
   10n: a return starts from the customer — every pallet they hold, by order, counted with buttons, saved as a
   return on each order at once (Q156), and a Returns item in the sidebar (Q157). Then (2026-10-21) 10o: the
-  receipt's earlier pallets per item, still out only (Q158).
+  receipt's earlier pallets per item, still out only (Q158); 10p: the change-password page only for those who must
+  (Q159).
 - **The maintainer's one page** is "Maintainer quick start" in `README.md` (run, test, deploy, restore, recover,
   traps, yearly checklist). Keep it true when a command or a runbook changes.
 - **Open, needing people rather than code:** the E6 screenshot baselines (rendered by CI, then committed; after

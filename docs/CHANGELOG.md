@@ -112,3 +112,6 @@ The build history that used to sit in `CLAUDE.md` "Status", oldest first, moved 
 - **10o earlier pallets by item** (2026-10-21, Q158): the hand-over receipt's earlier pallets are one row per item
   and price over all the customer's earlier orders, showing only what is still out; the item spans the quantity,
   accepted and damaged columns, so the table and its design stay as they were.
+- **10p change password only when asked** (2026-10-21, Q159): a phone reopening the browser on `/change-password`
+  (the last page, or a shortcut made there) showed the forced change again to users who had already set a password;
+  the page now sends them to the dashboard. A voluntary change stays on My account.

@@ -495,6 +495,17 @@ numbers; in the same table and design, the item spans the quantity, accepted and
 appearance order, the totals); `receipt.test.tsx` and `receipt.spec.ts` Q150 (five cells, the span); the real
 receipt compared by eye.
 
+### 10p — The change-password page only for those who must (Q159)
+
+Read: §6.8.6, §7.3.2, §7.3.21.
+
+The business reported the app asking for a new password every time a phone's browser was reopened. The change
+itself works; the page let anyone signed in stay on it, and a phone reopens on the last page or a shortcut made
+there. It now sends a user who need not change their password to the dashboard. **Exit:**
+`e2e/change-password.spec.ts` (held while the flag is set; sent on when not, failing without the redirect); the
+phone flow reproduced against the dev API before and after (first sign-in asks once; reopening the page's address
+lands on the dashboard).
+
 ---
 
 ## Environments
