@@ -1,15 +1,15 @@
-import { createFileRoute, useNavigate } from '@tanstack/react-router';
+import { Navigate, createFileRoute, useNavigate } from '@tanstack/react-router';
 import { useTranslation } from 'react-i18next';
 import { ChangePasswordForm } from '@/components/app/change-password-form';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { usePageTitle } from '@/hooks/use-page-title';
 import { useSignOut } from '@/hooks/use-sign-out';
-import { requireAuthenticated } from '@/lib/route-guards';
+import { useAuth } from '@/lib/auth';
+import { requirePasswordChangePending } from '@/lib/route-guards';
 
 export const Route = createFileRoute('/change-password')({
-  // Reachable while `mustChangePassword` is set: it is the way out of that state.
-  beforeLoad: () => requireAuthenticated({ allowPasswordChange: true }),
+  beforeLoad: requirePasswordChangePending,
   component: ChangePasswordPage,
 });
 
@@ -18,6 +18,11 @@ function ChangePasswordPage() {
   const navigate = useNavigate();
   const signOut = useSignOut();
   usePageTitle('auth.changePassword.title');
+  const { user } = useAuth();
+
+  // Set meanwhile in another tab (Q159): this tab's next refresh clears the flag, and the form would only refuse the
+  // old password as the current one, each refusal counting toward the lockout.
+  if (user && !user.mustChangePassword) return <Navigate to="/" />;
 
   return (
     <main className="flex min-h-dvh items-center justify-center p-4">

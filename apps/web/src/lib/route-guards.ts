@@ -10,19 +10,27 @@ export class ForbiddenError extends Error {
   }
 }
 
-/**
- * Anonymous visitors go to the login page with the address they wanted, and a user who still has
- * to set a password can go nowhere else until they do.
- */
-export function requireAuthenticated(options: { allowPasswordChange?: boolean } = {}): void {
+/** The signed-in user; an anonymous visitor goes to the login page with the address they wanted. */
+function signedInUser() {
   const { status, user } = authStore.getSnapshot();
-
   if (status !== 'authenticated' || !user) {
     throw redirect({ to: '/login', search: { redirect: window.location.pathname + window.location.search } });
   }
-  if (user.mustChangePassword && !options.allowPasswordChange) {
-    throw redirect({ to: '/change-password' });
-  }
+  return user;
+}
+
+/** Signed in; a user who still has to set a password can go nowhere else until they do. */
+export function requireAuthenticated(): void {
+  if (signedInUser().mustChangePassword) throw redirect({ to: '/change-password' });
+}
+
+/**
+ * `/change-password` (Q159): signed in, and only while a password must be set. Anyone else goes on to the app: a
+ * phone reopens on the last page, and a bookmark or home-screen shortcut keeps the address it was made on — often
+ * this page, the first a new user sees. A change of one's own free will is on `/account`.
+ */
+export function requirePasswordChangePending(): void {
+  if (!signedInUser().mustChangePassword) throw redirect({ to: '/' });
 }
 
 export function requirePermission(key: PermissionKey): void {
