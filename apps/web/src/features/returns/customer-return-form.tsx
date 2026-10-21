@@ -38,7 +38,16 @@ import { handleApiError } from '@/lib/errors';
 import { qk } from '@/lib/query-keys';
 import { encodeValidationMessage } from '@/lib/validation-message';
 import { returnSummary } from './return-math';
-import { checkRow, count, pricedRow, rowKey, typedRow, useRowMessages, type RowCounts } from './return-rows';
+import {
+  checkRow,
+  count,
+  pricedRow,
+  restAccepted,
+  rowKey,
+  typedRow,
+  useRowMessages,
+  type RowCounts,
+} from './return-rows';
 import { ReturnsSavedDialog } from './returns-saved-dialog';
 
 interface CustomerReturnValues {
@@ -267,11 +276,11 @@ export function CustomerReturnForm({ data, onSaved }: { data: CustomerReturnable
 
   // "All", "All of this order back" and "Everything came back" count the rest of a line as accepted: pallets
   // already typed as damaged, and their refund, stay as typed — never put back into stock without a word.
+  // Only the count's error goes: a refund the server refused is still the refund typed, and stays refused.
   const allBack = (line: OrderLineDto): void => {
     const key = rowKey(line.id);
-    const { damaged, damagedRefund } = typedRow(form.getValues(`rows.${key}`));
-    form.setValue(`rows.${key}`, { accepted: Math.max(0, line.outQuantity - damaged), damaged, damagedRefund });
-    form.clearErrors(`rows.${key}`);
+    form.setValue(`rows.${key}`, restAccepted(form.getValues(`rows.${key}`), line.outQuantity));
+    form.clearErrors(`rows.${key}.accepted`);
     form.clearErrors('root');
   };
   const toggleDamage = (lineId: number): void =>
@@ -283,8 +292,33 @@ export function CustomerReturnForm({ data, onSaved }: { data: CustomerReturnable
     });
 
   const cashNow = !anyInvalid && totals.cashRefund > 0;
-  // Nothing out any more and no count left to name: the list emptied by a reload says so.
-  if (data.orders.length === 0 && gone.length === 0) return <EmptyState title={t('returns.customer.nothingOut')} />;
+  // Counts on lines no longer listed, named until they are let go.
+  const goneNotice =
+    gone.length > 0 ? (
+      <div role="alert" className="border-warning bg-warning/10 flex flex-col gap-2 rounded-lg border p-4 text-sm">
+        <p className="font-medium">{t('returns.customer.goneTitle')}</p>
+        <ul className="flex flex-col gap-1">
+          {gone.map((entry) => (
+            <li key={entry.key}>
+              <span dir="ltr">{orderLabel(entry.orderNumber)}</span> · <bdi>{entry.itemName}</bdi> ·{' '}
+              <QuantityText value={entry.returning} />
+            </li>
+          ))}
+        </ul>
+        <Button
+          type="button"
+          variant="outline"
+          size="sm"
+          className="self-start"
+          onClick={() => gone.forEach((entry) => form.setValue(`rows.${entry.key}`, { ...EMPTY_ROW }))}
+        >
+          {t('returns.customer.goneDismiss')}
+        </Button>
+      </div>
+    ) : null;
+  // Nothing out (at first, or after a reload): only what there is to say — the counts left to name, else that nothing
+  // is out — with no heading, quick buttons or save that could not apply.
+  if (data.orders.length === 0) return goneNotice ?? <EmptyState title={t('returns.customer.nothingOut')} />;
   const submitButton = (
     <Button type="submit" form="customer-return" disabled={record.isPending || anyInvalid}>
       {record.isPending ? <Loader2 className="size-4 animate-spin" aria-hidden /> : null}
@@ -318,28 +352,7 @@ export function CustomerReturnForm({ data, onSaved }: { data: CustomerReturnable
             {t('returns.customer.tooManyOrders', { max: formatNumber(CUSTOMER_RETURN_MAX_ORDERS) })}
           </p>
         ) : null}
-        {gone.length > 0 ? (
-          <div role="alert" className="border-warning bg-warning/10 flex flex-col gap-2 rounded-lg border p-4 text-sm">
-            <p className="font-medium">{t('returns.customer.goneTitle')}</p>
-            <ul className="flex flex-col gap-1">
-              {gone.map((entry) => (
-                <li key={entry.key}>
-                  <span dir="ltr">{orderLabel(entry.orderNumber)}</span> · <bdi>{entry.itemName}</bdi> ·{' '}
-                  <QuantityText value={entry.returning} />
-                </li>
-              ))}
-            </ul>
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              className="self-start"
-              onClick={() => gone.forEach((entry) => form.setValue(`rows.${entry.key}`, { ...EMPTY_ROW }))}
-            >
-              {t('returns.customer.goneDismiss')}
-            </Button>
-          </div>
-        ) : null}
+        {goneNotice}
 
         {orders.map(({ order, lines }) => (
           <Card key={order.id}>

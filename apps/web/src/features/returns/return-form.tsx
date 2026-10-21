@@ -31,7 +31,16 @@ import { handleApiError } from '@/lib/errors';
 import { qk } from '@/lib/query-keys';
 import { encodeValidationMessage } from '@/lib/validation-message';
 import { isStandingRefundOf, returnBaseline, returnSummary } from './return-math';
-import { checkRow, count, pricedRow, rowKey, typedRow, useRowMessages, type RowCounts } from './return-rows';
+import {
+  checkRow,
+  count,
+  pricedRow,
+  restAccepted,
+  rowKey,
+  typedRow,
+  useRowMessages,
+  type RowCounts,
+} from './return-rows';
 
 interface RowValues extends RowCounts {
   orderLineId: number;
@@ -212,10 +221,12 @@ export function ReturnForm({ order, replaceReturnId }: { order: OrderDetailDto; 
     });
   });
 
+  // The rest of the line accepted, damage already typed kept (Q156). Only the count's error goes: a refund the server
+  // refused is still the refund typed, and stays refused until it changes.
   const allAccepted = (orderLineId: number): void => {
     const key = rowKey(orderLineId);
-    form.setValue(`rows.${key}`, { orderLineId, accepted: outOf(orderLineId), damaged: 0, damagedRefund: 0 });
-    form.clearErrors(`rows.${key}`);
+    form.setValue(`rows.${key}`, { orderLineId, ...restAccepted(form.getValues(`rows.${key}`), outOf(orderLineId)) });
+    form.clearErrors(`rows.${key}.accepted`);
   };
 
   const submitButton = (

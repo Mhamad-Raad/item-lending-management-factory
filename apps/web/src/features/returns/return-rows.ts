@@ -25,6 +25,15 @@ export function typedRow(counts: Partial<RowCounts> | undefined): TypedRow {
   };
 }
 
+/**
+ * A row's "all back" (Q156): the rest of what is out accepted, a damaged count and refund already typed kept as typed —
+ * wiping them would put broken pallets back into stock. Both return forms' quick buttons use it.
+ */
+export function restAccepted(counts: Partial<RowCounts> | undefined, outQuantity: number): TypedRow {
+  const { damaged, damagedRefund } = typedRow(counts);
+  return { accepted: Math.max(0, outQuantity - damaged), damaged, damagedRefund };
+}
+
 /** What a row prices in the summary: a refused row prices nothing, so no figure the server would refuse is offered. */
 export function pricedRow(row: TypedRow, unitDeposit: number, invalid: boolean) {
   return {

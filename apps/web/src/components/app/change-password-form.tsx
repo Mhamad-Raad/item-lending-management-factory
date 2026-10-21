@@ -26,9 +26,10 @@ const ChangePasswordFormSchema = ChangePasswordBody.extend({
 
 /**
  * Changes the signed-in user's own password. The response carries a fresh session, so the tab
- * that changed it stays signed in; the page decides where to go afterwards.
+ * that changed it stays signed in. It goes nowhere itself: on `/change-password` the cleared flag takes the user on,
+ * once (Q159), and on `/account` they stay.
  */
-export function ChangePasswordForm({ onSuccess }: { onSuccess?: () => void | Promise<void> }) {
+export function ChangePasswordForm() {
   const { t } = useTranslation();
 
   const form = useForm({
@@ -48,7 +49,6 @@ export function ChangePasswordForm({ onSuccess }: { onSuccess?: () => void | Pro
       authStore.setSession(session);
       form.reset();
       toast.success(t('account.password.changed'));
-      await onSuccess?.();
     } catch (error) {
       handleApiError(error, {
         setError: form.setError,

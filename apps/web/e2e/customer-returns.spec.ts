@@ -376,6 +376,31 @@ test('Q156: a reload that finds nothing out any more still names the counts type
   const notice = page.getByRole('alert').filter({ hasText: 'no longer out' });
   await expect(notice).toBeVisible();
   expect(plain(await notice.getByRole('listitem').textContent())).toBe('#000041 · Euro pallet · 5');
+  // Nothing else that could not apply: no heading of what is out, no quick buttons, no save.
+  await expect(page.getByText(/^Pallets out:/)).toHaveCount(0);
+  await expect(page.getByRole('button', { name: 'Everything came back' })).toHaveCount(0);
+  await expect(page.getByRole('button', { name: 'Record return' })).toHaveCount(0);
   await notice.getByRole('button', { name: 'Remove them' }).click();
   await expect(page.getByText('This customer has no pallets out')).toBeVisible();
+});
+
+test('Q156: a damage refund the server refused stays refused through "Everything came back"', async ({ page }) => {
+  await mockHoldings(page, {
+    status: 400,
+    json: { error: { code: 'DAMAGED_REFUND_TOO_HIGH', details: { orderLineId: 21, maximum: 1_000 } } },
+  });
+  await page.goto('/returns/new?customerId=3');
+  const euro = row(page, 'Euro pallet');
+  await euro.getByRole('button', { name: 'Damaged' }).click();
+  await euro.getByLabel('Damaged', { exact: true }).fill('2');
+  await euro.getByLabel('Damage refund').fill('1500');
+  await summary(page).getByRole('button', { name: 'Record return' }).click();
+  await expect(euro.getByText('At most 1,000')).toBeVisible();
+
+  await page.getByRole('button', { name: 'Everything came back' }).click();
+
+  // The count moved, the refund did not: its refusal stands, and nothing can be sent.
+  await expect(euro.getByLabel('Accepted')).toHaveValue('98');
+  await expect(euro.getByText('At most 1,000')).toBeVisible();
+  await expect(summary(page).getByRole('button', { name: 'Record return' })).toBeDisabled();
 });

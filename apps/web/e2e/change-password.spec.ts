@@ -80,7 +80,9 @@ test('set in another tab meanwhile, the page leaves for the dashboard at its nex
   await expect(page).toHaveURL(/\/$/);
 });
 
-test('a changed password goes on to the dashboard once, and Back does not return to the form', async ({ page }) => {
+test('a changed password goes on to the dashboard in place of the page, adding nothing to the history', async ({
+  page,
+}) => {
   await mockApi(page, { ...ADMIN, mustChangePassword: true }, 'en');
   await page.route(/\/api\/auth\/change-password$/, (route) =>
     route.fulfill({
@@ -94,12 +96,13 @@ test('a changed password goes on to the dashboard once, and Back does not return
   await page.goto('/orders');
   await expect(page).toHaveURL(/\/change-password$/);
 
+  // Back would only bounce off the page's guard, so the history itself is what shows a second navigation.
+  const before = await page.evaluate(() => window.history.length);
   await page.getByLabel('Current password').fill('the-one-the-admin-set');
   await page.getByLabel('New password', { exact: true }).fill('a-new-and-long-password');
   await page.getByLabel('Confirm new password').fill('a-new-and-long-password');
   await changeButton(page).click();
 
   await expect(dashboard(page)).toBeVisible();
-  await page.goBack();
-  await expect(page).not.toHaveURL(/\/change-password$/);
+  expect(await page.evaluate(() => window.history.length)).toBe(before);
 });

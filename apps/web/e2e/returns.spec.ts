@@ -483,3 +483,18 @@ test('Q146: the damage refund reads as money and says what it does with the depo
   await row(page).getByLabel('Accepted').fill('99');
   await expect(split).toHaveCount(0);
 });
+
+test('Q156: "All accepted" on an order counts the rest as accepted and keeps the damaged pallets typed', async ({
+  page,
+}) => {
+  await mockReturns(page, LENT);
+  await page.goto('/returns/new?orderId=9');
+  await row(page).getByLabel('Damaged').fill('2');
+  await row(page).getByLabel('Damage refund').fill('500');
+
+  await row(page).getByRole('button', { name: 'All accepted' }).click();
+
+  await expect(row(page).getByLabel('Accepted')).toHaveValue('98');
+  await expect(row(page).getByLabel('Damaged')).toHaveValue('2');
+  await expect(row(page).getByLabel('Damage refund')).toHaveValue('500');
+});
