@@ -1167,7 +1167,6 @@
     "customer": {
       "heading": "Pallets out: {{pallets}} · Orders: {{orders}}",
       "everythingBack": "Everything came back",
-      "orderAllBack": "All of this order back",
       "opensInNewTab": "(opens in a new tab)",
       "less": "One fewer",
       "more": "One more",
@@ -1182,7 +1181,15 @@
       "savedLine": "{{accepted}} accepted · {{damaged}} damaged",
       "goneTitle": "These counts are for pallets no longer out — returned or cancelled meanwhile — and will not be saved:",
       "goneDismiss": "Remove them",
-      "tooManyOrders": "One return takes at most {{max}} orders: record the rest in a second one."
+      "tooManyOrders": "This return reaches {{orders}} orders; one save takes at most {{max}}. Record fewer pallets now, oldest first, and the rest in a second return.",
+      "outOn": "On orders",
+      "takenFrom": "Split over",
+      "lineClosed": "all back",
+      "recheckTitle": "The orders of these items changed meanwhile, so their counts were placed again. Check how each is split, then save:",
+      "recheckDone": "I've checked",
+      "afterReturnDate": "dated after the return",
+      "outByDate": "{{out}} by {{date}}",
+      "orderOwes": "owes {{amount}} IQD"
     }
   },
   "reports": {

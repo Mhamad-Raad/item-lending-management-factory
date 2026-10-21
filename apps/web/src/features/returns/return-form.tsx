@@ -103,7 +103,7 @@ export function ReturnForm({ order, replaceReturnId }: { order: OrderDetailDto; 
         key,
         row,
         out,
-        ...checkRow(row, { outQuantity: out, unitDeposit: line.unitDeposit }, errors.rows?.[key]),
+        ...checkRow(row, { outQuantity: out, maximum: row.damaged * line.unitDeposit }, errors.rows?.[key]),
       };
     })
     .filter(({ out, returning }) => out > 0 || returning > 0);

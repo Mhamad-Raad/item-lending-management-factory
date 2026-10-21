@@ -52,18 +52,19 @@ export interface TypedRow {
 }
 
 /**
- * The rules of one return row (Q141, Q146), shared by the order's form and the customer's: what it returns, whether
- * that is more than is out, the most its damage refund can give back, and whether the refund is over it. `refused`
- * holds what the server last said about the row, which stands until the row changes.
+ * The rules of one return row (Q141, Q146), shared by the order's form (a line) and the customer's (an item over its
+ * orders, Q160): what it returns, whether that is more than is out, and whether the damage refund is over the most it
+ * can give back — `maximum`, the deposit of the damaged pallets where they are placed. `refused` holds what the server
+ * last said about the row, which stands until the row changes.
  */
 export function checkRow(
   row: TypedRow,
-  line: { outQuantity: number; unitDeposit: number },
+  limits: { outQuantity: number; maximum: number },
   refused?: { accepted?: unknown; damagedRefund?: unknown },
 ) {
   const returning = row.accepted + row.damaged;
-  const overOut = returning > line.outQuantity || Boolean(refused?.accepted);
-  const maximum = row.damaged * line.unitDeposit;
+  const overOut = returning > limits.outQuantity || Boolean(refused?.accepted);
+  const maximum = limits.maximum;
   const refundOver = row.damagedRefund > maximum || Boolean(refused?.damagedRefund);
   return { returning, overOut, maximum, refundOver, invalid: overOut || refundOver };
 }

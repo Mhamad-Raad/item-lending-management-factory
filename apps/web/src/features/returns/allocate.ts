@@ -1,0 +1,97 @@
+import type { CustomerReturnableDto, ItemRefDto } from '@pallet/shared';
+import type { TypedRow } from './return-rows';
+
+/** One order line still out, as an item's holding lists it (Q160). */
+export interface HeldLine {
+  orderId: number;
+  orderNumber: number;
+  orderDate: string;
+  orderLineId: number;
+  outQuantity: number;
+  unitDeposit: number;
+}
+
+/** Everything the customer still holds of one item, over all their open orders, its lines oldest first (Q160). */
+export interface ItemHolding {
+  item: ItemRefDto;
+  outQuantity: number;
+  lines: HeldLine[];
+}
+
+/** What one order line takes of an item's typed row. */
+export interface LineShare extends HeldLine {
+  accepted: number;
+  damaged: number;
+  damagedRefund: number;
+  /** Dated after the return: it takes nothing, its pallets had not gone out yet on that day. */
+  afterDate: boolean;
+}
+
+/** Oldest first (Q160): the order's date, then its number for two orders of one day, then the line. */
+function olderFirst(a: HeldLine, b: HeldLine): number {
+  if (a.orderDate !== b.orderDate) return a.orderDate < b.orderDate ? -1 : 1;
+  return a.orderNumber - b.orderNumber || a.orderLineId - b.orderLineId;
+}
+
+/**
+ * The customer's holdings by item (Q160): one entry per item, whatever orders and deposits it went out on, in the
+ * order its oldest line went out.
+ */
+export function itemHoldings(data: CustomerReturnableDto): ItemHolding[] {
+  const byItem = new Map<number, ItemHolding>();
+  for (const order of data.orders) {
+    for (const line of order.lines) {
+      const holding = byItem.get(line.item.id) ?? { item: line.item, outQuantity: 0, lines: [] };
+      holding.outQuantity += line.outQuantity;
+      holding.lines.push({
+        orderId: order.id,
+        orderNumber: order.orderNumber,
+        orderDate: order.date,
+        orderLineId: line.id,
+        outQuantity: line.outQuantity,
+        unitDeposit: line.unitDeposit,
+      });
+      byItem.set(line.item.id, holding);
+    }
+  }
+  const holdings = [...byItem.values()];
+  for (const holding of holdings) holding.lines.sort(olderFirst);
+  return holdings.sort((a, b) => olderFirst(a.lines[0] as HeldLine, b.lines[0] as HeldLine));
+}
+
+/** What an item has out on orders dated on or before the return date (all of it while no date is chosen). */
+export function outBy(lines: readonly HeldLine[], returnDate: string | null): number {
+  return lines.reduce(
+    (total, line) => total + (returnDate !== null && line.orderDate > returnDate ? 0 : line.outQuantity),
+    0,
+  );
+}
+
+/**
+ * Splits an item's typed row over its lines, oldest first (Q160): the damaged pallets first, then the accepted ones,
+ * each line taking what it still has out; the damage refund follows the damaged pallets, each line taking at most
+ * the deposit of its own damaged ones. An order dated after the return date takes nothing (a return cannot precede
+ * its order). What the lines cannot take (a row over what is out) is left unplaced: such a row is refused as typed
+ * and prices nothing.
+ */
+export function allocate(lines: readonly HeldLine[], row: TypedRow, returnDate: string | null = null): LineShare[] {
+  let damagedLeft = row.damaged;
+  let acceptedLeft = row.accepted;
+  let refundLeft = row.damagedRefund;
+  return lines.map((line) => {
+    const afterDate = returnDate !== null && line.orderDate > returnDate;
+    if (afterDate) return { ...line, accepted: 0, damaged: 0, damagedRefund: 0, afterDate };
+    const damaged = Math.min(line.outQuantity, damagedLeft);
+    damagedLeft -= damaged;
+    const accepted = Math.min(line.outQuantity - damaged, acceptedLeft);
+    acceptedLeft -= accepted;
+    const damagedRefund = Math.min(damaged * line.unitDeposit, refundLeft);
+    refundLeft -= damagedRefund;
+    return { ...line, accepted, damaged, damagedRefund, afterDate };
+  });
+}
+
+/** The most an item's damage refund can give back: the deposit of its damaged pallets where they were placed. */
+export function refundMaximum(shares: readonly LineShare[]): number {
+  return shares.reduce((total, share) => total + share.damaged * share.unitDeposit, 0);
+}
