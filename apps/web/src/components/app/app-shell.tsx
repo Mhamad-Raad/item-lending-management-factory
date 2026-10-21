@@ -17,8 +17,7 @@ import {
   UserCircle,
   Users,
 } from 'lucide-react';
-import { Undo2 } from '@/components/app/dir-icon';
-import { LogOut, PanelLeftClose, PanelLeftOpen } from '@/components/app/dir-icon';
+import { LogOut, PanelLeftClose, PanelLeftOpen, Undo2 } from '@/components/app/dir-icon';
 import type { LucideIcon } from 'lucide-react';
 import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
