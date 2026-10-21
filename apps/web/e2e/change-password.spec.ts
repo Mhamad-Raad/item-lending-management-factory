@@ -79,3 +79,27 @@ test('set in another tab meanwhile, the page leaves for the dashboard at its nex
   expect(refreshes).toBeGreaterThan(1);
   await expect(page).toHaveURL(/\/$/);
 });
+
+test('a changed password goes on to the dashboard once, and Back does not return to the form', async ({ page }) => {
+  await mockApi(page, { ...ADMIN, mustChangePassword: true }, 'en');
+  await page.route(/\/api\/auth\/change-password$/, (route) =>
+    route.fulfill({
+      json: {
+        accessToken: 'token-2',
+        accessTokenExpiresAt: new Date(Date.now() + 900_000).toISOString(),
+        user: ADMIN,
+      } satisfies AuthTokenDto,
+    }),
+  );
+  await page.goto('/orders');
+  await expect(page).toHaveURL(/\/change-password$/);
+
+  await page.getByLabel('Current password').fill('the-one-the-admin-set');
+  await page.getByLabel('New password', { exact: true }).fill('a-new-and-long-password');
+  await page.getByLabel('Confirm new password').fill('a-new-and-long-password');
+  await changeButton(page).click();
+
+  await expect(dashboard(page)).toBeVisible();
+  await page.goBack();
+  await expect(page).not.toHaveURL(/\/change-password$/);
+});

@@ -1,4 +1,4 @@
-import { Navigate, createFileRoute, useNavigate } from '@tanstack/react-router';
+import { Navigate, createFileRoute } from '@tanstack/react-router';
 import { useTranslation } from 'react-i18next';
 import { ChangePasswordForm } from '@/components/app/change-password-form';
 import { Button } from '@/components/ui/button';
@@ -15,14 +15,14 @@ export const Route = createFileRoute('/change-password')({
 
 function ChangePasswordPage() {
   const { t } = useTranslation();
-  const navigate = useNavigate();
   const signOut = useSignOut();
   usePageTitle('auth.changePassword.title');
   const { user } = useAuth();
 
-  // Set meanwhile in another tab (Q159): this tab's next refresh clears the flag, and the form would only refuse the
-  // old password as the current one, each refusal counting toward the lockout.
-  if (user && !user.mustChangePassword) return <Navigate to="/" />;
+  // The way on to the app, and the only one (Q159): once the flag clears — this form's own change, or one made in
+  // another tab that this tab's next refresh brings back, where the form would only refuse the old password and
+  // count it toward the lockout. In place of this page, so Back does not return to a form with nothing to do.
+  if (user && !user.mustChangePassword) return <Navigate to="/" replace />;
 
   return (
     <main className="flex min-h-dvh items-center justify-center p-4">
@@ -32,7 +32,7 @@ function ChangePasswordPage() {
           <CardDescription>{t('auth.changePassword.description')}</CardDescription>
         </CardHeader>
         <CardContent className="flex flex-col gap-4">
-          <ChangePasswordForm onSuccess={() => navigate({ to: '/' })} />
+          <ChangePasswordForm />
           <Button type="button" variant="ghost" onClick={() => void signOut()}>
             {t('nav.logout')}
           </Button>
