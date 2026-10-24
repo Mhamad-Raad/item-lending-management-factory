@@ -3,7 +3,10 @@
  * in the app's layout). Call from a press.
  */
 
-type JobRequest = { kind: 'order' | 'transactions'; orderId: number } | { kind: 'money'; entryId: number };
+type JobRequest =
+  | { kind: 'order' | 'transactions'; orderId: number }
+  | { kind: 'money'; entryId: number }
+  | { kind: 'customer-return'; customerReturnId: number };
 /** `seq` tells two presses for the same receipt apart: each one prints. */
 export type Job = JobRequest & { seq: number };
 
@@ -42,6 +45,11 @@ export function printOrderReceipt(orderId: number): void {
 /** The receipt of a payment or a refund (§7.16.6), printed in place (Q140). */
 export function printMoneyReceipt(entryId: number): void {
   start({ kind: 'money', entryId });
+}
+
+/** A customer return's one receipt over the orders it touched (Q161), printed in place (Q140). */
+export function printCustomerReturnReceipt(customerReturnId: number): void {
+  start({ kind: 'customer-return', customerReturnId });
 }
 
 /** Every payment and refund of an order on one paper (§7.16.7, Q139), printed in place (Q140). */

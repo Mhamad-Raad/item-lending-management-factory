@@ -47,5 +47,12 @@ describe('database privileges of the application role', () => {
 
   it('cannot change what a return recorded', async () => {
     await expectDenied(() => prisma.$executeRaw`UPDATE returns SET refund_due = 0`);
+    // Nor move it to another customer return, or out of its own (Q161).
+    await expectDenied(() => prisma.$executeRaw`UPDATE returns SET customer_return_id = NULL`);
+  });
+
+  it('cannot rewrite or remove a customer return', async () => {
+    await expectDenied(() => prisma.$executeRaw`UPDATE customer_returns SET customer_id = 0`);
+    await expectDenied(() => prisma.$executeRaw`DELETE FROM customer_returns`);
   });
 });

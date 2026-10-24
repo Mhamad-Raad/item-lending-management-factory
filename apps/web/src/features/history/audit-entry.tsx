@@ -9,12 +9,12 @@ import { ActorName } from '@/components/app/actor-name';
 
 const LINK = 'text-primary underline-offset-4 hover:underline';
 
-/** The order a return or ledger row belongs to, read from its snapshot (§11.4). */
-function owningOrderId(row: AuditLogDto): string | null {
+/** The order a return or ledger row belongs to, or the customer of a customer return, read from its snapshot (§11.4). */
+function owningId(row: AuditLogDto, field: 'orderId' | 'customerId'): string | null {
   for (const snapshot of [row.after, row.before]) {
-    if (snapshot && typeof snapshot === 'object' && 'orderId' in snapshot) {
-      const { orderId } = snapshot as { orderId: unknown };
-      if (typeof orderId === 'number' || typeof orderId === 'string') return String(orderId);
+    if (snapshot && typeof snapshot === 'object' && field in snapshot) {
+      const owner = (snapshot as Record<string, unknown>)[field];
+      if (typeof owner === 'number' || typeof owner === 'string') return String(owner);
     }
   }
   return null;
@@ -42,15 +42,18 @@ export function EntityRef({ row }: { row: AuditLogDto }) {
     row.entityType === 'ORDER'
       ? id
       : row.entityType === 'RETURN' || row.entityType === 'LEDGER_ENTRY'
-        ? owningOrderId(row)
+        ? owningId(row, 'orderId')
         : null;
+  // A customer return is over several orders: it leads to its customer, whose page lists them (Q161).
+  const customerId =
+    row.entityType === 'CUSTOMER' ? id : row.entityType === 'CUSTOMER_RETURN' ? owningId(row, 'customerId') : null;
   const target =
     row.entityType === 'ITEM' && canViewItems ? (
       <Link to="/items/$itemId" params={{ itemId: id }} className={LINK}>
         {text}
       </Link>
-    ) : row.entityType === 'CUSTOMER' && canViewCustomers ? (
-      <Link to="/customers/$customerId" params={{ customerId: id }} className={LINK}>
+    ) : customerId && canViewCustomers ? (
+      <Link to="/customers/$customerId" params={{ customerId }} className={LINK}>
         {text}
       </Link>
     ) : row.entityType === 'DRIVER' && canViewDrivers ? (

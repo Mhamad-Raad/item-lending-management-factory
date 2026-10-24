@@ -28,6 +28,8 @@ export const AUDIT_MATRIX: Readonly<Record<AuditEntityType, readonly AuditAction
   ORDER: ['CREATE', 'UPDATE', 'CANCEL', 'CREDIT_OVERRIDE'],
   RETURN: ['RETURN_CREATE', 'RETURN_EDIT', 'RETURN_DELETE'],
   LEDGER_ENTRY: ['PAYMENT_CREATE', 'PAYMENT_REVERSE', 'REFUND_CREATE', 'REFUND_REVERSE'],
+  // One row for a customer's return over several orders, its orders' returns and refunds in it (Q161).
+  CUSTOMER_RETURN: ['RETURN_CREATE'],
 };
 
 /** `audit.summary.<ENTITY>.<ACTION>` of every pair in the matrix. */
@@ -56,6 +58,7 @@ export const AUDIT_ENTITY_VIEW_PERMISSION: Readonly<Record<AuditEntityType, Perm
   ORDER: 'orders.view',
   RETURN: 'orders.view',
   LEDGER_ENTRY: 'orders.view',
+  CUSTOMER_RETURN: 'orders.view',
 };
 
 /** The entity types whose history a reader holding `can` may see, in `AUDIT_ENTITY_TYPES` order. */

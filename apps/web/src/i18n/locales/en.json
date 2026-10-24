@@ -200,7 +200,9 @@
     },
     "recent": {
       "title": "Recent activity",
-      "empty": "Nothing recorded yet"
+      "empty": "Nothing recorded yet",
+      "orders": "Orders: {{orders}}",
+      "partlyReversed": "Partly reversed"
     }
   },
   "account": {
@@ -353,7 +355,8 @@
       "RETURN": "Return",
       "LEDGER_ENTRY": "Money entry",
       "SETTINGS": "Settings",
-      "UPLOAD": "Image"
+      "UPLOAD": "Image",
+      "CUSTOMER_RETURN": "Customer return"
     },
     "uploadKind": {
       "ITEM_IMAGE": "Item image",
@@ -401,7 +404,8 @@
       "CANCELLATION": "Cancellation",
       "RETURN": "Return",
       "PAYMENT": "Payment",
-      "REFUND": "Refund"
+      "REFUND": "Refund",
+      "CUSTOMER_RETURN": "Customer return"
     },
     "customerHistoryKind": {
       "HANDOVER": "Hand-over",
@@ -471,6 +475,9 @@
         "RETURN_CREATE": "Return on order #{{orderNumber}}: {{accepted}} accepted, {{damaged}} damaged, credit {{refundDue}}, cash refund {{cashRefund}}",
         "RETURN_EDIT": "Return on order #{{orderNumber}} corrected; replaced by return #{{newReturnId}}",
         "RETURN_DELETE": "Return on order #{{orderNumber}} deleted"
+      },
+      "CUSTOMER_RETURN": {
+        "RETURN_CREATE": "Return of {{customerName}} (orders: {{orders}}): {{accepted}} accepted, {{damaged}} damaged, credit {{refundDue}}, cash refund {{cashRefund}}"
       }
     }
   },
@@ -635,7 +642,9 @@
     "NETWORK_ERROR": "No connection to the server. Check the connection and try again.",
     "REQUEST_TIMEOUT": "The server did not answer in time. If you were saving, the change may have gone through: reload the page to check before trying again.",
     "UNKNOWN_ERROR": "Something went wrong. Try again.",
-    "ORDER_LINE_HAS_RETURNS": "This line has returns in its history and cannot be removed; lower its quantity instead"
+    "ORDER_LINE_HAS_RETURNS": "This line has returns in its history and cannot be removed; lower its quantity instead",
+    "CUSTOMER_RETURN_NOT_FOUND": "Customer return not found",
+    "CUSTOMER_RETURN_NO_RECEIPT": "No cash was paid back on this return, so it has no receipt"
   },
   "settings": {
     "title": "Settings",
@@ -1039,7 +1048,8 @@
       "createdBy": "By",
       "reverses": "Reverses #{{id}}",
       "printReceipt": "Print money receipt",
-      "printAll": "Print all"
+      "printAll": "Print all",
+      "printCombined": "Print the combined return receipt"
     },
     "cancel": {
       "confirmTitle": "Cancel order {{orderNumber}}?",
@@ -1116,7 +1126,9 @@
       "note": "Note",
       "atHandover": "At the hand-over, in cash",
       "recordedBy": "Recorded by",
-      "reversed": "Cancelled on {{date}}"
+      "reversed": "Cancelled on {{date}}",
+      "customerReceiptNumber": "Return receipt no.",
+      "partlyReversed": "Partly cancelled on {{date}}"
     },
     "transactions": {
       "pageTitle": "Transactions receipt",

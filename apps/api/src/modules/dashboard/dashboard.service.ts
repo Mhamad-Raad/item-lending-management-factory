@@ -8,6 +8,7 @@ import {
 } from '@pallet/shared';
 import type { AuthContext } from '../../common/auth-context';
 import { fromAggregate, toSafeMoney, type SqlAggregate } from '../../common/utils/money';
+import { Prisma } from '../../generated/prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
 import { uploadUrl } from '../uploads/uploads.mapper';
 import { toCustomerRef } from '../customers/customers.mapper';
@@ -101,11 +102,14 @@ export class DashboardService {
 
   /**
    * The latest events (§6.22): hand-overs, cancellations, returns, manual payments and refunds, newest
-   * first by when they were recorded. Reversed ones stay, flagged.
+   * first by when they were recorded. Reversed ones stay, flagged. A customer's return over several orders is one
+   * event (Q161): its orders' returns and their refunds are not listed on their own.
    *
    * Each kind contributes only its own newest ten, read backwards from a `(created_at, id)` index (Q62):
    * the overall newest ten are among them, because within one kind the outer order is the same
-   * `at DESC, id DESC`. Without the inner limits every event ever recorded was sorted on each visit.
+   * `at DESC, id DESC`. Without the inner limits every event ever recorded was sorted on each visit. Returns and
+   * refunds outside a customer return are read from partial indexes of those alone, so a run of visits is never
+   * walked through; a visit's figures are summed in SQL, one row each, however many orders and lines it holds.
    */
   private async recentActivity(): Promise<ActivityEventDto[]> {
     const keys = await this.prisma.$queryRaw<{ kind: ActivityEventKind; id: number; at: Date }[]>`
@@ -116,13 +120,17 @@ export class DashboardService {
         (SELECT 'CANCELLATION', o.id, o.cancelled_at FROM orders o WHERE o.cancelled_at IS NOT NULL
           ORDER BY o.cancelled_at DESC, o.id DESC LIMIT ${RECENT})
         UNION ALL
-        (SELECT 'RETURN', r.id, r.created_at FROM returns r
+        (SELECT 'RETURN', r.id, r.created_at FROM returns r WHERE r.customer_return_id IS NULL
           ORDER BY r.created_at DESC, r.id DESC LIMIT ${RECENT})
+        UNION ALL
+        (SELECT 'CUSTOMER_RETURN', cr.id, cr.created_at FROM customer_returns cr
+          ORDER BY cr.created_at DESC, cr.id DESC LIMIT ${RECENT})
         UNION ALL
         (SELECT 'PAYMENT', le.id, le.created_at FROM ledger_entries le WHERE le.type = 'PAYMENT' AND le.source = 'MANUAL'
           ORDER BY le.created_at DESC, le.id DESC LIMIT ${RECENT})
         UNION ALL
-        (SELECT 'REFUND', le.id, le.created_at FROM ledger_entries le WHERE le.type = 'REFUND'
+        (SELECT 'REFUND', le.id, le.created_at FROM ledger_entries le
+          WHERE le.type = 'REFUND' AND le.customer_return_id IS NULL
           ORDER BY le.created_at DESC, le.id DESC LIMIT ${RECENT})
       ) events
       ORDER BY at DESC, kind ASC, id DESC
@@ -130,7 +138,7 @@ export class DashboardService {
     const idsOf = (...kinds: ActivityEventKind[]): number[] =>
       keys.filter((key) => kinds.includes(key.kind)).map((key) => key.id);
 
-    const [orders, returns, entries] = await Promise.all([
+    const [orders, returns, visits, entries] = await Promise.all([
       this.prisma.order.findMany({
         where: { id: { in: idsOf('HANDOVER', 'CANCELLATION') } },
         include: { customer: true, lines: { select: { quantity: true } } },
@@ -142,6 +150,7 @@ export class DashboardService {
           lines: { select: { acceptedQuantity: true, damagedQuantity: true } },
         },
       }),
+      this.visitTotals(idsOf('CUSTOMER_RETURN')),
       this.prisma.ledgerEntry.findMany({
         where: { id: { in: idsOf('PAYMENT', 'REFUND') } },
         include: { order: { include: { customer: true } }, reversedBy: { select: { id: true } } },
@@ -149,7 +158,11 @@ export class DashboardService {
     ]);
     const orderById = new Map(orders.map((order) => [order.id, order]));
     const returnById = new Map(returns.map((pr) => [pr.id, pr]));
+    const visitById = new Map(visits.map((visit) => [visit.id, visit]));
     const entryById = new Map(entries.map((entry) => [entry.id, entry]));
+    const pallets = (lines: { acceptedQuantity: number; damagedQuantity: number }[]) =>
+      lines.reduce((total, line) => total + line.acceptedQuantity + line.damagedQuantity, 0);
+    const single = { customerReturnId: null, orderCount: null, partlyReversed: false };
 
     return keys.flatMap(({ kind, id, at }): ActivityEventDto[] => {
       if (kind === 'HANDOVER' || kind === 'CANCELLATION') {
@@ -164,6 +177,7 @@ export class DashboardService {
             date: handover ? dbDateToBusiness(order.date) : businessToday(at),
             orderId: order.id,
             orderNumber: order.orderNumber,
+            ...single,
             customer: toCustomerRef(order.customer),
             quantity: handover ? order.lines.reduce((total, line) => total + line.quantity, 0) : null,
             amount: handover ? toSafeMoney(order.depositTotal) : null,
@@ -181,10 +195,37 @@ export class DashboardService {
             date: dbDateToBusiness(pr.date),
             orderId: pr.orderId,
             orderNumber: pr.order.orderNumber,
+            ...single,
             customer: toCustomerRef(pr.order.customer),
-            quantity: pr.lines.reduce((total, line) => total + line.acceptedQuantity + line.damagedQuantity, 0),
+            quantity: pallets(pr.lines),
             amount: toSafeMoney(pr.refundDue),
             reversed: pr.reversedAt !== null,
+          },
+        ];
+      }
+      if (kind === 'CUSTOMER_RETURN') {
+        const visit = visitById.get(id);
+        if (!visit) return [];
+        return [
+          {
+            kind,
+            at: at.toISOString(),
+            date: dbDateToBusiness(visit.date),
+            orderId: null,
+            orderNumber: null,
+            customerReturnId: visit.id,
+            orderCount: visit.orderCount,
+            customer: toCustomerRef({
+              id: visit.customerId,
+              name: visit.name,
+              phone: visit.phone,
+              archivedAt: visit.archivedAt,
+            }),
+            quantity: visit.quantity,
+            // The cash handed back, its receipt's headline: its refunds are not events of their own.
+            amount: fromAggregate(visit.cashRefund),
+            reversed: visit.reversedCount === visit.orderCount,
+            partlyReversed: visit.reversedCount > 0 && visit.reversedCount < visit.orderCount,
           },
         ];
       }
@@ -197,6 +238,7 @@ export class DashboardService {
           date: dbDateToBusiness(entry.date ?? entry.order.date),
           orderId: entry.orderId,
           orderNumber: entry.order.orderNumber,
+          ...single,
           customer: toCustomerRef(entry.order.customer),
           quantity: null,
           amount: toSafeMoney(entry.amount),
@@ -204,5 +246,41 @@ export class DashboardService {
         },
       ];
     });
+  }
+
+  /**
+   * The dashboard's figures of each customer return (Q161), one row each, as recorded — as its receipt says them —
+   * with how many of its returns were reversed since, so the line is flagged partly or wholly reversed as the paper
+   * is stamped; a correction's replacement is its order's own line.
+   */
+  private visitTotals(ids: number[]) {
+    if (ids.length === 0) return Promise.resolve([]);
+    return this.prisma.$queryRaw<
+      {
+        id: number;
+        date: Date;
+        customerId: number;
+        name: string;
+        phone: string;
+        archivedAt: Date | null;
+        orderCount: number;
+        reversedCount: number;
+        quantity: number;
+        cashRefund: SqlAggregate;
+      }[]
+    >`
+      SELECT cr.id, cr.date, c.id AS "customerId", c.name, c.phone, c.archived_at AS "archivedAt",
+             COUNT(*)::int AS "orderCount",
+             COUNT(*) FILTER (WHERE r.reversed_at IS NOT NULL)::int AS "reversedCount",
+             COALESCE(SUM(lines.pallets), 0)::int AS quantity,
+             SUM(r.cash_refund)::bigint AS "cashRefund"
+        FROM customer_returns cr
+        JOIN customers c ON c.id = cr.customer_id
+        JOIN returns r ON r.customer_return_id = cr.id
+        CROSS JOIN LATERAL (
+          SELECT SUM(rl.accepted_quantity + rl.damaged_quantity) AS pallets FROM return_lines rl WHERE rl.return_id = r.id
+        ) lines
+       WHERE cr.id IN (${Prisma.join(ids)})
+       GROUP BY cr.id, c.id`;
   }
 }

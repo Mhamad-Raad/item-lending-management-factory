@@ -69,10 +69,12 @@ export const SNAPSHOT_SPECS: Partial<Record<AuditEntityType, SnapshotSpec>> = {
       'reversedAt',
       'reversalKind',
       'replacedByReturnId',
+      'customerReturnId',
       'createdAt',
     ],
     businessDates: ['date'],
   },
+  CUSTOMER_RETURN: { fields: ['id', 'customerId', 'date', 'createdAt'], businessDates: ['date'] },
   LEDGER_ENTRY: {
     fields: [
       'id',
@@ -83,6 +85,7 @@ export const SNAPSHOT_SPECS: Partial<Record<AuditEntityType, SnapshotSpec>> = {
       'date',
       'isAutomatic',
       'returnId',
+      'customerReturnId',
       'reversesEntryId',
       'note',
       // What a payment's receipt prints as owed before it (Q137), so the paper can be checked against history.

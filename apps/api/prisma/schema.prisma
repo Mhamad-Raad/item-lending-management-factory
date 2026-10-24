@@ -165,6 +165,7 @@ enum AuditEntityType {
   LEDGER_ENTRY
   SETTINGS
   UPLOAD
+  CUSTOMER_RETURN
 
   @@map("audit_entity_type")
 }
@@ -206,6 +207,7 @@ model User {
   ordersCreditOverridden Order[]           @relation("OrderCreditOverrideBy")
   returnsCreated         PalletReturn[]    @relation("ReturnCreatedBy")
   returnsReversed        PalletReturn[]    @relation("ReturnReversedBy")
+  customerReturnsCreated CustomerReturn[]  @relation("CustomerReturnCreatedBy")
   ledgerEntriesCreated   LedgerEntry[]     @relation("LedgerEntryCreatedBy")
 
   @@index([role, isActive])
@@ -410,9 +412,10 @@ model Customer {
   updatedAt        DateTime  @updatedAt @map("updated_at") @db.Timestamptz(3)
   createdByUserId  Int       @map("created_by_user_id")
 
-  archivedBy User?   @relation("CustomerArchivedBy", fields: [archivedByUserId], references: [id], onDelete: Restrict)
-  createdBy  User    @relation("CustomerCreatedBy", fields: [createdByUserId], references: [id])
+  archivedBy User?            @relation("CustomerArchivedBy", fields: [archivedByUserId], references: [id], onDelete: Restrict)
+  createdBy  User             @relation("CustomerCreatedBy", fields: [createdByUserId], references: [id])
   orders     Order[]
+  returns    CustomerReturn[]
 
   @@index([phone])
   @@index([altPhone])
@@ -544,10 +547,13 @@ model PalletReturn {
   reversedByUserId   Int?                @map("reversed_by_user_id")
   reversalKind       ReturnReversalKind? @map("reversal_kind")
   replacedByReturnId Int?                @unique @map("replaced_by_return_id")
+  // The customer's return it was recorded in, one paper for every order it touched (Q161); null on an order's own.
+  customerReturnId   Int?                @map("customer_return_id")
   createdAt          DateTime            @default(now()) @map("created_at") @db.Timestamptz(3)
   createdByUserId    Int                 @map("created_by_user_id")
 
   order          Order           @relation(fields: [orderId], references: [id])
+  customerReturn CustomerReturn? @relation(fields: [customerReturnId], references: [id], onDelete: Restrict)
   reversedBy     User?           @relation("ReturnReversedBy", fields: [reversedByUserId], references: [id], onDelete: Restrict)
   createdBy      User            @relation("ReturnCreatedBy", fields: [createdByUserId], references: [id])
   replacedBy     PalletReturn?   @relation("ReturnReplacement", fields: [replacedByReturnId], references: [id], onDelete: Restrict)
@@ -558,11 +564,32 @@ model PalletReturn {
 
   @@index([orderId])
   @@index([date])
-  // The dashboard's recent activity reads the newest returns (Q62).
-  @@index([createdAt, id])
+  // The dashboard's newest returns outside a customer return: a partial index in constraints.sql (Q62, Q161).
   @@index([reversedByUserId])
+  @@index([customerReturnId])
   @@index([createdByUserId])
   @@map("returns")
+}
+
+// What came back of a customer's pallets on one visit, over the orders it touched (Q161): one return per order points
+// here, and the visit has one receipt and one history row. Append-only (trigger + grants).
+model CustomerReturn {
+  id              Int      @id @default(autoincrement())
+  customerId      Int      @map("customer_id")
+  date            DateTime @db.Date
+  createdAt       DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+  createdByUserId Int      @map("created_by_user_id")
+
+  customer  Customer       @relation(fields: [customerId], references: [id])
+  createdBy User           @relation("CustomerReturnCreatedBy", fields: [createdByUserId], references: [id])
+  returns   PalletReturn[]
+  refunds   LedgerEntry[]
+
+  @@index([customerId])
+  // The dashboard's recent activity reads the newest ones (Q62).
+  @@index([createdAt, id])
+  @@index([createdByUserId])
+  @@map("customer_returns")
 }
 
 model ReturnLine {
@@ -587,31 +614,35 @@ model ReturnLine {
 
 // Append-only. Corrections are reversing rows (reverses_entry_id).
 model LedgerEntry {
-  id              Int               @id @default(autoincrement())
-  orderId         Int               @map("order_id")
-  type            LedgerEntryType
-  source          LedgerEntrySource
-  amount          BigInt
-  date            DateTime?         @db.Date
-  isAutomatic     Boolean           @default(false) @map("is_automatic")
-  returnId        Int?              @map("return_id")
-  reversesEntryId Int?              @unique @map("reverses_entry_id")
-  note            String?           @db.VarChar(500)
+  id               Int               @id @default(autoincrement())
+  orderId          Int               @map("order_id")
+  type             LedgerEntryType
+  source           LedgerEntrySource
+  amount           BigInt
+  date             DateTime?         @db.Date
+  isAutomatic      Boolean           @default(false) @map("is_automatic")
+  returnId         Int?              @map("return_id")
+  reversesEntryId  Int?              @unique @map("reverses_entry_id")
+  note             String?           @db.VarChar(500)
   // A payment's alone: what the order owed just before it, for its receipt (Q137).
-  owedBefore      BigInt?           @map("owed_before")
-  createdAt       DateTime          @default(now()) @map("created_at") @db.Timestamptz(3)
-  createdByUserId Int               @map("created_by_user_id")
+  owedBefore       BigInt?           @map("owed_before")
+  // A refund's alone: its return's customer return, written by a trigger, so the visit is read from the row (Q161).
+  customerReturnId Int?              @map("customer_return_id")
+  createdAt        DateTime          @default(now()) @map("created_at") @db.Timestamptz(3)
+  createdByUserId  Int               @map("created_by_user_id")
 
-  order      Order         @relation(fields: [orderId], references: [id])
-  return     PalletReturn? @relation(fields: [returnId], references: [id], onDelete: Restrict)
-  reverses   LedgerEntry?  @relation("LedgerReversal", fields: [reversesEntryId], references: [id], onDelete: Restrict)
-  reversedBy LedgerEntry?  @relation("LedgerReversal")
-  createdBy  User          @relation("LedgerEntryCreatedBy", fields: [createdByUserId], references: [id])
+  order          Order           @relation(fields: [orderId], references: [id])
+  return         PalletReturn?   @relation(fields: [returnId], references: [id], onDelete: Restrict)
+  customerReturn CustomerReturn? @relation(fields: [customerReturnId], references: [id], onDelete: Restrict)
+  reverses       LedgerEntry?    @relation("LedgerReversal", fields: [reversesEntryId], references: [id], onDelete: Restrict)
+  reversedBy     LedgerEntry?    @relation("LedgerReversal")
+  createdBy      User            @relation("LedgerEntryCreatedBy", fields: [createdByUserId], references: [id])
 
   @@index([orderId])
   @@index([type, date])
   @@index([date, id])
   @@index([returnId])
+  // customerReturnId: a partial index in constraints.sql, of the few rows that carry one (Q161).
   @@index([createdByUserId])
   @@map("ledger_entries")
 }

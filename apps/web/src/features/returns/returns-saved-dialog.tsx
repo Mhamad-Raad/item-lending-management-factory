@@ -13,11 +13,13 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog';
 import { orderLabel } from '@/features/orders/order-text';
-import { printMoneyReceipt } from '@/features/receipt/print-receipt';
+import { printCustomerReturnReceipt, printMoneyReceipt } from '@/features/receipt/print-receipt';
 
 /**
- * What a customer return paid out (Q156): a row per order's return, and for each that handed cash back its refund's
- * receipt one press away, for the customer to sign for (Q137). Shown only when cash went out; closing goes on.
+ * What a customer return paid out (Q156): a row per order's return, and its receipt one press away for the customer to
+ * sign for — one paper for a return over several orders (Q161), the order's own for a return on one (Q137); a result
+ * without a visit (one order, or replayed from before Q161) prints each refund's own. Shown only when cash went out;
+ * closing goes on.
  */
 export function ReturnsSavedDialog({
   result,
@@ -29,8 +31,10 @@ export function ReturnsSavedDialog({
   onClose: () => void;
 }) {
   const { t } = useTranslation();
-  const firstPrint = useRef<HTMLButtonElement>(null);
+  const print = useRef<HTMLButtonElement>(null);
   const cash = result.returns.reduce((total, entry) => total + entry.cashRefund, 0);
+  // Read with `??`: a result stored before Q161 and replayed for its key has no such field.
+  const visit = result.customerReturnId ?? null;
   const firstRefund = result.returns.find((entry) => entry.refundEntryId !== null)?.returnId;
 
   return (
@@ -41,7 +45,7 @@ export function ReturnsSavedDialog({
         // The receipt is what is wanted next, while the customer is still there.
         onOpenAutoFocus={(event) => {
           event.preventDefault();
-          firstPrint.current?.focus();
+          print.current?.focus();
         }}
         // Closed on purpose only: a press beside it while the money is handed over must not take the receipts away.
         onPointerDownOutside={(event) => event.preventDefault()}
@@ -75,14 +79,16 @@ export function ReturnsSavedDialog({
                 ) : (
                   <div className="flex items-center gap-3">
                     <MoneyText value={entry.cashRefund} className="font-semibold" />
-                    <Button
-                      ref={entry.returnId === firstRefund ? firstPrint : undefined}
-                      size="sm"
-                      onClick={() => printMoneyReceipt(refundEntryId)}
-                    >
-                      <Printer aria-hidden />
-                      {t('orders.money.printReceipt')}
-                    </Button>
+                    {visit === null ? (
+                      <Button
+                        ref={entry.returnId === firstRefund ? print : undefined}
+                        size="sm"
+                        onClick={() => printMoneyReceipt(refundEntryId)}
+                      >
+                        <Printer aria-hidden />
+                        {t('orders.money.printReceipt')}
+                      </Button>
+                    ) : null}
                   </div>
                 )}
               </li>
@@ -96,6 +102,12 @@ export function ReturnsSavedDialog({
           <Button variant="outline" onClick={onClose}>
             {t('common.actions.close')}
           </Button>
+          {visit !== null ? (
+            <Button ref={print} onClick={() => printCustomerReturnReceipt(visit)}>
+              <Printer aria-hidden />
+              {t('orders.money.printReceipt')}
+            </Button>
+          ) : null}
         </DialogFooter>
       </DialogContent>
     </Dialog>

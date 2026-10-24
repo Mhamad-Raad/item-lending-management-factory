@@ -23,7 +23,10 @@ import { Badge } from '@/components/ui/badge';
 import { orderLabel } from '@/features/orders/order-text';
 import { PaymentTypeText } from '@/features/orders/payment-type-text';
 import { RelatedOrders } from '@/features/orders/related-orders';
-import { PrintMoneyReceiptButton } from '@/features/receipt/print-money-receipt-button';
+import {
+  PrintCustomerReturnReceiptButton,
+  PrintMoneyReceiptButton,
+} from '@/features/receipt/print-money-receipt-button';
 import { apiFetch } from '@/lib/api-client';
 import { qk } from '@/lib/query-keys';
 import { cn } from '@/lib/utils';
@@ -78,8 +81,14 @@ export function CustomerLedgerTab({ customerId, types }: { customerId: number; t
       align: 'end',
       // A payment or a refund prints its receipt again, as it was (Q137).
       mobile: 'actions',
-      // Null on a reversal row, so its card shows no empty "Actions" (Q66).
-      cell: (entry) => (hasMoneyReceipt(entry.type) ? <PrintMoneyReceiptButton entry={entry} /> : null),
+      // Null on a reversal row, so its card shows no empty "Actions" (Q66). A customer return's refund prints the
+      // visit's one paper, the one the customer was given (Q161); its order's page prints that order's part.
+      cell: (entry) =>
+        !hasMoneyReceipt(entry.type) ? null : entry.customerReturnId !== null ? (
+          <PrintCustomerReturnReceiptButton customerReturnId={entry.customerReturnId} />
+        ) : (
+          <PrintMoneyReceiptButton entry={entry} />
+        ),
     },
   ];
 

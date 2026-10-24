@@ -62,6 +62,6 @@ export function withoutHoldingMoney({
 }
 
 /** How another record names a customer, archived or not. */
-export function toCustomerRef(customer: Customer): CustomerRefDto {
+export function toCustomerRef(customer: Pick<Customer, 'id' | 'name' | 'phone' | 'archivedAt'>): CustomerRefDto {
   return { id: customer.id, name: customer.name, phone: customer.phone, archived: customer.archivedAt !== null };
 }

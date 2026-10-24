@@ -25,6 +25,7 @@ const TABLES = [
   'refresh_tokens',
   'return_lines',
   'returns',
+  'customer_returns',
   'session_families',
   'stock_movements',
   'uploads',

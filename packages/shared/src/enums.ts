@@ -105,12 +105,23 @@ export const AUDIT_ENTITY_TYPES = [
   'LEDGER_ENTRY',
   'SETTINGS',
   'UPLOAD',
+  'CUSTOMER_RETURN',
 ] as const;
 export const AuditEntityType = enumOf(AUDIT_ENTITY_TYPES);
 export type AuditEntityType = (typeof AUDIT_ENTITY_TYPES)[number];
 
-/** The dashboard's recent activity events (§6.9 `ActivityEventDto`); a reversal is flagged, not a kind. */
-export const ACTIVITY_EVENT_KINDS = ['HANDOVER', 'CANCELLATION', 'RETURN', 'PAYMENT', 'REFUND'] as const;
+/**
+ * The dashboard's recent activity events (§6.9 `ActivityEventDto`); a reversal is flagged, not a kind. A customer's
+ * return over several orders is one event (Q161), its orders' returns and refunds none of their own.
+ */
+export const ACTIVITY_EVENT_KINDS = [
+  'HANDOVER',
+  'CANCELLATION',
+  'RETURN',
+  'PAYMENT',
+  'REFUND',
+  'CUSTOMER_RETURN',
+] as const;
 export type ActivityEventKind = (typeof ACTIVITY_EVENT_KINDS)[number];
 
 /** The entries of a customer's history timeline (§6.9 `CustomerHistoryItemDto`), and its `kinds` filter. */

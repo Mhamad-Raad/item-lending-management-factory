@@ -41,6 +41,7 @@ import { Route as AppItemsItemIdIndexRouteImport } from './routes/_app/items/$it
 import { Route as AppItemsItemIdEditRouteImport } from './routes/_app/items/$itemId/edit'
 import { Route as AppOrdersOrderIdIndexRouteImport } from './routes/_app/orders/$orderId/index'
 import { Route as AppOrdersOrderIdEditRouteImport } from './routes/_app/orders/$orderId/edit'
+import { Route as PrintPrintCustomerReturnsCustomerReturnIdRouteImport } from './routes/_print/print/customer-returns/$customerReturnId'
 import { Route as PrintPrintLedgerEntryIdRouteImport } from './routes/_print/print/ledger/$entryId'
 import { Route as PrintPrintOrdersOrderIdRouteImport } from './routes/_print/print/orders/$orderId'
 import { Route as PrintPrintTransactionsOrderIdRouteImport } from './routes/_print/print/transactions/$orderId'
@@ -205,6 +206,12 @@ const AppOrdersOrderIdEditRoute = AppOrdersOrderIdEditRouteImport.update({
   path: '/orders/$orderId/edit',
   getParentRoute: () => AppRoute,
 } as any)
+const PrintPrintCustomerReturnsCustomerReturnIdRoute =
+  PrintPrintCustomerReturnsCustomerReturnIdRouteImport.update({
+    id: '/print/customer-returns/$customerReturnId',
+    path: '/print/customer-returns/$customerReturnId',
+    getParentRoute: () => PrintRoute,
+  } as any)
 const PrintPrintLedgerEntryIdRoute = PrintPrintLedgerEntryIdRouteImport.update({
   id: '/print/ledger/$entryId',
   path: '/print/ledger/$entryId',
@@ -250,6 +257,7 @@ export interface FileRoutesByFullPath {
   '/customers/$customerId/edit': typeof AppCustomersCustomerIdEditRoute
   '/items/$itemId/edit': typeof AppItemsItemIdEditRoute
   '/orders/$orderId/edit': typeof AppOrdersOrderIdEditRoute
+  '/print/customer-returns/$customerReturnId': typeof PrintPrintCustomerReturnsCustomerReturnIdRoute
   '/print/ledger/$entryId': typeof PrintPrintLedgerEntryIdRoute
   '/print/orders/$orderId': typeof PrintPrintOrdersOrderIdRoute
   '/print/transactions/$orderId': typeof PrintPrintTransactionsOrderIdRoute
@@ -285,6 +293,7 @@ export interface FileRoutesByTo {
   '/customers/$customerId/edit': typeof AppCustomersCustomerIdEditRoute
   '/items/$itemId/edit': typeof AppItemsItemIdEditRoute
   '/orders/$orderId/edit': typeof AppOrdersOrderIdEditRoute
+  '/print/customer-returns/$customerReturnId': typeof PrintPrintCustomerReturnsCustomerReturnIdRoute
   '/print/ledger/$entryId': typeof PrintPrintLedgerEntryIdRoute
   '/print/orders/$orderId': typeof PrintPrintOrdersOrderIdRoute
   '/print/transactions/$orderId': typeof PrintPrintTransactionsOrderIdRoute
@@ -323,6 +332,7 @@ export interface FileRoutesById {
   '/_app/customers/$customerId/edit': typeof AppCustomersCustomerIdEditRoute
   '/_app/items/$itemId/edit': typeof AppItemsItemIdEditRoute
   '/_app/orders/$orderId/edit': typeof AppOrdersOrderIdEditRoute
+  '/_print/print/customer-returns/$customerReturnId': typeof PrintPrintCustomerReturnsCustomerReturnIdRoute
   '/_print/print/ledger/$entryId': typeof PrintPrintLedgerEntryIdRoute
   '/_print/print/orders/$orderId': typeof PrintPrintOrdersOrderIdRoute
   '/_print/print/transactions/$orderId': typeof PrintPrintTransactionsOrderIdRoute
@@ -360,6 +370,7 @@ export interface FileRouteTypes {
     | '/customers/$customerId/edit'
     | '/items/$itemId/edit'
     | '/orders/$orderId/edit'
+    | '/print/customer-returns/$customerReturnId'
     | '/print/ledger/$entryId'
     | '/print/orders/$orderId'
     | '/print/transactions/$orderId'
@@ -395,6 +406,7 @@ export interface FileRouteTypes {
     | '/customers/$customerId/edit'
     | '/items/$itemId/edit'
     | '/orders/$orderId/edit'
+    | '/print/customer-returns/$customerReturnId'
     | '/print/ledger/$entryId'
     | '/print/orders/$orderId'
     | '/print/transactions/$orderId'
@@ -432,6 +444,7 @@ export interface FileRouteTypes {
     | '/_app/customers/$customerId/edit'
     | '/_app/items/$itemId/edit'
     | '/_app/orders/$orderId/edit'
+    | '/_print/print/customer-returns/$customerReturnId'
     | '/_print/print/ledger/$entryId'
     | '/_print/print/orders/$orderId'
     | '/_print/print/transactions/$orderId'
@@ -673,6 +686,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AppOrdersOrderIdEditRouteImport
       parentRoute: typeof AppRoute
     }
+    '/_print/print/customer-returns/$customerReturnId': {
+      id: '/_print/print/customer-returns/$customerReturnId'
+      path: '/print/customer-returns/$customerReturnId'
+      fullPath: '/print/customer-returns/$customerReturnId'
+      preLoaderRoute: typeof PrintPrintCustomerReturnsCustomerReturnIdRouteImport
+      parentRoute: typeof PrintRoute
+    }
     '/_print/print/ledger/$entryId': {
       id: '/_print/print/ledger/$entryId'
       path: '/print/ledger/$entryId'
@@ -762,12 +782,15 @@ const AppRouteChildren: AppRouteChildren = {
 const AppRouteWithChildren = AppRoute._addFileChildren(AppRouteChildren)
 
 interface PrintRouteChildren {
+  PrintPrintCustomerReturnsCustomerReturnIdRoute: typeof PrintPrintCustomerReturnsCustomerReturnIdRoute
   PrintPrintLedgerEntryIdRoute: typeof PrintPrintLedgerEntryIdRoute
   PrintPrintOrdersOrderIdRoute: typeof PrintPrintOrdersOrderIdRoute
   PrintPrintTransactionsOrderIdRoute: typeof PrintPrintTransactionsOrderIdRoute
 }
 
 const PrintRouteChildren: PrintRouteChildren = {
+  PrintPrintCustomerReturnsCustomerReturnIdRoute:
+    PrintPrintCustomerReturnsCustomerReturnIdRoute,
   PrintPrintLedgerEntryIdRoute: PrintPrintLedgerEntryIdRoute,
   PrintPrintOrdersOrderIdRoute: PrintPrintOrdersOrderIdRoute,
   PrintPrintTransactionsOrderIdRoute: PrintPrintTransactionsOrderIdRoute,

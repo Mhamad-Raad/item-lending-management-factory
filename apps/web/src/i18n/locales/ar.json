@@ -200,7 +200,9 @@
     },
     "recent": {
       "title": "آخر النشاطات",
-      "empty": "لم يُسجَّل شيء بعد"
+      "empty": "لم يُسجَّل شيء بعد",
+      "orders": "الطلبات: {{orders}}",
+      "partlyReversed": "معكوس جزئياً"
     }
   },
   "account": {
@@ -353,7 +355,8 @@
       "RETURN": "إرجاع",
       "LEDGER_ENTRY": "قيد مالي",
       "SETTINGS": "الإعدادات",
-      "UPLOAD": "صورة"
+      "UPLOAD": "صورة",
+      "CUSTOMER_RETURN": "إرجاع الزبون"
     },
     "uploadKind": {
       "ITEM_IMAGE": "صورة صنف",
@@ -401,7 +404,8 @@
       "CANCELLATION": "إلغاء",
       "RETURN": "إرجاع",
       "PAYMENT": "دفعة",
-      "REFUND": "استرداد"
+      "REFUND": "استرداد",
+      "CUSTOMER_RETURN": "إرجاع الزبون"
     },
     "customerHistoryKind": {
       "HANDOVER": "تسليم",
@@ -471,6 +475,9 @@
         "RETURN_CREATE": "إرجاع على الطلب #{{orderNumber}}: {{accepted}} مقبولة، {{damaged}} تالفة، رصيد {{refundDue}}، استرداد نقدي {{cashRefund}}",
         "RETURN_EDIT": "صُحّح إرجاع الطلب #{{orderNumber}}؛ حلّ محله الإرجاع #{{newReturnId}}",
         "RETURN_DELETE": "حُذف إرجاع الطلب #{{orderNumber}}"
+      },
+      "CUSTOMER_RETURN": {
+        "RETURN_CREATE": "إرجاع {{customerName}} (الطلبات: {{orders}}): {{accepted}} مقبولة، {{damaged}} تالفة، رصيد {{refundDue}}، استرداد نقدي {{cashRefund}}"
       }
     }
   },
@@ -635,7 +642,9 @@
     "NETWORK_ERROR": "لا يوجد اتصال بالخادم. تحقق من الاتصال وحاول مرة أخرى.",
     "REQUEST_TIMEOUT": "لم يستجب الخادم في الوقت المحدد. إذا كنت تحفظ تغييراً فربما حُفظ: أعد تحميل الصفحة للتحقق قبل المحاولة مجدداً.",
     "UNKNOWN_ERROR": "حدث خطأ ما. حاول مرة أخرى.",
-    "ORDER_LINE_HAS_RETURNS": "لهذا السطر مرتجعات في سجله ولا يمكن حذفه؛ خفّض كميته بدلاً من ذلك"
+    "ORDER_LINE_HAS_RETURNS": "لهذا السطر مرتجعات في سجله ولا يمكن حذفه؛ خفّض كميته بدلاً من ذلك",
+    "CUSTOMER_RETURN_NOT_FOUND": "إرجاع الزبون غير موجود",
+    "CUSTOMER_RETURN_NO_RECEIPT": "لم يُدفع أي مبلغ نقدي في هذا الإرجاع، فلا إيصال له"
   },
   "settings": {
     "title": "الإعدادات",
@@ -1039,7 +1048,8 @@
       "createdBy": "بواسطة",
       "reverses": "يعكس #{{id}}",
       "printReceipt": "طباعة الإيصال المالي",
-      "printAll": "طباعة الكل"
+      "printAll": "طباعة الكل",
+      "printCombined": "طباعة الإيصال المجمّع للإرجاع"
     },
     "cancel": {
       "confirmTitle": "إلغاء الطلب {{orderNumber}}؟",
@@ -1116,7 +1126,9 @@
       "note": "ملاحظة",
       "atHandover": "عند التسليم، نقداً",
       "recordedBy": "سجّله",
-      "reversed": "أُلغي في {{date}}"
+      "reversed": "أُلغي في {{date}}",
+      "customerReceiptNumber": "رقم إيصال الإرجاع",
+      "partlyReversed": "أُلغي جزء منه في {{date}}"
     },
     "transactions": {
       "pageTitle": "كشف المعاملات",

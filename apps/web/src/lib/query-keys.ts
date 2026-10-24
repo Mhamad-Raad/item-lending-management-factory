@@ -44,6 +44,8 @@ export const qk = {
   ledger: {
     all: () => ['ledger'] as const,
     receipt: (id: number) => ['ledger', 'receipt', id] as const,
+    /** A customer return's one receipt over its orders (Q161). */
+    customerReturnReceipt: (id: number) => ['ledger', 'customer-return-receipt', id] as const,
   },
   drivers: {
     all: () => ['drivers'] as const,

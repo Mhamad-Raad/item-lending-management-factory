@@ -8,6 +8,7 @@ import {
   hasMoneyReceipt,
   RECEIPT_LEDGER_ENTRY_TYPES,
   RECEIPT_LINES_PER_HALF,
+  type CustomerReturnReceiptDto,
   type LedgerEntryDto,
   type LedgerEntryListQuery,
   type MoneyReceiptDto,
@@ -151,6 +152,51 @@ export class LedgerService {
       },
       factory,
       customer: { name: order.customer.name, phone: order.customer.phone, address: order.customer.address },
+    };
+  }
+
+  /**
+   * The one paper of a customer's return over several orders (Q161): the money receipt's figures summed over its
+   * orders' returns as they were recorded, so a reprint says what the original said. A visit that paid nothing back
+   * has no receipt, as a return without a refund has none (Q137). A return of it corrected or deleted since leaves
+   * the figures and stamps the paper with the latest day one was.
+   */
+  async customerReturnReceipt(customerReturnId: number): Promise<CustomerReturnReceiptDto> {
+    const [visit, factory] = await Promise.all([
+      this.prisma.customerReturn.findUnique({
+        where: { id: customerReturnId },
+        include: { customer: true, createdBy: USER_REF_SELECT, returns: { orderBy: { id: 'asc' } } },
+      }),
+      loadReceiptFactory(this.prisma),
+    ]);
+    if (!visit) throw new ApiError('CUSTOMER_RETURN_NOT_FOUND', { customerReturnId });
+    const { returns } = visit;
+    const sum = (pick: (pr: (typeof returns)[number]) => bigint) =>
+      returns.reduce((total, pr) => total + toSafeMoney(pick(pr)), 0);
+    const amount = sum((pr) => pr.cashRefund);
+    if (amount === 0) throw new ApiError('CUSTOMER_RETURN_NO_RECEIPT', { customerReturnId });
+
+    const owedBefore = sum((pr) => pr.owedBefore);
+    const credit = sum((pr) => pr.refundDue);
+    const reversals = returns.flatMap((pr) => (pr.reversedAt ? [businessToday(pr.reversedAt)] : []));
+    return {
+      customerReturnId: visit.id,
+      receiptNumberDisplay: formatOrderNumber(visit.id),
+      date: dbDateToBusiness(visit.date),
+      printedOn: businessToday(this.clock.now()),
+      owedBefore,
+      credit,
+      amount,
+      // Each order owed max(0, before − credit) after its return (§4.3), and its cash was the rest: Σ after is this.
+      owedAfter: owedBefore - credit + amount,
+      // One note for the visit, written on each of its returns.
+      note: returns[0]?.notes ?? null,
+      recordedBy: toUserRef(visit.createdBy),
+      // ISO dates sort as text.
+      reversedOn: reversals.sort().at(-1) ?? null,
+      allReversed: reversals.length === returns.length,
+      factory,
+      customer: { name: visit.customer.name, phone: visit.customer.phone, address: visit.customer.address },
     };
   }
 

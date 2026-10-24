@@ -29,6 +29,7 @@ const NUMBER_PARAMS: Record<string, (value: number) => string> = {
   initialQuantity: formatNumber,
   accepted: formatNumber,
   damaged: formatNumber,
+  orders: formatNumber,
 };
 
 export function translateSummaryParams(t: TFunction, params: Record<string, unknown>): Record<string, unknown> {

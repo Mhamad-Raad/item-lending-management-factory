@@ -37,6 +37,7 @@ export function toLedgerEntryDto(entry: LedgerEntryRow, order: LedgerOrderContex
     effectiveDate: dbDateToBusiness(entry.date ?? order.date),
     isAutomatic: entry.isAutomatic,
     returnId: entry.returnId,
+    customerReturnId: entry.customerReturnId,
     reversesEntryId: entry.reversesEntryId,
     reversedByEntryId: entry.reversedBy?.id ?? null,
     isReversed,

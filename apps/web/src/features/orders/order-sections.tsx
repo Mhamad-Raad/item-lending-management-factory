@@ -14,7 +14,10 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Tip } from '@/components/app/tip';
 import { printTransactionsReceipt } from '@/features/receipt/print-receipt';
-import { PrintMoneyReceiptButton } from '@/features/receipt/print-money-receipt-button';
+import {
+  PrintCustomerReturnReceiptButton,
+  PrintMoneyReceiptButton,
+} from '@/features/receipt/print-money-receipt-button';
 import { scrollToAnchor } from '@/lib/scroll-to-anchor';
 import { cn } from '@/lib/utils';
 import { ActorName } from '@/components/app/actor-name';
@@ -410,6 +413,8 @@ export function OrderMoney({
         !hasMoneyReceipt(entry.type) && !(onDeletePayment && entry.canReverse) ? null : (
           <div className="flex items-center justify-end gap-1">
             <PrintMoneyReceiptButton entry={entry} />
+            {/* This order's part prints above; the visit's one paper over all its orders, beside it (Q161). */}
+            <PrintCustomerReturnReceiptButton customerReturnId={entry.customerReturnId} />
             {onDeletePayment && entry.canReverse ? (
               <Button variant="outline" size="sm" onClick={() => onDeletePayment(entry)}>
                 <Trash2 aria-hidden />

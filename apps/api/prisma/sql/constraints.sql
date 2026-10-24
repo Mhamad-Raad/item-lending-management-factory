@@ -176,7 +176,10 @@ ALTER TABLE ledger_entries
   -- Q137 (migration 20261012000000_payment_owed_before): a payment keeps what the order owed before it; the
   -- payments recorded before the column have NULL (the ledger is never rewritten), every later one a figure.
   ADD CONSTRAINT ledger_entries_owed_before_check
-    CHECK ((type = 'PAYMENT' OR owed_before IS NULL) AND (owed_before IS NULL OR owed_before >= amount));
+    CHECK ((type = 'PAYMENT' OR owed_before IS NULL) AND (owed_before IS NULL OR owed_before >= amount)),
+  -- Q161 (migration 20261024000100_customer_return_activity): only a refund carries a customer return.
+  ADD CONSTRAINT ledger_entries_customer_return_refund_check
+    CHECK (customer_return_id IS NULL OR type = 'REFUND');
 
 -- ─── idempotency ────────────────────────────────────────────────────────────────────────
 ALTER TABLE idempotency_keys
@@ -206,6 +209,9 @@ CREATE TRIGGER forbid_update_delete BEFORE UPDATE OR DELETE ON ledger_entries
   FOR EACH ROW EXECUTE FUNCTION forbid_update_delete();
 CREATE TRIGGER forbid_update_delete BEFORE UPDATE OR DELETE ON return_lines
   FOR EACH ROW EXECUTE FUNCTION forbid_update_delete();
+-- A customer's return, the visit its orders' returns point to (Q161).
+CREATE TRIGGER forbid_update_delete BEFORE UPDATE OR DELETE ON customer_returns
+  FOR EACH ROW EXECUTE FUNCTION forbid_update_delete();
 
 -- Returns are never deleted.
 CREATE TRIGGER forbid_delete BEFORE DELETE ON returns
@@ -222,10 +228,10 @@ BEGIN
     RAISE EXCEPTION 'an UPDATE on returns must set reversed_at' USING ERRCODE = 'check_violation';
   END IF;
   IF (NEW.id, NEW.order_id, NEW.date, NEW.notes, NEW.refund_due, NEW.owed_before, NEW.cash_refund,
-      NEW.created_at, NEW.created_by_user_id)
+      NEW.customer_return_id, NEW.created_at, NEW.created_by_user_id)
      IS DISTINCT FROM
      (OLD.id, OLD.order_id, OLD.date, OLD.notes, OLD.refund_due, OLD.owed_before, OLD.cash_refund,
-      OLD.created_at, OLD.created_by_user_id) THEN
+      OLD.customer_return_id, OLD.created_at, OLD.created_by_user_id) THEN
     RAISE EXCEPTION 'only reversal columns of returns may be updated' USING ERRCODE = 'check_violation';
   END IF;
   RETURN NEW;
@@ -260,6 +266,21 @@ $$;
 CREATE TRIGGER ledger_reversal_matches_original BEFORE INSERT ON ledger_entries
   FOR EACH ROW EXECUTE FUNCTION ledger_reversal_matches_original();
 
+-- Ledger: a refund carries its return's customer return (Q161), written by the database with the row whatever the
+-- writer sent, never changed.
+CREATE OR REPLACE FUNCTION ledger_refund_customer_return() RETURNS trigger
+LANGUAGE plpgsql AS $$
+BEGIN
+  IF NEW.type = 'REFUND' THEN
+    NEW.customer_return_id := (SELECT r.customer_return_id FROM returns r WHERE r.id = NEW.return_id);
+  END IF;
+  RETURN NEW;
+END;
+$$;
+
+CREATE TRIGGER ledger_refund_customer_return BEFORE INSERT ON ledger_entries
+  FOR EACH ROW EXECUTE FUNCTION ledger_refund_customer_return();
+
 -- ═══════════════════════════════════════════════════════════════════════════════════════
 -- Partial and covering indexes (Q62, migration 20260917000000_open_order_totals)
 -- Totals over years of history read only what is still standing; the dashboard reads the newest events.
@@ -279,8 +300,15 @@ CREATE INDEX order_lines_damaged_idx
 CREATE INDEX orders_cancelled_at_id_idx ON orders (cancelled_at, id) WHERE cancelled_at IS NOT NULL;
 CREATE INDEX ledger_entries_manual_payments_created_at_id_idx
   ON ledger_entries (created_at, id) WHERE type = 'PAYMENT' AND source = 'MANUAL';
-CREATE INDEX ledger_entries_refunds_created_at_id_idx
-  ON ledger_entries (created_at, id) WHERE type = 'REFUND';
+-- A refund's customer return, of the few ledger rows that carry one (Q161, the foreign key's index).
+CREATE INDEX ledger_entries_customer_return_id_idx
+  ON ledger_entries (customer_return_id) WHERE customer_return_id IS NOT NULL;
+-- The returns and refunds outside a customer return, newest first (Q161, migration
+-- 20261024000100_customer_return_activity, which replaced Q62's indexes of every refund and every return).
+CREATE INDEX ledger_entries_refunds_outside_visit_created_at_id_idx
+  ON ledger_entries (created_at, id) WHERE type = 'REFUND' AND customer_return_id IS NULL;
+CREATE INDEX returns_outside_visit_created_at_id_idx
+  ON returns (created_at, id) WHERE customer_return_id IS NULL;
 
 -- An item's ledger page and its balances, index-only (Q102, migration 20260928000300_stock_movements_item_ledger).
 -- The predicate always holds; it keeps the index partial, which Prisma's schema diff leaves alone.

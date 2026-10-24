@@ -23,6 +23,7 @@ describe('visibleAuditEntityTypes (Q73)', () => {
       'LEDGER_ENTRY',
       'SETTINGS',
       'UPLOAD',
+      'CUSTOMER_RETURN',
     ]);
   });
 

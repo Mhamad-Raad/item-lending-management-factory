@@ -412,6 +412,11 @@ export interface CustomerReturnRecordedDto {
 
 /** What `POST /customers/:customerId/returns` recorded: a return per order, by order number (Q156). */
 export interface CustomerReturnResultDto {
+  /**
+   * The visit the returns belong to when they are over two orders or more, whose receipt is one paper for all of them;
+   * null for a return on one order, which is that order's own (Q161).
+   */
+  customerReturnId: number | null;
   customer: CustomerRefDto;
   returns: CustomerReturnRecordedDto[];
 }
@@ -436,6 +441,8 @@ export interface LedgerEntryDto {
   effectiveDate: string;
   isAutomatic: boolean;
   returnId: number | null;
+  /** A refund's customer return, whose receipt covers every order it touched (Q161); null on every other row. */
+  customerReturnId: number | null;
   reversesEntryId: number | null;
   reversedByEntryId: number | null;
   isReversed: boolean;
@@ -585,6 +592,35 @@ export interface MoneyReceiptDto {
   customer: { name: string; phone: string; address: string };
 }
 
+/**
+ * The receipt of a customer's return over several orders (Q161): one paper for the visit, in the money receipt's
+ * design, without an order. Its figures are the sums of its orders' returns as they were recorded; a later
+ * correction of one of them leaves them as they were and stamps the paper.
+ */
+export interface CustomerReturnReceiptDto {
+  customerReturnId: number;
+  /** The customer return's id, zero-padded to six digits: a numbering of its own (Q161). */
+  receiptNumberDisplay: string;
+  date: string;
+  printedOn: string;
+  /** Σ what each order owed just before its return. */
+  owedBefore: number;
+  /** Σ what the returned pallets were credited (each return's `refundDue`). */
+  credit: number;
+  /** Σ the cash paid back. */
+  amount: number;
+  /** Σ what each order still owed after its return. */
+  owedAfter: number;
+  note: string | null;
+  recordedBy: UserRefDto;
+  /** The latest day one of its returns was corrected or deleted; null while all stand. */
+  reversedOn: string | null;
+  /** Every one of its returns was corrected or deleted (the stamp says reversed, not partly). */
+  allReversed: boolean;
+  factory: ReceiptFactoryDto;
+  customer: { name: string; phone: string; address: string };
+}
+
 /** One payment or refund on an order's transactions receipt (Q139). */
 export interface TransactionsReceiptRowDto {
   ledgerEntryId: number;
@@ -636,15 +672,24 @@ export interface ActivityEventDto {
   at: string;
   /** Its business date. */
   date: string;
-  orderId: number;
-  orderNumber: number;
+  /** Null for a CUSTOMER_RETURN, which is over several orders (Q161). */
+  orderId: number | null;
+  orderNumber: number | null;
+  /** CUSTOMER_RETURN: its id and how many orders it touched; otherwise null. */
+  customerReturnId: number | null;
+  orderCount: number | null;
   customer: CustomerRefDto;
-  /** HANDOVER: Σ line quantity; RETURN: accepted + damaged; otherwise null. */
+  /** HANDOVER: Σ line quantity; RETURN, CUSTOMER_RETURN: accepted + damaged (a visit's as recorded); otherwise null. */
   quantity: number | null;
-  /** HANDOVER: deposit total; RETURN: refund due; PAYMENT / REFUND: amount; CANCELLATION: null. */
+  /**
+   * HANDOVER: deposit total; RETURN: refund due; CUSTOMER_RETURN: the cash handed back, its receipt's headline (its
+   * refunds are not events of their own, Q161); PAYMENT / REFUND: amount; CANCELLATION: null.
+   */
   amount: number | null;
-  /** RETURN: the return is reversed; PAYMENT / REFUND: the row is reversed; otherwise false. */
+  /** RETURN: the return is reversed; CUSTOMER_RETURN: all its returns are; PAYMENT / REFUND: the row is. */
   reversed: boolean;
+  /** CUSTOMER_RETURN: some of its returns are reversed, not all (Q161); otherwise false. */
+  partlyReversed: boolean;
 }
 
 /** Each section is present only for a viewer allowed to see it (§6.22, Q12). */

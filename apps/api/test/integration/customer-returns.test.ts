@@ -2,11 +2,15 @@ import { randomUUID } from 'node:crypto';
 import type { INestApplication } from '@nestjs/common';
 import type {
   CustomerDto,
+  CustomerReturnReceiptDto,
   CustomerReturnResultDto,
+  DashboardDto,
   CustomerReturnableDto,
   DriverDto,
   ItemDto,
+  LedgerEntryDto,
   OrderDetailDto,
+  PageDto,
 } from '@pallet/shared';
 import request from 'supertest';
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
@@ -88,8 +92,15 @@ describe('a customer return across their orders (Q156)', () => {
     returns: await prisma.palletReturn.count(),
     movements: await prisma.stockMovement.count({ where: { returnId: { not: null } } }),
     refunds: await prisma.ledgerEntry.count({ where: { type: 'REFUND' } }),
+    visits: await prisma.customerReturn.count(),
     audit: await prisma.auditLog.count({ where: { action: 'RETURN_CREATE' } }),
   });
+
+  /** The visit a customer return over two orders or more was recorded in (Q161). */
+  const visitOf = (result: CustomerReturnResultDto): number => {
+    if (result.customerReturnId === null) throw new Error('expected a customer return over several orders');
+    return result.customerReturnId;
+  };
 
   it('lists the pallets still out on the open orders, oldest order first, and nothing else', async () => {
     const first = await order('LENT', [
@@ -201,7 +212,50 @@ describe('a customer return across their orders (Q156)', () => {
       [60, 0],
       [38, 29_600],
     ]);
-    expect(await prisma.auditLog.count({ where: { action: 'RETURN_CREATE' } })).toBe(2);
+    // One visit (Q161): both returns point to it, and the history has one row for it — none per order, nor per refund.
+    const visitId = visitOf(result);
+    expect(stored.map((pr) => pr.customerReturnId)).toEqual([visitId, visitId]);
+    const visit = await prisma.customerReturn.findUniqueOrThrow({ where: { id: visitId } });
+    expect(visit.customerId).toBe(customer.id);
+    const history = await prisma.auditLog.findMany({
+      where: { action: { in: ['RETURN_CREATE', 'REFUND_CREATE'] } },
+    });
+    expect(history.map((row) => [row.entityType, row.action, row.entityId, row.summaryParams])).toEqual([
+      [
+        'CUSTOMER_RETURN',
+        'RETURN_CREATE',
+        String(visitId),
+        { customerName: customer.name, orders: 2, accepted: 70, damaged: 2, refundDue: 70_400, cashRefund: 40_000 },
+      ],
+    ]);
+    // Each refund's own ledger row is kept in full there, since it has no history row of its own.
+    const after = history[0]?.after as {
+      returns: { id: number; orderNumber: number; refund: { id: number; type: string; amount: number } | null }[];
+    };
+    expect(after.returns.map((entry) => [entry.id, entry.orderNumber, entry.refund])).toEqual([
+      [stored[0]?.id, cash.orderNumber, expect.objectContaining({ id: refund.id, type: 'REFUND', amount: 40_000 })],
+      [stored[1]?.id, lent.orderNumber, null],
+    ]);
+  });
+
+  it('records a return on one order as that order’s own: no visit, its own history rows (Q161)', async () => {
+    const cash = await order('CASH', [{ itemId: pallet.id, quantity: 10 }]);
+    const result = (
+      await post([{ orderId: cash.id, lines: [{ orderLineId: lineOf(cash), acceptedQuantity: 4 }] }]).expect(201)
+    ).body as CustomerReturnResultDto;
+
+    expect(result.customerReturnId).toBeNull();
+    expect(await prisma.customerReturn.count()).toBe(0);
+    const stored = await prisma.palletReturn.findFirstOrThrow();
+    expect(stored.customerReturnId).toBeNull();
+    const history = await prisma.auditLog.findMany({
+      where: { action: { in: ['RETURN_CREATE', 'REFUND_CREATE'] } },
+      orderBy: { id: 'asc' },
+    });
+    expect(history.map((row) => [row.entityType, row.action])).toEqual([
+      ['RETURN', 'RETURN_CREATE'],
+      ['LEDGER_ENTRY', 'REFUND_CREATE'],
+    ]);
   });
 
   it('writes nothing when any order refuses, and names every line over what is out', async () => {
@@ -315,5 +369,184 @@ describe('a customer return across their orders (Q156)', () => {
       key,
     }).expect(409);
     expect(changed.body).toMatchObject({ error: { code: 'IDEMPOTENCY_KEY_REUSED' } });
+  });
+
+  describe('one receipt for the visit (Q161)', () => {
+    const receipt = (id: number) => http().get(`/api/customer-returns/${id}/receipt`).set(asUser(admin));
+
+    /** Cash 40 pallets back (40,000 out), lent 30 back against 60,000 owed (still owes 30,000), another cash 5. */
+    const visitOverThree = async () => {
+      const cash = await order('CASH', [{ itemId: pallet.id, quantity: 100 }]);
+      const lent = await order('LENT', [{ itemId: pallet.id, quantity: 60 }]);
+      const small = await order('CASH', [{ itemId: crate.id, quantity: 10 }]);
+      const result = (
+        await post([
+          { orderId: cash.id, lines: [{ orderLineId: lineOf(cash), acceptedQuantity: 40 }] },
+          { orderId: lent.id, lines: [{ orderLineId: lineOf(lent), acceptedQuantity: 30 }] },
+          { orderId: small.id, lines: [{ orderLineId: lineOf(small), acceptedQuantity: 5 }] },
+        ]).expect(201)
+      ).body as CustomerReturnResultDto;
+      return { cash, lent, small, result };
+    };
+
+    it('sums its orders’ returns as recorded, without an order, numbered by the visit', async () => {
+      const { result } = await visitOverThree();
+      const paper = (await receipt(visitOf(result)).expect(200)).body as CustomerReturnReceiptDto;
+
+      expect(paper).toMatchObject({
+        customerReturnId: visitOf(result),
+        receiptNumberDisplay: String(visitOf(result)).padStart(6, '0'),
+        date: TODAY,
+        printedOn: TODAY,
+        // Owed before: 0 + 60,000 + 0; credited 40,000 + 30,000 + 2,500; paid back 40,000 + 2,500; still owed 30,000.
+        owedBefore: 60_000,
+        credit: 72_500,
+        amount: 42_500,
+        owedAfter: 30_000,
+        note: 'Brought back by the driver',
+        reversedOn: null,
+        allReversed: false,
+        customer: { name: customer.name, phone: customer.phone, address: customer.address },
+      });
+      expect(paper).not.toHaveProperty('order');
+      // Each order's row still prints its own part, and names the visit it belongs to.
+      const refunds = result.returns.flatMap((entry) => (entry.refundEntryId === null ? [] : [entry.refundEntryId]));
+      expect(refunds).toHaveLength(2);
+      for (const id of refunds) {
+        await http().get(`/api/ledger-entries/${id}/receipt`).set(asUser(admin)).expect(200);
+      }
+      const rows = (
+        await http().get(`/api/ledger-entries?customerId=${customer.id}&type=REFUND`).set(asUser(admin)).expect(200)
+      ).body as PageDto<LedgerEntryDto>;
+      expect(rows.items.map((row) => row.customerReturnId)).toEqual([visitOf(result), visitOf(result)]);
+    });
+
+    it('has none when no cash went back, and none for a visit that does not exist', async () => {
+      const lent = await order('LENT', [{ itemId: pallet.id, quantity: 10 }]);
+      const other = await order('LENT', [{ itemId: crate.id, quantity: 10 }]);
+      const result = (
+        await post([
+          { orderId: lent.id, lines: [{ orderLineId: lineOf(lent), acceptedQuantity: 4 }] },
+          { orderId: other.id, lines: [{ orderLineId: lineOf(other), acceptedQuantity: 2 }] },
+        ]).expect(201)
+      ).body as CustomerReturnResultDto;
+
+      const none = await receipt(visitOf(result)).expect(409);
+      expect(none.body).toMatchObject({ error: { code: 'CUSTOMER_RETURN_NO_RECEIPT' } });
+      const missing = await receipt(visitOf(result) + 1).expect(404);
+      expect(missing.body).toMatchObject({ error: { code: 'CUSTOMER_RETURN_NOT_FOUND' } });
+    });
+
+    it('says what it said once one of its returns is corrected, stamped as partly, then wholly reversed', async () => {
+      const { cash, result } = await visitOverThree();
+      const [first, second, third] = result.returns;
+      const original = (await receipt(visitOf(result)).expect(200)).body as CustomerReturnReceiptDto;
+
+      // An edit of one order's return is that order's own act: the replacement is not in the visit.
+      await http()
+        .post(`/api/returns/${first?.returnId}/replace`)
+        .set(asUser(admin))
+        .send({
+          date: TODAY,
+          lines: [{ orderLineId: lineOf(cash), acceptedQuantity: 20, damagedQuantity: 0, damagedRefund: 0 }],
+        })
+        .expect(201);
+      const partly = (await receipt(visitOf(result)).expect(200)).body as CustomerReturnReceiptDto;
+      expect(partly).toEqual({ ...original, reversedOn: TODAY, allReversed: false });
+      const replacement = await prisma.palletReturn.findFirstOrThrow({ where: { replaces: { id: first?.returnId } } });
+      expect(replacement.customerReturnId).toBeNull();
+
+      for (const entry of [second, third]) {
+        await http().delete(`/api/returns/${entry?.returnId}`).set(asUser(admin)).expect(200);
+      }
+      const reversedAll = (await receipt(visitOf(result)).expect(200)).body as CustomerReturnReceiptDto;
+      expect(reversedAll).toEqual({ ...original, reversedOn: TODAY, allReversed: true });
+    });
+
+    it('is one event on the dashboard, its returns and refunds none of their own', async () => {
+      const { result } = await visitOverThree();
+      const dashboard = (await http().get('/api/dashboard').set(asUser(admin)).expect(200)).body as DashboardDto;
+      const events = (dashboard.recentActivity ?? []).filter((event) => event.kind !== 'HANDOVER');
+
+      expect(events).toEqual([
+        {
+          kind: 'CUSTOMER_RETURN',
+          at: expect.any(String) as string,
+          date: TODAY,
+          orderId: null,
+          orderNumber: null,
+          customerReturnId: visitOf(result),
+          orderCount: 3,
+          customer: expect.objectContaining({ id: customer.id }) as object,
+          quantity: 75,
+          // The cash handed back (40,000 + 2,500), its receipt's headline; its refunds have no lines of their own.
+          amount: 42_500,
+          reversed: false,
+          partlyReversed: false,
+        },
+      ]);
+    });
+
+    it('stays on the dashboard as recorded, flagged as partly and then wholly reversed, as its paper is', async () => {
+      const { cash, result } = await visitOverThree();
+      const [first, second, third] = result.returns;
+      const events = async () =>
+        (
+          ((await http().get('/api/dashboard').set(asUser(admin)).expect(200)).body as DashboardDto).recentActivity ??
+          []
+        )
+          .filter((event) => event.kind !== 'HANDOVER')
+          .map((event) => [event.kind, event.quantity, event.amount, event.reversed, event.partlyReversed]);
+
+      // The cash order's 40 corrected to 20: the replacement is its order's own return and refund, and the visit
+      // keeps its figures, flagged — never silently smaller, nor counted as if it still stood whole.
+      await http()
+        .post(`/api/returns/${first?.returnId}/replace`)
+        .set(asUser(admin))
+        .send({
+          date: TODAY,
+          lines: [{ orderLineId: lineOf(cash), acceptedQuantity: 20, damagedQuantity: 0, damagedRefund: 0 }],
+        })
+        .expect(201);
+      expect(await events()).toEqual([
+        ['REFUND', null, 20_000, false, false],
+        ['RETURN', 20, 20_000, false, false],
+        ['CUSTOMER_RETURN', 75, 42_500, false, true],
+      ]);
+
+      // A deletion has no replacement: the flag is what shows it.
+      await http().delete(`/api/returns/${second?.returnId}`).set(asUser(admin)).expect(200);
+      expect((await events()).at(-1)).toEqual(['CUSTOMER_RETURN', 75, 42_500, false, true]);
+      await http().delete(`/api/returns/${third?.returnId}`).set(asUser(admin)).expect(200);
+      expect((await events()).at(-1)).toEqual(['CUSTOMER_RETURN', 75, 42_500, true, false]);
+    });
+
+    it('keeps each refund on its return’s visit, written by the database whatever the writer sends', async () => {
+      const { lent, result } = await visitOverThree();
+      const refunds = await prisma.ledgerEntry.findMany({ where: { type: 'REFUND' }, orderBy: { id: 'asc' } });
+      expect(refunds.map((entry) => entry.customerReturnId)).toEqual([visitOf(result), visitOf(result)]);
+
+      // A refund written without its visit, or with another one, still carries its return's. Rolled back: these are
+      // bare rows written around the services, and the file still reconciles.
+      const lentReturn = result.returns.find((entry) => entry.orderId === lent.id)?.returnId ?? 0;
+      const other = (await visitOverThree()).result;
+      const rollback = new Error('rollback');
+      const written: (number | null | undefined)[] = [];
+      await expect(
+        prisma.$transaction(async (tx) => {
+          for (const sent of [null, visitOf(other)]) {
+            const [row] = await tx.$queryRaw<{ customer_return_id: number | null }[]>`
+              INSERT INTO ledger_entries
+                (order_id, type, source, amount, date, return_id, customer_return_id, created_by_user_id)
+              VALUES (${lent.id}, 'REFUND', 'RETURN_CREATE', 1, ${TODAY}::date, ${lentReturn}, ${sent},
+                      ${refunds[0]?.createdByUserId ?? 0})
+              RETURNING customer_return_id`;
+            written.push(row?.customer_return_id);
+          }
+          throw rollback;
+        }),
+      ).rejects.toBe(rollback);
+      expect(written).toEqual([visitOf(result), visitOf(result)]);
+    });
   });
 });

@@ -1,4 +1,4 @@
-import type { MoneyReceiptDto, ReceiptDto, TransactionsReceiptDto } from '@pallet/shared';
+import type { CustomerReturnReceiptDto, MoneyReceiptDto, ReceiptDto, TransactionsReceiptDto } from '@pallet/shared';
 import { useQueryClient, type QueryClient } from '@tanstack/react-query';
 import { useCallback, useEffect, useRef, useState, type CSSProperties, type ReactNode } from 'react';
 import { createPortal } from 'react-dom';
@@ -6,9 +6,9 @@ import { toast } from 'sonner';
 import receiptStyles from '@/features/receipt/receipt.css?inline';
 import i18n from '@/i18n';
 import { handleApiError } from '@/lib/errors';
-import { moneyReceiptQuery, orderReceiptQuery, transactionsReceiptQuery } from './api';
+import { customerReturnReceiptQuery, moneyReceiptQuery, orderReceiptQuery, transactionsReceiptQuery } from './api';
 import { fontsSettled, useLogoGate, usePrintOnce } from './auto-print';
-import { MoneyReceipt } from './money-receipt';
+import { CustomerReturnReceipt, MoneyReceipt } from './money-receipt';
 import type { Job } from './print-receipt';
 import { Receipt } from './receipt';
 import { TransactionsReceipt } from './transactions-receipt';
@@ -16,6 +16,7 @@ import { TransactionsReceipt } from './transactions-receipt';
 type Paper =
   | { kind: 'order'; data: ReceiptDto }
   | { kind: 'money'; data: MoneyReceiptDto }
+  | { kind: 'customer-return'; data: CustomerReturnReceiptDto }
   | { kind: 'transactions'; data: TransactionsReceiptDto };
 
 /**
@@ -32,6 +33,10 @@ function readPaper(queryClient: QueryClient, job: Job): Promise<Paper> {
       return queryClient
         .fetchQuery({ ...moneyReceiptQuery(job.entryId), retry: false })
         .then((data) => ({ kind: 'money', data }));
+    case 'customer-return':
+      return queryClient
+        .fetchQuery({ ...customerReturnReceiptQuery(job.customerReturnId), retry: false })
+        .then((data) => ({ kind: 'customer-return', data }));
     case 'transactions':
       return queryClient
         .fetchQuery({ ...transactionsReceiptQuery(job.orderId), retry: false })
@@ -46,6 +51,8 @@ function drawPaper(paper: Paper, onLogoSettled: () => void): ReactNode {
       return <Receipt receipt={paper.data} onLogoSettled={onLogoSettled} />;
     case 'money':
       return <MoneyReceipt receipt={paper.data} onLogoSettled={onLogoSettled} />;
+    case 'customer-return':
+      return <CustomerReturnReceipt receipt={paper.data} onLogoSettled={onLogoSettled} />;
     case 'transactions':
       return <TransactionsReceipt receipt={paper.data} onLogoSettled={onLogoSettled} />;
   }

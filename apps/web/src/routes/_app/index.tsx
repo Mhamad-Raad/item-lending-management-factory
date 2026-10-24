@@ -1,4 +1,4 @@
-import type { ActivityEventDto, ActivityEventKind, DashboardDto } from '@pallet/shared';
+import { formatNumber, type ActivityEventDto, type ActivityEventKind, type DashboardDto } from '@pallet/shared';
 import { useQuery } from '@tanstack/react-query';
 import { Link, createFileRoute } from '@tanstack/react-router';
 import {
@@ -43,6 +43,7 @@ const EVENT_ICONS: Record<ActivityEventKind, { icon: LucideIcon; tone: Tone }> =
   RETURN: { icon: Undo2, tone: 'info' },
   PAYMENT: { icon: Wallet, tone: 'success' },
   REFUND: { icon: HandCoins, tone: 'warning' },
+  CUSTOMER_RETURN: { icon: Undo2, tone: 'info' },
 };
 
 /**
@@ -176,13 +177,51 @@ function Figures({ data }: { data: DashboardDto }) {
   );
 }
 
-function openOrderLink(event: React.MouseEvent<HTMLElement>): void {
+const EVENT_LINK = 'text-primary underline-offset-4 hover:underline';
+
+/**
+ * Where an event leads: its order, or — for a customer return over several orders — its customer, whose page lists
+ * them, under how many orders it touched (Q161); plain text for a viewer who may not open the customer.
+ */
+function EventLink({ event, canViewCustomers }: { event: ActivityEventDto; canViewCustomers: boolean }) {
+  const { t } = useTranslation();
+  if (event.orderId !== null && event.orderNumber !== null) {
+    return (
+      <Link
+        to="/orders/$orderId"
+        params={{ orderId: String(event.orderId) }}
+        dir="ltr"
+        data-row-link=""
+        className={EVENT_LINK}
+      >
+        {orderLabel(event.orderNumber)}
+      </Link>
+    );
+  }
+  const orders = t('dashboard.recent.orders', { orders: formatNumber(event.orderCount ?? 0) });
+  return canViewCustomers ? (
+    <Link
+      to="/customers/$customerId"
+      params={{ customerId: String(event.customer.id) }}
+      data-row-link=""
+      className={cn(EVENT_LINK, 'shrink-0')}
+    >
+      {orders}
+    </Link>
+  ) : (
+    <span className="shrink-0">{orders}</span>
+  );
+}
+
+/** A press anywhere on an activity row follows its link (EventLink's); the link stays the keyboard's way in. */
+function openRowLink(event: React.MouseEvent<HTMLElement>): void {
   if ((event.target as HTMLElement).closest('a, button')) return;
-  event.currentTarget.querySelector<HTMLAnchorElement>('a[href]')?.click();
+  event.currentTarget.querySelector<HTMLAnchorElement>('a[data-row-link]')?.click();
 }
 
 function RecentActivity({ events }: { events: ActivityEventDto[] }) {
   const { t } = useTranslation();
+  const canViewCustomers = useCan('customers.view');
   return (
     <Card>
       <CardHeader>
@@ -198,14 +237,20 @@ function RecentActivity({ events }: { events: ActivityEventDto[] }) {
           <ul aria-label={t('dashboard.recent.title')} className="flex flex-col divide-y">
             {events.map((event) => {
               const { icon: Icon, tone } = EVENT_ICONS[event.kind];
+              // A customer return leads to its customer, which not every viewer may open (Q161).
+              const linked = event.orderId !== null || canViewCustomers;
               return (
                 <li
-                  key={`${event.kind}-${event.at}-${event.orderId}`}
-                  // A click anywhere on the row opens its order; the order link stays the keyboard's way in.
-                  onClick={openOrderLink}
-                  className={cn('cursor-pointer', event.reversed && 'opacity-60')}
+                  key={`${event.kind}-${event.at}-${event.orderId ?? event.customerReturnId}`}
+                  onClick={linked ? openRowLink : undefined}
+                  className={cn(linked && 'cursor-pointer', event.reversed && 'opacity-60')}
                 >
-                  <div className="hover:bg-accent/50 -mx-2 flex items-center gap-3 rounded-md px-2 py-2.5 transition-colors">
+                  <div
+                    className={cn(
+                      '-mx-2 flex items-center gap-3 rounded-md px-2 py-2.5',
+                      linked && 'hover:bg-accent/50 transition-colors',
+                    )}
+                  >
                     <span
                       aria-hidden
                       className={cn('flex size-8 shrink-0 items-center justify-center rounded-md', TONE_CHIP[tone])}
@@ -224,15 +269,14 @@ function RecentActivity({ events }: { events: ActivityEventDto[] }) {
                             <Ban aria-hidden />
                             {t('orders.detail.reversed')}
                           </Badge>
+                        ) : event.partlyReversed ? (
+                          // A customer return of which some returns were corrected or deleted since (Q161).
+                          <Badge variant="secondary">
+                            <Ban aria-hidden />
+                            {t('dashboard.recent.partlyReversed')}
+                          </Badge>
                         ) : null}
-                        <Link
-                          to="/orders/$orderId"
-                          params={{ orderId: String(event.orderId) }}
-                          dir="ltr"
-                          className="text-primary underline-offset-4 hover:underline"
-                        >
-                          {orderLabel(event.orderNumber)}
-                        </Link>
+                        <EventLink event={event} canViewCustomers={canViewCustomers} />
                       </span>
                       {/*
                         The wrapper is the flex item, so every line starts at the page's own edge; a bdi left to

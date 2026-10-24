@@ -1,9 +1,9 @@
 // @vitest-environment jsdom
-import type { MoneyReceiptDto } from '@pallet/shared';
+import type { CustomerReturnReceiptDto, MoneyReceiptDto } from '@pallet/shared';
 import { cleanup, render } from '@testing-library/react';
 import { afterEach, beforeAll, describe, expect, it } from 'vitest';
 import i18n from '@/i18n';
-import { MoneyReceipt } from './money-receipt';
+import { CustomerReturnReceipt, MoneyReceipt } from './money-receipt';
 
 const PAYMENT: MoneyReceiptDto = {
   ledgerEntryId: 77,
@@ -104,5 +104,57 @@ describe('money receipt (Q137)', () => {
     const { container } = render(<MoneyReceipt receipt={{ ...PAYMENT, reversedOn: '2026-10-01' }} />);
     const stamps = [...container.querySelectorAll('.stamp')].map((stamp) => stamp.textContent);
     expect(stamps).toEqual(['هەڵوەشێنراوەتەوە لە ⁨01/10/2026⁩', 'هەڵوەشێنراوەتەوە لە ⁨01/10/2026⁩']);
+  });
+});
+
+const VISIT: CustomerReturnReceiptDto = {
+  customerReturnId: 5,
+  receiptNumberDisplay: '000005',
+  date: '2026-10-20',
+  printedOn: '2026-10-24',
+  owedBefore: 60_000,
+  credit: 72_500,
+  amount: 42_500,
+  owedAfter: 30_000,
+  note: null,
+  recordedBy: { id: 1, username: 'admin', displayName: 'Admin' },
+  reversedOn: null,
+  allReversed: false,
+  factory: PAYMENT.factory,
+  customer: PAYMENT.customer,
+};
+
+describe('a customer return’s one receipt (Q161)', () => {
+  beforeAll(async () => {
+    await i18n.changeLanguage('en');
+  });
+  afterEach(cleanup);
+
+  const half = (receipt: CustomerReturnReceiptDto) =>
+    render(<CustomerReturnReceipt receipt={receipt} />).container.querySelector('.half');
+
+  it('prints the refund’s figures summed, under a number of its own and without an order', () => {
+    const paper = half(VISIT);
+    expect([...(paper?.querySelectorAll('.money tr') ?? [])].map((row) => row.textContent)).toEqual([
+      'قەرز پێشتر60,000 دینار',
+      'بەهای پالێتە گەڕاوەکان72,500 دینار',
+      'بڕی دراوە بە کڕیار42,500 دینار',
+      'قەرز دواتر30,000 دینار',
+    ]);
+    const text = paper?.textContent ?? '';
+    expect(text).toContain('پسووڵەی گەڕاندنەوەی پارە');
+    expect(text).toContain('ژمارەی پسووڵەی گەڕاندنەوە: 000005');
+    expect(text).not.toContain('ژمارەی پسووڵەی پارە');
+    expect(text).not.toContain('ژمارەی داواکاری');
+  });
+
+  it('stamps it as partly cancelled, or as cancelled once all its returns are', () => {
+    const partly = half({ ...VISIT, reversedOn: '2026-10-22' });
+    expect(partly?.querySelector('.stamp')?.textContent).toBe('بەشێکی هەڵوەشێنراوەتەوە لە ⁨22/10/2026⁩');
+    cleanup();
+    const all = half({ ...VISIT, reversedOn: '2026-10-22', allReversed: true });
+    expect(all?.querySelector('.stamp')?.textContent).toBe('هەڵوەشێنراوەتەوە لە ⁨22/10/2026⁩');
+    cleanup();
+    expect(half(VISIT)?.querySelector('.stamp')).toBeNull();
   });
 });

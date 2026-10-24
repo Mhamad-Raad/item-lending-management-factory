@@ -179,11 +179,28 @@ export class ReturnsService {
           throw new ApiError('RETURN_EXCEEDS_OUT', { lines: over } satisfies ErrorDetails<'RETURN_EXCEEDS_OUT'>);
         }
 
+        // Over two orders or more, one visit with one receipt and one history row, each order's return pointing to it
+        // (Q161). A return on one order is that order's own, as if recorded there: its receipt names the order.
+        const visit =
+          checked.length > 1
+            ? await tx.customerReturn.create({
+                data: { customerId, date: businessDateToDb(body.date), createdByUserId: actor.userId },
+              })
+            : null;
         const returns: CustomerReturnRecordedDto[] = [];
+        const snapshots: Record<string, unknown>[] = [];
         for (const { order, body: one, priced, money } of checked.sort(
           (a, b) => a.order.orderNumber - b.order.orderNumber,
         )) {
-          const written = await this.write(tx, order, one, priced, money, actor);
+          const { snapshot, refund, ...written } = await this.write(
+            tx,
+            order,
+            one,
+            priced,
+            money,
+            actor,
+            visit?.id ?? null,
+          );
           returns.push({
             ...written,
             orderId: order.id,
@@ -193,8 +210,30 @@ export class ReturnsService {
             cashRefund: money.cashRefund,
             owedAfter: money.owedAfter,
           });
+          // Its refund's own ledger row in full, since the visit's row stands in for the refund's history row too.
+          const refundSnapshot = refund ? toAuditSnapshot('LEDGER_ENTRY', refund) : null;
+          snapshots.push({ orderNumber: order.orderNumber, ...snapshot, refund: refundSnapshot });
         }
-        const result = { customer: toCustomerRef(customer), returns };
+        if (visit) {
+          const total = (pick: (entry: CustomerReturnRecordedDto) => number) =>
+            returns.reduce((sum, entry) => sum + pick(entry), 0);
+          await this.audit.record(tx, {
+            action: 'RETURN_CREATE',
+            entityType: 'CUSTOMER_RETURN',
+            entityId: String(visit.id),
+            summaryParams: {
+              customerName: customer.name,
+              orders: returns.length,
+              accepted: total((entry) => entry.accepted),
+              damaged: total((entry) => entry.damaged),
+              refundDue: total((entry) => entry.refundDue),
+              cashRefund: total((entry) => entry.cashRefund),
+            },
+            after: { ...toAuditSnapshot('CUSTOMER_RETURN', visit), returns: snapshots },
+          });
+        }
+
+        const result = { customerReturnId: visit?.id ?? null, customer: toCustomerRef(customer), returns };
         await store(tx, result);
         return result;
       });
@@ -208,7 +247,11 @@ export class ReturnsService {
     return { priced, money: priceReturn(priced, computeOrderTotals(state).owed) };
   }
 
-  /** Writes a checked return on its locked order (§4.8.4): the row, its stock, its refund, the totals, the audit. */
+  /**
+   * Writes a checked return on its locked order (§4.8.4): the row, its stock, its refund, the totals, the audit. A
+   * return of a customer's visit (`customerReturnId`) leaves its audit to the visit's one row (Q161), which takes the
+   * snapshot returned here.
+   */
   private async write(
     tx: Prisma.TransactionClient,
     order: ReturnOrder,
@@ -216,14 +259,25 @@ export class ReturnsService {
     priced: PricedReturnLine[],
     money: ReturnType<typeof priceReturn>,
     actor: AuthContext,
-  ): Promise<{ returnId: number; refundEntryId: number | null; accepted: number; damaged: number }> {
+    customerReturnId: number | null = null,
+  ): Promise<{
+    returnId: number;
+    refundEntryId: number | null;
+    accepted: number;
+    damaged: number;
+    snapshot: Record<string, unknown>;
+    refund: LedgerEntry | null;
+  }> {
     const accepted = priced.reduce((total, line) => total + line.acceptedQuantity, 0);
     const damaged = priced.reduce((total, line) => total + line.damagedQuantity, 0);
-    const created = await this.insertReturn(tx, order.id, body, priced, money, actor.userId);
+    const created = await this.insertReturn(tx, order.id, body, priced, money, actor.userId, customerReturnId);
     await this.stock.apply(tx, this.accepted(priced, 'RETURN_ACCEPTED', order.id, created.id, 1), actor.userId);
     const refund = await this.refund(tx, order.id, created.id, 'RETURN_CREATE', body.date, money.cashRefund, actor);
     await recomputeOrder(tx, order.id, { bumpVersion: true });
 
+    const snapshot = await this.snapshot(tx, created.id);
+    const written = { returnId: created.id, refundEntryId: refund?.id ?? null, accepted, damaged, snapshot, refund };
+    if (customerReturnId !== null) return written;
     await this.audit.record(tx, {
       action: 'RETURN_CREATE',
       entityType: 'RETURN',
@@ -235,10 +289,10 @@ export class ReturnsService {
         refundDue: money.refundDue,
         cashRefund: money.cashRefund,
       },
-      after: await this.snapshot(tx, created.id),
+      after: snapshot,
     });
     if (refund) await this.audit.record(tx, ledgerAuditEntry(refund, order.orderNumber));
-    return { returnId: created.id, refundEntryId: refund?.id ?? null, accepted, damaged };
+    return written;
   }
 
   /**
@@ -436,10 +490,12 @@ export class ReturnsService {
     lines: readonly PricedReturnLine[],
     money: { refundDue: number; owedBefore: number; cashRefund: number },
     userId: number,
+    customerReturnId: number | null = null,
   ) {
     return tx.palletReturn.create({
       data: {
         orderId,
+        customerReturnId,
         date: businessDateToDb(body.date),
         notes: body.notes ?? null,
         refundDue: toDbMoney(money.refundDue),
@@ -459,7 +515,10 @@ export class ReturnsService {
     });
   }
 
-  /** The REFUND a return pays out when it credits more than was owed (§4.7.2); none when there is nothing to pay. */
+  /**
+   * The REFUND a return pays out when it credits more than was owed (§4.7.2); none when there is nothing to pay. The
+   * database writes its customer return, its return's (Q161).
+   */
   private refund(
     tx: Prisma.TransactionClient,
     orderId: number,

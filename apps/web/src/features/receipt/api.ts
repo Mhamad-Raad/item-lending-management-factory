@@ -1,4 +1,4 @@
-import type { MoneyReceiptDto, ReceiptDto, TransactionsReceiptDto } from '@pallet/shared';
+import type { CustomerReturnReceiptDto, MoneyReceiptDto, ReceiptDto, TransactionsReceiptDto } from '@pallet/shared';
 import { queryOptions } from '@tanstack/react-query';
 import { apiFetch } from '@/lib/api-client';
 import { qk } from '@/lib/query-keys';
@@ -20,6 +20,15 @@ export function moneyReceiptQuery(entryId: number) {
   return queryOptions({
     queryKey: qk.ledger.receipt(entryId),
     queryFn: () => apiFetch<MoneyReceiptDto>(`/ledger-entries/${entryId}/receipt`),
+    staleTime: 0,
+  });
+}
+
+/** A customer return's one receipt over the orders it touched (Q161). */
+export function customerReturnReceiptQuery(customerReturnId: number) {
+  return queryOptions({
+    queryKey: qk.ledger.customerReturnReceipt(customerReturnId),
+    queryFn: () => apiFetch<CustomerReturnReceiptDto>(`/customer-returns/${customerReturnId}/receipt`),
     staleTime: 0,
   });
 }

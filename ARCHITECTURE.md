@@ -310,6 +310,7 @@ Every item below is an ambiguity, contradiction or gap in the brief. The builder
 | Q158 | The business asked (2026-10-21) to change the hand-over receipt's earlier pallets (Q150): not a row per earlier order's line, but a row per item over all the earlier orders; and since those pallets are only owed, not the quantity, accepted and damaged columns — only what the customer still holds — keeping the receipt's design (Q151). The same item may have been lent at different deposits. What holds? | **A row per item and deposit price**, in the order each first appears (earlier orders by order number, then line id, as Q150 reads them): `outQuantity` the sum of the lines' maintained `out_quantity`, `outValue = outQuantity × unitDeposit`. The same item at another price keeps its own row (the maintainer chose this over one row with an empty price), so every row's out × unit deposit is its total and the column still adds up to `receipt.olderOutValue`. No order numbers (the maintainer chose none). `ReceiptOlderLineDto` is `{ itemName, unitDeposit, outQuantity, outValue }`. **Drawn in the same table and colours:** an earlier row's item cell spans the quantity, accepted and damaged columns (`colSpan={4}`, which sit beside it), then still out, unit deposit and the total in amber ink; this order's rows and the header keep every column. The footer, the heading row, the layout and the rows per half or page (Q150) are unchanged — combining can only make fewer rows. `order-changes.test.ts` "adds up the earlier pallets per item"; `receipt.test.tsx` and `receipt.spec.ts` (Q150) check the five cells and the span. Amends Q150 and §6.19. |
 | Q159 | The business reported (2026-10-21) that on their phones, every time they closed the browser and opened it again, the app took them to the change-password page. The flag clears with the new password (§6.8.6), and a fresh sign-in on a phone after the change does not ask again (reproduced at 390 px). But `/change-password`'s guard let any signed-in user stay on it (`requireAuthenticated({ allowPasswordChange: true })`, §7.3.2 "also reachable voluntarily"), and a phone reopens on the last page, and a bookmark or home-screen shortcut keeps the address it was made on — often this page, the first one a new user sees. What holds? | **`/change-password` is only for a user who must set a password:** its guard, `requirePasswordChangePending()` (`lib/route-guards.ts`, replacing `requireAuthenticated`'s `allowPasswordChange` option), sends a user whose `mustChangePassword` is false to `/`; and the page itself leaves for `/` when the flag clears while it is open — the only way on, also after its own form's change, and in place of the page (`<Navigate replace>`), so one navigation happens and Back does not return to the form — set in another tab, this tab's next refresh brings the user back without it, and the form would only refuse the old password as the current one, each refusal counting toward the lockout (Q69). A voluntary change stays on `/account` (§7.3.21), which already had the form. No loop: the flag the guard reads is the user the server last returned (sign-in, refresh, `me`), and an admin's reset ends the user's sessions, so they come back through sign-in with the flag set. Someone whose shortcut points at the page now lands on the dashboard; a shortcut made elsewhere is unaffected. `e2e/change-password.spec.ts` (held while the flag is set; sent on to the dashboard when it is not, from the address and from a sign-in with `?redirect=/change-password`; leaving at the next refresh when another tab set the password — each proven failing without its check). Amends §7.2, §7.3.2 and §7.7. |
 | Q160 | The business asked (2026-10-21) that the customer return screen (Q156) show an item once, however many orders it is out on — 26 and 26 read as 52 — and that a count typed there be placed on the orders automatically, oldest first: 50 back fills the older order's 26 and takes 24 from the newer, leaving 2 out there. The maintainer chose: damaged pallets oldest first too, a small split line under the item, and "oldest" by the order's date. What holds? | **One row per item** (`features/returns/allocate.ts`, `itemHoldings`): the customer's lines still out grouped by item id, whatever their deposit; the row shows what is out over all of them, and the deposit when it is one price for all. **Oldest first** = the order's `date`, then its number for two orders of one day, then the line id — so an order entered later but dated earlier is the older (unlike Q150's receipt, which goes by number). **Placing** (`allocate`, unit-tested on the business's example): the damaged pallets first, then the accepted ones, oldest line first, each line taking what it still has out; the damage refund follows the damaged pallets, each line capped by the deposit of its own damaged ones (`refundMaximum` is the item's limit). **Only orders dated on or before the return date take a share** (a return cannot precede its order): the row is checked against what the item had out by that date (`outBy`), the header then says so (`returns.customer.outByDate`, "Out: 52 · 26 by 05/09/2026"), and a later order shows "—" in the split. The Q156 date check (`minDate`, refused as typed) is gone: no order dated after the return can take a share any more. Under each item a split line: "On orders" with each order's number (a link, new tab, as Q156), its date (what "oldest" goes by) and what it has out — and, once a count is typed, "Split over" with each order's `placed/out` and a tick on an order fully back; with several prices each order shows its deposit. The row is checked as typed against the item's total out and its refund limit (Q141, Q146); a refused row places nothing. **The server and the saved return are unchanged:** the screen sends each order its share of each item, exactly the Q156 body, so each order's return, refund, receipt and balance are as if recorded on that order. **A count never moves to another order without a word:** whenever the list is read again — a refused save, the tab coming back into view, any refresh — each item with a count is placed on the list before and on the new one, and an item whose split moved — or that comes back after a reload had dropped it — is **held for a look**: an alert `returns.customer.recheckTitle` names it and keeps Save off until `returns.customer.recheckDone` or the row is edited (found when the new list arrives, never before it). A server refusal is judged on the body sent, not on what may have been typed since: an item whose count no longer fits what is out now (or whose refund is over its limit, the refused line's part as the server has it) is refused with that figure; anything else is left to the list read again, `RETURN_DATE_BEFORE_ORDER_DATE` included (an order re-dated after the return meanwhile: the new list places nothing on it). A row whose count is over what is out shows that one error: its refund is not judged on the damaged pallets that happened to fit. "Remove them" on a count no longer out also lets go of its pending look. The summary lists each touched order with what comes back on it and the cash it pays out or what it still owes (`returns.customer.orderOwes`), since the item rows no longer show the orders' money. More orders than one save takes names how many it reaches and says to record fewer pallets now, oldest first. The grouping is computed once per list, not per key typed; the "all back" tick is `role="img"`. The quick buttons: "All" per item and "Everything came back" (Q156's per-order "All of this order back" is gone with the order cards); a count left on an item a reload no longer lists is named by item. The one-order form from an order's page is unchanged. `allocate.test.ts`; `customer-returns.spec.ts` "Q160" (one row, oldest by date, the split with dates, the body sent, damage oldest first, the item's total refused, a cancelled order's count held for a look, a refused count that still fits placed again, a back-dated return — each proven failing when its rule is removed). Amends Q156 and §7.4.2. |
+| Q161 | The business asked (2026-10-24) that a customer's return over several orders (Q156, Q160) give one receipt, not one per order: the same paper, naming no order. Asked how such a return is counted in the history and activity, the maintainer chose that it be one there too, that the paper be printable again later, and that an order's page still print its own part. Each order's return had its own receipt (Q137), audit rows and dashboard line, and nothing tied them together once saved. What holds? | **The visit is a record its orders' returns point to.** `customer_returns` (migration `20261024000000_customer_returns`): `id`, `customer_id`, `date`, `created_at`, `created_by_user_id`, append-only (`forbid_update_delete`, `SELECT, INSERT` only); `returns.customer_return_id` (nullable FK, written with the return, covered by `returns_reversal_set_once`). `POST /api/customers/:customerId/returns` writes it once, after every order is checked, then each order's return exactly as before (§4.8.4: its own row, stock, refund and recompute), pointing to it; `CustomerReturnResultDto.customerReturnId`. **Only over two orders or more:** a return on one order from the customer screen is that order's own, exactly as if recorded on its page — its money receipt names the order, its history and dashboard rows are the order's, and `customerReturnId` is null (the review's finding: a first build gave every customer return a visit, and a one-order return lost its order number on paper and its order link on the dashboard). **The ledger and every order are unchanged:** each order keeps its own return, refund, balance and receipt, and its return is still corrected or deleted on its own; a replacement is that order's own act and belongs to no visit. Returns recorded before keep NULL: which of them were one visit cannot be told after the fact, and the table is append-only (Q98). **One receipt** (`GET /api/customer-returns/:id/receipt`, `orders.view` → `CustomerReturnReceiptDto`, printed by `/print/customer-returns/$customerReturnId`): the refund receipt's design (Q137, Q140) with no order box, its figures summed over the visit's returns as recorded — owed before, the pallets' credit, the cash paid back, and owed after (`owedBefore − credit + amount`, which is Σ each order's `max(0, before − credit)`, so an order still owing shows in it) — numbered by the visit's id under its own label `receipt.money.customerReceiptNumber`, apart from the money receipts' ids; recorded by the visit's author, with its returns' note. A visit that paid nothing back has none (`409 CUSTOMER_RETURN_NO_RECEIPT`), as a return without a refund has none; unknown → `CUSTOMER_RETURN_NOT_FOUND`. A return of it corrected or deleted since leaves the figures as they were — a reprint says what the original said — and stamps the paper `receipt.money.partlyReversed` with the latest day, or `receipt.money.reversed` once all are. **Where it prints:** the saved dialog after a customer return over several orders (one button, focused, in place of the per-order buttons, which stay for a result without a visit — one order, or a result stored before Q161 and replayed for its key); the customer's refunds tab, where such a refund prints the visit's paper, the one the customer holds; and an order's money table, where the refund prints the order's own part as before and a second icon (`orders.money.printCombined`, `ReceiptText`) prints the visit's paper (`LedgerEntryDto.customerReturnId`). **One history row:** `CUSTOMER_RETURN.RETURN_CREATE` (new `audit_entity_type` value; `orders.view` to read, Q73), `customerName`, `orders`, and the sums `accepted`, `damaged`, `refundDue`, `cashRefund`; `after` holds each order's return snapshot with its `orderNumber` and its refund's ledger snapshot (`refund`). Its orders' returns and refunds write no `RETURN_CREATE` or `REFUND_CREATE` rows of their own — each refund's ledger snapshot is kept in the visit's `after` instead, so the money stays traceable; a later edit or delete of one writes its own rows as ever. The history links it to the customer. **One dashboard line:** `ActivityEventKind` `CUSTOMER_RETURN` (`orderId`/`orderNumber` null, `customerReturnId`, `orderCount`, pallets and the cash handed back summed in one SQL statement over its returns as recorded (the cash, not the credit, as its receipt's headline: its refunds have no lines of their own, and cash leaving the till must show), as its receipt says them, with `reversed` once all of them were reversed and `partlyReversed` (badge `dashboard.recent.partlyReversed`) while only some were — a correction's replacement is its order's own `RETURN` line, and a deletion, which has none, is shown by the flag; a second build counted only what still stood, and a deletion then vanished without a trace), read from `customer_returns (created_at, id)`; its returns and their refunds are left out of `RETURN` and `REFUND`, each read backwards from a partial index of the rows outside a visit (migration `20261024000100_customer_return_activity`: `returns_outside_visit_created_at_id_idx` and `ledger_entries_refunds_outside_visit_created_at_id_idx`, which replace Q62's indexes of every return and every refund), so a run of visits is never walked through (Q62). For that a refund carries its visit itself: `ledger_entries.customer_return_id`, a `REFUND`'s alone (CHECK), its return's, written by the trigger `ledger_refund_customer_return` with the row, so no writer passes it or can get it wrong; `LedgerEntryDto.customerReturnId` reads it there (the review's finding: reading it through the return cost every ledger read a join, and ordering refunds by their return's time could drop one at the tenth place); the line reads "Orders: N" and leads to the customer — plain text, and no pointer on the row, without `customers.view`. **Unchanged:** the reports (they count returns and money per order and date), the customer's timeline (it lists each order's return, with its lines), reconcile, and the one-order return form and its receipt. `customer-returns.test.ts` (the visit and its one history row with each refund's snapshot; one order: no visit, its own rows; the receipt's sums, none without cash, not found, the partial and whole stamps after an edit and deletes, the replacement outside the visit; one dashboard event, as recorded and flagged partly then wholly reversed after an edit and deletes; each refund on its return's visit, written by the database whatever the writer sends); `db-privileges.test.ts`; `money-receipt.test.tsx` (the paper, its number, no order, the stamps); `customer-return-receipt.spec.ts` (the order's part and the visit's paper side by side, none on an order's own refund, the customer's tab prints the visit's, the page's refusal, the dashboard line with and without `customers.view`, its partly and wholly reversed badges, the history row) and `customer-returns.spec.ts` (the dialog's one button; one order prints its own) — each proven failing when its rule is removed. Amends Q62, Q137, Q156, §5, §6.20, §6.21, §6.22, §6.26, §7.3.3, §7.16.6, §11.2, §11.3. |
 
 ## 3. Actors, roles and permissions
 
@@ -1006,6 +1007,17 @@ CHECK `orders_totals_nonnegative_check`: every cache money/quantity column ≥ 0
 | reversed_by_user_id | integer | yes | — | FK → users.id ON DELETE RESTRICT |
 | reversal_kind | return_reversal_kind | yes | — | `EDIT` \| `DELETE` |
 | replaced_by_return_id | integer | yes | — | UNIQUE; FK → returns.id ON DELETE RESTRICT; required iff reversal_kind = EDIT |
+| customer_return_id | integer | yes | — | FK → customer_returns.id ON DELETE RESTRICT; set when written by a customer's return over two orders or more (Q161), never changed; NULL on any other return (an order's own, one order from the customer screen, a replacement, every return before Q161) |
+| created_at | timestamptz(3) | NO | DB `now()` | |
+| created_by_user_id | integer | NO | — | FK → users.id |
+
+#### `customer_returns` (append-only, Q161)
+One customer's return over the two orders or more it touched: each order's return points to it, and it has one receipt and one history row.
+| Column | Type | Null | Default | Constraints / notes |
+|---|---|---|---|---|
+| id | integer | NO | identity | PK; zero-padded, the number of its receipt |
+| customer_id | integer | NO | — | FK → customers.id |
+| date | date | NO | — | business date, its returns' |
 | created_at | timestamptz(3) | NO | DB `now()` | |
 | created_by_user_id | integer | NO | — | FK → users.id |
 
@@ -1035,6 +1047,7 @@ CHECK `orders_totals_nonnegative_check`: every cache money/quantity column ≥ 0
 | reverses_entry_id | integer | yes | — | UNIQUE; FK → ledger_entries.id; required iff type is a reversal; trigger checks mirror |
 | note | varchar(500) | yes | — | |
 | owed_before | bigint | yes | — | NULL unless type = PAYMENT, and ≥ amount: what the order owed just before it (Q137); written with every payment since migration `20261012000000_payment_owed_before`, NULL on the ones before |
+| customer_return_id | integer | yes | — | FK → customer_returns.id ON DELETE RESTRICT; a `REFUND`'s alone (CHECK), its return's `customer_return_id`, written by the trigger `ledger_refund_customer_return` with the row whatever the writer sent (Q161) |
 | created_at | timestamptz(3) | NO | DB `now()` | defines insertion order |
 | created_by_user_id | integer | NO | — | FK → users.id |
 
@@ -1084,7 +1097,7 @@ CHECK `orders_totals_nonnegative_check`: every cache money/quantity column ≥ 0
 | `session_revoke_reason` | LOGOUT, LOGOUT_ALL, REUSE_DETECTED, PASSWORD_CHANGED, PASSWORD_RESET, USER_DEACTIVATED, IDLE (Q136) |
 | `idempotency_scope` | ORDER_CREATE, RETURN_CREATE, PAYMENT_CREATE |
 | `audit_action` | CREATE, UPDATE, DELETE, CANCEL, STOCK_ADJUST, PAYMENT_CREATE, PAYMENT_REVERSE, RETURN_CREATE, RETURN_EDIT, RETURN_DELETE, REFUND_CREATE, REFUND_REVERSE, CREDIT_OVERRIDE, LOGIN_SUCCESS, LOGIN_FAILURE, LOCKOUT, LOGOUT, LOGOUT_ALL, SESSION_REUSE_DETECTED, PASSWORD_CHANGE, PASSWORD_RESET, PERMISSION_CHANGE, SETTINGS_CHANGE, USER_DEACTIVATE, USER_ACTIVATE, UPLOAD_CREATE |
-| `audit_entity_type` | USER, SESSION, ITEM, PURCHASE_BATCH, CUSTOMER, DRIVER, ORDER, RETURN, LEDGER_ENTRY, SETTINGS, UPLOAD |
+| `audit_entity_type` | USER, SESSION, ITEM, PURCHASE_BATCH, CUSTOMER, DRIVER, ORDER, RETURN, LEDGER_ENTRY, SETTINGS, UPLOAD, CUSTOMER_RETURN (Q161) |
 
 The same values are exported from `packages/shared/src/enums.ts`; a unit test parses `schema.prisma` and asserts equality.
 
@@ -1118,12 +1131,16 @@ Non-unique:
 | orders | orders_owed_id_idx | owed, id | the order list sorted by owed across statuses (Q100) |
 | orders | orders_cancelled_by_user_id_idx, orders_credit_override_by_user_id_idx, orders_created_by_user_id_idx | FK | |
 | order_lines | order_lines_item_id_idx | item_id | item out quantity |
-| returns | returns_order_id_idx, returns_date_idx, returns_reversed_by_user_id_idx, returns_created_by_user_id_idx | FK / report | |
+| returns | returns_order_id_idx, returns_date_idx, returns_reversed_by_user_id_idx, returns_customer_return_id_idx, returns_created_by_user_id_idx | FK / report | |
+| returns | returns_outside_visit_created_at_id_idx (partial, constraints.sql) | created_at, id WHERE customer_return_id IS NULL | the dashboard's newest returns outside a customer return (Q161; replaced Q62's `returns_created_at_id_idx`) |
+| customer_returns | customer_returns_customer_id_idx, customer_returns_created_by_user_id_idx, customer_returns_created_at_id_idx | FK / created_at, id | the dashboard's newest (Q161, as Q62) |
 | return_lines | return_lines_order_line_id_idx | order_line_id | FK |
 | ledger_entries | ledger_entries_order_id_idx | order_id | per-order ledger |
 | ledger_entries | ledger_entries_type_date_idx, ledger_entries_date_id_idx | type, date / date, id | activity report, ledger list: the dated rows by effective date (Q98) |
 | ledger_entries | ledger_entries_undated_order_id_idx (partial, constraints.sql) | order_id INCLUDE (amount, created_at, type) WHERE date IS NULL | the automatic payments, by their order's date (Q98), index-only for the activity report (Q99) |
 | ledger_entries | ledger_entries_return_id_idx, ledger_entries_created_by_user_id_idx | FK | |
+| ledger_entries | ledger_entries_customer_return_id_idx (partial, constraints.sql) | customer_return_id WHERE customer_return_id IS NOT NULL | FK, of the few rows that carry one (Q161) |
+| ledger_entries | ledger_entries_refunds_outside_visit_created_at_id_idx (partial, constraints.sql) | created_at, id WHERE type = 'REFUND' AND customer_return_id IS NULL | the dashboard's newest refunds outside a customer return (Q161; replaced Q62's index of every refund) |
 | idempotency_keys | idempotency_keys_expires_at_idx | expires_at | purge |
 | audit_logs | audit_logs_created_at_idx, audit_logs_user_id_created_at_idx, audit_logs_entity_type_entity_id_idx, audit_logs_action_created_at_idx | filters | history page |
 
@@ -1147,6 +1164,9 @@ All foreign keys reference `id` and use `ON UPDATE CASCADE` (primary keys are ne
 | stock_movements.batch_id | purchase_batches | RESTRICT |
 | stock_movements.order_id | orders | RESTRICT |
 | stock_movements.return_id, ledger_entries.return_id, returns.replaced_by_return_id | returns | RESTRICT |
+| returns.customer_return_id, ledger_entries.customer_return_id | customer_returns | RESTRICT |
+| customer_returns.customer_id | customers | RESTRICT |
+| customer_returns.created_by_user_id | users | RESTRICT |
 | ledger_entries.reverses_entry_id | ledger_entries | RESTRICT |
 
 There is no `ON DELETE SET NULL`: every optional relation is `onDelete: Restrict` in the Prisma schema, so deleting a referenced row fails. Users, uploads, batches, orders and returns are never deleted by the application (users are deactivated, batches soft-deleted), and any cascaded UPDATE of an append-only row would be rejected by `forbid_update_delete`. The only physical deletes the application performs are: `user_permissions` rows (permission edits), `order_lines` rows removed by a line edit (only while the order has no returns, so nothing references them), `login_throttles`, expired `idempotency_keys`, and `session_families` (with their `refresh_tokens`, by cascade) deleted by the daily maintenance job 30 days after the family's `absolute_expires_at`.
@@ -1175,7 +1195,7 @@ There is no `ON DELETE SET NULL`: every optional relation is `onDelete: Restrict
 | order_lines | order_lines_quantity_positive_check, order_lines_unit_deposit_nonnegative_check, order_lines_line_total_matches_check, order_lines_returned_nonnegative_check, order_lines_out_quantity_matches_check, order_lines_out_quantity_nonnegative_check | as named |
 | returns | returns_money_nonnegative_check, returns_cash_refund_formula_check, returns_reversal_consistent_check, returns_replacement_matches_kind_check, returns_not_self_replaced_check | cash_refund = GREATEST(0, refund_due − owed_before); EDIT ⇔ replaced_by set |
 | return_lines | return_lines_quantities_nonnegative_check, return_lines_quantity_positive_check, return_lines_unit_deposit_nonnegative_check, return_lines_damaged_refund_range_check | as named |
-| ledger_entries | ledger_entries_amount_positive_check, ledger_entries_reversal_reference_check, ledger_entries_not_self_reversal_check, ledger_entries_automatic_only_payment_check, ledger_entries_date_null_only_automatic_check, ledger_entries_return_reference_check, ledger_entries_source_matches_type_check, ledger_entries_owed_before_check | section 4.7.2, Q137 |
+| ledger_entries | ledger_entries_amount_positive_check, ledger_entries_reversal_reference_check, ledger_entries_not_self_reversal_check, ledger_entries_automatic_only_payment_check, ledger_entries_date_null_only_automatic_check, ledger_entries_return_reference_check, ledger_entries_source_matches_type_check, ledger_entries_owed_before_check, ledger_entries_customer_return_refund_check | section 4.7.2, Q137, Q161 |
 | idempotency_keys | idempotency_keys_key_format_check, idempotency_keys_request_hash_format_check, idempotency_keys_expiry_after_creation_check | as named |
 
 The API maps a PostgreSQL `check_violation` (23514) that escapes service validation to 500 `INTERNAL_ERROR` and logs the constraint name: a CHECK firing in production means a service bug, never a user error.
@@ -1193,20 +1213,21 @@ Privilege matrix for `pallet_app` (applied by `grants.sql`; no TRUNCATE, REFEREN
 | Table | SELECT | INSERT | UPDATE | DELETE |
 |---|---|---|---|---|
 | users, user_permissions, session_families, refresh_tokens, login_throttles, factory_settings, uploads, items, purchase_batches, customers, drivers, order_counter, orders, order_lines, idempotency_keys | ✔ | ✔ | ✔ | ✔ |
-| audit_logs, stock_movements, ledger_entries, return_lines | ✔ | ✔ | — | — |
+| audit_logs, stock_movements, ledger_entries, return_lines, customer_returns | ✔ | ✔ | — | — |
 | returns | ✔ | ✔ | only columns reversed_at, reversed_by_user_id, reversal_kind, replaced_by_return_id | — |
 | all sequences | USAGE, SELECT | | | |
 
-Additional database-level settings from the init script: `REVOKE ALL ON DATABASE pallet FROM PUBLIC`, `GRANT CONNECT ON DATABASE pallet TO pallet_app`, `REVOKE ALL ON SCHEMA public FROM PUBLIC`, `GRANT USAGE ON SCHEMA public TO pallet_app`. The integration suite connects as `pallet_app` and asserts `UPDATE`/`DELETE` on `audit_logs`, `stock_movements`, `ledger_entries`, `return_lines` and `DELETE` on `returns` fail with SQLSTATE `42501`, and that `pallet_app` holds at least SELECT on every table in `public` except `_prisma_migrations` (catches a table missing from `grants.sql`).
+Additional database-level settings from the init script: `REVOKE ALL ON DATABASE pallet FROM PUBLIC`, `GRANT CONNECT ON DATABASE pallet TO pallet_app`, `REVOKE ALL ON SCHEMA public FROM PUBLIC`, `GRANT USAGE ON SCHEMA public TO pallet_app`. The integration suite connects as `pallet_app` and asserts `UPDATE`/`DELETE` on `audit_logs`, `stock_movements`, `ledger_entries`, `return_lines`, `customer_returns` and `DELETE` on `returns` (and an `UPDATE` of its `customer_return_id`) fail with SQLSTATE `42501`, and that `pallet_app` holds at least SELECT on every table in `public` except `_prisma_migrations` (catches a table missing from `grants.sql`).
 
 ### 5.8 Triggers
 
 | Trigger | Table | Timing | Function | Behaviour |
 |---|---|---|---|---|
-| forbid_update_delete | audit_logs, stock_movements, ledger_entries, return_lines | BEFORE UPDATE OR DELETE, per row | `forbid_update_delete()` | Raises `insufficient_privilege` for every role (defence in depth; row triggers do not fire on TRUNCATE, so the test reset and `pg_restore` are unaffected). |
+| forbid_update_delete | audit_logs, stock_movements, ledger_entries, return_lines, customer_returns | BEFORE UPDATE OR DELETE, per row | `forbid_update_delete()` | Raises `insufficient_privilege` for every role (defence in depth; row triggers do not fire on TRUNCATE, so the test reset and `pg_restore` are unaffected). |
 | forbid_delete | returns | BEFORE DELETE, per row | `forbid_update_delete()` | Returns are never deleted. |
-| returns_reversal_set_once | returns | BEFORE UPDATE, per row | `returns_reversal_set_once()` | Rejects if the row is already reversed, if `reversed_at` stays NULL, or if any non-reversal column changes. The reversal UPDATE must therefore set all reversal columns in one statement (section 4.8.5 step 5e). |
+| returns_reversal_set_once | returns | BEFORE UPDATE, per row | `returns_reversal_set_once()` | Rejects if the row is already reversed, if `reversed_at` stays NULL, or if any non-reversal column changes (`customer_return_id` among them, Q161). The reversal UPDATE must therefore set all reversal columns in one statement (section 4.8.5 step 5e). |
 | ledger_reversal_matches_original | ledger_entries | BEFORE INSERT, per row | `ledger_reversal_matches_original()` | A reversal row must reference an existing row of the same order with the same amount and the matching original type. |
+| ledger_refund_customer_return | ledger_entries | BEFORE INSERT, per row | `ledger_refund_customer_return()` | Writes a `REFUND`'s `customer_return_id` from its return's, whatever the writer sent (NULL outside a customer return, Q161). |
 
 ### 5.9 Migrations
 
@@ -1388,6 +1409,7 @@ enum AuditEntityType {
   LEDGER_ENTRY
   SETTINGS
   UPLOAD
+  CUSTOMER_RETURN
 
   @@map("audit_entity_type")
 }
@@ -1429,6 +1451,7 @@ model User {
   ordersCreditOverridden Order[]           @relation("OrderCreditOverrideBy")
   returnsCreated         PalletReturn[]    @relation("ReturnCreatedBy")
   returnsReversed        PalletReturn[]    @relation("ReturnReversedBy")
+  customerReturnsCreated CustomerReturn[]  @relation("CustomerReturnCreatedBy")
   ledgerEntriesCreated   LedgerEntry[]     @relation("LedgerEntryCreatedBy")
 
   @@index([role, isActive])
@@ -1633,9 +1656,10 @@ model Customer {
   updatedAt        DateTime  @updatedAt @map("updated_at") @db.Timestamptz(3)
   createdByUserId  Int       @map("created_by_user_id")
 
-  archivedBy User?   @relation("CustomerArchivedBy", fields: [archivedByUserId], references: [id], onDelete: Restrict)
-  createdBy  User    @relation("CustomerCreatedBy", fields: [createdByUserId], references: [id])
+  archivedBy User?            @relation("CustomerArchivedBy", fields: [archivedByUserId], references: [id], onDelete: Restrict)
+  createdBy  User             @relation("CustomerCreatedBy", fields: [createdByUserId], references: [id])
   orders     Order[]
+  returns    CustomerReturn[]
 
   @@index([phone])
   @@index([altPhone])
@@ -1767,10 +1791,13 @@ model PalletReturn {
   reversedByUserId   Int?                @map("reversed_by_user_id")
   reversalKind       ReturnReversalKind? @map("reversal_kind")
   replacedByReturnId Int?                @unique @map("replaced_by_return_id")
+  // The customer's return it was recorded in, one paper for every order it touched (Q161); null on an order's own.
+  customerReturnId   Int?                @map("customer_return_id")
   createdAt          DateTime            @default(now()) @map("created_at") @db.Timestamptz(3)
   createdByUserId    Int                 @map("created_by_user_id")
 
   order          Order           @relation(fields: [orderId], references: [id])
+  customerReturn CustomerReturn? @relation(fields: [customerReturnId], references: [id], onDelete: Restrict)
   reversedBy     User?           @relation("ReturnReversedBy", fields: [reversedByUserId], references: [id], onDelete: Restrict)
   createdBy      User            @relation("ReturnCreatedBy", fields: [createdByUserId], references: [id])
   replacedBy     PalletReturn?   @relation("ReturnReplacement", fields: [replacedByReturnId], references: [id], onDelete: Restrict)
@@ -1781,11 +1808,32 @@ model PalletReturn {
 
   @@index([orderId])
   @@index([date])
-  // The dashboard's recent activity reads the newest returns (Q62).
-  @@index([createdAt, id])
+  // The dashboard's newest returns outside a customer return: a partial index in constraints.sql (Q62, Q161).
   @@index([reversedByUserId])
+  @@index([customerReturnId])
   @@index([createdByUserId])
   @@map("returns")
+}
+
+// What came back of a customer's pallets on one visit, over the orders it touched (Q161): one return per order points
+// here, and the visit has one receipt and one history row. Append-only (trigger + grants).
+model CustomerReturn {
+  id              Int      @id @default(autoincrement())
+  customerId      Int      @map("customer_id")
+  date            DateTime @db.Date
+  createdAt       DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+  createdByUserId Int      @map("created_by_user_id")
+
+  customer  Customer       @relation(fields: [customerId], references: [id])
+  createdBy User           @relation("CustomerReturnCreatedBy", fields: [createdByUserId], references: [id])
+  returns   PalletReturn[]
+  refunds   LedgerEntry[]
+
+  @@index([customerId])
+  // The dashboard's recent activity reads the newest ones (Q62).
+  @@index([createdAt, id])
+  @@index([createdByUserId])
+  @@map("customer_returns")
 }
 
 model ReturnLine {
@@ -1810,31 +1858,35 @@ model ReturnLine {
 
 // Append-only. Corrections are reversing rows (reverses_entry_id).
 model LedgerEntry {
-  id              Int               @id @default(autoincrement())
-  orderId         Int               @map("order_id")
-  type            LedgerEntryType
-  source          LedgerEntrySource
-  amount          BigInt
-  date            DateTime?         @db.Date
-  isAutomatic     Boolean           @default(false) @map("is_automatic")
-  returnId        Int?              @map("return_id")
-  reversesEntryId Int?              @unique @map("reverses_entry_id")
-  note            String?           @db.VarChar(500)
+  id               Int               @id @default(autoincrement())
+  orderId          Int               @map("order_id")
+  type             LedgerEntryType
+  source           LedgerEntrySource
+  amount           BigInt
+  date             DateTime?         @db.Date
+  isAutomatic      Boolean           @default(false) @map("is_automatic")
+  returnId         Int?              @map("return_id")
+  reversesEntryId  Int?              @unique @map("reverses_entry_id")
+  note             String?           @db.VarChar(500)
   // A payment's alone: what the order owed just before it, for its receipt (Q137).
-  owedBefore      BigInt?           @map("owed_before")
-  createdAt       DateTime          @default(now()) @map("created_at") @db.Timestamptz(3)
-  createdByUserId Int               @map("created_by_user_id")
+  owedBefore       BigInt?           @map("owed_before")
+  // A refund's alone: its return's customer return, written by a trigger, so the visit is read from the row (Q161).
+  customerReturnId Int?              @map("customer_return_id")
+  createdAt        DateTime          @default(now()) @map("created_at") @db.Timestamptz(3)
+  createdByUserId  Int               @map("created_by_user_id")
 
-  order      Order         @relation(fields: [orderId], references: [id])
-  return     PalletReturn? @relation(fields: [returnId], references: [id], onDelete: Restrict)
-  reverses   LedgerEntry?  @relation("LedgerReversal", fields: [reversesEntryId], references: [id], onDelete: Restrict)
-  reversedBy LedgerEntry?  @relation("LedgerReversal")
-  createdBy  User          @relation("LedgerEntryCreatedBy", fields: [createdByUserId], references: [id])
+  order          Order           @relation(fields: [orderId], references: [id])
+  return         PalletReturn?   @relation(fields: [returnId], references: [id], onDelete: Restrict)
+  customerReturn CustomerReturn? @relation(fields: [customerReturnId], references: [id], onDelete: Restrict)
+  reverses       LedgerEntry?    @relation("LedgerReversal", fields: [reversesEntryId], references: [id], onDelete: Restrict)
+  reversedBy     LedgerEntry?    @relation("LedgerReversal")
+  createdBy      User            @relation("LedgerEntryCreatedBy", fields: [createdByUserId], references: [id])
 
   @@index([orderId])
   @@index([type, date])
   @@index([date, id])
   @@index([returnId])
+  // customerReturnId: a partial index in constraints.sql, of the few rows that carry one (Q161).
   @@index([createdByUserId])
   @@map("ledger_entries")
 }
@@ -2066,7 +2118,10 @@ ALTER TABLE ledger_entries
   -- Q137 (migration 20261012000000_payment_owed_before): a payment keeps what the order owed before it; the
   -- payments recorded before the column have NULL (the ledger is never rewritten), every later one a figure.
   ADD CONSTRAINT ledger_entries_owed_before_check
-    CHECK ((type = 'PAYMENT' OR owed_before IS NULL) AND (owed_before IS NULL OR owed_before >= amount));
+    CHECK ((type = 'PAYMENT' OR owed_before IS NULL) AND (owed_before IS NULL OR owed_before >= amount)),
+  -- Q161 (migration 20261024000100_customer_return_activity): only a refund carries a customer return.
+  ADD CONSTRAINT ledger_entries_customer_return_refund_check
+    CHECK (customer_return_id IS NULL OR type = 'REFUND');
 
 -- ─── idempotency ────────────────────────────────────────────────────────────────────────
 ALTER TABLE idempotency_keys
@@ -2096,6 +2151,9 @@ CREATE TRIGGER forbid_update_delete BEFORE UPDATE OR DELETE ON ledger_entries
   FOR EACH ROW EXECUTE FUNCTION forbid_update_delete();
 CREATE TRIGGER forbid_update_delete BEFORE UPDATE OR DELETE ON return_lines
   FOR EACH ROW EXECUTE FUNCTION forbid_update_delete();
+-- A customer's return, the visit its orders' returns point to (Q161).
+CREATE TRIGGER forbid_update_delete BEFORE UPDATE OR DELETE ON customer_returns
+  FOR EACH ROW EXECUTE FUNCTION forbid_update_delete();
 
 -- Returns are never deleted.
 CREATE TRIGGER forbid_delete BEFORE DELETE ON returns
@@ -2112,10 +2170,10 @@ BEGIN
     RAISE EXCEPTION 'an UPDATE on returns must set reversed_at' USING ERRCODE = 'check_violation';
   END IF;
   IF (NEW.id, NEW.order_id, NEW.date, NEW.notes, NEW.refund_due, NEW.owed_before, NEW.cash_refund,
-      NEW.created_at, NEW.created_by_user_id)
+      NEW.customer_return_id, NEW.created_at, NEW.created_by_user_id)
      IS DISTINCT FROM
      (OLD.id, OLD.order_id, OLD.date, OLD.notes, OLD.refund_due, OLD.owed_before, OLD.cash_refund,
-      OLD.created_at, OLD.created_by_user_id) THEN
+      OLD.customer_return_id, OLD.created_at, OLD.created_by_user_id) THEN
     RAISE EXCEPTION 'only reversal columns of returns may be updated' USING ERRCODE = 'check_violation';
   END IF;
   RETURN NEW;
@@ -2150,6 +2208,21 @@ $$;
 CREATE TRIGGER ledger_reversal_matches_original BEFORE INSERT ON ledger_entries
   FOR EACH ROW EXECUTE FUNCTION ledger_reversal_matches_original();
 
+-- Ledger: a refund carries its return's customer return (Q161), written by the database with the row whatever the
+-- writer sent, never changed.
+CREATE OR REPLACE FUNCTION ledger_refund_customer_return() RETURNS trigger
+LANGUAGE plpgsql AS $$
+BEGIN
+  IF NEW.type = 'REFUND' THEN
+    NEW.customer_return_id := (SELECT r.customer_return_id FROM returns r WHERE r.id = NEW.return_id);
+  END IF;
+  RETURN NEW;
+END;
+$$;
+
+CREATE TRIGGER ledger_refund_customer_return BEFORE INSERT ON ledger_entries
+  FOR EACH ROW EXECUTE FUNCTION ledger_refund_customer_return();
+
 -- ═══════════════════════════════════════════════════════════════════════════════════════
 -- Partial and covering indexes (Q62, migration 20260917000000_open_order_totals)
 -- Totals over years of history read only what is still standing; the dashboard reads the newest events.
@@ -2169,8 +2242,15 @@ CREATE INDEX order_lines_damaged_idx
 CREATE INDEX orders_cancelled_at_id_idx ON orders (cancelled_at, id) WHERE cancelled_at IS NOT NULL;
 CREATE INDEX ledger_entries_manual_payments_created_at_id_idx
   ON ledger_entries (created_at, id) WHERE type = 'PAYMENT' AND source = 'MANUAL';
-CREATE INDEX ledger_entries_refunds_created_at_id_idx
-  ON ledger_entries (created_at, id) WHERE type = 'REFUND';
+-- A refund's customer return, of the few ledger rows that carry one (Q161, the foreign key's index).
+CREATE INDEX ledger_entries_customer_return_id_idx
+  ON ledger_entries (customer_return_id) WHERE customer_return_id IS NOT NULL;
+-- The returns and refunds outside a customer return, newest first (Q161, migration
+-- 20261024000100_customer_return_activity, which replaced Q62's indexes of every refund and every return).
+CREATE INDEX ledger_entries_refunds_outside_visit_created_at_id_idx
+  ON ledger_entries (created_at, id) WHERE type = 'REFUND' AND customer_return_id IS NULL;
+CREATE INDEX returns_outside_visit_created_at_id_idx
+  ON returns (created_at, id) WHERE customer_return_id IS NULL;
 
 -- An item's ledger page and its balances, index-only (Q102, migration 20260928000300_stock_movements_item_ledger).
 -- The predicate always holds; it keeps the index partial, which Prisma's schema diff leaves alone.
@@ -2237,7 +2317,8 @@ GRANT SELECT, INSERT ON
   audit_logs,
   stock_movements,
   ledger_entries,
-  return_lines
+  return_lines,
+  customer_returns
 TO pallet_app;
 
 -- Returns: insert, plus a one-time UPDATE of the reversal columns only (trigger enforces "once")
@@ -2536,6 +2617,8 @@ Path and query parameters use the same mapping; their `path` is the parameter na
 | `CREDIT_LIMIT_EXCEEDED` | 409 | Credit rule (4.4) fails and the request is not a valid admin override. | `{ creditLimit, customerOutValue, depositDelta, excess, canOverride: boolean }` |
 | `UNIT_DEPOSIT_NOT_PERMITTED` | 403 | A line carries `unitDeposit` and the user lacks `orders.editUnitDeposit`. | `{ lineIndexes: number[] }` |
 | `RETURN_NOT_FOUND` | 404 | Return id does not exist. | `{ returnId }` |
+| `CUSTOMER_RETURN_NOT_FOUND` | 404 | Customer return id does not exist (Q161). | `{ customerReturnId }` |
+| `CUSTOMER_RETURN_NO_RECEIPT` | 409 | The customer return paid no cash back, so it has no receipt (Q161). | `{ customerReturnId }` |
 | `RETURN_EMPTY` | 400 | Return body has `lines: []`. | — |
 | `RETURN_LINE_NOT_IN_ORDER` | 400 | `orderLineId` is not a line of this order. | `{ orderLineId }` |
 | `RETURN_DUPLICATE_LINE` | 400 | The same `orderLineId` appears twice. | `{ orderLineId }` |
@@ -2888,6 +2971,7 @@ interface LedgerEntryDto {
   date: string | null;              // stored business date (null only for the automatic hand-over payment)
   effectiveDate: string;            // COALESCE(date, orders.date)
   isAutomatic: boolean; returnId: number | null;
+  customerReturnId: number | null;  // Q161: a refund's customer return (its own column); null on every other row
   reversesEntryId: number | null; reversedByEntryId: number | null; isReversed: boolean;
   canReverse: boolean;              // type = PAYMENT && source = MANUAL && !isReversed (permission-independent)
   note: string | null; createdAt: string; createdBy: UserRefDto;
@@ -2915,7 +2999,7 @@ interface CustomerReturnRecordedDto {
   refundDue: number; owedBefore: number; cashRefund: number; owedAfter: number;
   refundEntryId: number | null;     // the REFUND row it paid out, for its receipt (Q137)
 }
-interface CustomerReturnResultDto { customer: CustomerRefDto; returns: CustomerReturnRecordedDto[] }
+interface CustomerReturnResultDto { customerReturnId: number | null /* Q161: null over one order */; customer: CustomerRefDto; returns: CustomerReturnRecordedDto[] }
 interface PaymentResultDto { ledgerEntryId: number; order: OrderDetailDto }
 
 // ── receipt ──
@@ -2966,6 +3050,19 @@ interface MoneyReceiptDto {         // Q137: one payment or refund, with the ord
   factory: ReceiptFactoryDto;
   customer: { name: string; phone: string; address: string };
 }
+interface CustomerReturnReceiptDto {   // Q161: a customer return's one paper, its orders' returns summed as recorded
+  customerReturnId: number; receiptNumberDisplay: string;   // the customer return's id, zero-padded to 6 digits
+  date: string; printedOn: string;
+  owedBefore: number;               // Σ owed_before of its returns
+  credit: number;                   // Σ refund_due
+  amount: number;                   // Σ cash_refund (> 0, or there is no receipt)
+  owedAfter: number;                // Σ what each order still owed after its return = owedBefore − credit + amount
+  note: string | null; recordedBy: UserRefDto;
+  reversedOn: string | null;        // the latest day one of its returns was reversed (edited or deleted)
+  allReversed: boolean;             // every one of them was
+  factory: ReceiptFactoryDto;
+  customer: { name: string; phone: string; address: string };
+}
 interface TransactionsReceiptRowDto {   // Q139: one payment or refund on an order's transactions receipt
   ledgerEntryId: number; receiptNumberDisplay: string;   // its own money receipt's number
   kind: 'PAYMENT' | 'REFUND';
@@ -2986,13 +3083,16 @@ interface TransactionsReceiptDto {      // Q139: every payment and refund of one
 }
 
 // ── dashboard ──
-type ActivityEventKind = 'HANDOVER' | 'CANCELLATION' | 'RETURN' | 'PAYMENT' | 'REFUND';
+type ActivityEventKind = 'HANDOVER' | 'CANCELLATION' | 'RETURN' | 'PAYMENT' | 'REFUND' | 'CUSTOMER_RETURN';   // Q161
 interface ActivityEventDto {
   kind: ActivityEventKind; at: string /* createdAt or cancelledAt */; date: string /* business date */;
-  orderId: number; orderNumber: number; customer: CustomerRefDto;
-  quantity: number | null;          // HANDOVER: Σ line quantity; RETURN: accepted + damaged; else null
-  amount: number | null;            // HANDOVER: depositTotal; RETURN: refundDue; PAYMENT/REFUND: amount; CANCELLATION: null
-  reversed: boolean;                // RETURN: return reversed; PAYMENT/REFUND: row reversed; else false
+  orderId: number | null; orderNumber: number | null;   // null on a CUSTOMER_RETURN, which is over several orders
+  customerReturnId: number | null; orderCount: number | null;   // CUSTOMER_RETURN: its id and how many orders; else null
+  customer: CustomerRefDto;
+  quantity: number | null;          // HANDOVER: Σ line quantity; RETURN, CUSTOMER_RETURN: accepted + damaged; else null
+  amount: number | null;            // HANDOVER: depositTotal; RETURN: refundDue; CUSTOMER_RETURN: cash handed back (Q161); PAYMENT/REFUND: amount; CANCELLATION: null
+  reversed: boolean;                // RETURN: return reversed; CUSTOMER_RETURN: all its returns; PAYMENT/REFUND: row reversed; else false
+  partlyReversed: boolean;          // CUSTOMER_RETURN: some of its returns reversed, not all (Q161); else false
 }
 interface DashboardDto {
   positions?: { palletsOut: number; outValue: number; owed: number; held: number;
@@ -3548,7 +3648,7 @@ The web app sends only order lines where the user entered a non-zero accepted or
 - **Access:** `@RequirePermission('returns.create')`; idempotent (scope `RETURN_CREATE`).
 - **Body:** `CustomerReturnCreateBody = z.strictObject({ date: BusinessDate, notes: optionalText(1000), orders: z.array(z.strictObject({ orderId: Id, lines: ReturnLineInput[] (≤ 50, empty entries dropped) })).max(100) })` — an order named twice is a `duplicate` field error; orders left with no line are dropped.
 - **Steps:** idempotency; `date` ≤ today; `lockCustomer` (missing → `CUSTOMER_NOT_FOUND`); no order left → `RETURN_EMPTY`; `lockOrder` for each order by id; each loaded (missing or another customer's → `ORDER_NOT_FOUND { orderId }`; cancelled → `ORDER_CANCELLED { orderId }`); `lockItems(item ids of every order's lines with acceptedQuantity > 0)`; `validateReturnAgainstOrder` and the money for each order against its own state, `RETURN_EXCEEDS_OUT` collected across the orders into one answer; then, by order number, each return written exactly as `POST /api/orders/:orderId/returns`; idempotency row.
-- **Writes:** per order, as `POST /api/orders/:orderId/returns`.
+- **Writes:** per order as `POST /api/orders/:orderId/returns`. Over two orders or more (Q161), first one `customer_returns` row, each return's `customer_return_id` set to it, and one `CUSTOMER_RETURN.RETURN_CREATE` audit row for all of it instead of each order's return and refund rows (§11.3); over one order, exactly that order's return.
 - **Response:** 201 `CustomerReturnResultDto`.
 - **Errors:** idempotency codes, `CUSTOMER_NOT_FOUND`, `ORDER_NOT_FOUND`, `ORDER_CANCELLED`, `RETURN_EMPTY`, `RETURN_DUPLICATE_LINE`, `RETURN_LINE_NOT_IN_ORDER`, `BUSINESS_DATE_IN_FUTURE`, `RETURN_DATE_BEFORE_ORDER_DATE`, `DAMAGED_REFUND_TOO_HIGH`, `RETURN_EXCEEDS_OUT`, `VALIDATION_FAILED`.
 
@@ -3617,6 +3717,12 @@ LedgerEntryListQuery = z.strictObject({
 - **Response:** 200 `MoneyReceiptDto`.
 - **Errors:** `LEDGER_ENTRY_NOT_FOUND`, `LEDGER_ENTRY_NO_RECEIPT`.
 
+#### `GET /api/customer-returns/:id/receipt` (Q161)
+- **Access:** `@RequirePermission('orders.view')` (in `LedgerController`, beside the money receipt).
+- **Steps:** read the customer return with its customer, recorder and returns; missing → `CUSTOMER_RETURN_NOT_FOUND`; Σ `cash_refund` = 0 → `CUSTOMER_RETURN_NO_RECEIPT { customerReturnId }`. The figures are the sums of its returns' `owed_before`, `refund_due`, `cash_refund`, and `owed_before − refund_due + cash_refund` after, as they were recorded — a return of it reversed since is still counted, and stamps the paper: `reversedOn` the latest business day of its returns' `reversed_at`, `allReversed` when every one is. The note is its returns' (one for all). Parties and factory as for the money receipt.
+- **Response:** 200 `CustomerReturnReceiptDto`.
+- **Errors:** `CUSTOMER_RETURN_NOT_FOUND`, `CUSTOMER_RETURN_NO_RECEIPT`.
+
 #### `GET /api/orders/:id/transactions-receipt` (Q139)
 - **Access:** `@RequirePermission('orders.view')` (in `LedgerController`, beside the money receipt).
 - **Steps:** read the order with its customer and its `PAYMENT` and `REFUND` rows, each with its reversing row's date; missing → `ORDER_NOT_FOUND`. Rows sorted by business date (`date`, or the order's for an automatic payment), then id; `reversedOn` as for the money receipt. `received` and `refunded` sum the rows that stand; `owed` is the order's. Rows chunked by `chunkReceiptLines` (six to a half), `showTotal` on the last sheet. A cancelled order is not refused.
@@ -3630,7 +3736,7 @@ LedgerEntryListQuery = z.strictObject({
 - **Response:** 200 `DashboardDto`:
   - `positions` (only with `reports.viewPositions`): `SELECT SUM(out_quantity_total), SUM(out_value), SUM(owed), SUM(held), COUNT(*) FILTER (WHERE status='OPEN'), COUNT(DISTINCT customer_id) FILTER (WHERE status='OPEN') FROM orders WHERE cancelled_at IS NULL` (money sums cast `::bigint`).
   - `lowStock` (only with `items.view`): non-archived items with `min_stock IS NOT NULL AND quantity_on_hand <= min_stock`; `count` = all such items; `items` = first 10 ordered by `(quantity_on_hand − min_stock) ASC, name ASC`.
-  - `recentActivity` (only with `orders.view`): the latest 10 events by `at DESC` from the union of orders created (`HANDOVER`, `at = created_at`), orders cancelled (`CANCELLATION`, `at = cancelled_at`), returns (`RETURN`, `at = created_at`, `reversed = reversed_at IS NOT NULL`), manual payments (`PAYMENT`, `source = 'MANUAL'`) and refunds (`REFUND`), each ledger event with `reversed` = a reversal row exists.
+  - `recentActivity` (only with `orders.view`): the latest 10 events by `at DESC` from the union of orders created (`HANDOVER`, `at = created_at`), orders cancelled (`CANCELLATION`, `at = cancelled_at`), returns (`RETURN`, `at = created_at`, `reversed = reversed_at IS NOT NULL`), manual payments (`PAYMENT`, `source = 'MANUAL'`) and refunds (`REFUND`), each ledger event with `reversed` = a reversal row exists, and customer returns over several orders (`CUSTOMER_RETURN`, Q161: `at = created_at`, `orderId`/`orderNumber` null, `orderCount`, pallets and the cash handed back (`amount`, its receipt's headline, since its refunds are not events of their own) summed over its returns as recorded, `reversed` when all of them are and `partlyReversed` when some are). The returns and refunds of a customer return are not events of their own (`customer_return_id IS NULL` on both, each from a partial index of those rows); a correction of one is its order's own `RETURN`.
   - A section the user may not see is absent from the JSON.
 
 ### 6.23 Reports (`apps/api/src/modules/reports/reports.controller.ts`)
@@ -3747,6 +3853,7 @@ AuditLogListQuery = z.strictObject({
 | POST | /api/ledger-entries/:id/reverse | payments.delete |
 | GET | /api/ledger-entries | orders.view |
 | GET | /api/ledger-entries/:id/receipt | orders.view |
+| GET | /api/customer-returns/:id/receipt | orders.view |
 | GET | /api/orders/:id/transactions-receipt | orders.view |
 | GET | /api/dashboard | Authenticated (sections gated) |
 | GET | /api/reports/positions | reports.viewPositions |
@@ -3913,7 +4020,7 @@ Common rules for every page:
     - "Total held" (`positions.held`, MoneyText) → `/reports/positions?sort=-held`.
     - "Low stock items" (`lowStock.count`) → `/items?lowStockOnly=true`; when count > 0 the card shows a warning icon (`TriangleAlert`) plus the text `dashboard.lowStock.attention`, and lists up to 5 item names with on-hand/min values.
   - Quick actions (large buttons, `h-14`): "New order" (`orders.create`, `Plus`) → `/orders/new`; "Record return" (`returns.create`, `Undo2`) → `/returns/new`; "Record payment" (`payments.create`, `Banknote`) → `/payments/new`.
-  - "Recent activity" list (`recentActivity`, newest first, up to 10 rows): event kind icon + translated kind (`enums.activityEventKind.<KIND>`, from `ActivityEventDto.kind`; rows with `reversed = true` carry the `reversed` badge), order number, customer name, quantity or amount, business date. A row click opens `/orders/$orderId`.
+  - "Recent activity" list (`recentActivity`, newest first, up to 10 rows): event kind icon + translated kind (`enums.activityEventKind.<KIND>`, from `ActivityEventDto.kind`; rows with `reversed = true` carry the `reversed` badge, a customer return with `partlyReversed` the `dashboard.recent.partlyReversed` badge), order number — for a `CUSTOMER_RETURN`, `dashboard.recent.orders` ("Orders: N") leading to the customer instead (Q161), plain text without `customers.view`, and that row neither pointer nor hover —, customer name, quantity or amount, business date. A row click follows the row's link (`data-row-link`): `/orders/$orderId`, or a customer return's customer (Q161); a row without one is not pressable.
 - **Empty:** no recent activity → `dashboard.recent.empty`.
 
 #### 7.3.4 `/orders` Orders list
@@ -4656,6 +4763,7 @@ The `en.json` and `ar.json` files carry translated counterparts of the same keys
 - **Data:** `GET /api/ledger-entries/:id/receipt` (key `['ledger','receipt',id]`, `staleTime: 0`: a payment deleted since the tab was opened must print as deleted). `409 LEDGER_ENTRY_NO_RECEIPT` → the page says `errors.LEDGER_ENTRY_NO_RECEIPT` in Sorani, with the toolbar, and prints nothing.
 - **Behaviour:** as §7.16.1 — the toolbar, the print once when data, fonts and logo are ready, the reprint from a fresh read — shared with the hand-over receipt by `ReceiptPrintPage` (`src/features/receipt/receipt-print-page.tsx`, given the query and the refusal `{ code, message }`). A failed re-read keeps a receipt already on screen, under the error (screen only) — a reprint after it prints nothing; only the refusal, or a first read that fails, replaces it. Always Sorani (`getFixedT('ckb')`), Western digits, `dd/MM/yyyy`.
 - **Layout** (`src/features/receipt/money-receipt.tsx`, the same `receipt.css`): one `.sheet`, two identical `.half`s and the cut line. Per half: `.block-header` (22 mm) as §7.16.3 but titled `receipt.money.paymentTitle` or `receipt.money.refundTitle`, with `receipt.money.receiptNumber` = `receiptNumberDisplay` and `receipt.date` = `date`; `.block-parties` (24 mm): the customer (name, phone, address) and the order (`receipt.money.order`: `receipt.money.orderNumber`, `receipt.money.orderDate`); the factory header and the customer box are the hand-over receipt's own (`receipt-parts.tsx`); `.block-money` (49 mm): a two-column table `.money`, 8 mm rows — `receipt.money.owedBefore`, for a refund `receipt.money.credit`, then the amount as `receipt.money.received` (payment) or `receipt.money.refunded` (refund) at 12 pt bold, `receipt.money.owedAfter` (the two balance rows only when they are known), and when there is one a `receipt.money.note` row (the note, or `receipt.money.atHandover` for the hand-over's automatic payment; one line, clipped); `.block-footer` (20 mm): `receipt.money.recordedBy` and `receipt.printedOn`. At most five rows: 40 mm of the block's 49. The footer is a row (`.money-footer`): its two lines (`.footer-lines`) at the start and, on a reversed row, `.stamp` — `receipt.money.reversed` with `reversedOn`, red, 14 pt in a 0.8 mm border, turned 6° — in its own column at the end, clear of every text. The note cell has `dir="auto"`, so a Latin note is clipped at its end rather than its start. The paper, the two-copy sheet, the header's title block, the factory and the customer box are the hand-over receipt's own components (`receipt-parts.tsx`).
+- **Customer return's receipt** (`/print/customer-returns/$customerReturnId`, Q161): `GET /api/customer-returns/:id/receipt` (key `['ledger','customer-return-receipt',id]`, `staleTime: 0`), drawn by `CustomerReturnReceipt` in the same file with the same half (`MoneyPaper`): titled `receipt.money.refundTitle`, numbered `receipt.money.customerReceiptNumber` (its own numbering, apart from the money receipts'), no order box, the four money rows summed, the note; stamped `receipt.money.partlyReversed` while some of its returns stand, `receipt.money.reversed` once none do. `409 CUSTOMER_RETURN_NO_RECEIPT` → refused in Sorani as the money receipt's page does. Printed by `printCustomerReturnReceipt(id)` from the customer return's saved dialog (one button), the customer's refunds tab (a refund of a customer return prints this, not its order's part) and, beside the order's own part, an order's money table (`orders.money.printCombined`, `ReceiptText`).
 - **Opened from:** the saved-payment dialog (§7.4.3, Q139) and the success toast of a return with a cash refund (§7.4.2), and the printer buttons of the order's money table and the customer's payments and refunds tabs (§7.3.6, §7.3.12), all through `printMoneyReceipt(entryId)` (`src/features/receipt/print-receipt.ts`, printed in place by `ReceiptPrinter`, Q140).
 
 | Key | Sorani (ckb) | English gloss |
@@ -4676,6 +4784,8 @@ The `en.json` and `ar.json` files carry translated counterparts of the same keys
 | `receipt.money.atHandover` | `لە کاتی ڕادەستکردن، نەقد` | At the hand-over, in cash |
 | `receipt.money.recordedBy` | `تۆمارکەر` | Recorded by |
 | `receipt.money.reversed` | `هەڵوەشێنراوەتەوە لە {{date}}` | Cancelled on {{date}} |
+| `receipt.money.customerReceiptNumber` | `ژمارەی پسووڵەی گەڕاندنەوە` | Return receipt no. (Q161) |
+| `receipt.money.partlyReversed` | `بەشێکی هەڵوەشێنراوەتەوە لە {{date}}` | Partly cancelled on {{date}} (Q161) |
 
 These join the strings a native Sorani speaker proofreads before go-live (Q22).
 
@@ -4715,7 +4825,7 @@ All public symbols are re-exported from `src/index.ts`; deep imports are forbidd
 
 ### 8.1 `src/enums.ts`
 Exports value arrays, value objects and types (identical to the Prisma enums; the test `enums.test.ts` parses `apps/api/prisma/schema.prisma` and asserts equality):
-`ROLES`/`Role`, `PAYMENT_TYPES`/`PaymentType`, `ORDER_STATUSES`/`OrderStatus`, `STOCK_MOVEMENT_REASONS`/`StockMovementReason`, `LEDGER_ENTRY_TYPES`/`LedgerEntryType` (with `RECEIPT_LEDGER_ENTRY_TYPES` and `hasMoneyReceipt(type)`, the rows with a receipt, Q137), `LEDGER_ENTRY_SOURCES`/`LedgerEntrySource`, `RETURN_REVERSAL_KINDS`/`ReturnReversalKind`, `UPLOAD_KINDS`/`UploadKind`, `AUDIT_ACTIONS`/`AuditAction`, `AUDIT_ENTITY_TYPES`/`AuditEntityType`, plus the browser preference enums `LANGUAGES`/`Language`, `RTL_LANGUAGES`, `THEMES`/`Theme`/`ResolvedTheme`, `PALETTES`/`Palette`, `FONT_FAMILIES`/`FontFamily`, `FONT_SIZES`/`FontSize`, `FONT_SIZE_PX`. The package also defines (in this file) `ACTIVITY_EVENT_KINDS = ['HANDOVER', 'CANCELLATION', 'RETURN', 'PAYMENT', 'REFUND'] as const` / `ActivityEventKind` (the dashboard `ActivityEventDto.kind` of §6.9; reversals are flagged by `ActivityEventDto.reversed`, not by a separate kind) and `CUSTOMER_HISTORY_KINDS = ['HANDOVER', 'RETURN', 'LEDGER'] as const` / `CustomerHistoryKind` (the `CustomerHistoryItemDto.kind` of §6.9 and the `kinds` filter of `CustomerHistoryQuery`).
+`ROLES`/`Role`, `PAYMENT_TYPES`/`PaymentType`, `ORDER_STATUSES`/`OrderStatus`, `STOCK_MOVEMENT_REASONS`/`StockMovementReason`, `LEDGER_ENTRY_TYPES`/`LedgerEntryType` (with `RECEIPT_LEDGER_ENTRY_TYPES` and `hasMoneyReceipt(type)`, the rows with a receipt, Q137), `LEDGER_ENTRY_SOURCES`/`LedgerEntrySource`, `RETURN_REVERSAL_KINDS`/`ReturnReversalKind`, `UPLOAD_KINDS`/`UploadKind`, `AUDIT_ACTIONS`/`AuditAction`, `AUDIT_ENTITY_TYPES`/`AuditEntityType`, plus the browser preference enums `LANGUAGES`/`Language`, `RTL_LANGUAGES`, `THEMES`/`Theme`/`ResolvedTheme`, `PALETTES`/`Palette`, `FONT_FAMILIES`/`FontFamily`, `FONT_SIZES`/`FontSize`, `FONT_SIZE_PX`. The package also defines (in this file) `ACTIVITY_EVENT_KINDS = ['HANDOVER', 'CANCELLATION', 'RETURN', 'PAYMENT', 'REFUND', 'CUSTOMER_RETURN'] as const` (the last, Q161) / `ActivityEventKind` (the dashboard `ActivityEventDto.kind` of §6.9; reversals are flagged by `ActivityEventDto.reversed`, not by a separate kind) and `CUSTOMER_HISTORY_KINDS = ['HANDOVER', 'RETURN', 'LEDGER'] as const` / `CustomerHistoryKind` (the `CustomerHistoryItemDto.kind` of §6.9 and the `kinds` filter of `CustomerHistoryQuery`).
 
 ### 8.2 `src/permissions.ts`
 `GRANTABLE_PERMISSION_KEYS` (33 keys), `ADMIN_ONLY_PERMISSION_KEYS` (3 keys), `PERMISSION_KEYS`, types `GrantablePermissionKey`, `AdminOnlyPermissionKey`, `PermissionKey`, `PERMISSION_DEPENDENCIES`, `isGrantablePermissionKey()`, `isAdminOnlyPermissionKey()`, `closePermissionSet()`, `missingPermissionDependencies()`. The module grouping `PermissionMatrix` shows (items, purchases, customers, drivers, orders, returns, payments, reports, audit) is the key prefix, derived in the component from `GRANTABLE_PERMISSION_KEYS` in their declared order; the tick/untick rule (a grant pulls in its dependencies, a revoke drops its dependants) is `togglePermission()` in `apps/web/src/lib/permission-selection.ts`, built on `PERMISSION_DEPENDENCIES` (Q61).
@@ -5156,7 +5266,7 @@ printf '[Timer]\nOnCalendar=\nOnCalendar=*-*-* 01:00\nRandomizedDelaySec=10m\n' 
 | `DELETE` (archive / batch soft delete), `CANCEL`, `USER_DEACTIVATE`, `USER_ACTIVATE` | snapshot before | snapshot after |
 | `STOCK_ADJUST` | `{ quantityOnHand }` before | `{ quantityOnHand, movement: { quantity, note } }` after |
 | `PAYMENT_CREATE`, `REFUND_CREATE`, `PAYMENT_REVERSE`, `REFUND_REVERSE` | null | the ledger row snapshot |
-| `RETURN_CREATE` | null | return snapshot with `lines[]` |
+| `RETURN_CREATE` | null | return snapshot with `lines[]`; on `CUSTOMER_RETURN` (Q161) the customer return's snapshot (`id`, `customerId`, `date`, `createdAt`) with `returns[]`, each its order's return snapshot with `lines[]`, `orderNumber` and `refund` (its `REFUND` row's ledger snapshot, or null) |
 | `RETURN_EDIT`, `RETURN_DELETE` | old return snapshot | `RETURN_EDIT`: new return snapshot; `RETURN_DELETE`: `{ reversedAt, reversalKind: 'DELETE' }` |
 | `CREDIT_OVERRIDE` | null | `{ creditLimit, customerOutValue, depositDelta, excess }` |
 | `LOGIN_*`, `LOCKOUT`, `LOGOUT`, `LOGOUT_ALL`, `SESSION_REUSE_DETECTED`, `PASSWORD_CHANGE`, `PASSWORD_RESET` | null | null (details only in `summary_params`) |
@@ -5199,13 +5309,14 @@ A **snapshot** is produced by `toAuditSnapshot(entityType, row)` (`apps/api/src/
 | ORDER | UPDATE | PATCH /api/orders/:id | order id | `audit.summary.ORDER.UPDATE` | `orderNumber`, `fields` (`lines` when lines changed) |
 | ORDER | CANCEL | POST /api/orders/:id/cancel | order id | `audit.summary.ORDER.CANCEL` | `orderNumber`, `customerName` |
 | ORDER | CREDIT_OVERRIDE | POST /api/orders or PATCH lines with `confirmCreditOverride` | order id | `audit.summary.ORDER.CREDIT_OVERRIDE` | `orderNumber`, `customerName`, `excess` |
-| RETURN | RETURN_CREATE | POST /api/orders/:orderId/returns (or one per order of POST /api/customers/:customerId/returns, Q156) | return id | `audit.summary.RETURN.RETURN_CREATE` | `orderNumber`, `accepted`, `damaged`, `refundDue`, `cashRefund` |
+| RETURN | RETURN_CREATE | POST /api/orders/:orderId/returns | return id | `audit.summary.RETURN.RETURN_CREATE` | `orderNumber`, `accepted`, `damaged`, `refundDue`, `cashRefund` |
 | RETURN | RETURN_EDIT | POST /api/returns/:id/replace | old return id | `audit.summary.RETURN.RETURN_EDIT` | `orderNumber`, `newReturnId` |
 | RETURN | RETURN_DELETE | DELETE /api/returns/:id | return id | `audit.summary.RETURN.RETURN_DELETE` | `orderNumber` |
 | LEDGER_ENTRY | PAYMENT_CREATE | order create (automatic), line edit (re-issued automatic), POST payments (manual) | ledger id | `audit.summary.LEDGER_ENTRY.PAYMENT_CREATE` | `orderNumber`, `amount`, `automatic` (boolean) |
 | LEDGER_ENTRY | PAYMENT_REVERSE | line edit, cancel, POST /api/ledger-entries/:id/reverse | reversal row id | `audit.summary.LEDGER_ENTRY.PAYMENT_REVERSE` | `orderNumber`, `amount` |
 | LEDGER_ENTRY | REFUND_CREATE | return create / replacement (only when `cashRefund > 0`) | ledger id | `audit.summary.LEDGER_ENTRY.REFUND_CREATE` | `orderNumber`, `amount` |
 | LEDGER_ENTRY | REFUND_REVERSE | return edit / delete (only when the old return had a refund) | reversal row id | `audit.summary.LEDGER_ENTRY.REFUND_REVERSE` | `orderNumber`, `amount` |
+| CUSTOMER_RETURN | RETURN_CREATE | POST /api/customers/:customerId/returns (Q161: one row for all its orders' returns and refunds, which write none of their own) | customer return id | `audit.summary.CUSTOMER_RETURN.RETURN_CREATE` | `customerName`, `orders`, `accepted`, `damaged`, `refundDue`, `cashRefund` (sums); `after` = the customer return's snapshot with `returns`: each order's return snapshot, its `orderNumber` and its refund's ledger snapshot (`refund`) |
 
 One operation may write several rows, all in its transaction, in this order: primary entity row first, then `CREDIT_OVERRIDE`, then ledger rows. Order creation on a CASH order with an admin override writes `ORDER.CREATE`, `ORDER.CREDIT_OVERRIDE`, `LEDGER_ENTRY.PAYMENT_CREATE`.
 

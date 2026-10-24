@@ -36,7 +36,8 @@ GRANT SELECT, INSERT ON
   audit_logs,
   stock_movements,
   ledger_entries,
-  return_lines
+  return_lines,
+  customer_returns
 TO pallet_app;
 
 -- Returns: insert, plus a one-time UPDATE of the reversal columns only (trigger enforces "once")
