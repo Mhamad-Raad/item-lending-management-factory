@@ -118,3 +118,12 @@ The build history that used to sit in `CLAUDE.md` "Status", oldest first, moved 
 - **10q returns by item** (2026-10-21, Q160): the customer return screen shows an item once over all its orders
   and places a typed count oldest order first (by date; damaged pallets first, the refund with them), with a split
   line naming each order; each order still gets its own return, refund and receipt.
+- **10r one receipt per customer return** (2026-10-24, Q161): a customer's return over two orders or more is one
+  visit — `customer_returns` (migration `20261024000000_customer_returns`, append-only),
+  `returns.customer_return_id` and a refund's own `ledger_entries.customer_return_id` (written from its return's by
+  a trigger; migration `20261024000100_customer_return_activity`, with the dashboard's partial indexes); one receipt
+  (`GET /api/customer-returns/:id/receipt`, `/print/customer-returns/$customerReturnId`, the refund receipt's design
+  without an order, its own number, stamped partly or wholly reversed); one history row
+  (`CUSTOMER_RETURN.RETURN_CREATE`) and one dashboard event (`CUSTOMER_RETURN`, as recorded, flagged partly or
+  wholly reversed) instead of each order's return and refund; the saved dialog's one Print button, the customer's
+  refunds print the visit's paper, an order's refund prints its own part and the visit's beside it.

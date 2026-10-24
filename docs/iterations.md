@@ -519,6 +519,20 @@ refund and receipt are as before. **Exit:** `allocate.test.ts` (the business's e
 placing, a refund spilling over, over-out left unplaced, grouping and oldest by date); `customer-returns.spec.ts`
 "Q160" (proven failing newest first) and the Q156 tests on the new layout; live E3; every gate green.
 
+### 10r — One receipt for a customer's return (Q161)
+
+Read: Q137, Q156, Q160, §5, §6.20–§6.22, §7.16.6, §11.2, §11.3.
+
+The business asked that a customer's return over several orders give one receipt, naming no order; the maintainer
+chose that it be one entry in the history and on the dashboard too, printable again later, with each order's page
+still printing its own part. A `customer_returns` row (append-only) is written per customer return over two orders
+or more and its orders' returns point to it (one order stays that order's own); the ledger and every order are
+unchanged. Its receipt sums its returns as recorded, under its own number, stamped when one of them is corrected
+since; one `CUSTOMER_RETURN.RETURN_CREATE` history row replaces its per-order return and refund rows; one
+`CUSTOMER_RETURN` dashboard event replaces their lines. **Exit:** `customer-returns.test.ts` (the visit and its
+one history row, the receipt's sums, none without cash, not found, partial and whole stamps, one dashboard event);
+`db-privileges.test.ts`; `money-receipt.test.tsx`; `customer-return-receipt.spec.ts` and
+`customer-returns.spec.ts` — each proven failing when its rule is removed; live E3; reconcile 0; every gate green.
 ---
 
 ## Environments

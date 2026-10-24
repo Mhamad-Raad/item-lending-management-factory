@@ -39,7 +39,9 @@ Pallet System: a web app for a single pallet factory in Iraq (Kurdistan Region) 
   10n: a return starts from the customer — every pallet they hold, by order, counted with buttons, saved as a
   return on each order at once (Q156), and a Returns item in the sidebar (Q157). Then (2026-10-21) 10o: the
   receipt's earlier pallets per item, still out only (Q158); 10p: the change-password page only for those who must
-  (Q159); 10q: the return screen by item, oldest order first (Q160).
+  (Q159); 10q: the return screen by item, oldest order first (Q160). Then (2026-10-24) 10r: a customer's return
+  over several orders is one visit, with one receipt naming no order, one history row and one dashboard line; each
+  order still prints its own part (Q161).
 - **The maintainer's one page** is "Maintainer quick start" in `README.md` (run, test, deploy, restore, recover,
   traps, yearly checklist). Keep it true when a command or a runbook changes.
 - **Open, needing people rather than code:** the E6 screenshot baselines (rendered by CI, then committed; after
