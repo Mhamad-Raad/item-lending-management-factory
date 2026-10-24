@@ -12,6 +12,7 @@ import { MoneyText } from '@/components/app/money-text';
 import { PageHeader } from '@/components/app/page-header';
 import { QuantityText } from '@/components/app/quantity-text';
 import { PageSkeleton, QueryErrorState } from '@/components/app/states';
+import { ItemName } from '@/components/app/item-name';
 import { Thumbnail } from '@/components/app/thumbnail';
 import { Button } from '@/components/ui/button';
 import { itemListQuery } from '@/features/items/api';
@@ -42,7 +43,7 @@ const COLUMNS: DataColumn<ItemDto>[] = [
     cell: (item) => (
       <span className="flex items-center gap-3">
         <Thumbnail url={item.imageUrl} />
-        <bdi>{item.name}</bdi>
+        <ItemName name={item.name} />
       </span>
     ),
     sortKey: 'name',

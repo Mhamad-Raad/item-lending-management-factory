@@ -21,6 +21,8 @@ import {
 import { scrollToAnchor } from '@/lib/scroll-to-anchor';
 import { cn } from '@/lib/utils';
 import { ActorName } from '@/components/app/actor-name';
+import { ItemName } from '@/components/app/item-name';
+import { NoteText } from '@/components/app/note-text';
 
 type Line = OrderDetailDto['lines'][number];
 
@@ -31,7 +33,7 @@ const LINE_COLUMNS: DataColumn<Line>[] = [
     cell: (line) => (
       <span className="flex items-center gap-3">
         <Thumbnail url={line.item.imageUrl} />
-        <bdi>{line.item.name}</bdi>
+        <ItemName name={line.item.name} />
       </span>
     ),
     wrap: true,
@@ -189,7 +191,7 @@ export function OrderReturns({
         <ul className="flex flex-col gap-1">
           {pr.lines.map((line) => (
             <li key={line.id} className="flex flex-wrap gap-x-4">
-              <bdi className="font-medium">{line.item.name}</bdi>
+              <ItemName name={line.item.name} className="font-medium" />
               <span>
                 {t('orders.detail.returnAccepted')}: <QuantityText value={line.acceptedQuantity} />
               </span>
@@ -259,8 +261,9 @@ export function OrderReturns({
     {
       id: 'notes',
       header: 'orders.money.note',
-      cell: (pr) => (pr.notes ? <bdi>{pr.notes}</bdi> : '—'),
-      mobileCell: (pr) => (pr.notes ? <bdi>{pr.notes}</bdi> : null),
+      // Two lines at most; the return's edit form shows it whole (Q165).
+      cell: (pr) => (pr.notes ? <NoteText text={pr.notes} /> : '—'),
+      mobileCell: (pr) => (pr.notes ? <NoteText text={pr.notes} /> : null),
       wrap: true,
       mobile: 'meta',
     },

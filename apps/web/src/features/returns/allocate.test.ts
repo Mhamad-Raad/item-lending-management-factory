@@ -72,7 +72,6 @@ describe('returns of an item across orders, oldest first (Q160)', () => {
       [11, 26, 0, 0],
       [13, 0, 0, 0],
     ]);
-    expect(shares.map((share) => share.afterDate)).toEqual([false, true]);
     expect(outBy(lines, '2026-09-15')).toBe(26);
     expect(outBy(lines, null)).toBe(52);
   });

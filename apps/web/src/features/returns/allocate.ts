@@ -23,14 +23,25 @@ export interface LineShare extends HeldLine {
   accepted: number;
   damaged: number;
   damagedRefund: number;
-  /** Dated after the return: it takes nothing, its pallets had not gone out yet on that day. */
-  afterDate: boolean;
 }
 
-/** Oldest first (Q160): the order's date, then its number for two orders of one day, then the line. */
+/** Oldest first (Q160): the order's date, then its number for two orders of one day. */
+function byDateThenNumber(dateA: string, numberA: number, dateB: string, numberB: number): number {
+  if (dateA !== dateB) return dateA < dateB ? -1 : 1;
+  return numberA - numberB;
+}
+
+/** Oldest order first (Q160), as its lines are placed. */
+export function olderOrderFirst(
+  a: { date: string; orderNumber: number },
+  b: { date: string; orderNumber: number },
+): number {
+  return byDateThenNumber(a.date, a.orderNumber, b.date, b.orderNumber);
+}
+
+/** Oldest line first: its order's, then the line for two lines of one order. */
 function olderFirst(a: HeldLine, b: HeldLine): number {
-  if (a.orderDate !== b.orderDate) return a.orderDate < b.orderDate ? -1 : 1;
-  return a.orderNumber - b.orderNumber || a.orderLineId - b.orderLineId;
+  return byDateThenNumber(a.orderDate, a.orderNumber, b.orderDate, b.orderNumber) || a.orderLineId - b.orderLineId;
 }
 
 /**
@@ -59,9 +70,14 @@ export function itemHoldings(data: CustomerReturnableDto): ItemHolding[] {
   return holdings.sort((a, b) => olderFirst(a.lines[0] as HeldLine, b.lines[0] as HeldLine));
 }
 
-/** An order dated after the return took nothing back: its pallets had not gone out yet on that day (Q160). */
+/** An order dated after the return takes nothing back: its pallets had not gone out yet on that day (Q160). */
+export function isOrderAfterReturn(orderDate: string, returnDate: string | null): boolean {
+  return returnDate !== null && orderDate > returnDate;
+}
+
+/** A line of an order dated after the return (`isOrderAfterReturn`). */
 export function isAfterReturn(line: HeldLine, returnDate: string | null): boolean {
-  return returnDate !== null && line.orderDate > returnDate;
+  return isOrderAfterReturn(line.orderDate, returnDate);
 }
 
 /** What an item has out on orders dated on or before the return date (all of it while no date is chosen). */
@@ -81,15 +97,14 @@ export function allocate(lines: readonly HeldLine[], row: TypedRow, returnDate: 
   let acceptedLeft = row.accepted;
   let refundLeft = row.damagedRefund;
   return lines.map((line) => {
-    const afterDate = isAfterReturn(line, returnDate);
-    if (afterDate) return { ...line, accepted: 0, damaged: 0, damagedRefund: 0, afterDate };
+    if (isAfterReturn(line, returnDate)) return { ...line, accepted: 0, damaged: 0, damagedRefund: 0 };
     const damaged = Math.min(line.outQuantity, damagedLeft);
     damagedLeft -= damaged;
     const accepted = Math.min(line.outQuantity - damaged, acceptedLeft);
     acceptedLeft -= accepted;
     const damagedRefund = Math.min(damaged * line.unitDeposit, refundLeft);
     refundLeft -= damagedRefund;
-    return { ...line, accepted, damaged, damagedRefund, afterDate };
+    return { ...line, accepted, damaged, damagedRefund };
   });
 }
 

@@ -1,6 +1,8 @@
 import { useState } from 'react';
 import { createPortal } from 'react-dom';
 import { useTranslation } from 'react-i18next';
+import type { TranslationKey } from '@/i18n/keys';
+import { MoneyText } from '@/components/app/money-text';
 import { Button } from '@/components/ui/button';
 import { Sheet, SheetContent, SheetTitle } from '@/components/ui/sheet';
 
@@ -66,5 +68,44 @@ export function SummaryPanel({
         </SheetContent>
       </Sheet>
     </>
+  );
+}
+
+/**
+ * The summary's figures in the page, for the screens that have no side panel (below `lg`: phones, an upright tablet),
+ * where the bar shows one figure only (Q162). Its rows are fixed — the same ones whatever is typed, zeros and all — so
+ * it never changes height above the row being typed in, which would push that row away under the finger (Safari does
+ * not anchor the scroll). What comes and goes (each order's part, the notices) stays in the panel and its sheet.
+ */
+export function SummaryCard({
+  title,
+  figures,
+  cashRefund,
+}: {
+  title: string;
+  figures: readonly (readonly [TranslationKey, React.ReactNode])[];
+  /** The cash handed back, 0 while nothing can be recorded: one row more, always there. */
+  cashRefund: number;
+}) {
+  return (
+    <section aria-label={title} className="flex flex-col gap-4 rounded-lg border p-4 lg:hidden">
+      <h2 className="font-semibold">{title}</h2>
+      <SummaryFigures rows={[...figures, ['returns.new.cashRefund', <MoneyText key="cash" value={cashRefund} />]]} />
+    </section>
+  );
+}
+
+/** A summary's figures, label and value a row each, as the panel, its sheet and the page's card draw them. */
+export function SummaryFigures({ rows }: { rows: readonly (readonly [TranslationKey, React.ReactNode])[] }) {
+  const { t } = useTranslation();
+  return (
+    <dl className="flex flex-col gap-3 text-sm">
+      {rows.map(([label, value]) => (
+        <div key={label} className="flex justify-between gap-2">
+          <dt className="text-muted-foreground">{t(label)}</dt>
+          <dd>{value}</dd>
+        </div>
+      ))}
+    </dl>
   );
 }

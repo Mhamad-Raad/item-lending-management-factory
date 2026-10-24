@@ -27,6 +27,7 @@ import { PageHeader } from '@/components/app/page-header';
 import { QuantityText } from '@/components/app/quantity-text';
 import { EmptyState, PageSkeleton, QueryErrorState } from '@/components/app/states';
 import { TabSelect } from '@/components/app/tab-select';
+import { ItemName } from '@/components/app/item-name';
 import { Thumbnail } from '@/components/app/thumbnail';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Badge } from '@/components/ui/badge';
@@ -72,7 +73,7 @@ const HOLDING_COLUMNS: DataColumn<CustomerHoldingDto>[] = [
     cell: (holding) => (
       <span className="flex items-center gap-3">
         <Thumbnail url={holding.item.imageUrl} />
-        <bdi>{holding.item.name}</bdi>
+        <ItemName name={holding.item.name} />
       </span>
     ),
     wrap: true,

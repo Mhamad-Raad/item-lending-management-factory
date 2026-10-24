@@ -1194,14 +1194,11 @@
       "goneTitle": "These counts are for pallets no longer out — returned or cancelled meanwhile — and will not be saved:",
       "goneDismiss": "Remove them",
       "tooManyOrders": "This return reaches {{orders}} orders; one save takes at most {{max}}. Record fewer pallets now, oldest first, and the rest in a second return.",
-      "outOn": "On orders",
-      "takenFrom": "Split over",
-      "lineClosed": "all back",
-      "recheckTitle": "The orders of these items changed meanwhile, so their counts were placed again. Check how each is split, then save:",
+      "recheckTitle": "The orders of these items changed meanwhile, so their counts were placed again, as below. Check where each goes, then save:",
       "recheckDone": "I've checked",
-      "afterReturnDate": "dated after the return",
       "outByDate": "{{out}} by {{date}}",
-      "orderOwes": "owes {{amount}} IQD"
+      "orderOwes": "owes {{amount}} IQD",
+      "fromOrders": "These pallets come from the orders"
     }
   },
   "reports": {

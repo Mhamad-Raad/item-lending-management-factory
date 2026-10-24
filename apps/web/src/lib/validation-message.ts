@@ -1,4 +1,6 @@
 import type { ApiFieldError } from '@pallet/shared';
+import type { TFunction } from 'i18next';
+import { dynamicKey } from '@/i18n/keys';
 
 /**
  * A validation message travels through react-hook-form as a single string, but `validation.*` keys
@@ -26,4 +28,10 @@ export function decodeValidationMessage(message: string): { key: string; params:
   } catch {
     return { key, params: {} };
   }
+}
+
+/** An encoded message as the words it stands for; a key no language has reads as the unknown error. */
+export function translateValidationMessage(t: TFunction, message: string): string {
+  const { key, params } = decodeValidationMessage(message);
+  return t(dynamicKey(key), { ...params, defaultValue: t('errors.UNKNOWN_ERROR') });
 }

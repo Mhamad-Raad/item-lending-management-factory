@@ -11,19 +11,19 @@ import {
 } from '@pallet/shared';
 import { useQueryClient } from '@tanstack/react-query';
 import { Link } from '@tanstack/react-router';
-import { Check, ExternalLink, HandCoins, Loader2, Minus, Plus, TriangleAlert } from 'lucide-react';
+import { ExternalLink, HandCoins, Loader2, Minus, Plus, TriangleAlert } from 'lucide-react';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { Controller, useForm, useWatch } from 'react-hook-form';
 import { useTranslation } from 'react-i18next';
 import { toast } from 'sonner';
 import { DateField } from '@/components/app/date-field';
-import { DateText } from '@/components/app/date-text';
 import { EmptyState } from '@/components/app/states';
 import { Field, FieldDescription, FieldError, FieldLabel } from '@/components/app/field';
 import { MoneyText } from '@/components/app/money-text';
 import { MoneyInput, QuantityInput } from '@/components/app/numeric-input';
 import { QuantityText } from '@/components/app/quantity-text';
-import { SummaryPanel } from '@/components/app/summary-panel';
+import { SummaryCard, SummaryFigures, SummaryPanel } from '@/components/app/summary-panel';
+import { ItemName } from '@/components/app/item-name';
 import { Thumbnail } from '@/components/app/thumbnail';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
@@ -36,8 +36,18 @@ import { detailsOf, isApiError } from '@/lib/api-error';
 import { isolate } from '@/lib/bidi';
 import { handleApiError } from '@/lib/errors';
 import { qk } from '@/lib/query-keys';
-import { encodeValidationMessage } from '@/lib/validation-message';
-import { allocate, itemHoldings, outBy, refundMaximum, type ItemHolding, type LineShare } from './allocate';
+import { encodeValidationMessage, translateValidationMessage } from '@/lib/validation-message';
+import {
+  allocate,
+  isAfterReturn,
+  isOrderAfterReturn,
+  olderOrderFirst,
+  itemHoldings,
+  outBy,
+  refundMaximum,
+  type ItemHolding,
+  type LineShare,
+} from './allocate';
 import { returnSummary } from './return-math';
 import { checkRow, count, pricedRow, restAccepted, typedRow, useRowMessages, type RowCounts } from './return-rows';
 import { ReturnsSavedDialog } from './returns-saved-dialog';
@@ -68,9 +78,10 @@ function namesOf(holdings: readonly ItemHolding[]): Map<number, string> {
 /**
  * Daily flow 2 from the customer (Q156, Q160): everything the customer still holds, one row per item over all their
  * open orders. Pallets back in good condition are counted with − and +, or "All"; damaged ones under "Damaged". A row
- * is placed on the item's orders oldest first (`allocate`) — the split shown under it, each order's number opening
- * the order in a new tab — and one save records a return on every order that takes a share, each priced against its
- * own order, so the summary adds up what each order's return would be on its own.
+ * is placed on the item's orders oldest first (`allocate`), not shown under it (Q164) — the orders it comes from are
+ * listed once under the items, and the summary says what comes back on each — and one save records a return on every
+ * order that takes a share, each priced against its own order, so the summary adds up what each order's return would
+ * be on its own.
  */
 export function CustomerReturnForm({ data, onSaved }: { data: CustomerReturnableDto; onSaved: () => void }) {
   const { t } = useTranslation();
@@ -204,7 +215,7 @@ export function CustomerReturnForm({ data, onSaved }: { data: CustomerReturnable
   // One save takes so many orders (Q156); more is refused as they are ticked, the rest go in a second return.
   const tooManyOrders = touched.length > CUSTOMER_RETURN_MAX_ORDERS;
   // Only items still listed wait for a look; one gone altogether is named by the notice above instead.
-  const toRecheck = holdings.filter((holding) => recheck.has(holding.item.id));
+  const toRecheck = items.filter(({ holding }) => recheck.has(holding.item.id));
   const anyInvalid = items.some(({ invalid }) => invalid) || gone.length > 0 || toRecheck.length > 0 || tooManyOrders;
 
   const record = useFlowMutation({
@@ -316,7 +327,7 @@ export function CustomerReturnForm({ data, onSaved }: { data: CustomerReturnable
       return;
     }
     if (anyInvalid) return;
-    // Each order gets its share of every item, as the split under the items shows it.
+    // Each order gets its share of every item, as `allocate` placed it.
     const body = touched.map(({ order, sent }) => ({
       orderId: order.id,
       lines: sent.map(({ share }) => ({
@@ -353,6 +364,11 @@ export function CustomerReturnForm({ data, onSaved }: { data: CustomerReturnable
     });
 
   const cashNow = !anyInvalid && totals.cashRefund > 0;
+  // The orders the pallets can come from, oldest first as they are placed (Q160, Q164): none dated after the return.
+  const fromOrders = useMemo(
+    () => data.orders.filter((order) => !isOrderAfterReturn(order.date, date)).sort(olderOrderFirst),
+    [data, date],
+  );
   // Counts on items no longer listed, named until they are let go.
   const goneNotice =
     gone.length > 0 ? (
@@ -392,6 +408,61 @@ export function CustomerReturnForm({ data, onSaved }: { data: CustomerReturnable
     </Button>
   );
 
+  const figures = [
+    ['returns.customer.palletsBack', <QuantityText value={totals.returning} />],
+    ['returns.new.refundDue', <MoneyText value={totals.refundDue} />],
+    ['returns.new.owedBefore', <MoneyText value={totals.owedBefore} />],
+    ['returns.new.owedAfter', <MoneyText value={totals.owedAfter} />],
+    ['returns.new.outAfter', <QuantityText value={outBefore - totals.returning} />],
+    ['returns.new.compensation', <MoneyText value={totals.compensation} />],
+  ] as const;
+  // One summary, drawn in the side panel and its sheet; below `lg` the page's card shows its fixed figures (Q162).
+  const summaryView = (
+    <>
+      <SummaryFigures rows={figures} />
+      {/* Each order's own return (Q160: the items no longer show their orders' money): what comes back on it, and
+        the cash it pays out or what it still owes. */}
+      {touched.length > 0 && !anyInvalid ? (
+        <ul aria-label={t('returns.customer.byOrder')} className="flex flex-col gap-1 border-t pt-3 text-sm">
+          {touched.map(({ order, returning, summary }) => (
+            <li key={order.id} className="flex justify-between gap-2">
+              <span dir="ltr" className="font-medium">
+                {orderLabel(order.orderNumber)}
+              </span>
+              <span className="text-muted-foreground text-end">
+                {t('returns.customer.orderBack', { pallets: formatNumber(returning) })}
+                {summary.cashRefund > 0 ? (
+                  <>
+                    {' · '}
+                    <MoneyText value={summary.cashRefund} />
+                  </>
+                ) : summary.owedAfter > 0 ? (
+                  <>
+                    {' · '}
+                    {t('returns.customer.orderOwes', { amount: isolate(formatMoney(summary.owedAfter)) })}
+                  </>
+                ) : null}
+              </span>
+            </li>
+          ))}
+        </ul>
+      ) : null}
+      {anyInvalid ? null : (
+        <>
+          {totals.cashRefund > 0 ? (
+            <p className="bg-success/12 text-success flex items-center gap-2 rounded-md p-3 font-semibold dark:bg-success/20">
+              <HandCoins className="size-5 shrink-0" aria-hidden />
+              {t('returns.new.cashHandover', { amount: formatMoney(totals.cashRefund) })}
+            </p>
+          ) : null}
+          {totals.owedAfter > 0 ? (
+            <p className="text-info text-sm">{t('returns.new.stillOwes', { amount: formatMoney(totals.owedAfter) })}</p>
+          ) : null}
+        </>
+      )}
+    </>
+  );
+
   return (
     <div className="grid grid-cols-1 gap-6 pb-24 lg:grid-cols-[minmax(0,1fr)_22rem] lg:pb-0">
       <form id="customer-return" onSubmit={(event) => void submit(event)} className="flex flex-col gap-6" noValidate>
@@ -412,6 +483,7 @@ export function CustomerReturnForm({ data, onSaved }: { data: CustomerReturnable
             {t('returns.customer.everythingBack')}
           </Button>
         </div>
+        <SummaryCard title={t('returns.new.summary')} figures={figures} cashRefund={cashNow ? totals.cashRefund : 0} />
 
         {tooManyOrders ? (
           <p role="alert" className="text-destructive text-sm font-medium">
@@ -426,9 +498,23 @@ export function CustomerReturnForm({ data, onSaved }: { data: CustomerReturnable
           <div role="alert" className="border-warning bg-warning/10 flex flex-col gap-2 rounded-lg border p-4 text-sm">
             <p className="font-medium">{t('returns.customer.recheckTitle')}</p>
             <ul className="flex flex-col gap-1">
-              {toRecheck.map((holding) => (
+              {/* Where each count goes now, by order, since nothing under the items shows it (Q164); a count that no
+                  longer fits what is out says so instead, as its row does. */}
+              {toRecheck.map(({ holding, key, shares, overOut, outQuantity }) => (
                 <li key={holding.item.id}>
-                  <bdi>{holding.item.name}</bdi>
+                  <bdi>{holding.item.name}</bdi>:{' '}
+                  {overOut
+                    ? // The row's own message, a refusal's figure included, so the two never disagree.
+                      translateValidationMessage(t, errors.rows?.[key]?.accepted?.message ?? exceedsOut(outQuantity))
+                    : // One line per order: an order holds an item on one line only (order_lines is unique on both).
+                      shares
+                        .filter((share) => share.accepted + share.damaged > 0)
+                        .map((share) => (
+                          <span key={share.orderLineId} className="me-3 inline-block">
+                            <span dir="ltr">{orderLabel(share.orderNumber)}</span> ·{' '}
+                            <QuantityText value={share.accepted + share.damaged} />
+                          </span>
+                        ))}
                 </li>
               ))}
             </ul>
@@ -447,18 +533,19 @@ export function CustomerReturnForm({ data, onSaved }: { data: CustomerReturnable
         <Card>
           <CardContent>
             <ul className="flex flex-col divide-y">
-              {items.map(({ holding, key, row, shares, outQuantity, overOut, maximum, refundOver }) => {
+              {items.map(({ holding, key, row, outQuantity, overOut, maximum, refundOver }) => {
                 const itemId = holding.item.id;
                 const rowErrors = errors.rows?.[key];
                 const acceptedError = rowErrors?.accepted?.message ?? (overOut ? exceedsOut(outQuantity) : undefined);
                 const refundError =
                   rowErrors?.damagedRefund?.message ?? (refundOver ? refundTooHigh(maximum) : undefined);
                 const showDamage = damageOpen.has(itemId) || row.damaged > 0;
-                // One deposit for the item reads beside what is out; several read beside each order in the split.
-                const prices = new Set(holding.lines.map((line) => line.unitDeposit));
-                const onePrice = prices.size === 1 ? holding.lines[0]?.unitDeposit : undefined;
-                // The split says where the typed count goes once there is one to place (Q160).
-                const placing = row.accepted + row.damaged > 0 && !overOut;
+                // Its deposits beside what is out, on the orders the return can take from: one, or each, lowest first.
+                const prices = [
+                  ...new Set(
+                    holding.lines.filter((line) => !isAfterReturn(line, date)).map((line) => line.unitDeposit),
+                  ),
+                ].sort((a, b) => a - b);
                 const accepted = (next: number | null): void => {
                   checked(itemId);
                   form.setValue(`rows.${key}.accepted`, next);
@@ -472,9 +559,7 @@ export function CustomerReturnForm({ data, onSaved }: { data: CustomerReturnable
                       <div className="flex min-w-0 items-center gap-3">
                         <Thumbnail url={holding.item.imageUrl} size="sm" />
                         <div className="flex min-w-0 flex-col">
-                          <span className="font-medium break-words">
-                            <bdi>{holding.item.name}</bdi>
-                          </span>
+                          <ItemName name={holding.item.name} className="font-medium" expandable />
                           <span className="text-muted-foreground text-sm">
                             {t('returns.new.out')}: <QuantityText value={holding.outQuantity} />
                             {/* A back-dated return can take only what was out by its date (Q160). */}
@@ -487,12 +572,13 @@ export function CustomerReturnForm({ data, onSaved }: { data: CustomerReturnable
                                 })}
                               </>
                             ) : null}
-                            {onePrice === undefined ? null : (
-                              <>
-                                {' · '}
-                                <MoneyText value={onePrice} />
-                              </>
-                            )}
+                            {prices.length > 0 ? ' · ' : null}
+                            {prices.map((price, index) => (
+                              <span key={price}>
+                                {index > 0 ? ' / ' : null}
+                                <MoneyText value={price} />
+                              </span>
+                            ))}
                           </span>
                         </div>
                       </div>
@@ -523,7 +609,7 @@ export function CustomerReturnForm({ data, onSaved }: { data: CustomerReturnable
                                   value={field.value}
                                   onChange={(next) => accepted(next)}
                                   aria-invalid={Boolean(acceptedError)}
-                                  aria-describedby={`row-${itemId}-split row-${itemId}-error`}
+                                  aria-describedby={`row-${itemId}-error`}
                                 />
                               )}
                             />
@@ -559,54 +645,6 @@ export function CustomerReturnForm({ data, onSaved }: { data: CustomerReturnable
                         {t('returns.fields.damaged')}
                       </Button>
                     </div>
-                    {/* Which orders the item is out on, and — once a count is typed — how it is placed on them, oldest
-                        first (Q160); each order's number opens it in a new tab, so the counts typed here stay. */}
-                    <p
-                      id={`row-${itemId}-split`}
-                      className="text-muted-foreground flex flex-wrap items-center gap-x-3 gap-y-1 text-xs"
-                    >
-                      <span>{t(placing ? 'returns.customer.takenFrom' : 'returns.customer.outOn')}</span>
-                      {shares.map((share) => {
-                        const placed = share.accepted + share.damaged;
-                        return (
-                          <span key={share.orderLineId} className="inline-flex items-center gap-1">
-                            <Link
-                              to="/orders/$orderId"
-                              params={{ orderId: String(share.orderId) }}
-                              target="_blank"
-                              rel="noopener"
-                              className="text-primary inline-flex items-center gap-0.5 font-medium underline-offset-4 hover:underline"
-                            >
-                              <span dir="ltr">{orderLabel(share.orderNumber)}</span>
-                              <ExternalLink className="size-3" aria-hidden />
-                              <span className="sr-only">{t('returns.customer.opensInNewTab')}</span>
-                            </Link>
-                            {/* Its date, which "oldest first" goes by (Q160). */}
-                            <span>
-                              (<DateText value={share.orderDate} />)
-                            </span>
-                            <span dir="ltr" className="tabular-nums">
-                              {placing
-                                ? share.afterDate
-                                  ? '—'
-                                  : `${formatNumber(placed)}/${formatNumber(share.outQuantity)}`
-                                : formatNumber(share.outQuantity)}
-                              {onePrice === undefined ? ` × ${formatMoney(share.unitDeposit)}` : ''}
-                            </span>
-                            {placing && share.afterDate ? (
-                              <span className="sr-only">{t('returns.customer.afterReturnDate')}</span>
-                            ) : null}
-                            {placing && placed === share.outQuantity ? (
-                              <Check
-                                className="text-success size-3.5"
-                                role="img"
-                                aria-label={t('returns.customer.lineClosed')}
-                              />
-                            ) : null}
-                          </span>
-                        );
-                      })}
-                    </p>
                     {showDamage ? (
                       <div id={`damage-${itemId}`} className="grid grid-cols-1 gap-3 sm:grid-cols-2">
                         <Field>
@@ -673,6 +711,32 @@ export function CustomerReturnForm({ data, onSaved }: { data: CustomerReturnable
             </ul>
           </CardContent>
         </Card>
+        {/* The orders these pallets come from, oldest first, by number alone (Q164); each opens in a new tab, so the
+            counts typed here stay. How a count is placed on them reads in the summary's list by order. */}
+        {fromOrders.length > 0 ? (
+          <section aria-labelledby="from-orders" className="flex flex-col gap-2 text-sm">
+            <h3 id="from-orders" className="text-muted-foreground">
+              {t('returns.customer.fromOrders')}
+            </h3>
+            <ul className="flex flex-wrap gap-x-4 gap-y-1">
+              {fromOrders.map((order) => (
+                <li key={order.id}>
+                  <Link
+                    to="/orders/$orderId"
+                    params={{ orderId: String(order.id) }}
+                    target="_blank"
+                    rel="noopener"
+                    className="text-primary inline-flex items-center gap-0.5 font-medium underline-offset-4 hover:underline"
+                  >
+                    <span dir="ltr">{orderLabel(order.orderNumber)}</span>
+                    <ExternalLink className="size-3" aria-hidden />
+                    <span className="sr-only">{t('returns.customer.opensInNewTab')}</span>
+                  </Link>
+                </li>
+              ))}
+            </ul>
+          </section>
+        ) : null}
         <FieldError id="lines-error" message={errors.root?.message} />
 
         <Card>
@@ -692,65 +756,7 @@ export function CustomerReturnForm({ data, onSaved }: { data: CustomerReturnable
         keyFigure={<MoneyText value={cashNow ? totals.cashRefund : totals.refundDue} />}
         submit={submitButton}
       >
-        <dl className="flex flex-col gap-3 text-sm">
-          {(
-            [
-              ['returns.customer.palletsBack', <QuantityText key="returning" value={totals.returning} />],
-              ['returns.new.refundDue', <MoneyText key="refundDue" value={totals.refundDue} />],
-              ['returns.new.owedBefore', <MoneyText key="owedBefore" value={totals.owedBefore} />],
-              ['returns.new.owedAfter', <MoneyText key="owedAfter" value={totals.owedAfter} />],
-              ['returns.new.outAfter', <QuantityText key="outAfter" value={outBefore - totals.returning} />],
-              ['returns.new.compensation', <MoneyText key="compensation" value={totals.compensation} />],
-            ] as const
-          ).map(([label, value]) => (
-            <div key={label} className="flex justify-between gap-2">
-              <dt className="text-muted-foreground">{t(label)}</dt>
-              <dd>{value}</dd>
-            </div>
-          ))}
-        </dl>
-        {/* Each order's own return (Q160: the items no longer show their orders' money): what comes back on it, and
-            the cash it pays out or what it still owes. */}
-        {touched.length > 0 && !anyInvalid ? (
-          <ul aria-label={t('returns.customer.byOrder')} className="flex flex-col gap-1 border-t pt-3 text-sm">
-            {touched.map(({ order, returning, summary }) => (
-              <li key={order.id} className="flex justify-between gap-2">
-                <span dir="ltr" className="font-medium">
-                  {orderLabel(order.orderNumber)}
-                </span>
-                <span className="text-muted-foreground text-end">
-                  {t('returns.customer.orderBack', { pallets: formatNumber(returning) })}
-                  {summary.cashRefund > 0 ? (
-                    <>
-                      {' · '}
-                      <MoneyText value={summary.cashRefund} />
-                    </>
-                  ) : summary.owedAfter > 0 ? (
-                    <>
-                      {' · '}
-                      {t('returns.customer.orderOwes', { amount: isolate(formatMoney(summary.owedAfter)) })}
-                    </>
-                  ) : null}
-                </span>
-              </li>
-            ))}
-          </ul>
-        ) : null}
-        {anyInvalid ? null : (
-          <>
-            {totals.cashRefund > 0 ? (
-              <p className="bg-success/12 text-success flex items-center gap-2 rounded-md p-3 font-semibold dark:bg-success/20">
-                <HandCoins className="size-5 shrink-0" aria-hidden />
-                {t('returns.new.cashHandover', { amount: formatMoney(totals.cashRefund) })}
-              </p>
-            ) : null}
-            {totals.owedAfter > 0 ? (
-              <p className="text-info text-sm">
-                {t('returns.new.stillOwes', { amount: formatMoney(totals.owedAfter) })}
-              </p>
-            ) : null}
-          </>
-        )}
+        {summaryView}
       </SummaryPanel>
       {saved ? (
         <ReturnsSavedDialog

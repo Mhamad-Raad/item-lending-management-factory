@@ -17,7 +17,8 @@ import { Field, FieldDescription, FieldError, FieldLabel } from '@/components/ap
 import { MoneyText } from '@/components/app/money-text';
 import { MoneyInput, QuantityInput } from '@/components/app/numeric-input';
 import { QuantityText } from '@/components/app/quantity-text';
-import { SummaryPanel } from '@/components/app/summary-panel';
+import { SummaryCard, SummaryFigures, SummaryPanel } from '@/components/app/summary-panel';
+import { ItemName } from '@/components/app/item-name';
 import { Thumbnail } from '@/components/app/thumbnail';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
@@ -237,9 +238,36 @@ export function ReturnForm({ order, replaceReturnId }: { order: OrderDetailDto; 
     </Button>
   );
 
+  const figures = [
+    ['returns.new.refundDue', <MoneyText value={summary.refundDue} />],
+    ['returns.new.owedBefore', <MoneyText value={summary.owedBefore} />],
+    ['returns.new.owedAfter', <MoneyText value={summary.owedAfter} />],
+    ['returns.new.outAfter', <QuantityText value={summary.outAfter} />],
+    ['returns.new.compensation', <MoneyText value={summary.compensation} />],
+  ] as const;
+  // One summary, drawn in the side panel and its sheet; below `lg` the page's card shows its fixed figures (Q162).
+  const summaryView = (
+    <>
+      <SummaryFigures rows={figures} />
+      {anyInvalid ? null : summary.cashRefund > 0 ? (
+        <p className="bg-success/12 text-success flex items-center gap-2 rounded-md p-3 font-semibold dark:bg-success/20">
+          <HandCoins className="size-5 shrink-0" aria-hidden />
+          {t('returns.new.cashHandover', { amount: formatMoney(summary.cashRefund) })}
+        </p>
+      ) : summary.owedAfter > 0 ? (
+        <p className="text-info text-sm">{t('returns.new.stillOwes', { amount: formatMoney(summary.owedAfter) })}</p>
+      ) : null}
+    </>
+  );
+
   return (
     <div className="grid grid-cols-1 gap-6 pb-24 lg:grid-cols-[minmax(0,1fr)_22rem] lg:pb-0">
       <form id="new-return" onSubmit={(event) => void submit(event)} className="flex flex-col gap-6" noValidate>
+        <SummaryCard
+          title={t('returns.new.summary')}
+          figures={figures}
+          cashRefund={!anyInvalid ? summary.cashRefund : 0}
+        />
         <Card>
           <CardContent className="flex flex-col gap-4">
             <div className="flex flex-wrap items-center justify-between gap-2">
@@ -267,8 +295,8 @@ export function ReturnForm({ order, replaceReturnId }: { order: OrderDetailDto; 
                   <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
                     <div className="flex min-w-0 items-center gap-3">
                       <Thumbnail url={line.item.imageUrl} size="sm" />
-                      <span className="min-w-0 font-medium break-words" aria-hidden>
-                        <bdi>{line.item.name}</bdi>
+                      <span className="min-w-0">
+                        <ItemName name={line.item.name} className="font-medium" expandable namedElsewhere />
                       </span>
                     </div>
                     <div className="flex shrink-0 items-center justify-between gap-3">
@@ -383,30 +411,7 @@ export function ReturnForm({ order, replaceReturnId }: { order: OrderDetailDto; 
         keyFigure={<MoneyText value={!anyInvalid && summary.cashRefund > 0 ? summary.cashRefund : summary.refundDue} />}
         submit={submitButton}
       >
-        <dl className="flex flex-col gap-3 text-sm">
-          {(
-            [
-              ['returns.new.refundDue', <MoneyText key="refundDue" value={summary.refundDue} />],
-              ['returns.new.owedBefore', <MoneyText key="owedBefore" value={summary.owedBefore} />],
-              ['returns.new.owedAfter', <MoneyText key="owedAfter" value={summary.owedAfter} />],
-              ['returns.new.outAfter', <QuantityText key="outAfter" value={summary.outAfter} />],
-              ['returns.new.compensation', <MoneyText key="compensation" value={summary.compensation} />],
-            ] as const
-          ).map(([label, value]) => (
-            <div key={label} className="flex justify-between gap-2">
-              <dt className="text-muted-foreground">{t(label)}</dt>
-              <dd>{value}</dd>
-            </div>
-          ))}
-        </dl>
-        {anyInvalid ? null : summary.cashRefund > 0 ? (
-          <p className="bg-success/12 text-success flex items-center gap-2 rounded-md p-3 font-semibold dark:bg-success/20">
-            <HandCoins className="size-5 shrink-0" aria-hidden />
-            {t('returns.new.cashHandover', { amount: formatMoney(summary.cashRefund) })}
-          </p>
-        ) : summary.owedAfter > 0 ? (
-          <p className="text-info text-sm">{t('returns.new.stillOwes', { amount: formatMoney(summary.owedAfter) })}</p>
-        ) : null}
+        {summaryView}
       </SummaryPanel>
     </div>
   );

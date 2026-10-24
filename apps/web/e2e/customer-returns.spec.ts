@@ -2,6 +2,7 @@ import type {
   CustomerReturnRecordedDto,
   CustomerReturnResultDto,
   CustomerReturnableDto,
+  ReturnableOrderDto,
   OrderLineDto,
 } from '@pallet/shared';
 import { expect, test, type Page } from './fixtures';
@@ -486,13 +487,11 @@ async function mockSameItem(page: Page) {
   return sent;
 }
 
-const split = (page: Page) => page.locator('[id$="-split"]').first();
-/** The split as it reads on screen: the links' screen-reader note left out, spaces collapsed. */
-const splitText = async (page: Page) =>
-  plain(await split(page).textContent())
-    .replace(/\(opens in a new tab\)/g, ' ')
-    .replace(/\s+/g, ' ')
-    .trim();
+/** The orders the pallets come from, under the items (Q164), as their links read, the screen-reader note left out. */
+const fromOrders = async (page: Page) =>
+  (
+    await page.getByRole('region', { name: 'These pallets come from the orders' }).getByRole('link').allTextContents()
+  ).map((text) => plain(text).replace('(opens in a new tab)', '').trim());
 
 test('Q160: an item out on two orders is one row, and a count is placed oldest order first', async ({ page }) => {
   const sent = await mockSameItem(page);
@@ -502,13 +501,13 @@ test('Q160: an item out on two orders is one row, and a count is placed oldest o
   await expect(page.getByRole('listitem').filter({ hasText: 'Euro pallet' })).toHaveCount(1);
   const euro = row(page, 'Euro pallet');
   await expect(euro).toContainText('Out: 52');
-  // The older by date first, whatever the order numbers.
-  expect(await splitText(page)).toBe('On orders#000043 (01/09/2026)26#000041 (10/09/2026)26');
+  // The orders they come from, by number alone, the older by date first whatever the numbers; nothing under the item.
+  expect(await fromOrders(page)).toEqual(['#000043', '#000041']);
+  await expect(euro.getByRole('link')).toHaveCount(0);
 
-  // The business's example: 50 back — 26 close the older order, 24 come off the newer, 2 left there.
+  // The business's example: 50 back — 26 close the older order, 24 come off the newer, 2 left there. Nothing under
+  // the item says how (Q164): the summary's list by order and the body sent do.
   await euro.getByLabel('Accepted').fill('50');
-  expect(await splitText(page)).toBe('Split over#000043 (01/09/2026)26/26#000041 (10/09/2026)24/26');
-  await expect(split(page).getByLabel('all back')).toHaveCount(1);
   await expect(figure(page, 'Pallets coming back')).toHaveText('50');
   await expect(figure(page, 'Still out after')).toHaveText('2');
   // Each order's own return: the newer one still owes 182,000 − 24 × 7,000.
@@ -535,7 +534,6 @@ test('Q160: damaged pallets and their refund go on the oldest order first too', 
   await euro.getByLabel('Damage refund').fill('5000');
 
   // 33 back: the older order takes its 26 (the 3 damaged first), the newer the other 7.
-  expect(await splitText(page)).toBe('Split over#000043 (01/09/2026)26/26#000041 (10/09/2026)7/26');
   await summary(page).getByRole('button', { name: 'Record return' }).click();
   await expect.poll(() => sent.length).toBe(1);
   expect((sent[0] as { orders: unknown[] }).orders).toEqual([
@@ -555,6 +553,56 @@ test('Q160: more than the item has out over all its orders is refused as typed',
   await expect(summary(page).getByRole('button', { name: 'Record return' })).toBeDisabled();
 });
 
+test('Q164: an item out at two deposits shows both beside what is out', async ({ page }) => {
+  await mockApi(page, ADMIN, 'en');
+  const [newer, older] = SAME_ITEM.orders as [ReturnableOrderDto, ReturnableOrderDto];
+  const dearer = { ...older, lines: [{ ...older.lines[0]!, unitDeposit: 8_000 }] };
+  await page.route(/\/api\/customers\/3\/returnable$/, (route) =>
+    route.fulfill({ json: { ...SAME_ITEM, orders: [newer, dearer] } }),
+  );
+  await page.goto('/returns/new?customerId=3');
+
+  expect(plain(await row(page, 'Euro pallet').textContent())).toContain('Out: 52 · 7,000 IQD / 8,000 IQD');
+
+  // Dated before the newer order (10/09): only the older order's deposit, and only it is listed.
+  const date = page.getByLabel('Date', { exact: true });
+  await date.fill('05/09/2026');
+  await date.press('Tab');
+  expect(plain(await row(page, 'Euro pallet').textContent())).toContain('26 by 05/09/2026 · 8,000 IQD');
+  expect(plain(await row(page, 'Euro pallet').textContent())).not.toContain('7,000');
+  expect(await fromOrders(page)).toEqual(['#000043']);
+
+  // Dated before every order: no deposit to show, and no orders section rather than an empty one.
+  await date.fill('31/08/2026');
+  await date.press('Tab');
+  expect(plain(await row(page, 'Euro pallet').textContent())).not.toContain('IQD');
+  await expect(page.getByRole('region', { name: 'These pallets come from the orders' })).toHaveCount(0);
+});
+
+test('Q164: a count that no longer fits after the list is read again is said so in the notice', async ({ page }) => {
+  await page.clock.install();
+  await mockApi(page, ADMIN, 'en');
+  let changed = false;
+  const newer = SAME_ITEM.orders[0]!;
+  await page.route(/\/api\/customers\/3\/returnable$/, (route) =>
+    // Meanwhile the older order came back elsewhere, and the newer one has 5 left out.
+    route.fulfill({
+      json: changed
+        ? { ...SAME_ITEM, orders: [{ ...newer, outQuantityTotal: 5, lines: [{ ...newer.lines[0]!, outQuantity: 5 }] }] }
+        : SAME_ITEM,
+    }),
+  );
+  await page.goto('/returns/new?customerId=3');
+  await row(page, 'Euro pallet').getByLabel('Accepted').fill('10');
+
+  changed = true;
+  await page.clock.fastForward(60_000);
+  await page.evaluate(() => window.dispatchEvent(new Event('visibilitychange')));
+
+  const notice = page.getByRole('alert').filter({ hasText: 'placed again' });
+  await expect(notice.getByRole('listitem')).toHaveText([/^Euro pallet:\s*At most 5 are out$/]);
+});
+
 test('Q160: an order cancelled meanwhile moves the count to the other order only after a look', async ({ page }) => {
   await mockApi(page, ADMIN, 'en');
   let reads = 0;
@@ -563,23 +611,31 @@ test('Q160: an order cancelled meanwhile moves the count to the other order only
     // After the refusal the older order is gone: the 20 can only come off the newer one.
     return route.fulfill({ json: reads === 1 ? SAME_ITEM : { ...SAME_ITEM, orders: SAME_ITEM.orders.slice(0, 1) } });
   });
-  await page.route(/\/api\/customers\/3\/returns$/, (route) =>
-    route.fulfill({ status: 409, json: { error: { code: 'ORDER_CANCELLED', details: { orderId: 43 } } } }),
-  );
+  const sent: { orders: unknown[] }[] = [];
+  await page.route(/\/api\/customers\/3\/returns$/, (route) => {
+    sent.push(route.request().postDataJSON() as { orders: unknown[] });
+    return route.fulfill({ status: 409, json: { error: { code: 'ORDER_CANCELLED', details: { orderId: 43 } } } });
+  });
   await page.goto('/returns/new?customerId=3');
   const euro = row(page, 'Euro pallet');
   await euro.getByLabel('Accepted').fill('20');
-  expect(await splitText(page)).toBe('Split over#000043 (01/09/2026)20/26#000041 (10/09/2026)0/26');
 
   await summary(page).getByRole('button', { name: 'Record return' }).click();
 
   // Placed again on what is left, and held for a look: nothing moves to another order without a word.
-  await expect.poll(() => splitText(page)).toBe('Split over#000041 (10/09/2026)20/26');
+  await expect.poll(fromOrders.bind(null, page)).toEqual(['#000041']);
   const notice = page.getByRole('alert').filter({ hasText: 'placed again' });
-  await expect(notice.getByRole('listitem')).toHaveText(['Euro pallet']);
+  // The notice says where the count goes now, since nothing under the item does (Q164).
+  await expect(notice.getByRole('listitem')).toHaveText([/^Euro pallet:\s*#000041 · 20$/]);
   await expect(summary(page).getByRole('button', { name: 'Record return' })).toBeDisabled();
   await notice.getByRole('button', { name: "I've checked" }).click();
-  await expect(summary(page).getByRole('button', { name: 'Record return' })).toBeEnabled();
+  await summary(page).getByRole('button', { name: 'Record return' }).click();
+  // First on the older order; after the look, all 20 on the one left.
+  await expect.poll(() => sent.length).toBe(2);
+  expect(sent.map((body) => body.orders)).toEqual([
+    [{ orderId: 43, lines: [{ orderLineId: 33, acceptedQuantity: 20, damagedQuantity: 0, damagedRefund: 0 }] }],
+    [{ orderId: 41, lines: [{ orderLineId: 31, acceptedQuantity: 20, damagedQuantity: 0, damagedRefund: 0 }] }],
+  ]);
 });
 
 test('Q160: a refused count that still fits what is out now is placed again for a look, not refused', async ({
@@ -641,8 +697,11 @@ test('Q160: a return dated before an order places nothing on it and counts only 
 
   expect(plain(await euro.textContent())).toContain('Out: 52 · 26 by 05/09/2026');
   await euro.getByLabel('Accepted').fill('20');
-  // Only the order of 1 September was out on the 5th; the one of the 10th shows a dash.
-  expect(await splitText(page)).toBe('Split over#000043 (01/09/2026)20/26#000041 (10/09/2026)—dated after the return');
+  // Only the order of 1 September was out on the 5th: the 20 are all its own, and it alone is listed.
+  expect(await fromOrders(page)).toEqual(['#000043']);
+  const byOrder = summary(page).getByRole('list', { name: 'By order' }).getByRole('listitem');
+  await expect(byOrder).toHaveCount(1);
+  await expect(byOrder).toContainText('#000043');
   await euro.getByLabel('Accepted').fill('30');
   await expect(euro.getByText('At most 26 are out')).toBeVisible();
   await expect(page.getByText('The return is dated before the order')).toHaveCount(0);
@@ -656,10 +715,14 @@ test('Q160: a split moved by a list read again in the background is held for a l
     // Meanwhile the older order's pallets all came back on another screen.
     route.fulfill({ json: changed ? { ...SAME_ITEM, orders: SAME_ITEM.orders.slice(0, 1) } : SAME_ITEM }),
   );
+  const sent: { orders: unknown[] }[] = [];
+  await page.route(/\/api\/customers\/3\/returns$/, (route) => {
+    sent.push(route.request().postDataJSON() as { orders: unknown[] });
+    return route.fulfill({ status: 409, json: { error: { code: 'ORDER_CANCELLED', details: { orderId: 43 } } } });
+  });
   await page.goto('/returns/new?customerId=3');
   const euro = row(page, 'Euro pallet');
   await euro.getByLabel('Accepted').fill('10');
-  expect(await splitText(page)).toBe('Split over#000043 (01/09/2026)10/26#000041 (10/09/2026)0/26');
 
   // Back to this tab a minute later (an order looked at in another): the list is read again, and the 10 can only
   // come off the newer order now.
@@ -667,10 +730,17 @@ test('Q160: a split moved by a list read again in the background is held for a l
   await page.clock.fastForward(60_000);
   await page.evaluate(() => window.dispatchEvent(new Event('visibilitychange')));
 
-  await expect.poll(() => splitText(page)).toBe('Split over#000041 (10/09/2026)10/26');
+  await expect.poll(fromOrders.bind(null, page)).toEqual(['#000041']);
   const notice = page.getByRole('alert').filter({ hasText: 'placed again' });
-  await expect(notice.getByRole('listitem')).toHaveText(['Euro pallet']);
+  await expect(notice.getByRole('listitem')).toHaveText([/^Euro pallet:\s*#000041 · 10$/]);
   await expect(summary(page).getByRole('button', { name: 'Record return' })).toBeDisabled();
+  // After the look the 10 go on the order left, never quietly on the one gone.
+  await notice.getByRole('button', { name: "I've checked" }).click();
+  await summary(page).getByRole('button', { name: 'Record return' }).click();
+  await expect.poll(() => sent.length).toBe(1);
+  expect(sent[0]?.orders).toEqual([
+    { orderId: 41, lines: [{ orderLineId: 31, acceptedQuantity: 10, damagedQuantity: 0, damagedRefund: 0 }] },
+  ]);
 });
 
 test('Q160: an item that comes back after a reload dropped it is held for a look before its count goes anywhere', async ({

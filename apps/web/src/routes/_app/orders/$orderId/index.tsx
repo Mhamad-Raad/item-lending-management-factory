@@ -9,6 +9,7 @@ import { toast } from 'sonner';
 import { z } from 'zod';
 import { ConfirmDialog } from '@/components/app/confirm-dialog';
 import { DateText } from '@/components/app/date-text';
+import { NoteText } from '@/components/app/note-text';
 import { Field, FieldLabel } from '@/components/app/field';
 import { MoneyText } from '@/components/app/money-text';
 import { PageHeader } from '@/components/app/page-header';
@@ -280,12 +281,16 @@ function OrderDetailPage() {
                 <dd className="text-lg font-medium">{figure.value}</dd>
               </div>
             ))}
+            {data.notes ? (
+              // Titled like the rest, across the card, and two lines at most until tapped (Q165).
+              <div className="flex flex-col gap-1 sm:col-span-2 lg:col-span-3">
+                <dt className="text-muted-foreground text-sm">{t('orders.fields.notes')}</dt>
+                <dd className="text-muted-foreground">
+                  <NoteText text={data.notes} />
+                </dd>
+              </div>
+            ) : null}
           </dl>
-          {data.notes ? (
-            <p className="text-muted-foreground whitespace-pre-line">
-              <bdi>{data.notes}</bdi>
-            </p>
-          ) : null}
         </CardContent>
       </Card>
 

@@ -1,7 +1,7 @@
 import { useTranslation } from 'react-i18next';
 import { Label } from '@/components/ui/label';
 import { cn } from '@/lib/utils';
-import { decodeValidationMessage } from '@/lib/validation-message';
+import { translateValidationMessage } from '@/lib/validation-message';
 
 /** One labelled control with its description and error, wired up for screen readers (§7.9). */
 export function Field({ className, ...props }: React.ComponentProps<'div'>) {
@@ -24,10 +24,9 @@ export function FieldError({ id, message }: { id: string; message?: string }) {
   const { t } = useTranslation();
   if (!message) return null;
 
-  const { key, params } = decodeValidationMessage(message);
   return (
     <p id={id} role="alert" className="text-destructive text-sm">
-      {t(key, { ...params, defaultValue: t('errors.UNKNOWN_ERROR') })}
+      {translateValidationMessage(t, message)}
     </p>
   );
 }
