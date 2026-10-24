@@ -533,6 +533,22 @@ since; one `CUSTOMER_RETURN.RETURN_CREATE` history row replaces its per-order re
 one history row, the receipt's sums, none without cash, not found, partial and whole stamps, one dashboard event);
 `db-privileges.test.ts`; `money-receipt.test.tsx`; `customer-return-receipt.spec.ts` and
 `customer-returns.spec.ts` — each proven failing when its rule is removed; live E3; reconcile 0; every gate green.
+
+### 10s — The return calculation on phones, long item names and notes, the orders under the items (Q162–Q165)
+
+Read: §7.4, §7.4.2, Q156, Q160.
+
+The maintainer found, testing 10r on an iPad and a phone, that the return screen's calculation was not shown below
+`lg` (only one figure in the bottom bar), that a long item name grew its row and pushed its controls out of line, and
+that the line under each item naming its orders was not needed — one section under the items, the order numbers alone.
+Both return screens now draw the summary's fixed figures in the page below `lg`, at the top of the form; an item's
+name takes two lines at most wherever it shares a row or card with figures, and a tap shows it whole where a count is
+typed against it; the orders the pallets come from are one list of numbers under the items; the order's note is
+titled, and it and each return's note take two lines at most, whole in their edit forms (Q165). **Exit:**
+`e2e/phone-summary-names.spec.ts` (the card on both screens at 390 and 820 px, fixed in height, not at 1280; a
+200-character name within two lines and whole after a tap — each proven failing when undone); `customer-returns.spec.ts`
+(the orders section, the placing on the body sent after a look — proven failing with the old line); every gate green.
+
 ---
 
 ## Environments

@@ -41,7 +41,9 @@ Pallet System: a web app for a single pallet factory in Iraq (Kurdistan Region) 
   receipt's earlier pallets per item, still out only (Q158); 10p: the change-password page only for those who must
   (Q159); 10q: the return screen by item, oldest order first (Q160). Then (2026-10-24) 10r: a customer's return
   over several orders is one visit, with one receipt naming no order, one history row and one dashboard line; each
-  order still prints its own part (Q161).
+  order still prints its own part (Q161). Then (2026-10-25) 10s: the return calculation in the page on phones and
+  iPads, item names cut to two lines (a tap shows them whole), the orders as one list under the items,
+  and order and return notes titled and cut to two lines (Q162–Q165).
 - **The maintainer's one page** is "Maintainer quick start" in `README.md` (run, test, deploy, restore, recover,
   traps, yearly checklist). Keep it true when a command or a runbook changes.
 - **Open, needing people rather than code:** the E6 screenshot baselines (rendered by CI, then committed; after

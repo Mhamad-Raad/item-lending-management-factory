@@ -127,3 +127,8 @@ The build history that used to sit in `CLAUDE.md` "Status", oldest first, moved 
   (`CUSTOMER_RETURN.RETURN_CREATE`) and one dashboard event (`CUSTOMER_RETURN`, as recorded, flagged partly or
   wholly reversed) instead of each order's return and refund; the saved dialog's one Print button, the customer's
   refunds print the visit's paper, an order's refund prints its own part and the visit's beside it.
+- **10s phones and long names** (2026-10-25, Q162–Q165): below `lg` both return screens draw the summary's fixed
+  figures in the page, at the top of the form (`SummaryCard`), beside the bottom bar; an item's name takes two lines
+  at most where it shares a row or card with figures, and a tap shows it whole on the return screens (`ItemName`);
+  the orders the returned pallets come from are one list of numbers under the items, no longer a line under each
+  item; the order's note is titled, and the order's and each return's note take two lines at most (`NoteText`).
