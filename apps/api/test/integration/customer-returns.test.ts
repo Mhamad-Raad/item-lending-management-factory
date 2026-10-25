@@ -487,6 +487,19 @@ describe('a customer return across their orders (Q156)', () => {
       ]);
     });
 
+    it('shows its pallets on the dashboard, not 0 IQD, when no cash went back', async () => {
+      const first = await order('LENT', [{ itemId: pallet.id, quantity: 10 }]);
+      const second = await order('LENT', [{ itemId: crate.id, quantity: 10 }]);
+      await post([
+        { orderId: first.id, lines: [{ orderLineId: lineOf(first), acceptedQuantity: 4 }] },
+        { orderId: second.id, lines: [{ orderLineId: lineOf(second), acceptedQuantity: 3 }] },
+      ]).expect(201);
+      const dashboard = (await http().get('/api/dashboard').set(asUser(admin)).expect(200)).body as DashboardDto;
+      const visit = (dashboard.recentActivity ?? []).find((event) => event.kind === 'CUSTOMER_RETURN');
+
+      expect(visit).toMatchObject({ quantity: 7, amount: null, orderCount: 2 });
+    });
+
     it('stays on the dashboard as recorded, flagged as partly and then wholly reversed, as its paper is', async () => {
       const { cash, result } = await visitOverThree();
       const [first, second, third] = result.returns;

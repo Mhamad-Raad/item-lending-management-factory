@@ -683,7 +683,8 @@ export interface ActivityEventDto {
   quantity: number | null;
   /**
    * HANDOVER: deposit total; RETURN: refund due; CUSTOMER_RETURN: the cash handed back, its receipt's headline (its
-   * refunds are not events of their own, Q161); PAYMENT / REFUND: amount; CANCELLATION: null.
+   * refunds are not events of their own, Q161), null with none so the pallets show; PAYMENT / REFUND: amount;
+   * CANCELLATION: null.
    */
   amount: number | null;
   /** RETURN: the return is reversed; CUSTOMER_RETURN: all its returns are; PAYMENT / REFUND: the row is. */

@@ -500,23 +500,29 @@ export function CustomerReturnForm({ data, onSaved }: { data: CustomerReturnable
             <ul className="flex flex-col gap-1">
               {/* Where each count goes now, by order, since nothing under the items shows it (Q164); a count that no
                   longer fits what is out says so instead, as its row does. */}
-              {toRecheck.map(({ holding, key, shares, overOut, outQuantity }) => (
-                <li key={holding.item.id}>
-                  <bdi>{holding.item.name}</bdi>:{' '}
-                  {overOut
-                    ? // The row's own message, a refusal's figure included, so the two never disagree.
-                      translateValidationMessage(t, errors.rows?.[key]?.accepted?.message ?? exceedsOut(outQuantity))
-                    : // One line per order: an order holds an item on one line only (order_lines is unique on both).
-                      shares
-                        .filter((share) => share.accepted + share.damaged > 0)
-                        .map((share) => (
-                          <span key={share.orderLineId} className="me-3 inline-block">
-                            <span dir="ltr">{orderLabel(share.orderNumber)}</span> ·{' '}
-                            <QuantityText value={share.accepted + share.damaged} />
-                          </span>
-                        ))}
-                </li>
-              ))}
+              {toRecheck.map(({ holding, key, shares, overOut, outQuantity, maximum, refundOver }) => {
+                // What keeps the row from being sent, said as its row says it, a refusal's figure included; else
+                // where its count goes now.
+                const refusal = overOut
+                  ? (errors.rows?.[key]?.accepted?.message ?? exceedsOut(outQuantity))
+                  : (errors.rows?.[key]?.damagedRefund?.message ?? (refundOver ? refundTooHigh(maximum) : undefined));
+                return (
+                  <li key={holding.item.id}>
+                    <bdi>{holding.item.name}</bdi>:{' '}
+                    {refusal !== undefined
+                      ? translateValidationMessage(t, refusal)
+                      : // One line per order: an order holds an item on one line only (order_lines is unique on both).
+                        shares
+                          .filter((share) => share.accepted + share.damaged > 0)
+                          .map((share) => (
+                            <span key={share.orderLineId} className="me-3 inline-block">
+                              <span dir="ltr">{orderLabel(share.orderNumber)}</span> ·{' '}
+                              <QuantityText value={share.accepted + share.damaged} />
+                            </span>
+                          ))}
+                  </li>
+                );
+              })}
             </ul>
             <Button
               type="button"
