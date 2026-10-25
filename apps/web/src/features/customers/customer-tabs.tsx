@@ -84,7 +84,7 @@ export function CustomerLedgerTab({ customerId, types }: { customerId: number; t
       // Null on a reversal row, so its card shows no empty "Actions" (Q66). A customer return's refund prints the
       // visit's one paper, the one the customer was given (Q161); its order's page prints that order's part.
       cell: (entry) =>
-        !hasMoneyReceipt(entry.type) ? null : entry.customerReturnId != null ? (
+        !hasMoneyReceipt(entry.type) ? null : entry.customerReturnId !== null ? (
           <PrintCustomerReturnReceiptButton customerReturnId={entry.customerReturnId} />
         ) : (
           <PrintMoneyReceiptButton entry={entry} />

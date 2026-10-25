@@ -579,6 +579,45 @@ test('Q164: an item out at two deposits shows both beside what is out', async ({
   await expect(page.getByRole('region', { name: 'These pallets come from the orders' })).toHaveCount(0);
 });
 
+test('Q164: a held item shows where its count goes and a refund refused beside it, never one for the other', async ({
+  page,
+}) => {
+  await page.clock.install();
+  await mockApi(page, ADMIN, 'en');
+  let changed = false;
+  const [newer, older] = SAME_ITEM.orders as [ReturnableOrderDto, ReturnableOrderDto];
+  await page.route(/\/api\/customers\/3\/returnable$/, (route) =>
+    // Meanwhile all but one of the older order's pallets came back elsewhere, and its deposit reads 3,000.
+    route.fulfill({
+      json: changed
+        ? {
+            ...SAME_ITEM,
+            orders: [
+              newer,
+              { ...older, outQuantityTotal: 1, lines: [{ ...older.lines[0]!, outQuantity: 1, unitDeposit: 3_000 }] },
+            ],
+          }
+        : SAME_ITEM,
+    }),
+  );
+  await page.goto('/returns/new?customerId=3');
+  const euro = row(page, 'Euro pallet');
+  await euro.getByRole('button', { name: 'Damaged' }).click();
+  await euro.getByLabel('Damaged', { exact: true }).fill('2');
+  // Both damaged pallets on the older order: 2 × 7,000 may come back.
+  await euro.getByLabel('Damage refund').fill('14000');
+
+  changed = true;
+  await page.clock.fastForward(60_000);
+  await page.evaluate(() => window.dispatchEvent(new Event('visibilitychange')));
+
+  // Now one on each order, 3,000 + 7,000 at most: the notice shows the new placing and the refusal together.
+  const notice = page.getByRole('alert').filter({ hasText: 'placed again' });
+  await expect(notice.getByRole('listitem')).toContainText('#000043 · 1');
+  await expect(notice.getByRole('listitem')).toContainText('#000041 · 1');
+  await expect(notice.getByRole('listitem')).toContainText('At most 10,000');
+});
+
 test('Q164: a count that no longer fits after the list is read again is said so in the notice', async ({ page }) => {
   await page.clock.install();
   await mockApi(page, ADMIN, 'en');

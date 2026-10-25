@@ -28,14 +28,9 @@ export function PrintMoneyReceiptButton({ entry }: { entry: { id: number; type: 
  * nothing on any other row (only a refund carries a customer return). On an order's page it sits beside the order's
  * own receipt; the customer's page prints only this one.
  */
-export function PrintCustomerReturnReceiptButton({
-  customerReturnId,
-}: {
-  customerReturnId: number | null | undefined;
-}) {
+export function PrintCustomerReturnReceiptButton({ customerReturnId }: { customerReturnId: number | null }) {
   const { t } = useTranslation();
-  // Loose: an answer without the field (an older API) has no visit either.
-  if (customerReturnId == null) return null;
+  if (customerReturnId === null) return null;
   return (
     <Tip label={t('orders.money.printCombined')}>
       <Button

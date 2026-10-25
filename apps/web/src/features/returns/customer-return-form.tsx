@@ -166,7 +166,13 @@ export function CustomerReturnForm({ data, onSaved }: { data: CustomerReturnable
     const countOver = row.accepted + row.damaged > outQuantity;
     const maximum = countOver ? Number.MAX_SAFE_INTEGER : refundMaximum(shares);
     const check = checkRow(row, { outQuantity, maximum }, errors.rows?.[key]);
-    return { holding, key, row, shares, outQuantity, ...check };
+    // The row's messages, as its fields show them and as the notice that holds a save repeats them: what a save or
+    // the server said, else what the live check finds (Q141, Q146).
+    const acceptedError =
+      errors.rows?.[key]?.accepted?.message ?? (check.overOut ? exceedsOut(outQuantity) : undefined);
+    const refundError =
+      errors.rows?.[key]?.damagedRefund?.message ?? (check.refundOver ? refundTooHigh(maximum) : undefined);
+    return { holding, key, row, shares, outQuantity, acceptedError, refundError, ...check };
   });
   // Each order's return is its share of the items; a refused row places nothing, so the summary never offers a figure
   // the server would refuse.
@@ -500,29 +506,35 @@ export function CustomerReturnForm({ data, onSaved }: { data: CustomerReturnable
             <ul className="flex flex-col gap-1">
               {/* Where each count goes now, by order, since nothing under the items shows it (Q164); a count that no
                   longer fits what is out says so instead, as its row does. */}
-              {toRecheck.map(({ holding, key, shares, overOut, outQuantity, maximum, refundOver }) => {
-                // What keeps the row from being sent, said as its row says it, a refusal's figure included; else
-                // where its count goes now.
-                const refusal = overOut
-                  ? (errors.rows?.[key]?.accepted?.message ?? exceedsOut(outQuantity))
-                  : (errors.rows?.[key]?.damagedRefund?.message ?? (refundOver ? refundTooHigh(maximum) : undefined));
-                return (
-                  <li key={holding.item.id}>
-                    <bdi>{holding.item.name}</bdi>:{' '}
-                    {refusal !== undefined
-                      ? translateValidationMessage(t, refusal)
-                      : // One line per order: an order holds an item on one line only (order_lines is unique on both).
-                        shares
-                          .filter((share) => share.accepted + share.damaged > 0)
-                          .map((share) => (
-                            <span key={share.orderLineId} className="me-3 inline-block">
-                              <span dir="ltr">{orderLabel(share.orderNumber)}</span> ·{' '}
-                              <QuantityText value={share.accepted + share.damaged} />
-                            </span>
-                          ))}
-                  </li>
-                );
-              })}
+              {/* Where each count goes now, by order, since nothing under the items shows it (Q164), and beside it
+                  whatever keeps the row from being sent, as its fields say it: a fix there also releases the hold, so
+                  the placing must already be in view (but for a count over what is out, which places nothing). */}
+              {toRecheck.map(({ holding, shares, overOut, acceptedError, refundError }) => (
+                <li key={holding.item.id}>
+                  <bdi>{holding.item.name}</bdi>:{' '}
+                  {/* One line per order: an order holds an item on one line only (order_lines is unique on both). */}
+                  {/* A count over what is out places nothing: its message alone, as its row prices nothing. */}
+                  {overOut
+                    ? null
+                    : shares
+                        .filter((share) => share.accepted + share.damaged > 0)
+                        .map((share) => (
+                          <span key={share.orderLineId} className="me-3 inline-block">
+                            <span dir="ltr">{orderLabel(share.orderNumber)}</span> ·{' '}
+                            <QuantityText value={share.accepted + share.damaged} />
+                          </span>
+                        ))}
+                  {[acceptedError, refundError].flatMap((message) =>
+                    message === undefined
+                      ? []
+                      : [
+                          <span key={message} className="text-destructive me-3 inline-block">
+                            {translateValidationMessage(t, message)}
+                          </span>,
+                        ],
+                  )}
+                </li>
+              ))}
             </ul>
             <Button
               type="button"
@@ -539,181 +551,179 @@ export function CustomerReturnForm({ data, onSaved }: { data: CustomerReturnable
         <Card>
           <CardContent>
             <ul className="flex flex-col divide-y">
-              {items.map(({ holding, key, row, outQuantity, overOut, maximum, refundOver }) => {
-                const itemId = holding.item.id;
-                const rowErrors = errors.rows?.[key];
-                const acceptedError = rowErrors?.accepted?.message ?? (overOut ? exceedsOut(outQuantity) : undefined);
-                const refundError =
-                  rowErrors?.damagedRefund?.message ?? (refundOver ? refundTooHigh(maximum) : undefined);
-                const showDamage = damageOpen.has(itemId) || row.damaged > 0;
-                // Its deposits beside what is out, on the orders the return can take from: one, or each, lowest first.
-                const prices = [
-                  ...new Set(
-                    holding.lines.filter((line) => !isAfterReturn(line, date)).map((line) => line.unitDeposit),
-                  ),
-                ].sort((a, b) => a - b);
-                const accepted = (next: number | null): void => {
-                  checked(itemId);
-                  form.setValue(`rows.${key}.accepted`, next);
-                  form.clearErrors(`rows.${key}.accepted`);
-                  form.clearErrors('root');
-                };
-                return (
-                  <li key={itemId} className="flex flex-col gap-3 py-3">
-                    {/* On a phone the damaged toggle shares the item's line and the count takes the width beneath. */}
-                    <div className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-3 md:grid-cols-[minmax(0,1fr)_auto_auto]">
-                      <div className="flex min-w-0 items-center gap-3">
-                        <Thumbnail url={holding.item.imageUrl} size="sm" />
-                        <div className="flex min-w-0 flex-col">
-                          <ItemName name={holding.item.name} className="font-medium" expandable />
-                          <span className="text-muted-foreground text-sm">
-                            {t('returns.new.out')}: <QuantityText value={holding.outQuantity} />
-                            {/* A back-dated return can take only what was out by its date (Q160). */}
-                            {date !== null && outQuantity < holding.outQuantity ? (
-                              <>
-                                {' · '}
-                                {t('returns.customer.outByDate', {
-                                  out: isolate(formatNumber(outQuantity)),
-                                  date: isolate(formatBusinessDate(date)),
-                                })}
-                              </>
-                            ) : null}
-                            {prices.length > 0 ? ' · ' : null}
-                            {prices.map((price, index) => (
-                              <span key={price}>
-                                {index > 0 ? ' / ' : null}
-                                <MoneyText value={price} />
-                              </span>
-                            ))}
-                          </span>
+              {items.map(
+                ({ holding, key, row, outQuantity, overOut, maximum, refundOver, acceptedError, refundError }) => {
+                  const itemId = holding.item.id;
+                  const showDamage = damageOpen.has(itemId) || row.damaged > 0;
+                  // Its deposits beside what is out, on the orders the return can take from: one, or each, lowest first.
+                  const prices = [
+                    ...new Set(
+                      holding.lines.filter((line) => !isAfterReturn(line, date)).map((line) => line.unitDeposit),
+                    ),
+                  ].sort((a, b) => a - b);
+                  const accepted = (next: number | null): void => {
+                    checked(itemId);
+                    form.setValue(`rows.${key}.accepted`, next);
+                    form.clearErrors(`rows.${key}.accepted`);
+                    form.clearErrors('root');
+                  };
+                  return (
+                    <li key={itemId} className="flex flex-col gap-3 py-3">
+                      {/* On a phone the damaged toggle shares the item's line and the count takes the width beneath. */}
+                      <div className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-3 md:grid-cols-[minmax(0,1fr)_auto_auto]">
+                        <div className="flex min-w-0 items-center gap-3">
+                          <Thumbnail url={holding.item.imageUrl} size="sm" />
+                          <div className="flex min-w-0 flex-col">
+                            <ItemName name={holding.item.name} className="font-medium" expandable />
+                            <span className="text-muted-foreground text-sm">
+                              {t('returns.new.out')}: <QuantityText value={holding.outQuantity} />
+                              {/* A back-dated return can take only what was out by its date (Q160). */}
+                              {date !== null && outQuantity < holding.outQuantity ? (
+                                <>
+                                  {' · '}
+                                  {t('returns.customer.outByDate', {
+                                    out: isolate(formatNumber(outQuantity)),
+                                    date: isolate(formatBusinessDate(date)),
+                                  })}
+                                </>
+                              ) : null}
+                              {prices.length > 0 ? ' · ' : null}
+                              {prices.map((price, index) => (
+                                <span key={price}>
+                                  {index > 0 ? ' / ' : null}
+                                  <MoneyText value={price} />
+                                </span>
+                              ))}
+                            </span>
+                          </div>
                         </div>
+                        <div className="col-span-2 row-start-2 flex items-end gap-2 md:col-span-1 md:row-start-auto">
+                          <Field className="min-w-0 flex-1 gap-1 md:flex-none">
+                            <FieldLabel htmlFor={`accepted-${itemId}`} className="text-xs">
+                              {t('returns.fields.accepted')}
+                            </FieldLabel>
+                            <div dir="ltr" className="flex items-center gap-1">
+                              <Button
+                                type="button"
+                                variant="outline"
+                                size="icon"
+                                className="size-10"
+                                aria-label={t('returns.customer.less')}
+                                disabled={row.accepted <= 0}
+                                onClick={() => accepted(Math.max(0, row.accepted - 1))}
+                              >
+                                <Minus aria-hidden />
+                              </Button>
+                              <Controller
+                                control={form.control}
+                                name={`rows.${key}.accepted`}
+                                render={({ field }) => (
+                                  <QuantityInput
+                                    id={`accepted-${itemId}`}
+                                    className="h-10 min-w-0 flex-1 text-center md:w-20 md:flex-none"
+                                    value={field.value}
+                                    onChange={(next) => accepted(next)}
+                                    aria-invalid={Boolean(acceptedError)}
+                                    aria-describedby={`row-${itemId}-error`}
+                                  />
+                                )}
+                              />
+                              <Button
+                                type="button"
+                                variant="outline"
+                                size="icon"
+                                className="size-10"
+                                aria-label={t('returns.customer.more')}
+                                disabled={row.accepted + row.damaged >= outQuantity}
+                                onClick={() => accepted(row.accepted + 1)}
+                              >
+                                <Plus aria-hidden />
+                              </Button>
+                            </div>
+                          </Field>
+                          <Button type="button" variant="outline" size="sm" onClick={() => allBack(holding)}>
+                            {t('returns.customer.all')}
+                          </Button>
+                        </div>
+                        <Button
+                          type="button"
+                          variant={showDamage ? 'secondary' : 'ghost'}
+                          size="sm"
+                          className="justify-self-end md:self-end"
+                          aria-expanded={showDamage}
+                          aria-controls={`damage-${itemId}`}
+                          // Closed only while nothing damaged is typed: the boxes never hide a count.
+                          disabled={row.damaged > 0}
+                          onClick={() => toggleDamage(itemId)}
+                        >
+                          <TriangleAlert aria-hidden />
+                          {t('returns.fields.damaged')}
+                        </Button>
                       </div>
-                      <div className="col-span-2 row-start-2 flex items-end gap-2 md:col-span-1 md:row-start-auto">
-                        <Field className="min-w-0 flex-1 gap-1 md:flex-none">
-                          <FieldLabel htmlFor={`accepted-${itemId}`} className="text-xs">
-                            {t('returns.fields.accepted')}
-                          </FieldLabel>
-                          <div dir="ltr" className="flex items-center gap-1">
-                            <Button
-                              type="button"
-                              variant="outline"
-                              size="icon"
-                              className="size-10"
-                              aria-label={t('returns.customer.less')}
-                              disabled={row.accepted <= 0}
-                              onClick={() => accepted(Math.max(0, row.accepted - 1))}
-                            >
-                              <Minus aria-hidden />
-                            </Button>
+                      {showDamage ? (
+                        <div id={`damage-${itemId}`} className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                          <Field>
+                            <FieldLabel htmlFor={`damaged-${itemId}`}>{t('returns.fields.damaged')}</FieldLabel>
                             <Controller
                               control={form.control}
-                              name={`rows.${key}.accepted`}
+                              name={`rows.${key}.damaged`}
                               render={({ field }) => (
                                 <QuantityInput
-                                  id={`accepted-${itemId}`}
-                                  className="h-10 min-w-0 flex-1 text-center md:w-20 md:flex-none"
+                                  id={`damaged-${itemId}`}
                                   value={field.value}
-                                  onChange={(next) => accepted(next)}
+                                  onChange={(next) => {
+                                    checked(itemId);
+                                    field.onChange(next);
+                                    form.clearErrors(`rows.${key}`);
+                                    form.clearErrors('root');
+                                    // No damaged pallets, nothing to refund for them.
+                                    if (!next) form.setValue(`rows.${key}.damagedRefund`, 0);
+                                  }}
                                   aria-invalid={Boolean(acceptedError)}
                                   aria-describedby={`row-${itemId}-error`}
                                 />
                               )}
                             />
-                            <Button
-                              type="button"
-                              variant="outline"
-                              size="icon"
-                              className="size-10"
-                              aria-label={t('returns.customer.more')}
-                              disabled={row.accepted + row.damaged >= outQuantity}
-                              onClick={() => accepted(row.accepted + 1)}
-                            >
-                              <Plus aria-hidden />
-                            </Button>
-                          </div>
-                        </Field>
-                        <Button type="button" variant="outline" size="sm" onClick={() => allBack(holding)}>
-                          {t('returns.customer.all')}
-                        </Button>
-                      </div>
-                      <Button
-                        type="button"
-                        variant={showDamage ? 'secondary' : 'ghost'}
-                        size="sm"
-                        className="justify-self-end md:self-end"
-                        aria-expanded={showDamage}
-                        aria-controls={`damage-${itemId}`}
-                        // Closed only while nothing damaged is typed: the boxes never hide a count.
-                        disabled={row.damaged > 0}
-                        onClick={() => toggleDamage(itemId)}
-                      >
-                        <TriangleAlert aria-hidden />
-                        {t('returns.fields.damaged')}
-                      </Button>
-                    </div>
-                    {showDamage ? (
-                      <div id={`damage-${itemId}`} className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-                        <Field>
-                          <FieldLabel htmlFor={`damaged-${itemId}`}>{t('returns.fields.damaged')}</FieldLabel>
-                          <Controller
-                            control={form.control}
-                            name={`rows.${key}.damaged`}
-                            render={({ field }) => (
-                              <QuantityInput
-                                id={`damaged-${itemId}`}
-                                value={field.value}
-                                onChange={(next) => {
-                                  checked(itemId);
-                                  field.onChange(next);
-                                  form.clearErrors(`rows.${key}`);
-                                  form.clearErrors('root');
-                                  // No damaged pallets, nothing to refund for them.
-                                  if (!next) form.setValue(`rows.${key}.damagedRefund`, 0);
-                                }}
-                                aria-invalid={Boolean(acceptedError)}
-                                aria-describedby={`row-${itemId}-error`}
-                              />
-                            )}
-                          />
-                        </Field>
-                        <Field>
-                          <FieldLabel htmlFor={`refund-${itemId}`}>{t('returns.fields.damagedRefund')}</FieldLabel>
-                          <Controller
-                            control={form.control}
-                            name={`rows.${key}.damagedRefund`}
-                            render={({ field }) => (
-                              <MoneyInput
-                                id={`refund-${itemId}`}
-                                value={field.value}
-                                onChange={(next) => {
-                                  checked(itemId);
-                                  field.onChange(next);
-                                  form.clearErrors(`rows.${key}.damagedRefund`);
-                                }}
-                                disabled={row.damaged === 0}
-                                suffix={t('common.currency')}
-                                aria-invalid={Boolean(refundError)}
-                                aria-describedby={`refund-${itemId}-split refund-${itemId}-error`}
-                              />
-                            )}
-                          />
-                          <FieldError id={`refund-${itemId}-error`} message={refundError} />
-                          {row.damaged > 0 && !overOut && !refundOver ? (
-                            <FieldDescription id={`refund-${itemId}-split`}>
-                              {t('returns.new.damageSplit', {
-                                deposit: money(maximum),
-                                refund: money(row.damagedRefund),
-                                kept: money(maximum - row.damagedRefund),
-                              })}
-                            </FieldDescription>
-                          ) : null}
-                        </Field>
-                      </div>
-                    ) : null}
-                    <FieldError id={`row-${itemId}-error`} message={acceptedError} />
-                  </li>
-                );
-              })}
+                          </Field>
+                          <Field>
+                            <FieldLabel htmlFor={`refund-${itemId}`}>{t('returns.fields.damagedRefund')}</FieldLabel>
+                            <Controller
+                              control={form.control}
+                              name={`rows.${key}.damagedRefund`}
+                              render={({ field }) => (
+                                <MoneyInput
+                                  id={`refund-${itemId}`}
+                                  value={field.value}
+                                  onChange={(next) => {
+                                    checked(itemId);
+                                    field.onChange(next);
+                                    form.clearErrors(`rows.${key}.damagedRefund`);
+                                  }}
+                                  disabled={row.damaged === 0}
+                                  suffix={t('common.currency')}
+                                  aria-invalid={Boolean(refundError)}
+                                  aria-describedby={`refund-${itemId}-split refund-${itemId}-error`}
+                                />
+                              )}
+                            />
+                            <FieldError id={`refund-${itemId}-error`} message={refundError} />
+                            {row.damaged > 0 && !overOut && !refundOver ? (
+                              <FieldDescription id={`refund-${itemId}-split`}>
+                                {t('returns.new.damageSplit', {
+                                  deposit: money(maximum),
+                                  refund: money(row.damagedRefund),
+                                  kept: money(maximum - row.damagedRefund),
+                                })}
+                              </FieldDescription>
+                            ) : null}
+                          </Field>
+                        </div>
+                      ) : null}
+                      <FieldError id={`row-${itemId}-error`} message={acceptedError} />
+                    </li>
+                  );
+                },
+              )}
             </ul>
           </CardContent>
         </Card>

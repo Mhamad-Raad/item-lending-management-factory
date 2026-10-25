@@ -286,7 +286,9 @@ function RecentActivity({ events }: { events: ActivityEventDto[] }) {
                         <bdi>{event.customer.name}</bdi>
                       </span>
                       <span className="flex shrink-0 items-center gap-3 text-sm sm:ms-auto">
-                        {event.amount !== null ? (
+                        {/* A sum of 0 says nothing came back: the pallets that did say more (a return of damaged pallets
+                            refunding nothing, a customer return that paid no cash, Q161). */}
+                        {event.amount !== null && (event.amount > 0 || event.quantity === null) ? (
                           <MoneyText value={event.amount} />
                         ) : event.quantity !== null ? (
                           <QuantityText value={event.quantity} />

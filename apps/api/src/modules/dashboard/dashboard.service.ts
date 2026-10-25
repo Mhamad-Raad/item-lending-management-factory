@@ -222,9 +222,8 @@ export class DashboardService {
               archivedAt: visit.archivedAt,
             }),
             quantity: visit.quantity,
-            // The cash handed back, its receipt's headline, since its refunds are not events of their own; with none,
-            // no figure of money, and the line shows the pallets that came back instead.
-            amount: fromAggregate(visit.cashRefund) > 0 ? fromAggregate(visit.cashRefund) : null,
+            // The cash handed back, its receipt's headline, since its refunds are not events of their own.
+            amount: fromAggregate(visit.cashRefund),
             reversed: visit.reversedCount === visit.orderCount,
             partlyReversed: visit.reversedCount > 0 && visit.reversedCount < visit.orderCount,
           },

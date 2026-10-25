@@ -189,6 +189,12 @@ test('Q161: a customer return is one line on the dashboard, leading to its custo
   await expect(page).toHaveURL(`/customers/${CUSTOMER.id}`);
 });
 
+test('Q161: a line whose sum is 0 shows its pallets instead, never 0 IQD', async ({ page }) => {
+  const activity = await openDashboard(page, ADMIN, { ...VISIT_EVENT, amount: 0 });
+  await expect(activity).toContainText('75');
+  await expect(activity).not.toContainText('IQD');
+});
+
 test('Q161: a customer return partly reversed since is flagged so, wholly reversed as reversed', async ({ page }) => {
   const partly = await openDashboard(page, ADMIN, { ...VISIT_EVENT, partlyReversed: true });
   await expect(partly).toContainText('Partly reversed');
