@@ -42,6 +42,7 @@ import { Route as AppItemsItemIdIndexRouteImport } from './routes/_app/items/$it
 import { Route as AppItemsItemIdEditRouteImport } from './routes/_app/items/$itemId/edit'
 import { Route as AppOrdersOrderIdIndexRouteImport } from './routes/_app/orders/$orderId/index'
 import { Route as AppOrdersOrderIdEditRouteImport } from './routes/_app/orders/$orderId/edit'
+import { Route as AppReturnsReturnIdEditRouteImport } from './routes/_app/returns/$returnId/edit'
 import { Route as PrintPrintCustomerReturnsCustomerReturnIdRouteImport } from './routes/_print/print/customer-returns/$customerReturnId'
 import { Route as PrintPrintLedgerEntryIdRouteImport } from './routes/_print/print/ledger/$entryId'
 import { Route as PrintPrintOrdersOrderIdRouteImport } from './routes/_print/print/orders/$orderId'
@@ -212,6 +213,11 @@ const AppOrdersOrderIdEditRoute = AppOrdersOrderIdEditRouteImport.update({
   path: '/orders/$orderId/edit',
   getParentRoute: () => AppRoute,
 } as any)
+const AppReturnsReturnIdEditRoute = AppReturnsReturnIdEditRouteImport.update({
+  id: '/returns/$returnId/edit',
+  path: '/returns/$returnId/edit',
+  getParentRoute: () => AppRoute,
+} as any)
 const PrintPrintCustomerReturnsCustomerReturnIdRoute =
   PrintPrintCustomerReturnsCustomerReturnIdRouteImport.update({
     id: '/print/customer-returns/$customerReturnId',
@@ -264,6 +270,7 @@ export interface FileRoutesByFullPath {
   '/customers/$customerId/edit': typeof AppCustomersCustomerIdEditRoute
   '/items/$itemId/edit': typeof AppItemsItemIdEditRoute
   '/orders/$orderId/edit': typeof AppOrdersOrderIdEditRoute
+  '/returns/$returnId/edit': typeof AppReturnsReturnIdEditRoute
   '/print/customer-returns/$customerReturnId': typeof PrintPrintCustomerReturnsCustomerReturnIdRoute
   '/print/ledger/$entryId': typeof PrintPrintLedgerEntryIdRoute
   '/print/orders/$orderId': typeof PrintPrintOrdersOrderIdRoute
@@ -301,6 +308,7 @@ export interface FileRoutesByTo {
   '/customers/$customerId/edit': typeof AppCustomersCustomerIdEditRoute
   '/items/$itemId/edit': typeof AppItemsItemIdEditRoute
   '/orders/$orderId/edit': typeof AppOrdersOrderIdEditRoute
+  '/returns/$returnId/edit': typeof AppReturnsReturnIdEditRoute
   '/print/customer-returns/$customerReturnId': typeof PrintPrintCustomerReturnsCustomerReturnIdRoute
   '/print/ledger/$entryId': typeof PrintPrintLedgerEntryIdRoute
   '/print/orders/$orderId': typeof PrintPrintOrdersOrderIdRoute
@@ -341,6 +349,7 @@ export interface FileRoutesById {
   '/_app/customers/$customerId/edit': typeof AppCustomersCustomerIdEditRoute
   '/_app/items/$itemId/edit': typeof AppItemsItemIdEditRoute
   '/_app/orders/$orderId/edit': typeof AppOrdersOrderIdEditRoute
+  '/_app/returns/$returnId/edit': typeof AppReturnsReturnIdEditRoute
   '/_print/print/customer-returns/$customerReturnId': typeof PrintPrintCustomerReturnsCustomerReturnIdRoute
   '/_print/print/ledger/$entryId': typeof PrintPrintLedgerEntryIdRoute
   '/_print/print/orders/$orderId': typeof PrintPrintOrdersOrderIdRoute
@@ -380,6 +389,7 @@ export interface FileRouteTypes {
     | '/customers/$customerId/edit'
     | '/items/$itemId/edit'
     | '/orders/$orderId/edit'
+    | '/returns/$returnId/edit'
     | '/print/customer-returns/$customerReturnId'
     | '/print/ledger/$entryId'
     | '/print/orders/$orderId'
@@ -417,6 +427,7 @@ export interface FileRouteTypes {
     | '/customers/$customerId/edit'
     | '/items/$itemId/edit'
     | '/orders/$orderId/edit'
+    | '/returns/$returnId/edit'
     | '/print/customer-returns/$customerReturnId'
     | '/print/ledger/$entryId'
     | '/print/orders/$orderId'
@@ -456,6 +467,7 @@ export interface FileRouteTypes {
     | '/_app/customers/$customerId/edit'
     | '/_app/items/$itemId/edit'
     | '/_app/orders/$orderId/edit'
+    | '/_app/returns/$returnId/edit'
     | '/_print/print/customer-returns/$customerReturnId'
     | '/_print/print/ledger/$entryId'
     | '/_print/print/orders/$orderId'
@@ -705,6 +717,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AppOrdersOrderIdEditRouteImport
       parentRoute: typeof AppRoute
     }
+    '/_app/returns/$returnId/edit': {
+      id: '/_app/returns/$returnId/edit'
+      path: '/returns/$returnId/edit'
+      fullPath: '/returns/$returnId/edit'
+      preLoaderRoute: typeof AppReturnsReturnIdEditRouteImport
+      parentRoute: typeof AppRoute
+    }
     '/_print/print/customer-returns/$customerReturnId': {
       id: '/_print/print/customer-returns/$customerReturnId'
       path: '/print/customer-returns/$customerReturnId'
@@ -763,6 +782,7 @@ interface AppRouteChildren {
   AppCustomersCustomerIdEditRoute: typeof AppCustomersCustomerIdEditRoute
   AppItemsItemIdEditRoute: typeof AppItemsItemIdEditRoute
   AppOrdersOrderIdEditRoute: typeof AppOrdersOrderIdEditRoute
+  AppReturnsReturnIdEditRoute: typeof AppReturnsReturnIdEditRoute
   AppCustomersCustomerIdIndexRoute: typeof AppCustomersCustomerIdIndexRoute
   AppItemsItemIdIndexRoute: typeof AppItemsItemIdIndexRoute
   AppOrdersOrderIdIndexRoute: typeof AppOrdersOrderIdIndexRoute
@@ -795,6 +815,7 @@ const AppRouteChildren: AppRouteChildren = {
   AppCustomersCustomerIdEditRoute: AppCustomersCustomerIdEditRoute,
   AppItemsItemIdEditRoute: AppItemsItemIdEditRoute,
   AppOrdersOrderIdEditRoute: AppOrdersOrderIdEditRoute,
+  AppReturnsReturnIdEditRoute: AppReturnsReturnIdEditRoute,
   AppCustomersCustomerIdIndexRoute: AppCustomersCustomerIdIndexRoute,
   AppItemsItemIdIndexRoute: AppItemsItemIdIndexRoute,
   AppOrdersOrderIdIndexRoute: AppOrdersOrderIdIndexRoute,

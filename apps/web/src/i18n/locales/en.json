@@ -490,7 +490,8 @@
         "RETURN_DELETE": "Return on order #{{orderNumber}} deleted"
       },
       "CUSTOMER_RETURN": {
-        "RETURN_CREATE": "Return of {{customerName}} (orders: {{orders}}): {{accepted}} accepted, {{damaged}} damaged, credit {{refundDue}}, cash refund {{cashRefund}}"
+        "RETURN_CREATE": "Return of {{customerName}} (orders: {{orders}}): {{accepted}} accepted, {{damaged}} damaged, credit {{refundDue}}, cash refund {{cashRefund}}",
+        "RETURN_EDIT": "Return of {{customerName}} corrected (orders: {{orders}}): {{accepted}} accepted, {{damaged}} damaged, credit {{refundDue}}, cash refund {{cashRefund}}"
       },
       "PALLET_CREDIT": {
         "CREATE": "{{customerName}} brought back more than they had out: we now owe them {{quantity}} × {{itemName}}",
@@ -663,6 +664,7 @@
     "ORDER_LINE_HAS_RETURNS": "This line has returns in its history and cannot be removed; lower its quantity instead",
     "CUSTOMER_RETURN_NOT_FOUND": "Customer return not found",
     "PALLET_SURPLUS_STILL_OUT": "More than is out can come back only once every pallet of that type is back",
+    "PALLET_SURPLUS_NOT_RETURNED": "Extra pallets can come back only of a type this return takes back",
     "PALLET_CREDIT_GIVEN_BACK": "Extra pallets of this return were given back already; it can no longer be corrected or deleted",
     "PALLET_CREDIT_INSUFFICIENT": "The factory does not owe them that many",
     "ORDER_ALL_FROM_CREDIT": "All of these come from pallets we owe them — use Give back on the customer page instead",
@@ -1231,6 +1233,15 @@
       "backToOrder": "Back to the order",
       "nothingOut": "Nothing is out on this order",
       "damageSplit": "Of their {{deposit}} deposit, {{refund}} is refunded and {{kept}} is kept for the damage."
+    },
+    "edit": {
+      "title": "Edit return",
+      "backToList": "Back to returns",
+      "cashMore": "{{paid}} IQD was paid back already — hand the customer {{amount}} IQD more now",
+      "cashBack": "{{paid}} IQD was paid back already — take {{amount}} IQD back from the customer",
+      "savedTitle": "Return saved",
+      "alreadyChanged": "This return was already changed — the list shows it as it is now",
+      "cannotDrop": "You may not delete returns: {{orders}} must still take some pallets back"
     },
     "customer": {
       "heading": "Pallets out: {{pallets}} · Orders: {{orders}}",

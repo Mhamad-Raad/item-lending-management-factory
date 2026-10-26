@@ -28,8 +28,9 @@ export const AUDIT_MATRIX: Readonly<Record<AuditEntityType, readonly AuditAction
   ORDER: ['CREATE', 'UPDATE', 'CANCEL', 'CREDIT_OVERRIDE'],
   RETURN: ['RETURN_CREATE', 'RETURN_EDIT', 'RETURN_DELETE'],
   LEDGER_ENTRY: ['PAYMENT_CREATE', 'PAYMENT_REVERSE', 'REFUND_CREATE', 'REFUND_REVERSE'],
-  // One row for a customer's return over several orders, its orders' returns and refunds in it (Q161).
-  CUSTOMER_RETURN: ['RETURN_CREATE'],
+  // One row for a customer's return over several orders, its orders' returns and refunds in it (Q161); one for its
+  // edit from the returns list, before or after over several orders (Q174).
+  CUSTOMER_RETURN: ['RETURN_CREATE', 'RETURN_EDIT'],
   // Q170: pallets owed to the customer by a return on one order (CREATE; a visit's are in its own row), and pallets
   // the factory owed handed back (HAND_BACK).
   PALLET_CREDIT: ['CREATE', 'HAND_BACK', 'HAND_BACK_REVERSE'],

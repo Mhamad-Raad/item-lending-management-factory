@@ -7,10 +7,11 @@ import {
   type CustomerReturnCreateBody,
   type CustomerReturnResultDto,
   type CustomerReturnableDto,
+  type CustomerReturnEditableDto,
 } from '@pallet/shared';
 import { useQueryClient } from '@tanstack/react-query';
-import { Link } from '@tanstack/react-router';
-import { ExternalLink, HandCoins, Loader2, Minus, Plus, TriangleAlert } from 'lucide-react';
+import { Link, useNavigate } from '@tanstack/react-router';
+import { ExternalLink, Loader2, Minus, Plus, TriangleAlert } from 'lucide-react';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { Controller, useForm, useWatch } from 'react-hook-form';
 import { useTranslation } from 'react-i18next';
@@ -50,6 +51,7 @@ import {
 } from './allocate';
 import { returnSummary } from './return-math';
 import { checkRow, count, pricedRow, restAccepted, typedRow, useRowMessages, type RowCounts } from './return-rows';
+import { CashHandover } from './cash-handover';
 import { ReturnsSavedDialog } from './returns-saved-dialog';
 
 interface CustomerReturnValues {
@@ -83,17 +85,40 @@ function namesOf(holdings: readonly ItemHolding[]): Map<number, string> {
  * order that takes a share, each priced against its own order, so the summary adds up what each order's return would
  * be on its own.
  */
-export function CustomerReturnForm({ data, onSaved }: { data: CustomerReturnableDto; onSaved: () => void }) {
+export function CustomerReturnForm({
+  data,
+  edit,
+  onSaved,
+}: {
+  data: CustomerReturnableDto;
+  /** A return edited from the returns list (Q174): its counts by item start the rows, and a save replaces it whole. */
+  edit?: CustomerReturnEditableDto;
+  onSaved: () => void;
+}) {
   const { t } = useTranslation();
   const queryClient = useQueryClient();
+  const navigate = useNavigate();
   const customerId = data.customer.id;
   // Grouped and sorted once per list, not on every key typed.
   const holdings = useMemo(() => itemHoldings(data), [data]);
+  // An edited return's counts go back on the lines they were on before the rest is placed oldest first (Q174).
+  const placed = useMemo(
+    () => (edit ? new Map(edit.lines.map((line) => [line.orderLineId, line] as const)) : undefined),
+    [edit],
+  );
   const form = useForm<CustomerReturnValues>({
     defaultValues: {
-      date: businessToday(),
-      notes: '',
-      rows: Object.fromEntries(holdings.map((holding) => [itemKey(holding.item.id), { ...EMPTY_ROW }])),
+      date: edit?.date ?? businessToday(),
+      notes: edit?.notes ?? '',
+      rows: Object.fromEntries(
+        holdings.map((holding) => {
+          const was = edit?.items.find((entry) => entry.itemId === holding.item.id);
+          return [
+            itemKey(holding.item.id),
+            was ? { accepted: was.accepted, damaged: was.damaged, damagedRefund: was.damagedRefund } : { ...EMPTY_ROW },
+          ];
+        }),
+      ),
     },
   });
   const rows = useWatch({ control: form.control, name: 'rows' });
@@ -139,7 +164,7 @@ export function CustomerReturnForm({ data, onSaved }: { data: CustomerReturnable
       if (row.accepted + row.damaged === 0) return [];
       const before = previous.holdings.find((entry) => entry.item.id === holding.item.id);
       if (!before) return [holding.item.id];
-      return splitOf(allocate(before.lines, row, date)) === splitOf(allocate(holding.lines, row, date))
+      return splitOf(allocate(before.lines, row, date, placed)) === splitOf(allocate(holding.lines, row, date, placed))
         ? []
         : [holding.item.id];
     });
@@ -160,7 +185,7 @@ export function CustomerReturnForm({ data, onSaved }: { data: CustomerReturnable
   const items = holdings.map((holding) => {
     const key = itemKey(holding.item.id);
     const row = typedRow(rows[key]);
-    const shares = allocate(holding.lines, row, date);
+    const shares = allocate(holding.lines, row, date, placed);
     const outQuantity = outBy(holding.lines, date);
     // More than is out may come back when every pallet of the item comes back in this return — none on an order dated
     // after it — and the damaged ones fit: the rest are good pallets the factory then owes the customer (Q170).
@@ -236,15 +261,41 @@ export function CustomerReturnForm({ data, onSaved }: { data: CustomerReturnable
   const tooManyOrders = touched.length > CUSTOMER_RETURN_MAX_ORDERS;
   // Only items still listed wait for a look; one gone altogether is named by the notice above instead.
   const toRecheck = items.filter(({ holding }) => recheck.has(holding.item.id));
-  const anyInvalid = items.some(({ invalid }) => invalid) || gone.length > 0 || toRecheck.length > 0 || tooManyOrders;
+  // An order the edited return was on that takes nothing back now would lose its part — a deletion, its own right
+  // (Q174, §7.4.2): without it, refused as typed, its orders named.
+  const canDelete = useCan('returns.delete');
+  const heldLines = new Map(holdings.flatMap((holding) => holding.lines.map((line) => [line.orderLineId, line])));
+  const dropped = [
+    ...new Map(
+      (edit && !canDelete ? edit.lines : []).flatMap((line) => {
+        const held = heldLines.get(line.orderLineId);
+        return held && !touched.some((entry) => entry.order.id === held.orderId)
+          ? [[held.orderId, held.orderNumber] as const]
+          : [];
+      }),
+    ).values(),
+  ];
+  const anyInvalid =
+    items.some(({ invalid }) => invalid) ||
+    gone.length > 0 ||
+    toRecheck.length > 0 ||
+    tooManyOrders ||
+    dropped.length > 0;
 
   const record = useFlowMutation({
+    // An edit is not idempotent (Q174), as a correction on the order's page: a repeat finds the return reversed.
     request: (body: CustomerReturnCreateBody, idempotencyKey) =>
-      apiFetch<CustomerReturnResultDto>(`/customers/${customerId}/returns`, {
-        method: 'POST',
-        body,
-        idempotencyKey: idempotencyKey(),
-      }),
+      edit
+        ? apiFetch<CustomerReturnResultDto>(`/returns/${edit.returnId}/replace-customer`, {
+            method: 'POST',
+            // With the extra pallets it counted as still owed when it opened, checked again on save (Q174).
+            body: { ...body, reopened: edit.reopened },
+          })
+        : apiFetch<CustomerReturnResultDto>(`/customers/${customerId}/returns`, {
+            method: 'POST',
+            body,
+            idempotencyKey: idempotencyKey(),
+          }),
     // Every return gets the dialog and its receipt, on one order as on several, cash paid back or not (Q166).
     showSaved: (result) =>
       new Promise<void>((close) => {
@@ -259,6 +310,8 @@ export function CustomerReturnForm({ data, onSaved }: { data: CustomerReturnable
     // To the customer, whose orders it changed, however many it touched (Q166); without the right to see customers, to
     // the one order it touched, or else to the returns list.
     destination: (result) => {
+      // An edit starts from the returns list and goes back to it (Q174).
+      if (edit) return { to: '/returns' };
       const [only] = result.returns;
       if (canViewCustomers) return { to: '/customers/$customerId', params: { customerId: String(customerId) } };
       if (result.returns.length === 1 && only)
@@ -266,7 +319,28 @@ export function CustomerReturnForm({ data, onSaved }: { data: CustomerReturnable
       return { to: '/returns' };
     },
     onError: (error, body) => {
-      const reload = (): void => void queryClient.invalidateQueries({ queryKey: qk.orders.returnable(customerId) });
+      // Already changed — by someone else, or by this very save when its answer was lost and it was sent again (Q174):
+      // it can never save, so back to the list, read afresh, which shows the return as it now stands.
+      // One of its own orders cancelled, or its extra pallets given out since it opened, likewise: opened again from the
+      // list, it shows them as they now stand.
+      if (
+        edit &&
+        (isApiError(error, 'RETURN_ALREADY_REVERSED') ||
+          isApiError(error, 'RETURN_NOT_FOUND') ||
+          isApiError(error, 'PALLET_CREDIT_GIVEN_BACK') ||
+          edit.lines.some(
+            (line) => heldLines.get(line.orderLineId)?.orderId === detailsOf(error, 'ORDER_CANCELLED')?.orderId,
+          ))
+      ) {
+        toast.error(t('returns.edit.alreadyChanged'));
+        void invalidateAfterOrderChange(queryClient);
+        void navigate({ to: '/returns' });
+        return;
+      }
+      const reload = (): void =>
+        void queryClient.invalidateQueries({
+          queryKey: edit ? qk.orders.returnEditable(edit.returnId) : qk.orders.returnable(customerId),
+        });
       // Every refusal below means the orders changed meanwhile, and the list is read again: an item whose count no
       // longer fits is refused with the figure; any other is placed again on the new list, and if its split moves it
       // is held for a look (`recheck`). Judged on what was sent, not on what may have been typed since.
@@ -424,7 +498,7 @@ export function CustomerReturnForm({ data, onSaved }: { data: CustomerReturnable
   const submitButton = (
     <Button type="submit" form="customer-return" disabled={record.isPending || anyInvalid}>
       {record.isPending ? <Loader2 className="size-4 animate-spin" aria-hidden /> : null}
-      {t('returns.new.submit')}
+      {t(edit ? 'returns.new.submitReplace' : 'returns.new.submit')}
     </Button>
   );
 
@@ -469,12 +543,8 @@ export function CustomerReturnForm({ data, onSaved }: { data: CustomerReturnable
       ) : null}
       {anyInvalid ? null : (
         <>
-          {totals.cashRefund > 0 ? (
-            <p className="bg-success/12 text-success flex items-center gap-2 rounded-md p-3 font-semibold dark:bg-success/20">
-              <HandCoins className="size-5 shrink-0" aria-hidden />
-              {t('returns.new.cashHandover', { amount: formatMoney(totals.cashRefund) })}
-            </p>
-          ) : null}
+          {/* An edit's cash was paid once already: only the difference changes hands (Q174). */}
+          <CashHandover cash={totals.cashRefund} paidBefore={edit?.cashRefunded} icon />
           {totals.owedAfter > 0 ? (
             <p className="text-info text-sm">{t('returns.new.stillOwes', { amount: formatMoney(totals.owedAfter) })}</p>
           ) : null}
@@ -520,6 +590,13 @@ export function CustomerReturnForm({ data, onSaved }: { data: CustomerReturnable
           </p>
         ) : null}
         {goneNotice}
+        {dropped.length > 0 ? (
+          <p role="alert" className="text-destructive text-sm font-medium">
+            {t('returns.edit.cannotDrop', {
+              orders: dropped.map((number) => isolate(orderLabel(number))).join(t('common.listSeparator')),
+            })}
+          </p>
+        ) : null}
         {toRecheck.length > 0 ? (
           <div role="alert" className="border-warning bg-warning/10 flex flex-col gap-2 rounded-lg border p-4 text-sm">
             <p className="font-medium">{t('returns.customer.recheckTitle')}</p>
@@ -819,6 +896,7 @@ export function CustomerReturnForm({ data, onSaved }: { data: CustomerReturnable
       {saved ? (
         <ReturnsSavedDialog
           result={saved}
+          paidBefore={edit?.cashRefunded}
           open={savedOpen}
           onClose={() => {
             setSavedOpen(false);

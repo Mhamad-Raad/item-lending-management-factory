@@ -1,4 +1,4 @@
-import type { CustomerReturnableDto, ReturnListItemDto } from '@pallet/shared';
+import type { CustomerReturnEditableDto, CustomerReturnableDto, ReturnListItemDto } from '@pallet/shared';
 import { queryOptions } from '@tanstack/react-query';
 import { apiFetch } from '@/lib/api-client';
 import { pageQuery, type ListParams } from '@/lib/page-query';
@@ -9,6 +9,14 @@ export function customerReturnableQuery(customerId: number) {
   return queryOptions({
     queryKey: qk.orders.returnable(customerId),
     queryFn: () => apiFetch<CustomerReturnableDto>(`/customers/${customerId}/returnable`),
+  });
+}
+
+/** A return as the customer screen edits it (Q174): its customer's pallets without it, and its counts by item. */
+export function returnEditableQuery(returnId: number) {
+  return queryOptions({
+    queryKey: qk.orders.returnEditable(returnId),
+    queryFn: () => apiFetch<CustomerReturnEditableDto>(`/returns/${returnId}/editable`),
   });
 }
 

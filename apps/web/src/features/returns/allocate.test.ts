@@ -145,3 +145,35 @@ describe('returns of an item across orders, oldest first (Q160)', () => {
     ]);
   });
 });
+
+describe('an edited return keeps its placement (Q174)', () => {
+  const lines = [line(7, '2026-09-01', 10), line(12, '2026-09-05', 10)];
+  // Recorded on the newer order's own page: 5 on #12, while #7 had pallets of the item out too.
+  const previous = new Map([[120, { accepted: 5, damaged: 1, damagedRefund: 3_000 }]]);
+
+  it('puts an unchanged count back on the order it was on, not on the oldest', () => {
+    expect(placed(allocate(lines, { accepted: 5, damaged: 1, damagedRefund: 3_000 }, null, previous))).toEqual([
+      [7, 0, 0, 0],
+      [12, 5, 1, 3_000],
+    ]);
+  });
+
+  it('places more than before oldest first after it, and less by taking off the old placement', () => {
+    expect(placed(allocate(lines, { accepted: 8, damaged: 1, damagedRefund: 3_000 }, null, previous))).toEqual([
+      [7, 3, 0, 0],
+      [12, 5, 1, 3_000],
+    ]);
+    expect(placed(allocate(lines, { accepted: 2, damaged: 0, damagedRefund: 0 }, null, previous))).toEqual([
+      [7, 0, 0, 0],
+      [12, 2, 0, 0],
+    ]);
+  });
+
+  it('never takes more on a line than it has out, whatever it had before', () => {
+    const fewer = [line(7, '2026-09-01', 10), line(12, '2026-09-05', 3)];
+    expect(placed(allocate(fewer, { accepted: 5, damaged: 1, damagedRefund: 3_000 }, null, previous))).toEqual([
+      [7, 3, 0, 0],
+      [12, 2, 1, 3_000],
+    ]);
+  });
+});

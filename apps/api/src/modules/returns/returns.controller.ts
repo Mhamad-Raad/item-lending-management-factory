@@ -1,8 +1,10 @@
 import { Body, Controller, Delete, Get, Headers, HttpCode, Param, Post, Query, Req, Res } from '@nestjs/common';
 import {
   CustomerReturnCreateBody,
+  CustomerReturnReplaceBody,
   type CustomerReturnResultDto,
   type CustomerReturnableDto,
+  type CustomerReturnEditableDto,
   IDEMPOTENCY_HEADER_NAME,
   IDEMPOTENCY_REPLAYED_HEADER,
   IdParam,
@@ -90,6 +92,25 @@ export class ReturnsController {
     @CurrentUser() actor: AuthContext,
   ): Promise<ReturnResultDto> {
     return this.returns.replace(id, body, actor);
+  }
+
+  /** A return as the customer screen edits it from the returns list (Q174): a visit whole. */
+  @Get('returns/:id/editable')
+  @RequirePermission('returns.edit')
+  editable(@Param('id', new ZodValidationPipe(IdParam)) id: number): Promise<CustomerReturnEditableDto> {
+    return this.returns.editableFor(id);
+  }
+
+  /** Not idempotent, as `replace`: a repeat finds the old return reversed (Q174). */
+  @Post('returns/:id/replace-customer')
+  @RequirePermission('returns.edit')
+  @HttpCode(201)
+  replaceForCustomer(
+    @Param('id', new ZodValidationPipe(IdParam)) id: number,
+    @Body(new ZodValidationPipe(CustomerReturnReplaceBody)) body: CustomerReturnReplaceBody,
+    @CurrentUser() actor: AuthContext,
+  ): Promise<CustomerReturnResultDto> {
+    return this.returns.replaceForCustomer(id, body, actor);
   }
 
   @Delete('returns/:id')

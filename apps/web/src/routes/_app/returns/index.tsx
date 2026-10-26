@@ -1,7 +1,7 @@
 import { BusinessDate, formatOrderNumber, type ReturnListItemDto } from '@pallet/shared';
 import { useQuery } from '@tanstack/react-query';
 import { Link, createFileRoute, redirect } from '@tanstack/react-router';
-import { Ban, CircleCheck, Plus } from 'lucide-react';
+import { Ban, CircleCheck, Pencil, Plus } from 'lucide-react';
 import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { z } from 'zod';
@@ -54,6 +54,7 @@ function ReturnsPage() {
   const { t } = useTranslation();
   const search = Route.useSearch();
   const canCreate = useCan('returns.create');
+  const canEdit = useCan('returns.edit');
   usePageTitle('returns.list.title');
 
   const { term, setTerm, setFilter, clearFilters, pageProps } = useListRoute(Route.fullPath, search);
@@ -190,6 +191,20 @@ function ReturnsPage() {
               refundEntryId={pr.refundEntryId}
               customerReturnId={pr.customerReturnId}
             />
+            {/* Edited on the customer screen, a visit over several orders whole (Q174). */}
+            {canEdit ? (
+              <Button
+                asChild
+                variant="ghost"
+                size="icon"
+                aria-label={t('common.actions.edit')}
+                title={t('common.actions.edit')}
+              >
+                <Link to="/returns/$returnId/edit" params={{ returnId: String(pr.id) }}>
+                  <Pencil aria-hidden />
+                </Link>
+              </Button>
+            ) : null}
           </div>
         );
       },

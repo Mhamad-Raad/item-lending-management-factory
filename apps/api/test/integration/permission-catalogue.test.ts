@@ -85,6 +85,8 @@ const ROUTE_ACCESS: Record<string, Rule> = {
   'GET /api/customers/:customerId/returnable': all('returns.create'),
   'POST /api/customers/:customerId/returns': all('returns.create'),
   'POST /api/returns/:id/replace': all('returns.edit'),
+  'GET /api/returns/:id/editable': all('returns.edit'),
+  'POST /api/returns/:id/replace-customer': all('returns.edit'),
   'DELETE /api/returns/:id': all('returns.delete'),
   'POST /api/orders/:orderId/payments': all('payments.create'),
   'POST /api/ledger-entries/:id/reverse': all('payments.delete'),

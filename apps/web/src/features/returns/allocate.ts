@@ -90,22 +90,44 @@ export function outBy(lines: readonly HeldLine[], returnDate: string | null): nu
  * each line taking what it still has out; the damage refund follows the damaged pallets, each line taking at most
  * the deposit of its own damaged ones. An order dated after the return date takes nothing (a return cannot precede
  * its order). What the lines cannot take (a row over what is out) is left unplaced: such a row is refused as typed
- * and prices nothing.
+ * and prices nothing. With `previous` — a return being edited (Q174) — each line first takes back what it had, so an
+ * unchanged count stays on the orders it was on; only the rest is placed oldest first.
  */
-export function allocate(lines: readonly HeldLine[], row: TypedRow, returnDate: string | null = null): LineShare[] {
+export function allocate(
+  lines: readonly HeldLine[],
+  row: TypedRow,
+  returnDate: string | null = null,
+  previous?: ReadonlyMap<number, TypedRow>,
+): LineShare[] {
   let damagedLeft = row.damaged;
   let acceptedLeft = row.accepted;
   let refundLeft = row.damagedRefund;
-  return lines.map((line) => {
-    if (isAfterReturn(line, returnDate)) return { ...line, accepted: 0, damaged: 0, damagedRefund: 0 };
-    const damaged = Math.min(line.outQuantity, damagedLeft);
-    damagedLeft -= damaged;
-    const accepted = Math.min(line.outQuantity - damaged, acceptedLeft);
-    acceptedLeft -= accepted;
-    const damagedRefund = Math.min(damaged * line.unitDeposit, refundLeft);
-    refundLeft -= damagedRefund;
-    return { ...line, accepted, damaged, damagedRefund };
-  });
+  const shares = lines.map((line) => ({ ...line, accepted: 0, damaged: 0, damagedRefund: 0 }));
+  const place = (cap: (share: LineShare) => TypedRow): void => {
+    for (const share of shares) {
+      if (isAfterReturn(share, returnDate)) continue;
+      const limit = cap(share);
+      const damaged = Math.min(share.outQuantity - share.damaged - share.accepted, limit.damaged, damagedLeft);
+      share.damaged += damaged;
+      damagedLeft -= damaged;
+      const accepted = Math.min(share.outQuantity - share.damaged - share.accepted, limit.accepted, acceptedLeft);
+      share.accepted += accepted;
+      acceptedLeft -= accepted;
+      const damagedRefund = Math.min(
+        share.damaged * share.unitDeposit - share.damagedRefund,
+        limit.damagedRefund,
+        refundLeft,
+      );
+      share.damagedRefund += damagedRefund;
+      refundLeft -= damagedRefund;
+    }
+  };
+  const any = Number.MAX_SAFE_INTEGER;
+  if (previous) {
+    place((share) => previous.get(share.orderLineId) ?? { accepted: 0, damaged: 0, damagedRefund: 0 });
+  }
+  place(() => ({ accepted: any, damaged: any, damagedRefund: any }));
+  return shares;
 }
 
 /** The most an item's damage refund can give back: the deposit of its damaged pallets where they were placed. */

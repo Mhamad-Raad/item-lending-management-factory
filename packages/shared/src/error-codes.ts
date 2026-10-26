@@ -98,6 +98,7 @@ export const ERROR_CODES = {
 
   // Pallet credits (Q170)
   PALLET_SURPLUS_STILL_OUT: 409,
+  PALLET_SURPLUS_NOT_RETURNED: 422,
   PALLET_CREDIT_GIVEN_BACK: 409,
   PALLET_CREDIT_INSUFFICIENT: 409,
   ORDER_ALL_FROM_CREDIT: 409,
@@ -149,6 +150,10 @@ export interface ErrorDetailsByCode {
   DAMAGED_REFUND_TOO_HIGH: { orderLineId: number; maximum: number };
   /** Pallets over what is out of an item the customer still has out elsewhere, or never had (Q170). */
   PALLET_SURPLUS_STILL_OUT: { itemId: number; outQuantity: number };
+  /** Any change on a cancelled order (§6.20), naming it. */
+  ORDER_CANCELLED: { orderId: number };
+  /** Pallets over what is out named for an item the return does not take back at all (Q170, Q174). */
+  PALLET_SURPLUS_NOT_RETURNED: { itemId: number };
   /** A return whose surplus the factory has given back since: it cannot be corrected or deleted (Q170). */
   PALLET_CREDIT_GIVEN_BACK: { returnId: number; itemId: number; available: number };
   /** More given back than the factory owes of an item (Q170). */

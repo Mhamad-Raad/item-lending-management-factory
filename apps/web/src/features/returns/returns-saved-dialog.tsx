@@ -1,9 +1,4 @@
-import {
-  formatMoney,
-  formatNumber,
-  type CustomerReturnRecordedDto,
-  type CustomerReturnResultDto,
-} from '@pallet/shared';
+import { formatNumber, type CustomerReturnRecordedDto, type CustomerReturnResultDto } from '@pallet/shared';
 import { Printer } from 'lucide-react';
 import { useRef } from 'react';
 import { useTranslation } from 'react-i18next';
@@ -20,6 +15,7 @@ import {
 import { orderLabel } from '@/features/orders/order-text';
 import { isolate } from '@/lib/bidi';
 import { printCustomerReturnReceipt, printReturnPaper } from '@/features/receipt/print-receipt';
+import { CashHandover } from './cash-handover';
 
 /** The paper a print button gives, and its label. */
 type Paper = { label: string; print: () => void };
@@ -32,10 +28,13 @@ type Paper = { label: string; print: () => void };
  */
 export function ReturnsSavedDialog({
   result,
+  paidBefore,
   open,
   onClose,
 }: {
   result: CustomerReturnResultDto;
+  /** On an edit (Q174), the cash its old return had paid back: only the difference changes hands. */
+  paidBefore?: number;
   open: boolean;
   onClose: () => void;
 }) {
@@ -71,7 +70,9 @@ export function ReturnsSavedDialog({
         onPointerDownOutside={(event) => event.preventDefault()}
       >
         <DialogHeader>
-          <DialogTitle>{t('returns.customer.savedTitle')}</DialogTitle>
+          <DialogTitle>
+            {t(paidBefore === undefined ? 'returns.customer.savedTitle' : 'returns.edit.savedTitle')}
+          </DialogTitle>
           <DialogDescription>
             <bdi>{result.customer.name}</bdi>
           </DialogDescription>
@@ -129,11 +130,7 @@ export function ReturnsSavedDialog({
             })}
           </p>
         ) : null}
-        {cash > 0 ? (
-          <p className="bg-success/12 text-success rounded-md p-3 text-sm font-semibold dark:bg-success/20">
-            {t('returns.new.cashHandover', { amount: formatMoney(cash) })}
-          </p>
-        ) : null}
+        <CashHandover cash={cash} paidBefore={paidBefore} className="text-sm" />
         <DialogFooter>
           <Button variant="outline" onClick={onClose}>
             {t('common.actions.close')}

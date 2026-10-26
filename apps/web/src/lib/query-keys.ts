@@ -44,6 +44,7 @@ export const qk = {
     transactionsReceipt: (id: number) => ['orders', 'transactionsReceipt', id] as const,
     /** Under `orders`: every order change can move what a customer still holds (Q156). */
     returnable: (customerId: number) => ['orders', 'returnable', customerId] as const,
+    returnEditable: (returnId: number) => ['orders', 'returnEditable', returnId] as const,
     /** Under `orders`: every return recorded, corrected or deleted changes the returns list (Q168). */
     returnsList: (params: Record<string, unknown>) => ['orders', 'returns-list', params] as const,
   },

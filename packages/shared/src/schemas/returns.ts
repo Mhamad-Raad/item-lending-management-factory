@@ -89,6 +89,18 @@ export const CustomerReturnCreateBody = z.strictObject({
 });
 export type CustomerReturnCreateBody = z.infer<typeof CustomerReturnCreateBody>;
 
+/**
+ * A return edited from the returns list (Q174): what the customer screen sends, with the extra pallets it reopened as
+ * still owed when it opened, so a save after some of them went out since is refused rather than counted twice.
+ */
+export const CustomerReturnReplaceBody = CustomerReturnCreateBody.extend({
+  reopened: z
+    .array(z.strictObject({ itemId: Id, quantity: Quantity }))
+    .max(50)
+    .default([]),
+});
+export type CustomerReturnReplaceBody = z.infer<typeof CustomerReturnReplaceBody>;
+
 /** Pallets the factory owed a customer, handed back to them (Q170). */
 export const PalletCreditHandBackBody = z.strictObject({
   itemId: Id,

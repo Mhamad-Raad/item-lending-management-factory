@@ -434,6 +434,25 @@ export interface ReturnListItemDto {
   createdBy: UserRefDto;
 }
 
+/**
+ * A return to edit from the returns list (Q174): everything the customer holds as if it — and, for a return over
+ * several orders, the rest of that visit — had never been recorded, and what it took back, to start the form from.
+ */
+export interface CustomerReturnEditableDto extends CustomerReturnableDto {
+  returnId: number;
+  customerReturnId: number | null;
+  date: string;
+  notes: string | null;
+  /** The cash it paid back, standing: an edit hands over or takes back only the difference. */
+  cashRefunded: number;
+  /** What it took back of each item over all its orders, its extra pallets in the accepted count. */
+  items: { itemId: number; accepted: number; damaged: number; damagedRefund: number }[];
+  /** Its extra pallets still owed, by item, in `items`' accepted counts: sent back with the save (Q174). */
+  reopened: { itemId: number; quantity: number }[];
+  /** The same by order line, as it was placed, so an unchanged count stays on the orders it was on. */
+  lines: { orderLineId: number; accepted: number; damaged: number; damagedRefund: number }[];
+}
+
 /** A return the customer flow recorded on one order (Q156), with what it paid out. */
 export interface CustomerReturnRecordedDto {
   returnId: number;

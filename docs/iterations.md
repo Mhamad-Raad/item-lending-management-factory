@@ -562,6 +562,15 @@ and pages say so (Q170); the customer page's tabs keep the scroll and show their
 `pallet-credits.test.ts`, `customer-returns.test.ts`, `money-receipts.test.ts`; `customer-returns.spec.ts`,
 `returns.spec.ts`, `order-actions.spec.ts`, `customer-return-receipt.spec.ts`, `sidebar.spec.ts`; every gate green.
 
+### 10u — Edit a return from the returns list (Q174)
+
+Read: Q156, Q160, Q161, Q170, §6.20.
+
+Asked by the business on 2026-10-26: Edit on each standing row of the returns list opens the customer screen with
+every pallet the customer owes and the return's counts typed in, everything editable; a return over several orders is
+edited whole, and only that page changes — the order page's correction stays as it is. The cash changing hands is the
+difference. **Exit:** `return-edit.test.ts`, `return-edit.spec.ts`; every gate green.
+
 ---
 
 ## Environments

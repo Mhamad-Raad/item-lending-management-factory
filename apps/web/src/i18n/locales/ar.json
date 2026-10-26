@@ -490,7 +490,8 @@
         "RETURN_DELETE": "حُذف إرجاع الطلب #{{orderNumber}}"
       },
       "CUSTOMER_RETURN": {
-        "RETURN_CREATE": "إرجاع {{customerName}} (الطلبات: {{orders}}): {{accepted}} مقبولة، {{damaged}} تالفة، رصيد {{refundDue}}، استرداد نقدي {{cashRefund}}"
+        "RETURN_CREATE": "إرجاع {{customerName}} (الطلبات: {{orders}}): {{accepted}} مقبولة، {{damaged}} تالفة، رصيد {{refundDue}}، استرداد نقدي {{cashRefund}}",
+        "RETURN_EDIT": "صُحّح إرجاع {{customerName}} (الطلبات: {{orders}}): {{accepted}} مقبولة، {{damaged}} تالفة، رصيد {{refundDue}}، استرداد نقدي {{cashRefund}}"
       },
       "PALLET_CREDIT": {
         "CREATE": "أعاد {{customerName}} أكثر مما لديه: أصبحنا مدينين له بـ {{quantity}} × {{itemName}}",
@@ -663,6 +664,7 @@
     "ORDER_LINE_HAS_RETURNS": "لهذا السطر مرتجعات في سجله ولا يمكن حذفه؛ خفّض كميته بدلاً من ذلك",
     "CUSTOMER_RETURN_NOT_FOUND": "إرجاع الزبون غير موجود",
     "PALLET_SURPLUS_STILL_OUT": "لا تُقبل زيادة إلا بعد إعادة كل منصات هذا النوع",
+    "PALLET_SURPLUS_NOT_RETURNED": "لا تُستلم منصات زائدة إلا من نوع يستلمه هذا الإرجاع",
     "PALLET_CREDIT_GIVEN_BACK": "سُلّمت المنصات الزائدة لهذا الإرجاع؛ فلا يمكن تصحيحه أو حذفه",
     "PALLET_CREDIT_INSUFFICIENT": "لا يدين المصنع لهم بهذا العدد",
     "ORDER_ALL_FROM_CREDIT": "كلها من المنصات المستحقة لهم — استخدم «تسليم» في صفحة الزبون بدلاً من ذلك",
@@ -1231,6 +1233,15 @@
       "backToOrder": "العودة إلى الطلب",
       "nothingOut": "لا شيء لدى الزبون من هذا الطلب",
       "damageSplit": "تأمينها {{deposit}}: يُردّ منه {{refund}} ويُحتجز {{kept}} تعويضاً عن التلف."
+    },
+    "edit": {
+      "title": "تعديل الإرجاع",
+      "backToList": "العودة إلى المرتجعات",
+      "cashMore": "سبق إرجاع {{paid}} دينار — سلّم الزبون {{amount}} دينار إضافية الآن",
+      "cashBack": "سبق إرجاع {{paid}} دينار — استرجع {{amount}} دينار من الزبون",
+      "savedTitle": "تم حفظ الإرجاع",
+      "alreadyChanged": "تم تغيير هذا الإرجاع بالفعل — تعرضه القائمة كما هو الآن",
+      "cannotDrop": "لا يحق لك حذف الإرجاعات: يجب أن يستلم {{orders}} بعض المنصات"
     },
     "customer": {
       "heading": "الطبليات لدى الزبون: {{pallets}} · الطلبات: {{orders}}",

@@ -13,7 +13,7 @@ import type { AuthContext } from '../../common/auth-context';
 import { Clock } from '../../common/clock';
 import { ApiError } from '../../common/errors/api-error';
 import { assertNotInFuture } from '../../common/utils/dates';
-import type { PalletCreditReason, Prisma } from '../../generated/prisma/client';
+import type { PalletCredit, PalletCreditReason, Prisma } from '../../generated/prisma/client';
 import { lockCustomer, lockItems } from '../../prisma/locks';
 import { PrismaService } from '../../prisma/prisma.service';
 import { runInTransaction } from '../../prisma/transaction';
@@ -23,7 +23,7 @@ import { IdempotencyService, type IdempotentRequest, type IdempotentResult } fro
 import { ITEM_REF_INCLUDE, toItemRef } from '../items/items.mapper';
 import { openOutByItem } from '../orders/open-out';
 import { loadReceiptFactory } from '../settings/receipt-factory';
-import { StockLedger } from '../stock/stock-ledger';
+import { StockLedger, type StockMovementInput } from '../stock/stock-ledger';
 import { USER_REF_SELECT, toUserRef } from '../users/users.mapper';
 
 /** One entry of what is owed, as written (`writeMany`). */
@@ -111,7 +111,21 @@ export class PalletCreditsService {
    * lock and the items' (§6.6), and has checked that what goes out leaves the balance at zero or more.
    */
   async writeMany(tx: Prisma.TransactionClient, entries: readonly CreditEntry[], actor: AuthContext) {
-    if (entries.length === 0) return [];
+    const { created, movements } = await this.insertMany(tx, entries, actor);
+    await this.stock.apply(tx, movements, actor.userId);
+    return created;
+  }
+
+  /**
+   * Writes entries and gives back their stock movements unapplied, for a caller that judges them in one stock call
+   * with movements of its own — an edited return's pallets (Q174).
+   */
+  async insertMany(
+    tx: Prisma.TransactionClient,
+    entries: readonly CreditEntry[],
+    actor: AuthContext,
+  ): Promise<{ created: PalletCredit[]; movements: StockMovementInput[] }> {
+    if (entries.length === 0) return { created: [], movements: [] };
     const created = await tx.palletCredit.createManyAndReturn({
       data: entries.map((entry) => ({
         customerId: entry.customerId,
@@ -126,17 +140,13 @@ export class PalletCreditsService {
         createdByUserId: actor.userId,
       })),
     });
-    await this.stock.apply(
-      tx,
-      created.map((row) => ({
-        itemId: row.itemId,
-        quantity: row.quantity,
-        reason: 'PALLET_CREDIT' as const,
-        palletCreditId: row.id,
-      })),
-      actor.userId,
-    );
-    return created;
+    const movements = created.map((row) => ({
+      itemId: row.itemId,
+      quantity: row.quantity,
+      reason: 'PALLET_CREDIT' as const,
+      palletCreditId: row.id,
+    }));
+    return { created, movements };
   }
 
   /**
@@ -300,6 +310,25 @@ export class PalletCreditsService {
         ? [{ returnId: row.returnId, itemId: row.itemId, quantity: row._sum.quantity ?? 0 }]
         : [],
     );
+  }
+
+  /**
+   * Of a return's surplus (`surplusOf`), what is still owed (Q174): the part given back or taken by an order since,
+   * oldest surplus first, stays where it is, so an edit from the returns list reopens only the rest.
+   */
+  async standingSurplus(
+    tx: Prisma.TransactionClient,
+    customerId: number,
+    surplus: readonly SurplusRow[],
+  ): Promise<SurplusRow[]> {
+    const remainingOf = new Map<number, Map<number, number>>();
+    for (const itemId of new Set(surplus.map((row) => row.itemId))) {
+      remainingOf.set(itemId, await this.remainingByReturn(tx, customerId, itemId));
+    }
+    return surplus.flatMap((row) => {
+      const quantity = Math.min(row.quantity, remainingOf.get(row.itemId)?.get(row.returnId) ?? 0);
+      return quantity > 0 ? [{ ...row, quantity }] : [];
+    });
   }
 
   /**

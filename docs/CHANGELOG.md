@@ -138,3 +138,6 @@ The build history that used to sit in `CLAUDE.md` "Status", oldest first, moved 
   pallets and what the customer still holds; a customer may return more than they had out — the factory owes them
   the rest (`pallet_credits`), gives it back by button or with their next order at no deposit; the customer page's
   tabs keep the scroll and offer a page size; a give-back prints its own paper and can be undone.
+- **10u done** (2026-10-26, Q174): a return is edited from the returns list on the customer screen — every pallet the
+  customer owes, its counts typed in, a return over several orders edited whole; the cash shown is the difference,
+  and extra pallets already given back stay given back.
