@@ -65,7 +65,8 @@ test('E3: a return recorded from the dashboard pays out what exceeds the debt an
   await expect(figureOf('returns.new.outAfter')).toContainText('10');
 
   await summary.getByRole('button', { name: sorani('returns.new.submit') }).click();
-  // Cash went out: the dialog offers its receipt; closed, the flow goes on to the one order it was recorded on.
+  // Cash went out: the dialog offers its receipt; closed, the flow goes on to the customer, as every return from the
+  // customer screen does (Q166). The order shows what came back.
   const saved = page.getByRole('dialog');
   await expect(saved).toContainText(figure(30_000));
   await expect(saved.getByRole('button', { name: sorani('orders.money.printReceipt') })).toBeVisible();
@@ -73,7 +74,8 @@ test('E3: a return recorded from the dashboard pays out what exceeds the debt an
     .getByRole('button', { name: sorani('common.actions.close') })
     .first()
     .click();
-  await expect(page).toHaveURL(new RegExp(`/orders/${order.id}$`));
+  await expect(page).toHaveURL(new RegExp(`/customers/${customer.id}$`));
+  await page.goto(`/orders/${order.id}`);
   // Item, quantity, deposit each, line total, returned, damaged, still out.
   const row = page.getByRole('row', { name: new RegExp(item.name) }).first();
   await expect(row.getByRole('cell').nth(4)).toHaveText('30');
