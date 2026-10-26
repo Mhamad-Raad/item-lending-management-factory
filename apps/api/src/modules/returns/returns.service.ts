@@ -10,14 +10,19 @@ import {
   type CustomerReturnableDto,
   type ErrorDetails,
   type OrderState,
+  type PageDto,
   type ReturnCreateBody,
+  type ReturnListItemDto,
+  type ReturnListQuery,
   type ReturnResultDto,
   orderStateWithoutReturn,
 } from '@pallet/shared';
 import type { AuthContext } from '../../common/auth-context';
 import { Clock } from '../../common/clock';
 import { ApiError } from '../../common/errors/api-error';
-import { assertNotInFuture } from '../../common/utils/dates';
+import { assertDateRange, assertNotInFuture, businessDateFilter } from '../../common/utils/dates';
+import { pageArgs, toPage } from '../../common/utils/pagination';
+import { parseSort } from '../../common/utils/sort';
 import { toDbMoney, toSafeMoney } from '../../common/utils/money';
 import type { LedgerEntry, Prisma } from '../../generated/prisma/client';
 import { lockCustomer, lockItems, lockOrder, lockOrders } from '../../prisma/locks';
@@ -29,11 +34,15 @@ import { IdempotencyService, type IdempotentRequest, type IdempotentResult } fro
 import { ledgerAuditEntry } from '../ledger/ledger.mapper';
 import { MoneyLedger } from '../ledger/money-ledger';
 import { toCustomerRef } from '../customers/customers.mapper';
-import { ITEM_REF_INCLUDE } from '../items/items.mapper';
+import { ITEM_REF_INCLUDE, toItemRef } from '../items/items.mapper';
 import { recomputeOrder, toOrderState } from '../orders/order-state';
 import { toOrderLineDto } from '../orders/orders.mapper';
 import { loadOrderDetail } from '../orders/orders.queries';
+import { openOutByItem } from '../orders/open-out';
+import { orderSearch } from '../orders/order-search';
+import { USER_REF_SELECT, toUserRef } from '../users/users.mapper';
 import { StockLedger, type StockMovementInput } from '../stock/stock-ledger';
+import { PalletCreditsService } from './pallet-credits.service';
 import { priceReturn, validateReturnAgainstOrder, type PricedReturnLine } from './return-rules';
 
 /** An order with everything a return reads: lines, returns with their lines, and the ledger with reversals. */
@@ -51,6 +60,16 @@ const RETURN_ORDER_INCLUDE = {
 type ReturnOrder = Prisma.OrderGetPayload<{ include: typeof RETURN_ORDER_INCLUDE }>;
 type StoredReturn = ReturnOrder['returns'][number];
 
+const LIST_SORT_FIELDS = { id: 'id', date: 'date', refundDue: 'refundDue', cashRefund: 'cashRefund' } as const;
+
+/** A row of the returns list (Q168): its order and customer, its lines' counts, its standing refund. */
+const RETURN_LIST_INCLUDE = {
+  order: { select: { id: true, orderNumber: true, customer: true } },
+  lines: { select: { acceptedQuantity: true, damagedQuantity: true } },
+  ledgerEntries: { where: { type: 'REFUND', reversedBy: null }, select: { id: true } },
+  createdBy: USER_REF_SELECT,
+} as const satisfies Prisma.PalletReturnInclude;
+
 /** Returns: recorded, replaced by a corrected one, or deleted as if they never happened (§4.8.4–§4.8.6, §6.20). */
 @Injectable()
 export class ReturnsService {
@@ -61,6 +80,7 @@ export class ReturnsService {
     private readonly idempotency: IdempotencyService,
     private readonly stock: StockLedger,
     private readonly money: MoneyLedger,
+    private readonly credits: PalletCreditsService,
   ) {}
 
   /** Once per idempotency key; a known key is answered before any check (§6.7). */
@@ -86,6 +106,55 @@ export class ReturnsService {
         return result;
       });
     });
+  }
+  /** The returns list (Q168), newest first by default: one page, with the total. */
+  async list(query: ReturnListQuery): Promise<PageDto<ReturnListItemDto>> {
+    assertDateRange(query.dateFrom, query.dateTo);
+    // Each filter is its own condition, AND-ed: the search names customers through `order` too, and spread into one
+    // object it would replace the customer filter instead of narrowing it.
+    const where: Prisma.PalletReturnWhereInput = {
+      AND: [
+        query.customerId ? { order: { customerId: query.customerId } } : {},
+        query.orderId ? { orderId: query.orderId } : {},
+        query.itemId ? { lines: { some: { orderLine: { itemId: query.itemId } } } } : {},
+        { date: businessDateFilter(query.dateFrom, query.dateTo) },
+        query.q ? await this.searchFilter(query.q) : {},
+      ],
+    };
+    const { field, direction } = parseSort<keyof typeof LIST_SORT_FIELDS>(query.sort);
+    const orderBy: Prisma.PalletReturnOrderByWithRelationInput[] =
+      field === 'id' ? [{ id: direction }] : [{ [LIST_SORT_FIELDS[field]]: direction }, { id: direction }];
+    const [total, rows] = await Promise.all([
+      this.prisma.palletReturn.count({ where }),
+      this.prisma.palletReturn.findMany({ where, include: RETURN_LIST_INCLUDE, orderBy, ...pageArgs(query) }),
+    ]);
+    return toPage(
+      rows.map((pr) => ({
+        id: pr.id,
+        date: dbDateToBusiness(pr.date),
+        orderId: pr.order.id,
+        orderNumber: pr.order.orderNumber,
+        customer: toCustomerRef(pr.order.customer),
+        accepted: pr.lines.reduce((total, line) => total + line.acceptedQuantity, 0),
+        damaged: pr.lines.reduce((total, line) => total + line.damagedQuantity, 0),
+        refundDue: toSafeMoney(pr.refundDue),
+        cashRefund: toSafeMoney(pr.cashRefund),
+        reversed: pr.reversedAt !== null,
+        refundEntryId: pr.ledgerEntries[0]?.id ?? null,
+        customerReturnId: pr.customerReturnId,
+        createdAt: pr.createdAt.toISOString(),
+        createdBy: toUserRef(pr.createdBy),
+      })),
+      query,
+      total,
+    );
+  }
+
+  /** The search box, as the orders list's (§6.19, `orderSearch`): that order number, or the customers named. */
+  private async searchFilter(q: string): Promise<Prisma.PalletReturnWhereInput> {
+    const { customerIds, orderNumber } = await orderSearch(this.prisma, q);
+    const byCustomerName: Prisma.PalletReturnWhereInput = { order: { customerId: { in: customerIds } } };
+    return orderNumber === null ? byCustomerName : { OR: [{ order: { orderNumber } }, byCustomerName] };
   }
 
   /** A customer's pallets still out, on their open orders, oldest order first (Q156). */
@@ -178,6 +247,7 @@ export class ReturnsService {
         if (over.length > 0) {
           throw new ApiError('RETURN_EXCEEDS_OUT', { lines: over } satisfies ErrorDetails<'RETURN_EXCEEDS_OUT'>);
         }
+        await this.checkSurplus(tx, customerId, checked, body.surplus);
 
         // Over two orders or more, one visit with one receipt and one history row, each order's return pointing to it
         // (Q161). A return on one order is that order's own, as if recorded there: its receipt names the order.
@@ -214,6 +284,48 @@ export class ReturnsService {
           const refundSnapshot = refund ? toAuditSnapshot('LEDGER_ENTRY', refund) : null;
           snapshots.push({ orderNumber: order.orderNumber, ...snapshot, refund: refundSnapshot });
         }
+        // Pallets beyond what was out (Q170), each on the return of the latest order it came back on.
+        const surplus: CustomerReturnResultDto['surplus'] = [];
+        const surplusItems = new Map(
+          body.surplus.length === 0
+            ? []
+            : (
+                await tx.item.findMany({
+                  where: { id: { in: body.surplus.map((extra) => extra.itemId) } },
+                  ...ITEM_REF_INCLUDE,
+                })
+              ).map((item) => [item.id, item]),
+        );
+        const entries = body.surplus.map((extra) => {
+          const on = [...checked].reverse().find(({ priced }) => priced.some((line) => line.itemId === extra.itemId));
+          const pr = on && returns.find((entry) => entry.orderId === on.order.id);
+          const item = surplusItems.get(extra.itemId);
+          if (!pr || !item) throw new Error(`Surplus of item ${extra.itemId} has no return to stand on`);
+          surplus.push({ item: toItemRef(item), quantity: extra.quantity });
+          return {
+            customerId,
+            itemId: extra.itemId,
+            quantity: extra.quantity,
+            reason: 'RETURN_SURPLUS' as const,
+            returnId: pr.returnId,
+            date: body.date,
+          };
+        });
+        // One stock call for all of them (Q20).
+        const credits = await this.credits.writeMany(tx, entries, actor);
+        // Each credit it made gets a history row of its own, under its id, saying what is owed — on one order as over
+        // several, where the visit's own row speaks only of the return.
+        for (const credit of credits) {
+          const item = surplusItems.get(credit.itemId);
+          await this.audit.record(tx, {
+            action: 'CREATE',
+            entityType: 'PALLET_CREDIT',
+            entityId: String(credit.id),
+            // The count and the name apart, so each keeps its own direction in the sentence.
+            summaryParams: { customerName: customer.name, itemName: item?.name ?? '', quantity: credit.quantity },
+            after: toAuditSnapshot('PALLET_CREDIT', credit),
+          });
+        }
         if (visit) {
           const total = (pick: (entry: CustomerReturnRecordedDto) => number) =>
             returns.reduce((sum, entry) => sum + pick(entry), 0);
@@ -229,15 +341,47 @@ export class ReturnsService {
               refundDue: total((entry) => entry.refundDue),
               cashRefund: total((entry) => entry.cashRefund),
             },
-            after: { ...toAuditSnapshot('CUSTOMER_RETURN', visit), returns: snapshots },
+            after: {
+              ...toAuditSnapshot('CUSTOMER_RETURN', visit),
+              returns: snapshots,
+            },
           });
         }
 
-        const result = { customerReturnId: visit?.id ?? null, customer: toCustomerRef(customer), returns };
+        const result = { customerReturnId: visit?.id ?? null, customer: toCustomerRef(customer), returns, surplus };
         await store(tx, result);
         return result;
       });
     });
+  }
+
+  /**
+   * Pallets beyond what was out (Q170) are taken only of an item that comes back in this return and that the customer
+   * then has out on no order at all: what they still hold elsewhere comes back first. The customer's lock keeps their
+   * orders as they are while this is read.
+   */
+  private async checkSurplus(
+    tx: Prisma.TransactionClient,
+    customerId: number,
+    checked: { priced: PricedReturnLine[] }[],
+    surplus: CustomerReturnCreateBody['surplus'],
+  ): Promise<void> {
+    if (surplus.length === 0) return;
+    const outOf = await openOutByItem(
+      tx,
+      customerId,
+      surplus.map((extra) => extra.itemId),
+    );
+    for (const extra of surplus) {
+      const returned = checked
+        .flatMap(({ priced }) => priced)
+        .filter((line) => line.itemId === extra.itemId)
+        .reduce((total, line) => total + line.acceptedQuantity + line.damagedQuantity, 0);
+      const outQuantity = (outOf.get(extra.itemId) ?? 0) - returned;
+      if (returned === 0 || outQuantity > 0) {
+        throw new ApiError('PALLET_SURPLUS_STILL_OUT', { itemId: extra.itemId, outQuantity });
+      }
+    }
   }
 
   /** `validateReturnAgainstOrder` and the price of §4.3, against the locked order as it stands. */
@@ -304,7 +448,13 @@ export class ReturnsService {
     assertNotInFuture(this.clock, body.date, 'date');
     return runInTransaction(this.prisma, async (tx) => {
       const { order, old } = await this.lockReturn(tx, returnId);
-      await lockItems(tx, [...old.lines.map((line) => line.orderLine.itemId), ...this.itemIdsOf(order, body.lines)]);
+      // Read once: the items it moves are locked with the return's own (§6.6), then it is carried over (Q170).
+      const surplus = await this.credits.surplusOf(tx, this.surplusKey(old));
+      await lockItems(tx, [
+        ...old.lines.map((line) => line.orderLine.itemId),
+        ...this.itemIdsOf(order, body.lines),
+        ...surplus.map((row) => row.itemId),
+      ]);
 
       const standingRefund = this.standingRefund(order, old.id);
       const without = this.stateWithout(order, old.id, standingRefund);
@@ -335,6 +485,20 @@ export class ReturnsService {
         },
       });
       await recomputeOrder(tx, order.id, { bumpVersion: true });
+      // Its surplus moves to the replacement, refused if the correction puts pallets of that type out again; and no
+      // correction may put out again a type the factory still owes this customer (Q170).
+      await this.credits.carryOverForReplace(
+        tx,
+        { id: old.id, customerId: order.customerId },
+        surplus,
+        created.id,
+        body.date,
+        actor,
+      );
+      await this.credits.assertNotOwedWhileOut(tx, order.customerId, [
+        ...old.lines.map((line) => line.orderLine.itemId),
+        ...priced.map((line) => line.itemId),
+      ]);
 
       await this.audit.record(tx, {
         action: 'RETURN_EDIT',
@@ -355,9 +519,15 @@ export class ReturnsService {
   delete(returnId: number, actor: AuthContext): Promise<ReturnResultDto> {
     return runInTransaction(this.prisma, async (tx) => {
       const { order, old } = await this.lockReturn(tx, returnId);
-      await lockItems(
+      const surplus = await this.credits.surplusOf(tx, this.surplusKey(old));
+      await lockItems(tx, [...old.lines.map((line) => line.orderLine.itemId), ...surplus.map((row) => row.itemId)]);
+      // Its surplus goes with it (Q170), refused if the factory has given those pallets back since.
+      await this.credits.reverseForReturn(
         tx,
-        old.lines.map((line) => line.orderLine.itemId),
+        { id: old.id, customerId: order.customerId },
+        surplus,
+        businessToday(this.clock.now()),
+        actor,
       );
 
       await this.stock.apply(tx, this.accepted(this.linesOf(old), 'RETURN_DELETE', order.id, old.id, -1), actor.userId);
@@ -371,6 +541,12 @@ export class ReturnsService {
         data: { reversedAt, reversedByUserId: actor.userId, reversalKind: 'DELETE' },
       });
       await recomputeOrder(tx, order.id, { bumpVersion: true });
+      // Its pallets are out again: refused while the factory still owes this customer pallets of that type (Q170).
+      await this.credits.assertNotOwedWhileOut(
+        tx,
+        order.customerId,
+        old.lines.map((line) => line.orderLine.itemId),
+      );
 
       await this.audit.record(tx, {
         action: 'RETURN_DELETE',
@@ -383,6 +559,15 @@ export class ReturnsService {
       if (reversal) await this.audit.record(tx, ledgerAuditEntry(reversal, order.orderNumber));
       return { returnId: old.id, order: await loadOrderDetail(tx, order.id) };
     });
+  }
+
+  /** What `PalletCreditsService` needs to find the surplus a return takes back with it (Q170). */
+  private surplusKey(pr: StoredReturn): { id: number; customerReturnId: number | null; itemIds: number[] } {
+    return {
+      id: pr.id,
+      customerReturnId: pr.customerReturnId,
+      itemIds: pr.lines.map((line) => line.orderLine.itemId),
+    };
   }
 
   /** The order, which the caller has locked; a cancelled order takes no returns. */

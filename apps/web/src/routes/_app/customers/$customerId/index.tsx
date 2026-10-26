@@ -36,6 +36,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsTrigger } from '@/components/ui/tabs';
 import { customerQuery, invalidateCustomers } from '@/features/customers/api';
 import { CustomerHistoryTab, CustomerLedgerTab, CustomerOrdersTab } from '@/features/customers/customer-tabs';
+import { PalletCreditsSection } from '@/features/customers/pallet-credits';
 import { usePageTitle } from '@/hooks/use-page-title';
 import { isolate } from '@/lib/bidi';
 import { apiFetch } from '@/lib/api-client';
@@ -121,6 +122,7 @@ function CustomerProfilePage() {
   const canArchive = useCan('customers.delete');
   const canViewOrders = useCan('orders.view');
   const canCreateOrder = useCan('orders.create');
+  const canGiveBack = useCan('returns.create');
   const navigate = Route.useNavigate();
   const tab = Route.useSearch().tab ?? 'history';
   const [confirming, setConfirming] = useState(false);
@@ -272,14 +274,21 @@ function CustomerProfilePage() {
         />
       </section>
 
+      {/* Given back archived too: what the factory owes must never be stranded by an archive (Q170). */}
+      <PalletCreditsSection customerId={data.id} canGiveBack={canGiveBack} />
+
       {canViewOrders ? (
         <Tabs
+          // Tall enough that a shorter tab never pulls the page up under the reader (with `resetScroll: false`).
+          className="min-h-[80vh]"
           value={tab}
-          onValueChange={(next) => void navigate({ search: { tab: next as (typeof TABS)[number] }, replace: true })}
+          onValueChange={(next) =>
+            void navigate({ search: { tab: next as (typeof TABS)[number] }, replace: true, resetScroll: false })
+          }
         >
           <TabSelect
             value={tab}
-            onChange={(next) => void navigate({ search: { tab: next }, replace: true })}
+            onChange={(next) => void navigate({ search: { tab: next }, replace: true, resetScroll: false })}
             options={TABS.map((name) => ({ value: name, label: t(`customers.tabs.${name}`) }))}
             label={t('customers.tabs.label')}
           >

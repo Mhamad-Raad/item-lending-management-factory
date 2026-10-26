@@ -24,6 +24,7 @@ const MONEY: MoneyReceiptDto = {
   order: { id: 9, orderNumber: ORDER.orderNumber, orderNumberDisplay: '123456', date: '2026-09-01' },
   factory: FACTORY,
   customer: CUSTOMER,
+  lines: [],
 };
 
 const HANDOVER: ReceiptDto = {

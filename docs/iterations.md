@@ -549,6 +549,19 @@ titled, and it and each return's note take two lines at most, whole in their edi
 200-character name within two lines and whole after a tap — each proven failing when undone); `customer-returns.spec.ts`
 (the orders section, the placing on the body sent after a look — proven failing with the old line); every gate green.
 
+### 10t — Every return prints, the returns list, and pallets owed to a customer (Q166–Q171)
+
+Read: Q137, Q156, Q161, §5, §6.20, §6.21, §7.4.2, §7.16.
+
+Asked by the business and the maintainer on 2026-10-26, on one branch: every return ends on its dialog with a receipt
+— a return paying no cash back gets its own paper in the same design, and every return prints again from where it
+is listed (Q166); a return's papers list its pallets (Q167) and what the customer still holds of each (Q169); the
+Returns item opens a list of every return with Record return, filters and paging (Q168); a customer may return more
+than they had out, the factory owes them the rest, gives it back by button or with their next order, and the papers
+and pages say so (Q170); the customer page's tabs keep the scroll and show their paging (Q171); a give-back prints its own paper (Q172) and can be undone if recorded by mistake (Q173). **Exit:**
+`pallet-credits.test.ts`, `customer-returns.test.ts`, `money-receipts.test.ts`; `customer-returns.spec.ts`,
+`returns.spec.ts`, `order-actions.spec.ts`, `customer-return-receipt.spec.ts`, `sidebar.spec.ts`; every gate green.
+
 ---
 
 ## Environments

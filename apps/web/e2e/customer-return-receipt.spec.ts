@@ -30,6 +30,7 @@ const VISIT: CustomerReturnReceiptDto = {
   allReversed: false,
   factory: FACTORY,
   customer: PARTIES,
+  lines: [],
 };
 
 /** This order's own part of it: its refund row, which belongs to visit 5. */
@@ -72,6 +73,7 @@ const OWN_PART: MoneyReceiptDto = {
   order: { id: ORDER.id, orderNumber: ORDER.orderNumber, orderNumberDisplay: '123456', date: ORDER.date },
   factory: FACTORY,
   customer: PARTIES,
+  lines: [],
 };
 
 /** Every receipt read, by its address; each answered with its paper. */
@@ -140,18 +142,32 @@ test('Q161: the customer’s refunds print the visit’s one paper, the one the 
   expect(read).toEqual(['visit']);
 });
 
-test('Q161: the receipt’s own page refuses a visit that paid nothing back, in Sorani', async ({ page }) => {
+test('Q166, Q167: a visit that paid nothing back prints its paper, its pallets listed', async ({ page }) => {
   await mockApi(page, ADMIN, 'en');
   await page.route(/\/api\/customer-returns\/5\/receipt$/, (route) =>
     route.fulfill({
-      status: 409,
-      json: { error: { code: 'CUSTOMER_RETURN_NO_RECEIPT', details: { customerReturnId: 5 } }, requestId: 'r' },
+      json: {
+        ...VISIT,
+        amount: 0,
+        owedAfter: 60_000 - 72_500 + 0,
+        lines: [
+          {
+            itemName: 'Euro pallet',
+            accepted: 3,
+            damaged: 0,
+            unitDeposit: 1_000,
+            total: 3_000,
+            withCustomer: 7,
+            extra: 0,
+          },
+        ],
+      } satisfies CustomerReturnReceiptDto,
     }),
   );
   await page.goto('/print/customer-returns/5');
 
-  await expect(page.getByText('لەم گەڕاندنەوەیەدا هیچ پارەیەک نەدراوەتەوە، بۆیە پسووڵەی نییە')).toBeVisible();
-  await expect(page.locator('.sheet')).toHaveCount(0);
+  await expect(page.locator('.sheet').first()).toBeVisible();
+  await expect(page.getByText('Euro pallet').first()).toBeVisible();
 });
 
 const VISIT_EVENT: ActivityEventDto = {

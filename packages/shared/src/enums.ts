@@ -28,6 +28,7 @@ export const STOCK_MOVEMENT_REASONS = [
   'RETURN_EDIT',
   'RETURN_DELETE',
   'MANUAL_ADJUSTMENT',
+  'PALLET_CREDIT',
 ] as const;
 export const StockMovementReason = enumOf(STOCK_MOVEMENT_REASONS);
 export type StockMovementReason = (typeof STOCK_MOVEMENT_REASONS)[number];
@@ -89,6 +90,8 @@ export const AUDIT_ACTIONS = [
   'USER_DEACTIVATE',
   'USER_ACTIVATE',
   'UPLOAD_CREATE',
+  'HAND_BACK',
+  'HAND_BACK_REVERSE',
 ] as const;
 export const AuditAction = enumOf(AUDIT_ACTIONS);
 export type AuditAction = (typeof AUDIT_ACTIONS)[number];
@@ -106,6 +109,7 @@ export const AUDIT_ENTITY_TYPES = [
   'SETTINGS',
   'UPLOAD',
   'CUSTOMER_RETURN',
+  'PALLET_CREDIT',
 ] as const;
 export const AuditEntityType = enumOf(AUDIT_ENTITY_TYPES);
 export type AuditEntityType = (typeof AUDIT_ENTITY_TYPES)[number];
@@ -125,7 +129,7 @@ export const ACTIVITY_EVENT_KINDS = [
 export type ActivityEventKind = (typeof ACTIVITY_EVENT_KINDS)[number];
 
 /** The entries of a customer's history timeline (§6.9 `CustomerHistoryItemDto`), and its `kinds` filter. */
-export const CUSTOMER_HISTORY_KINDS = ['HANDOVER', 'RETURN', 'LEDGER'] as const;
+export const CUSTOMER_HISTORY_KINDS = ['HANDOVER', 'RETURN', 'LEDGER', 'PALLET'] as const;
 export type CustomerHistoryKind = (typeof CUSTOMER_HISTORY_KINDS)[number];
 
 // Browser preferences (localStorage only)
@@ -151,3 +155,15 @@ export const FONT_SIZES = ['sm', 'md', 'lg', 'xl'] as const;
 export type FontSize = (typeof FONT_SIZES)[number];
 /** Root font size in px per step; every UI size is rem-based and derives from it. */
 export const FONT_SIZE_PX: Readonly<Record<FontSize, number>> = { sm: 14, md: 16, lg: 18, xl: 20 };
+
+/** Why what the factory owes a customer of a pallet type moved (Q170), as `pallet_credit_reason`. */
+export const PALLET_CREDIT_REASONS = [
+  'RETURN_SURPLUS',
+  'RETURN_REVERSAL',
+  'HAND_BACK',
+  'ORDER_USE',
+  'ORDER_CANCEL',
+  'HAND_BACK_REVERSAL',
+] as const;
+export const PalletCreditReason = enumOf(PALLET_CREDIT_REASONS);
+export type PalletCreditReason = (typeof PALLET_CREDIT_REASONS)[number];

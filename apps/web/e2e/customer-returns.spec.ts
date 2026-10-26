@@ -86,6 +86,7 @@ test('Q156: the customer’s pallets show by order, are counted with buttons, an
   const { sent } = await mockHoldings(page, {
     customerReturnId: 7,
     customer: HOLDINGS.customer,
+    surplus: [],
     returns: [
       recorded({ orderId: 9, accepted: 3, refundDue: 3_000, owedBefore: 60_000, owedAfter: 57_000 }),
       recorded({ orderId: 10, accepted: 10, refundDue: 5_000, cashRefund: 5_000, refundEntryId: 88 }),
@@ -109,7 +110,8 @@ test('Q156: the customer’s pallets show by order, are counted with buttons, an
   await expect(euro.getByLabel('Accepted')).toHaveValue('3');
   await row(page, 'Crate').getByRole('button', { name: 'All', exact: true }).click();
   await expect(row(page, 'Crate').getByLabel('Accepted')).toHaveValue('10');
-  await expect(row(page, 'Crate').getByRole('button', { name: 'One more' })).toBeDisabled();
+  // Every crate the customer holds is on this return, so more may come back: the factory then owes them (Q170).
+  await expect(row(page, 'Crate').getByRole('button', { name: 'One more' })).toBeEnabled();
 
   // Each order's return priced on its own: the credit order's 3,000 lowers what it owes, the cash order's 5,000 is paid.
   await expect(figure(page, 'Pallets coming back')).toHaveText('13');
@@ -137,6 +139,7 @@ test('Q156: the customer’s pallets show by order, are counted with buttons, an
       { orderId: 9, lines: [{ orderLineId: 21, acceptedQuantity: 3, damagedQuantity: 0, damagedRefund: 0 }] },
       { orderId: 10, lines: [{ orderLineId: 22, acceptedQuantity: 10, damagedQuantity: 0, damagedRefund: 0 }] },
     ],
+    surplus: [],
   });
 
   // One receipt for the visit, never one per order (Q161), and focused for the customer; the dialog stays as it prints.
@@ -153,32 +156,50 @@ test('Q156: the customer’s pallets show by order, are counted with buttons, an
   await expect(page).toHaveURL(/\/customers\/3$/);
 });
 
-test('Q156: more than is out is refused as it is typed, and the save stays off', async ({ page }) => {
-  const { sent } = await mockHoldings(page, { customerReturnId: 7, customer: HOLDINGS.customer, returns: [] });
+test('Q156, Q170: more than is out warns and still saves; damaged pallets over what is out are refused', async ({
+  page,
+}) => {
+  const { sent } = await mockHoldings(page, {
+    customerReturnId: 7,
+    customer: HOLDINGS.customer,
+    surplus: [],
+    returns: [],
+  });
   await page.goto('/returns/new?customerId=3');
 
   const euro = row(page, 'Euro pallet');
   await euro.getByLabel('Accepted').fill('101');
+  // A warning, not a refusal: the one pallet over is owed to the customer once saved (Q170).
+  await expect(euro.getByRole('status').filter({ hasText: /more than the/ })).toBeVisible();
+  await expect(euro.getByText('At most 100 are out')).toHaveCount(0);
+  await expect(summary(page).getByRole('button', { name: 'Record return' })).toBeEnabled();
+  await expect(figure(page, 'Pallets coming back')).toHaveText('100');
+
+  // Damaged pallets over what is out are refused: only good pallets can be owed.
+  await euro.getByLabel('Accepted').fill('0');
+  await euro.getByRole('button', { name: 'Damaged' }).click();
+  await euro.getByLabel('Damaged', { exact: true }).fill('101');
   await expect(euro.getByText('At most 100 are out')).toBeVisible();
   await expect(summary(page).getByRole('button', { name: 'Record return' })).toBeDisabled();
-  await expect(figure(page, 'Pallets coming back')).toHaveText('0');
-
-  // Damaged pallets count against what is out too.
-  await euro.getByLabel('Accepted').fill('95');
-  await euro.getByRole('button', { name: 'Damaged' }).click();
-  await euro.getByLabel('Damaged', { exact: true }).fill('6');
-  await expect(euro.getByText('At most 100 are out')).toBeVisible();
   await euro.getByLabel('Damaged', { exact: true }).fill('5');
   await expect(euro.getByText('At most 100 are out')).toHaveCount(0);
   await expect(summary(page).getByRole('button', { name: 'Record return' })).toBeEnabled();
   expect(sent).toHaveLength(0);
 });
 
-test('Q156: a return on one order that pays nothing out goes to that order', async ({ page }) => {
+test('Q166: a return on one order that pays nothing out offers its own return receipt, then goes to the customer', async ({
+  page,
+}) => {
   const { sent } = await mockHoldings(page, {
     customerReturnId: null,
     customer: HOLDINGS.customer,
+    surplus: [],
     returns: [recorded({ orderId: 9, accepted: 100, refundDue: 100_000, owedBefore: 60_000, cashRefund: 0 })],
+  });
+  const read: string[] = [];
+  await page.route(/\/api\/(orders\/\d+|returns\/\d+|ledger-entries\/\d+|customer-returns\/\d+)\/receipt$/, (route) => {
+    read.push(new URL(route.request().url()).pathname);
+    return route.fulfill({ status: 404, json: {} });
   });
   await page.goto('/returns/new?customerId=3');
 
@@ -188,8 +209,53 @@ test('Q156: a return on one order that pays nothing out goes to that order', asy
 
   await row(page, 'Euro pallet').getByRole('button', { name: 'All', exact: true }).click();
   await summary(page).getByRole('button', { name: 'Record return' }).click();
-  await expect(page).toHaveURL(/\/orders\/9$/);
-  await expect(page.getByText('Return recorded on order #000041')).toBeVisible();
+
+  // The dialog stays until it is closed, as over several orders; no cash went out, so it names none.
+  const saved = page.getByRole('dialog');
+  await expect(saved).toBeVisible();
+  await expect(page).toHaveURL(/customerId=3/);
+  await expect(saved.getByText(/Hand the customer/)).toHaveCount(0);
+  // No money moved, so no money receipt: the return's own paper, in the same design (Q166).
+  const print = saved.getByRole('button', { name: 'Print money receipt' });
+  await expect(print).toHaveCount(1);
+  await expect(print).toBeFocused();
+  await print.click();
+  await expect.poll(() => read).toEqual(['/api/returns/109/receipt']);
+
+  await saved.getByRole('button', { name: 'Close' }).first().click();
+  await expect(page).toHaveURL(/\/customers\/3$/);
+});
+
+test('Q166: a return over several orders that pays nothing out prints its one paper too', async ({ page }) => {
+  await mockHoldings(page, {
+    customerReturnId: 7,
+    customer: HOLDINGS.customer,
+    surplus: [],
+    returns: [
+      recorded({ orderId: 9, accepted: 3, refundDue: 3_000, owedBefore: 60_000, owedAfter: 57_000 }),
+      recorded({ orderId: 10, damaged: 10 }),
+    ],
+  });
+  const read: string[] = [];
+  await page.route(/\/api\/(orders\/\d+|returns\/\d+|ledger-entries\/\d+|customer-returns\/\d+)\/receipt$/, (route) => {
+    read.push(new URL(route.request().url()).pathname);
+    return route.fulfill({ status: 404, json: {} });
+  });
+  await page.goto('/returns/new?customerId=3');
+  await row(page, 'Euro pallet').getByLabel('Accepted').fill('3');
+  await row(page, 'Crate').getByRole('button', { name: 'All', exact: true }).click();
+  await summary(page).getByRole('button', { name: 'Record return' }).click();
+
+  // The visit's paper prints without cash too, its cash 0 (Q166): one button, as with cash.
+  const saved = page.getByRole('dialog');
+  const prints = saved.getByRole('button', { name: 'Print money receipt' });
+  await expect(prints).toHaveCount(1);
+  await expect(prints).toBeFocused();
+  await prints.click();
+  await expect.poll(() => read).toEqual(['/api/customer-returns/7/receipt']);
+
+  await saved.getByRole('button', { name: 'Close' }).first().click();
+  await expect(page).toHaveURL(/\/customers\/3$/);
 });
 
 test('Q161: a return on one order that pays cash back prints that order’s own receipt, with its order', async ({
@@ -198,6 +264,7 @@ test('Q161: a return on one order that pays cash back prints that order’s own 
   await mockHoldings(page, {
     customerReturnId: null,
     customer: HOLDINGS.customer,
+    surplus: [],
     returns: [recorded({ orderId: 10, accepted: 10, refundDue: 5_000, cashRefund: 5_000, refundEntryId: 88 })],
   });
   const read: string[] = [];
@@ -215,6 +282,10 @@ test('Q161: a return on one order that pays cash back prints that order’s own 
   await expect(print).toBeFocused();
   await print.click();
   await expect.poll(() => read).toEqual(['/api/ledger-entries/88/receipt']);
+
+  // Closed, to the customer, as a return over several orders goes (Q166), not to the order.
+  await saved.getByRole('button', { name: 'Close' }).first().click();
+  await expect(page).toHaveURL(/\/customers\/3$/);
 });
 
 test('Q156: lines over what is out by the time it is saved are marked, and the list is read again', async ({
@@ -238,7 +309,7 @@ test('Q156: lines over what is out by the time it is saved are marked, and the l
 });
 
 test('Q156: a row’s count box and buttons stand on one line, one height', async ({ page }) => {
-  await mockHoldings(page, { customerReturnId: 7, customer: HOLDINGS.customer, returns: [] });
+  await mockHoldings(page, { customerReturnId: 7, customer: HOLDINGS.customer, surplus: [], returns: [] });
   await page.goto('/returns/new?customerId=3');
 
   const euro = row(page, 'Euro pallet');
@@ -288,7 +359,7 @@ test('Q156: a count on pallets a reload no longer lists is named, keeps the save
 });
 
 test('Q156, Q160: a return dated before an order cannot take its pallets, refused as it is typed', async ({ page }) => {
-  await mockHoldings(page, { customerReturnId: 7, customer: HOLDINGS.customer, returns: [] });
+  await mockHoldings(page, { customerReturnId: 7, customer: HOLDINGS.customer, surplus: [], returns: [] });
   await page.goto('/returns/new?customerId=3');
   const date = page.getByLabel('Date', { exact: true });
 
@@ -312,7 +383,7 @@ test('Q156, Q160: a return dated before an order cannot take its pallets, refuse
 test('Q156: a count cleared and typed again reads as typed, not after a 0 put back in front of it', async ({
   page,
 }) => {
-  await mockHoldings(page, { customerReturnId: 7, customer: HOLDINGS.customer, returns: [] });
+  await mockHoldings(page, { customerReturnId: 7, customer: HOLDINGS.customer, surplus: [], returns: [] });
   await page.goto('/returns/new?customerId=3');
   const box = row(page, 'Euro pallet').getByLabel('Accepted');
 
@@ -371,7 +442,7 @@ test('Q156: more orders than one save takes is refused as they are ticked', asyn
 test('Q156: "Everything came back" counts the rest as accepted and keeps damaged pallets already typed', async ({
   page,
 }) => {
-  await mockHoldings(page, { customerReturnId: 7, customer: HOLDINGS.customer, returns: [] });
+  await mockHoldings(page, { customerReturnId: 7, customer: HOLDINGS.customer, surplus: [], returns: [] });
   await page.goto('/returns/new?customerId=3');
   const euro = row(page, 'Euro pallet');
   await euro.getByRole('button', { name: 'Damaged' }).click();
@@ -481,6 +552,7 @@ async function mockSameItem(page: Page) {
         customerReturnId: 7,
         customer: SAME_ITEM.customer,
         returns: [recorded({ orderId: 41 }), recorded({ orderId: 43 })],
+        surplus: [],
       } satisfies CustomerReturnResultDto,
     });
   });
@@ -542,15 +614,17 @@ test('Q160: damaged pallets and their refund go on the oldest order first too', 
   ]);
 });
 
-test('Q160: more than the item has out over all its orders is refused as typed', async ({ page }) => {
+test('Q160, Q170: more than the item has out over all its orders warns that the factory will owe the rest', async ({
+  page,
+}) => {
   await mockSameItem(page);
   await page.goto('/returns/new?customerId=3');
   const euro = row(page, 'Euro pallet');
 
   await euro.getByLabel('Accepted').fill('53');
 
-  await expect(euro.getByText('At most 52 are out')).toBeVisible();
-  await expect(summary(page).getByRole('button', { name: 'Record return' })).toBeDisabled();
+  await expect(euro.getByRole('status').filter({ hasText: /more than the/ })).toBeVisible();
+  await expect(summary(page).getByRole('button', { name: 'Record return' })).toBeEnabled();
 });
 
 test('Q164: an item out at two deposits shows both beside what is out', async ({ page }) => {
@@ -618,7 +692,9 @@ test('Q164: a held item shows where its count goes and a refund refused beside i
   await expect(notice.getByRole('listitem')).toContainText('At most 10,000');
 });
 
-test('Q164: a count that no longer fits after the list is read again is said so in the notice', async ({ page }) => {
+test('Q164, Q170: a count over what is left after the list is read again is held, and its extra said', async ({
+  page,
+}) => {
   await page.clock.install();
   await mockApi(page, ADMIN, 'en');
   let changed = false;
@@ -639,7 +715,14 @@ test('Q164: a count that no longer fits after the list is read again is said so 
   await page.evaluate(() => window.dispatchEvent(new Event('visibilitychange')));
 
   const notice = page.getByRole('alert').filter({ hasText: 'placed again' });
-  await expect(notice.getByRole('listitem')).toHaveText([/^Euro pallet:\s*At most 5 are out$/]);
+  // Everything they hold is back, so the 5 over are pallets the factory will owe them (Q170): held for a look, and
+  // said so beside the row.
+  await expect(notice.getByRole('listitem')).toHaveText([/^Euro pallet:\s*#000041 · 5$/]);
+  await expect(
+    row(page, 'Euro pallet')
+      .getByRole('status')
+      .filter({ hasText: /more than the/ }),
+  ).toBeVisible();
 });
 
 test('Q160: an order cancelled meanwhile moves the count to the other order only after a look', async ({ page }) => {
@@ -841,7 +924,7 @@ test("Q160: an order's date moved after the return's reads the list again and ho
 test('Q160: a count over what is out is the row’s one error, the refund not judged on what happened to fit', async ({
   page,
 }) => {
-  await mockHoldings(page, { customerReturnId: 7, customer: HOLDINGS.customer, returns: [] });
+  await mockHoldings(page, { customerReturnId: 7, customer: HOLDINGS.customer, surplus: [], returns: [] });
   await page.goto('/returns/new?customerId=3');
   const euro = row(page, 'Euro pallet');
   await euro.getByRole('button', { name: 'Damaged' }).click();

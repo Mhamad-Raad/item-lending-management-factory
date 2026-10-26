@@ -71,9 +71,7 @@ test.describe('Q51: collapsible sidebar', () => {
   });
 });
 
-test('Q157: Returns sits under Orders, opens the return page, and only for those who may record one', async ({
-  page,
-}) => {
+test('Q157, Q168: Returns sits under Orders and opens the returns list', async ({ page }) => {
   await mockApi(page, ADMIN, 'en');
   await page.setViewportSize({ width: 1280, height: 800 });
   await page.goto('/');
@@ -83,14 +81,22 @@ test('Q157: Returns sits under Orders, opens the return page, and only for those
   expect(names.indexOf('Returns')).toBe(names.indexOf('Orders') + 1);
 
   await page.locator('aside').getByRole('link', { name: 'Returns' }).click();
-  await expect(page).toHaveURL(/\/returns\/new$/);
+  await expect(page).toHaveURL(/\/returns(\?|$)/);
   await expect(page.locator('aside').getByRole('link', { name: 'Returns' })).toHaveAttribute('aria-current', 'page');
 });
 
-test('Q157: without returns.create the sidebar has no Returns', async ({ page }) => {
-  await mockApi(page, { ...ADMIN, role: 'EMPLOYEE', permissions: ['orders.view', 'customers.view'] }, 'en');
+test('Q168: the returns list is for those who may see orders', async ({ page }) => {
+  await mockApi(page, { ...ADMIN, role: 'EMPLOYEE', permissions: ['customers.view'] }, 'en');
   await page.setViewportSize({ width: 1280, height: 800 });
   await page.goto('/');
-  await expect(page.locator('aside').getByRole('link', { name: 'Orders' })).toBeVisible();
+  await expect(page.locator('aside').getByRole('link', { name: 'Customers' })).toBeVisible();
   await expect(page.locator('aside').getByRole('link', { name: 'Returns' })).toHaveCount(0);
+});
+
+test('Q157, Q168: one who may record a return but not see orders goes from Returns to the form', async ({ page }) => {
+  await mockApi(page, { ...ADMIN, role: 'EMPLOYEE', permissions: ['returns.create', 'customers.view'] }, 'en');
+  await page.setViewportSize({ width: 1280, height: 800 });
+  await page.goto('/');
+  await page.locator('aside').getByRole('link', { name: 'Returns' }).click();
+  await expect(page).toHaveURL(/\/returns\/new/);
 });

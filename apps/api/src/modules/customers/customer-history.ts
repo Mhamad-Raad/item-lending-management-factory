@@ -26,6 +26,10 @@ export async function queryCustomerHistory(
   query: CustomerHistoryQuery,
 ): Promise<PageDto<CustomerHistoryItemDto>> {
   const liveOrders = query.includeCancelled ? Prisma.empty : Prisma.sql`AND o.cancelled_at IS NULL`;
+  // What is owed belongs to an order only when an order used it or gave it back (Q170).
+  const liveCredits = query.includeCancelled
+    ? Prisma.empty
+    : Prisma.sql`AND (pc.order_id IS NULL OR o.cancelled_at IS NULL)`;
   const kinds: readonly CustomerHistoryKind[] = query.kinds ?? CUSTOMER_HISTORY_KINDS;
   const conditions = [Prisma.sql`t.kind = ANY(${kinds}::text[])`];
   if (query.dateFrom) conditions.push(Prisma.sql`t.date >= ${businessDateToDb(query.dateFrom)}`);
@@ -41,6 +45,12 @@ export async function queryCustomerHistory(
       UNION ALL
       SELECT 'LEDGER', le.id, COALESCE(le.date, o.date), le.created_at
         FROM ledger_entries le JOIN orders o ON o.id = le.order_id WHERE o.customer_id = ${customerId} ${liveOrders}
+      UNION ALL
+      -- What the factory owes them of a pallet type, as it moved (Q170): owed, given back, used by an order.
+      -- An entry of a cancelled order is hidden with the order, as its hand-over is.
+      SELECT 'PALLET', pc.id, pc.date, pc.created_at
+        FROM pallet_credits pc LEFT JOIN orders o ON o.id = pc.order_id
+        WHERE pc.customer_id = ${customerId} ${liveCredits}
     ) t
     WHERE ${Prisma.join(conditions, ' AND ')}`;
 
@@ -53,7 +63,7 @@ export async function queryCustomerHistory(
   ]);
 
   const idsOf = (kind: CustomerHistoryKind): number[] => keys.filter((key) => key.kind === kind).map((key) => key.id);
-  const [orders, returns, ledger] = await Promise.all([
+  const [orders, returns, ledger, credits] = await Promise.all([
     client.order.findMany({
       where: { id: { in: idsOf('HANDOVER') } },
       include: { driver: true, lines: { orderBy: { id: 'asc' }, include: { item: ITEM_REF_INCLUDE } } },
@@ -68,6 +78,14 @@ export async function queryCustomerHistory(
     client.ledgerEntry.findMany({
       where: { id: { in: idsOf('LEDGER') } },
       include: { order: { select: { orderNumber: true, date: true } } },
+    }),
+    client.palletCredit.findMany({
+      where: { id: { in: idsOf('PALLET') } },
+      include: {
+        item: ITEM_REF_INCLUDE,
+        order: { select: { orderNumber: true } },
+        reversedBy: { select: { id: true } },
+      },
     }),
   ]);
   const byKey = new Map<string, CustomerHistoryItemDto>();
@@ -130,6 +148,22 @@ export async function queryCustomerHistory(
       isAutomatic: entry.isAutomatic,
       reversesEntryId: entry.reversesEntryId,
       note: entry.note,
+    });
+  }
+
+  for (const credit of credits) {
+    byKey.set(`PALLET:${credit.id}`, {
+      kind: 'PALLET',
+      date: dbDateToBusiness(credit.date),
+      createdAt: credit.createdAt.toISOString(),
+      palletCreditId: credit.id,
+      reason: credit.reason,
+      item: toItemRef(credit.item),
+      quantity: credit.quantity,
+      orderId: credit.orderId,
+      orderNumber: credit.order?.orderNumber ?? null,
+      note: credit.note,
+      undone: credit.reversedBy !== null,
     });
   }
 

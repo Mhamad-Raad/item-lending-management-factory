@@ -4,7 +4,17 @@ import { toSafeMoney } from '../common/utils/money';
 import { ORDER_STATE_INCLUDE, type OrderWithLedgers, toOrderState } from '../modules/orders/order-state';
 
 export interface Discrepancy {
-  entity: 'item' | 'order' | 'orderLine' | 'orderCounter' | 'batch' | 'return' | 'orderItem' | 'returnItem';
+  entity:
+    | 'item'
+    | 'order'
+    | 'orderLine'
+    | 'orderCounter'
+    | 'batch'
+    | 'return'
+    | 'orderItem'
+    | 'returnItem'
+    | 'palletCredit'
+    | 'customerItem';
   id: number;
   field: string;
   stored: number | string;
@@ -24,7 +34,7 @@ export interface ReconcileOptions {
 }
 
 /**
- * The reconciliation of §4.9, R1–R9: every maintained total recomputed from the ledgers, and every
+ * The reconciliation of §4.9, R1–R10: every maintained total recomputed from the ledgers, and every
  * cross-row invariant the ledgers must keep. An empty result means the database is consistent.
  */
 export async function findLedgerDiscrepancies(
@@ -223,6 +233,40 @@ async function findInvariantBreaks(prisma: PrismaClient, out: Discrepancy[]): Pr
 
   await findStockTrailBreaks(prisma, out);
   await findRefundStandingBreaks(prisma, out);
+  await findPalletCreditBreaks(prisma, out);
+}
+
+/**
+ * R10 (Q170), the pallet credit ledger: each entry has exactly one PALLET_CREDIT stock movement of its own quantity,
+ * and what the factory owes a customer of an item never sums below zero.
+ */
+async function findPalletCreditBreaks(prisma: PrismaClient, out: Discrepancy[]): Promise<void> {
+  const mirrored = await prisma.$queryRaw<{ id: number; quantity: number; movements: number; moved: bigint }[]>`
+    SELECT pc.id, pc.quantity, COUNT(sm.id)::int AS movements, COALESCE(SUM(sm.quantity), 0)::bigint AS moved
+    FROM pallet_credits pc
+    LEFT JOIN stock_movements sm ON sm.pallet_credit_id = pc.id
+    GROUP BY pc.id, pc.quantity
+    ORDER BY pc.id`;
+  for (const row of mirrored) {
+    const stored = `${row.movements} × ${Number(row.moved)}`;
+    const expected = `1 × ${row.quantity}`;
+    if (stored !== expected) out.push({ entity: 'palletCredit', id: row.id, field: 'stockMovement', stored, expected });
+  }
+  const balances = await prisma.$queryRaw<{ customerId: number; itemId: number; owed: bigint }[]>`
+    SELECT customer_id AS "customerId", item_id AS "itemId", SUM(quantity)::bigint AS owed
+    FROM pallet_credits
+    GROUP BY customer_id, item_id
+    HAVING SUM(quantity) < 0
+    ORDER BY customer_id, item_id`;
+  for (const row of balances) {
+    out.push({
+      entity: 'customerItem',
+      id: row.customerId,
+      field: `owed(item ${row.itemId})`,
+      stored: Number(row.owed),
+      expected: '≥ 0',
+    });
+  }
 }
 
 /**

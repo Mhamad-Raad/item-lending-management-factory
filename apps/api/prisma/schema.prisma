@@ -53,6 +53,8 @@ enum StockMovementReason {
   RETURN_EDIT
   RETURN_DELETE
   MANUAL_ADJUSTMENT
+  // A pallet credit's own movement, of its sign (Q170).
+  PALLET_CREDIT
 
   @@map("stock_movement_reason")
 }
@@ -118,6 +120,8 @@ enum IdempotencyScope {
   ORDER_CREATE
   RETURN_CREATE
   PAYMENT_CREATE
+  // Pallets the factory owed handed back (Q170).
+  PALLET_HAND_BACK
 
   @@map("idempotency_scope")
 }
@@ -149,6 +153,10 @@ enum AuditAction {
   USER_DEACTIVATE
   USER_ACTIVATE
   UPLOAD_CREATE
+  // Pallets the factory owed handed back to the customer (Q170).
+  HAND_BACK
+  // A give-back undone (Q173).
+  HAND_BACK_REVERSE
 
   @@map("audit_action")
 }
@@ -166,6 +174,7 @@ enum AuditEntityType {
   SETTINGS
   UPLOAD
   CUSTOMER_RETURN
+  PALLET_CREDIT
 
   @@map("audit_entity_type")
 }
@@ -209,6 +218,8 @@ model User {
   returnsReversed        PalletReturn[]    @relation("ReturnReversedBy")
   customerReturnsCreated CustomerReturn[]  @relation("CustomerReturnCreatedBy")
   ledgerEntriesCreated   LedgerEntry[]     @relation("LedgerEntryCreatedBy")
+
+  palletCreditsCreated PalletCredit[] @relation("PalletCreditCreatedBy")
 
   @@index([role, isActive])
   @@map("users")
@@ -334,6 +345,8 @@ model Item {
   stockMovements StockMovement[]
   orderLines     OrderLine[]
 
+  palletCredits PalletCredit[]
+
   @@index([imageUploadId])
   @@index([archivedAt])
   @@index([archivedByUserId])
@@ -377,23 +390,80 @@ model StockMovement {
   batchId         Int?                @map("batch_id")
   orderId         Int?                @map("order_id")
   returnId        Int?                @map("return_id")
+  // Q170: the pallet credit this movement mirrors (reason PALLET_CREDIT only).
+  palletCreditId  Int?                @map("pallet_credit_id")
   note            String?             @db.VarChar(500)
   createdByUserId Int                 @map("created_by_user_id")
   createdAt       DateTime            @default(now()) @map("created_at") @db.Timestamptz(3)
 
-  item      Item           @relation(fields: [itemId], references: [id])
-  batch     PurchaseBatch? @relation(fields: [batchId], references: [id], onDelete: Restrict)
-  order     Order?         @relation(fields: [orderId], references: [id], onDelete: Restrict)
-  return    PalletReturn?  @relation(fields: [returnId], references: [id], onDelete: Restrict)
-  createdBy User           @relation("StockMovementCreatedBy", fields: [createdByUserId], references: [id])
+  item         Item           @relation(fields: [itemId], references: [id])
+  batch        PurchaseBatch? @relation(fields: [batchId], references: [id], onDelete: Restrict)
+  order        Order?         @relation(fields: [orderId], references: [id], onDelete: Restrict)
+  return       PalletReturn?  @relation(fields: [returnId], references: [id], onDelete: Restrict)
+  palletCredit PalletCredit?  @relation(fields: [palletCreditId], references: [id], onDelete: Restrict)
+  createdBy    User           @relation("StockMovementCreatedBy", fields: [createdByUserId], references: [id])
 
   // The item ledger page walks one item's movements in id order: stock_movements_item_ledger_idx, with
   // INCLUDE (quantity, reason), in the migrations and constraints.sql (Q102).
   @@index([batchId])
   @@index([orderId])
   @@index([returnId])
+  @@index([palletCreditId])
   @@index([createdByUserId])
   @@map("stock_movements")
+}
+
+enum PalletCreditReason {
+  /// More pallets of a type came back than the customer had out: the factory owes them the rest (+).
+  RETURN_SURPLUS
+  /// That return corrected or deleted: its surplus taken back (−).
+  RETURN_REVERSAL
+  /// Pallets the factory owed handed back to the customer (−).
+  HAND_BACK
+  /// Pallets the factory owed going out on a new order, before any are lent (−).
+  ORDER_USE
+  /// That order cancelled: what it used is owed again (+).
+  ORDER_CANCEL
+  /// A give-back undone — recorded by mistake: what it gave back is owed again (+) (Q173).
+  HAND_BACK_REVERSAL
+
+  @@map("pallet_credit_reason")
+}
+
+/// Q170: pallets of a type the factory owes a customer — what came back beyond what they had out — and what of it was
+/// given back. Append-only; the balance is the sum per customer and item, never below zero.
+model PalletCredit {
+  id               Int                @id @default(autoincrement())
+  customerId       Int                @map("customer_id")
+  itemId           Int                @map("item_id")
+  quantity         Int
+  reason           PalletCreditReason
+  returnId         Int?               @map("return_id")
+  orderId          Int?               @map("order_id")
+  /// The give-back an undo cancels (HAND_BACK_REVERSAL only, Q173); a give-back is undone once.
+  reversesCreditId Int?               @unique @map("reverses_credit_id")
+  /// A give-back's paper number, its own run without gaps, set by the database as the row is written (Q172).
+  handBackNumber   Int?               @unique @map("hand_back_number")
+  date             DateTime           @db.Date
+  note             String?            @db.VarChar(500)
+  createdAt        DateTime           @default(now()) @map("created_at") @db.Timestamptz(3)
+  createdByUserId  Int                @map("created_by_user_id")
+
+  customer       Customer        @relation(fields: [customerId], references: [id], onDelete: Restrict)
+  item           Item            @relation(fields: [itemId], references: [id], onDelete: Restrict)
+  return         PalletReturn?   @relation(fields: [returnId], references: [id], onDelete: Restrict)
+  order          Order?          @relation(fields: [orderId], references: [id], onDelete: Restrict)
+  reverses       PalletCredit?   @relation("PalletCreditReversal", fields: [reversesCreditId], references: [id], onDelete: Restrict)
+  reversedBy     PalletCredit?   @relation("PalletCreditReversal")
+  createdBy      User            @relation("PalletCreditCreatedBy", fields: [createdByUserId], references: [id], onDelete: Restrict)
+  stockMovements StockMovement[]
+
+  @@index([customerId, itemId])
+  @@index([itemId])
+  @@index([returnId])
+  @@index([orderId])
+  @@index([createdByUserId])
+  @@map("pallet_credits")
 }
 
 // ───────────────────────────── Customers & drivers ─────────────────────────────
@@ -416,6 +486,8 @@ model Customer {
   createdBy  User             @relation("CustomerCreatedBy", fields: [createdByUserId], references: [id])
   orders     Order[]
   returns    CustomerReturn[]
+
+  palletCredits PalletCredit[]
 
   @@index([phone])
   @@index([altPhone])
@@ -496,6 +568,8 @@ model Order {
   ledgerEntries    LedgerEntry[]
   stockMovements   StockMovement[]
 
+  palletCredits PalletCredit[]
+
   @@index([customerId, status])
   @@index([driverId])
   @@index([date])
@@ -561,6 +635,8 @@ model PalletReturn {
   lines          ReturnLine[]
   ledgerEntries  LedgerEntry[]
   stockMovements StockMovement[]
+
+  palletCredits PalletCredit[]
 
   @@index([orderId])
   @@index([date])

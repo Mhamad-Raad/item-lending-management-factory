@@ -146,6 +146,7 @@ const LEDGER_ENTRY: LedgerEntryDto = {
 
 export const ORDER: OrderDetailDto = {
   ...ORDER_ROW,
+  fromCredit: [],
   notes: 'Deliver to the second gate; the site manager signs for the pallets on arrival.',
   paymentsNet: 0,
   creditsTotal: 0,
@@ -528,6 +529,10 @@ export async function mockApi(
     [/\/api\/customers\/\d+$/, CUSTOMER],
     [/\/api\/customers\/\d+\/history(\?.*)?$/, page1(HISTORY)],
     [/\/api\/customers\/\d+\/returnable$/, RETURNABLE],
+    // Nothing owed to the customer unless a test says so (Q170).
+    [/\/api\/customers\/\d+\/pallet-credits$/, []],
+    // The returns list (Q168): empty unless a test says otherwise.
+    [/\/api\/returns(\?.*)?$/, page1([])],
     [/\/api\/drivers(\?.*)?$/, page1([DRIVER])],
     [/\/api\/drivers\/\d+$/, DRIVER],
     [/\/api\/items(\?.*)?$/, page1([ITEM])],

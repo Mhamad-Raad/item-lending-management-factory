@@ -31,6 +31,7 @@ import { Route as AppReportsActivityRouteImport } from './routes/_app/reports/ac
 import { Route as AppReportsPositionsRouteImport } from './routes/_app/reports/positions'
 import { Route as AppReportsPurchasesRouteImport } from './routes/_app/reports/purchases'
 import { Route as AppReportsStockRouteImport } from './routes/_app/reports/stock'
+import { Route as AppReturnsIndexRouteImport } from './routes/_app/returns/index'
 import { Route as AppReturnsNewRouteImport } from './routes/_app/returns/new'
 import { Route as AppUsersIndexRouteImport } from './routes/_app/users/index'
 import { Route as AppUsersUserIdRouteImport } from './routes/_app/users/$userId'
@@ -154,6 +155,11 @@ const AppReportsStockRoute = AppReportsStockRouteImport.update({
   path: '/reports/stock',
   getParentRoute: () => AppRoute,
 } as any)
+const AppReturnsIndexRoute = AppReturnsIndexRouteImport.update({
+  id: '/returns/',
+  path: '/returns/',
+  getParentRoute: () => AppRoute,
+} as any)
 const AppReturnsNewRoute = AppReturnsNewRouteImport.update({
   id: '/returns/new',
   path: '/returns/new',
@@ -253,6 +259,7 @@ export interface FileRoutesByFullPath {
   '/items/': typeof AppItemsIndexRoute
   '/orders/': typeof AppOrdersIndexRoute
   '/reports/': typeof AppReportsIndexRoute
+  '/returns/': typeof AppReturnsIndexRoute
   '/users/': typeof AppUsersIndexRoute
   '/customers/$customerId/edit': typeof AppCustomersCustomerIdEditRoute
   '/items/$itemId/edit': typeof AppItemsItemIdEditRoute
@@ -289,6 +296,7 @@ export interface FileRoutesByTo {
   '/items': typeof AppItemsIndexRoute
   '/orders': typeof AppOrdersIndexRoute
   '/reports': typeof AppReportsIndexRoute
+  '/returns': typeof AppReturnsIndexRoute
   '/users': typeof AppUsersIndexRoute
   '/customers/$customerId/edit': typeof AppCustomersCustomerIdEditRoute
   '/items/$itemId/edit': typeof AppItemsItemIdEditRoute
@@ -328,6 +336,7 @@ export interface FileRoutesById {
   '/_app/items/': typeof AppItemsIndexRoute
   '/_app/orders/': typeof AppOrdersIndexRoute
   '/_app/reports/': typeof AppReportsIndexRoute
+  '/_app/returns/': typeof AppReturnsIndexRoute
   '/_app/users/': typeof AppUsersIndexRoute
   '/_app/customers/$customerId/edit': typeof AppCustomersCustomerIdEditRoute
   '/_app/items/$itemId/edit': typeof AppItemsItemIdEditRoute
@@ -366,6 +375,7 @@ export interface FileRouteTypes {
     | '/items/'
     | '/orders/'
     | '/reports/'
+    | '/returns/'
     | '/users/'
     | '/customers/$customerId/edit'
     | '/items/$itemId/edit'
@@ -402,6 +412,7 @@ export interface FileRouteTypes {
     | '/items'
     | '/orders'
     | '/reports'
+    | '/returns'
     | '/users'
     | '/customers/$customerId/edit'
     | '/items/$itemId/edit'
@@ -440,6 +451,7 @@ export interface FileRouteTypes {
     | '/_app/items/'
     | '/_app/orders/'
     | '/_app/reports/'
+    | '/_app/returns/'
     | '/_app/users/'
     | '/_app/customers/$customerId/edit'
     | '/_app/items/$itemId/edit'
@@ -616,6 +628,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AppReportsStockRouteImport
       parentRoute: typeof AppRoute
     }
+    '/_app/returns/': {
+      id: '/_app/returns/'
+      path: '/returns'
+      fullPath: '/returns/'
+      preLoaderRoute: typeof AppReturnsIndexRouteImport
+      parentRoute: typeof AppRoute
+    }
     '/_app/returns/new': {
       id: '/_app/returns/new'
       path: '/returns/new'
@@ -739,6 +758,7 @@ interface AppRouteChildren {
   AppItemsIndexRoute: typeof AppItemsIndexRoute
   AppOrdersIndexRoute: typeof AppOrdersIndexRoute
   AppReportsIndexRoute: typeof AppReportsIndexRoute
+  AppReturnsIndexRoute: typeof AppReturnsIndexRoute
   AppUsersIndexRoute: typeof AppUsersIndexRoute
   AppCustomersCustomerIdEditRoute: typeof AppCustomersCustomerIdEditRoute
   AppItemsItemIdEditRoute: typeof AppItemsItemIdEditRoute
@@ -770,6 +790,7 @@ const AppRouteChildren: AppRouteChildren = {
   AppItemsIndexRoute: AppItemsIndexRoute,
   AppOrdersIndexRoute: AppOrdersIndexRoute,
   AppReportsIndexRoute: AppReportsIndexRoute,
+  AppReturnsIndexRoute: AppReturnsIndexRoute,
   AppUsersIndexRoute: AppUsersIndexRoute,
   AppCustomersCustomerIdEditRoute: AppCustomersCustomerIdEditRoute,
   AppItemsItemIdEditRoute: AppItemsItemIdEditRoute,

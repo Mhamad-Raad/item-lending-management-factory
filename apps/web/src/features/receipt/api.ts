@@ -1,4 +1,11 @@
-import type { CustomerReturnReceiptDto, MoneyReceiptDto, ReceiptDto, TransactionsReceiptDto } from '@pallet/shared';
+import type {
+  CustomerReturnReceiptDto,
+  HandBackReceiptDto,
+  MoneyReceiptDto,
+  ReceiptDto,
+  ReturnReceiptDto,
+  TransactionsReceiptDto,
+} from '@pallet/shared';
 import { queryOptions } from '@tanstack/react-query';
 import { apiFetch } from '@/lib/api-client';
 import { qk } from '@/lib/query-keys';
@@ -33,11 +40,29 @@ export function customerReturnReceiptQuery(customerReturnId: number) {
   });
 }
 
+/** One return's paper, when it paid no cash back (Q166). */
+export function returnReceiptQuery(returnId: number) {
+  return queryOptions({
+    queryKey: qk.ledger.returnReceipt(returnId),
+    queryFn: () => apiFetch<ReturnReceiptDto>(`/returns/${returnId}/receipt`),
+    staleTime: 0,
+  });
+}
+
 /** All of an order's payments and refunds (§7.16.7). */
 export function transactionsReceiptQuery(orderId: number) {
   return queryOptions({
     queryKey: qk.orders.transactionsReceipt(orderId),
     queryFn: () => apiFetch<TransactionsReceiptDto>(`/orders/${orderId}/transactions-receipt`),
+    staleTime: 0,
+  });
+}
+
+/** A give-back's paper (Q172). */
+export function handBackReceiptQuery(palletCreditId: number) {
+  return queryOptions({
+    queryKey: qk.customers.handBackReceipt(palletCreditId),
+    queryFn: () => apiFetch<HandBackReceiptDto>(`/hand-backs/${palletCreditId}/receipt`),
     staleTime: 0,
   });
 }

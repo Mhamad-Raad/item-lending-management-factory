@@ -1,20 +1,24 @@
 import {
-  formatBusinessDate,
   formatMoney,
+  formatNumber,
   type CustomerReturnReceiptDto,
+  type ReturnReceiptDto,
+  type ReturnReceiptLineDto,
   type MoneyReceiptDto,
   type UserRefDto,
 } from '@pallet/shared';
-import { isolate } from '@/lib/bidi';
 import { tr } from './receipt-i18n';
 import {
+  PaperFooter,
   ReceiptCustomer,
   ReceiptFactory,
   ReceiptOrder,
+  ReceiptPage,
   ReceiptPaper,
   ReceiptSheet,
   ReceiptTitle,
 } from './receipt-parts';
+import { reversedStamp } from './receipt-stamp';
 
 function MoneyRow({ label, value, strong = false }: { label: string; value: number; strong?: boolean }) {
   return (
@@ -47,6 +51,73 @@ interface MoneyPaper {
   stamp: string | null;
   factory: MoneyReceiptDto['factory'];
   customer: MoneyReceiptDto['customer'];
+  /** A return's pallets, by type (Q167); none on a payment. */
+  lines: ReturnReceiptLineDto[];
+}
+
+/** How many pallet types a return's half holds beside its money; more give each copy a page of its own (Q167). */
+const RETURN_LINES_PER_HALF = 2;
+
+/** What a return took back, a row per pallet type (Q167); the damaged column only when some came back damaged. */
+function ReturnLines({ lines }: { lines: ReturnReceiptLineDto[] }) {
+  const damaged = lines.some((line) => line.damaged > 0);
+  // Pallets beyond what was out, owed to the customer (Q170): a column only when some came back so.
+  const extra = lines.some((line) => line.extra > 0);
+  return (
+    <div className="block-return-lines">
+      <table className="lines">
+        <thead>
+          <tr>
+            <th scope="col" className="col-item">
+              {tr('receipt.item')}
+            </th>
+            <th scope="col" className="col-qty">
+              {tr('receipt.returnedAccepted')}
+            </th>
+            {damaged ? (
+              <th scope="col" className="col-qty">
+                {tr('receipt.returnedDamaged')}
+              </th>
+            ) : null}
+            <th scope="col" className="col-unit">
+              {tr('receipt.unitDeposit')}
+            </th>
+            <th scope="col" className="col-total">
+              {tr('receipt.lineTotal')}
+            </th>
+            {extra ? (
+              <th scope="col" className="col-qty">
+                {tr('receipt.extra')}
+              </th>
+            ) : null}
+            {/* What the customer still holds of it, over all their orders, as printed (Q169). */}
+            <th scope="col" className="col-qty">
+              {tr('receipt.outQuantity')}
+            </th>
+          </tr>
+        </thead>
+        <tbody>
+          {lines.map((line, index) => (
+            <tr key={index}>
+              <td className="col-item">
+                <bdi>{line.itemName}</bdi>
+              </td>
+              <td className="num num-cell">{formatNumber(line.accepted)}</td>
+              {damaged ? <td className="num num-cell">{formatNumber(line.damaged)}</td> : null}
+              <td>
+                <span className="num">{formatMoney(line.unitDeposit)}</span> {tr('receipt.currency')}
+              </td>
+              <td>
+                <span className="num">{formatMoney(line.total)}</span> {tr('receipt.currency')}
+              </td>
+              {extra ? <td className="num num-cell">{line.extra > 0 ? formatNumber(line.extra) : ''}</td> : null}
+              <td className="num num-cell">{formatNumber(line.withCustomer)}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  );
 }
 
 function Half({ paper, onLogoSettled }: { paper: MoneyPaper; onLogoSettled?: () => void }) {
@@ -67,7 +138,9 @@ function Half({ paper, onLogoSettled }: { paper: MoneyPaper; onLogoSettled?: () 
         {paper.order ? <ReceiptOrder order={paper.order} /> : null}
       </div>
 
-      <div className="block-money">
+      {paper.lines.length > 0 ? <ReturnLines lines={paper.lines} /> : null}
+
+      <div className={paper.lines.length > 0 ? 'block-money with-lines' : 'block-money'}>
         {/* The balance when the money moved, not today's: a reprint says what the original said (Q137). */}
         <table className="money">
           <tbody>
@@ -92,32 +165,31 @@ function Half({ paper, onLogoSettled }: { paper: MoneyPaper; onLogoSettled?: () 
         </table>
       </div>
 
-      <div className="block-footer money-footer">
-        <div className="footer-lines">
-          <div className="clamp">
-            {tr('receipt.money.recordedBy')}: <bdi>{paper.recordedBy.displayName}</bdi>
-          </div>
-          <div style={{ fontSize: '8.5pt' }}>
-            {tr('receipt.printedOn')}: <span className="num">{formatBusinessDate(paper.printedOn)}</span>
-          </div>
-        </div>
-        {/* A deleted payment or a reversed refund still prints, so history can be shown, but never as valid money. */}
-        {paper.stamp !== null ? <div className="stamp">{paper.stamp}</div> : null}
-      </div>
+      <PaperFooter recordedBy={paper.recordedBy.displayName} printedOn={paper.printedOn} stamp={paper.stamp} />
     </>
   );
 }
 
 function MoneySheet({ paper, onLogoSettled }: { paper: MoneyPaper; onLogoSettled?: (() => void) | undefined }) {
+  // Too many pallet types for a half: the factory's copy on a page, then the customer's (Q167, as Q150).
+  if (paper.lines.length > RETURN_LINES_PER_HALF) {
+    return (
+      <ReceiptPaper>
+        <ReceiptPage>
+          <Half paper={paper} onLogoSettled={onLogoSettled} />
+        </ReceiptPage>
+        <ReceiptPage>
+          <Half paper={paper} />
+        </ReceiptPage>
+      </ReceiptPaper>
+    );
+  }
   return (
     <ReceiptPaper>
       <ReceiptSheet half={(first) => <Half paper={paper} onLogoSettled={first ? onLogoSettled : undefined} />} />
     </ReceiptPaper>
   );
 }
-
-const reversedStamp = (key: 'receipt.money.reversed' | 'receipt.money.partlyReversed', day: string | null) =>
-  day === null ? null : tr(key, { date: isolate(formatBusinessDate(day)) });
 
 /**
  * The receipt of one payment or refund (Q137): one A4 sheet printing it twice — the factory's copy and the
@@ -147,6 +219,7 @@ export function MoneyReceipt({ receipt, onLogoSettled }: { receipt: MoneyReceipt
         stamp: reversedStamp('receipt.money.reversed', receipt.reversedOn),
         factory: receipt.factory,
         customer: receipt.customer,
+        lines: receipt.lines,
       }}
     />
   );
@@ -186,6 +259,38 @@ export function CustomerReturnReceipt({
         ),
         factory: receipt.factory,
         customer: receipt.customer,
+        lines: receipt.lines,
+      }}
+    />
+  );
+}
+
+/**
+ * One return's paper (Q166), for a return that paid no cash back: the customer return's design for that return
+ * alone, with its order and under its number. Corrected or deleted since, it is stamped.
+ */
+export function ReturnReceipt({ receipt, onLogoSettled }: { receipt: ReturnReceiptDto; onLogoSettled?: () => void }) {
+  return (
+    <MoneySheet
+      onLogoSettled={onLogoSettled}
+      paper={{
+        title: tr('receipt.money.refundTitle'),
+        numberLabel: tr('receipt.money.returnNumber'),
+        number: receipt.receiptNumberDisplay,
+        date: receipt.date,
+        order: receipt.order,
+        owedBefore: receipt.owedBefore,
+        credit: receipt.credit,
+        amountLabel: tr('receipt.money.refunded'),
+        amount: receipt.amount,
+        owedAfter: receipt.owedAfter,
+        remark: receipt.note,
+        recordedBy: receipt.recordedBy,
+        printedOn: receipt.printedOn,
+        stamp: reversedStamp('receipt.money.reversed', receipt.reversedOn),
+        factory: receipt.factory,
+        customer: receipt.customer,
+        lines: receipt.lines,
       }}
     />
   );

@@ -32,21 +32,31 @@ export function EntityRef({ row }: { row: AuditLogDto }) {
   if (!row.entityId) return <>{label}</>;
 
   const id = row.entityId;
+  // What the factory owes a customer is named by the customer, not by its ledger row's number (Q170).
+  const customerName = row.entityType === 'PALLET_CREDIT' ? row.summaryParams['customerName'] : undefined;
   // A session's id is a uuid: it must be allowed to break, or it pushes a phone's layout sideways.
-  const text = (
-    <span dir="ltr" className="break-all">
-      #{id}
-    </span>
-  );
+  const text =
+    typeof customerName === 'string' ? (
+      <bdi>{customerName}</bdi>
+    ) : (
+      <span dir="ltr" className="break-all">
+        #{id}
+      </span>
+    );
   const orderId =
     row.entityType === 'ORDER'
       ? id
       : row.entityType === 'RETURN' || row.entityType === 'LEDGER_ENTRY'
         ? owningId(row, 'orderId')
         : null;
-  // A customer return is over several orders: it leads to its customer, whose page lists them (Q161).
+  // A customer return is over several orders: it leads to its customer, whose page lists them (Q161); so does what the
+  // factory owes a customer, shown on their page (Q170).
   const customerId =
-    row.entityType === 'CUSTOMER' ? id : row.entityType === 'CUSTOMER_RETURN' ? owningId(row, 'customerId') : null;
+    row.entityType === 'CUSTOMER'
+      ? id
+      : row.entityType === 'CUSTOMER_RETURN' || row.entityType === 'PALLET_CREDIT'
+        ? owningId(row, 'customerId')
+        : null;
   const target =
     row.entityType === 'ITEM' && canViewItems ? (
       <Link to="/items/$itemId" params={{ itemId: id }} className={LINK}>

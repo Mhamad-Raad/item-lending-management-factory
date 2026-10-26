@@ -132,3 +132,9 @@ The build history that used to sit in `CLAUDE.md` "Status", oldest first, moved 
   at most where it shares a row or card with figures, and a tap shows it whole on the return screens (`ItemName`);
   the orders the returned pallets come from are one list of numbers under the items, no longer a line under each
   item; the order's note is titled, and the order's and each return's note take two lines at most (`NoteText`).
+- **10t returns that print, the returns list, pallets owed** (2026-10-26, Q166–Q171): every return ends on its
+  dialog with a receipt, and a return paying no cash back has its own paper; returns print again from the order's
+  table and the new returns list (`/returns`: filters, paging, Record return on top); a return's papers list its
+  pallets and what the customer still holds; a customer may return more than they had out — the factory owes them
+  the rest (`pallet_credits`), gives it back by button or with their next order at no deposit; the customer page's
+  tabs keep the scroll and offer a page size; a give-back prints its own paper and can be undone.

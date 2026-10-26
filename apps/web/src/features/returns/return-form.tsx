@@ -1,7 +1,7 @@
 import {
   businessToday,
   formatMoney,
-  formatOrderNumber,
+  type CustomerReturnResultDto,
   type OrderDetailDto,
   type ReturnCreateBody,
   type ReturnResultDto,
@@ -9,6 +9,7 @@ import {
 import { useQueryClient } from '@tanstack/react-query';
 import { useNavigate } from '@tanstack/react-router';
 import { HandCoins, Loader2 } from 'lucide-react';
+import { useEffect, useRef, useState } from 'react';
 import { Controller, useForm, useWatch } from 'react-hook-form';
 import { useTranslation } from 'react-i18next';
 import { toast } from 'sonner';
@@ -24,7 +25,6 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Textarea } from '@/components/ui/textarea';
 import { invalidateAfterOrderChange } from '@/features/orders/api';
-import { printMoneyReceipt } from '@/features/receipt/print-receipt';
 import { useFlowMutation } from '@/hooks/use-flow-mutation';
 import { apiFetch } from '@/lib/api-client';
 import { detailsOf, isApiError } from '@/lib/api-error';
@@ -42,6 +42,7 @@ import {
   useRowMessages,
   type RowCounts,
 } from './return-rows';
+import { ReturnsSavedDialog } from './returns-saved-dialog';
 
 interface RowValues extends RowCounts {
   orderLineId: number;
@@ -59,11 +60,24 @@ interface ReturnValues {
  * live. With `replaceReturnId` it corrects that return: the rows start from it, and everything is
  * checked and priced against the order as if it had never been recorded.
  */
-export function ReturnForm({ order, replaceReturnId }: { order: OrderDetailDto; replaceReturnId?: number }) {
+export function ReturnForm({
+  order,
+  replaceReturnId,
+  onSaved,
+}: {
+  order: OrderDetailDto;
+  replaceReturnId?: number;
+  /** Called as the saved dialog opens: the page holds the order as it was beneath it (Q166). */
+  onSaved?: () => void;
+}) {
   const { t } = useTranslation();
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const replaced = order.returns.find((pr) => pr.id === replaceReturnId);
+  const [saved, setSaved] = useState<CustomerReturnResultDto | null>(null);
+  const [savedOpen, setSavedOpen] = useState(false);
+  const closeSaved = useRef<(() => void) | null>(null);
+  useEffect(() => () => closeSaved.current?.(), []);
   const base = returnBaseline(order, replaced?.id);
   // One form row per order line, found by the line's id: a reloaded order (another return recorded,
   // a line taken off meanwhile) keeps every typed row on its own line; only rows that can take a
@@ -127,15 +141,16 @@ export function ReturnForm({ order, replaceReturnId }: { order: OrderDetailDto; 
             body,
             idempotencyKey: idempotencyKey(),
           }),
-    successMessage: (result) =>
-      t(replaced ? 'returns.new.replaced' : 'returns.new.created', {
-        orderNumber: formatOrderNumber(result.order.orderNumber),
+    // The dialog of what was recorded, with its receipt, as on the customer's screen (Q166): the refund's when cash
+    // went out (Q137), else the return's own paper in the same design — never the order's hand-over receipt, which the
+    // business turned down here.
+    showSaved: (result) =>
+      new Promise<void>((close) => {
+        closeSaved.current = close;
+        onSaved?.();
+        setSaved(savedOf(result));
+        setSavedOpen(true);
       }),
-    // A return that pays cash back offers the refund's receipt, for the customer to sign for (Q137).
-    successAction: (result) => {
-      const refund = result.order.ledgerEntries.find((entry) => isStandingRefundOf(entry, result.returnId));
-      return refund ? { label: t('orders.money.printReceipt'), onClick: () => printMoneyReceipt(refund.id) } : null;
-    },
     invalidate: () => invalidateAfterOrderChange(queryClient),
     // Leave first: refreshed here, the order would show this page's "cannot be corrected" or
     // "nothing out" state for a moment before the navigation.
@@ -413,6 +428,42 @@ export function ReturnForm({ order, replaceReturnId }: { order: OrderDetailDto; 
       >
         {summaryView}
       </SummaryPanel>
+      {saved ? (
+        <ReturnsSavedDialog
+          result={saved}
+          open={savedOpen}
+          onClose={() => {
+            setSavedOpen(false);
+            closeSaved.current?.();
+          }}
+        />
+      ) : null}
     </div>
   );
+}
+
+/** The return just written, as the saved dialog reads it: the order's one return, with its refund if it paid any. */
+function savedOf(result: ReturnResultDto): CustomerReturnResultDto {
+  const { order } = result;
+  const recorded = order.returns.find((pr) => pr.id === result.returnId);
+  const lines = recorded?.lines ?? [];
+  return {
+    customerReturnId: null,
+    customer: order.customer,
+    surplus: [],
+    returns: [
+      {
+        returnId: result.returnId,
+        orderId: order.id,
+        orderNumber: order.orderNumber,
+        accepted: lines.reduce((total, line) => total + line.acceptedQuantity, 0),
+        damaged: lines.reduce((total, line) => total + line.damagedQuantity, 0),
+        refundDue: recorded?.refundDue ?? 0,
+        owedBefore: recorded?.owedBefore ?? 0,
+        cashRefund: recorded?.cashRefund ?? 0,
+        owedAfter: order.owed,
+        refundEntryId: order.ledgerEntries.find((entry) => isStandingRefundOf(entry, result.returnId))?.id ?? null,
+      },
+    ],
+  };
 }

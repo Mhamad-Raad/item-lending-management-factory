@@ -27,6 +27,7 @@ const PAYMENT: MoneyReceiptDto = {
   },
   factory: { name: 'Pallet Factory', phone: '07500000000', address: 'Erbil', logoUrl: null },
   customer: { name: 'Kurdistan Cement', phone: '07501234567', address: 'Erbil' },
+  lines: [],
 };
 
 /** The money table's rows of the first half, label and figure, as the paper reads them. */
@@ -122,6 +123,7 @@ const VISIT: CustomerReturnReceiptDto = {
   allReversed: false,
   factory: PAYMENT.factory,
   customer: PAYMENT.customer,
+  lines: [],
 };
 
 describe('a customer return’s one receipt (Q161)', () => {

@@ -6,6 +6,7 @@ import type {
   LedgerEntrySource,
   LedgerEntryType,
   OrderStatus,
+  PalletCreditReason,
   PaymentType,
   ReturnReversalKind,
   Role,
@@ -269,6 +270,22 @@ export type CustomerHistoryItemDto =
       isAutomatic: boolean;
       reversesEntryId: number | null;
       note: string | null;
+    }
+  | {
+      /** What the factory owes the customer of a pallet type moved (Q170): owed, given back, used by an order. */
+      kind: 'PALLET';
+      date: string;
+      createdAt: string;
+      palletCreditId: number;
+      reason: PalletCreditReason;
+      item: ItemRefDto;
+      /** + owed to them, − given back or used. */
+      quantity: number;
+      orderId: number | null;
+      orderNumber: number | null;
+      note: string | null;
+      /** A give-back undone since (Q173); false on every other entry. */
+      undone: boolean;
     };
 
 export interface DriverDto {
@@ -369,6 +386,8 @@ export interface ReturnDto {
   canReverse: boolean;
   createdAt: string;
   createdBy: UserRefDto;
+  /** The customer return over several orders it was recorded in, whose one paper is its receipt (Q161, Q166). */
+  customerReturnId: number | null;
 }
 
 /** A return written, replaced or deleted (§6.20): the return's id and the order as it now stands. */
@@ -395,6 +414,26 @@ export interface CustomerReturnableDto {
   orders: ReturnableOrderDto[];
 }
 
+/** One row of the returns list (Q168). */
+export interface ReturnListItemDto {
+  id: number;
+  date: string;
+  orderId: number;
+  orderNumber: number;
+  customer: CustomerRefDto;
+  accepted: number;
+  damaged: number;
+  refundDue: number;
+  cashRefund: number;
+  reversed: boolean;
+  /** Its standing refund, whose receipt it prints (Q137); null when it paid no cash back. */
+  refundEntryId: number | null;
+  /** The customer return over several orders it was recorded in (Q161). */
+  customerReturnId: number | null;
+  createdAt: string;
+  createdBy: UserRefDto;
+}
+
 /** A return the customer flow recorded on one order (Q156), with what it paid out. */
 export interface CustomerReturnRecordedDto {
   returnId: number;
@@ -419,6 +458,41 @@ export interface CustomerReturnResultDto {
   customerReturnId: number | null;
   customer: CustomerRefDto;
   returns: CustomerReturnRecordedDto[];
+  /** Pallets beyond what was out, owed to the customer from now on (Q170). */
+  surplus: { item: ItemRefDto; quantity: number }[];
+}
+
+/**
+ * The paper of pallets the factory owed, given back (Q172): one type, how many, and what was owed before and after,
+ * as it stood then — a reprint says what the original said.
+ */
+export interface HandBackReceiptDto {
+  palletCreditId: number;
+  /** Its place among the give-backs, zero-padded to six digits: a numbering of their own, without gaps (Q172). */
+  receiptNumberDisplay: string;
+  date: string;
+  printedOn: string;
+  itemName: string;
+  quantity: number;
+  owedBefore: number;
+  owedAfter: number;
+  note: string | null;
+  recordedBy: UserRefDto;
+  /** The day it was undone (Q173), stamped on the paper; null while it stands. */
+  reversedOn: string | null;
+  factory: ReceiptFactoryDto;
+  customer: { name: string; phone: string; address: string };
+}
+
+/** A give-back recorded (Q170): its entry, for its paper (Q172). */
+export interface HandBackResultDto {
+  palletCreditId: number;
+}
+
+/** What the factory owes a customer of one pallet type (Q170): what came back beyond what was out, less what was given back. */
+export interface PalletCreditBalanceDto {
+  item: ItemRefDto;
+  quantity: number;
 }
 
 /** A payment recorded or reversed (§6.21): the ledger row written and the order as it now stands. */
@@ -468,6 +542,8 @@ export interface OrderDetailDto extends OrderListItemDto {
   returns: ReturnDto[];
   /** Every ledger row, reversals included, by id — the order they were recorded in. */
   ledgerEntries: LedgerEntryDto[];
+  /** Pallets the factory owed the customer that went out with this order, no deposit (Q170); none once cancelled. */
+  fromCredit: { item: ItemRefDto; quantity: number }[];
   /** Not cancelled, and no non-reversed return or manual payment yet. */
   canEditLines: boolean;
   canCancel: boolean;
@@ -516,6 +592,8 @@ export interface ReceiptOlderLineDto {
  */
 export type ReceiptRowDto =
   | ({ kind: 'line'; no: number } & ReceiptLineDto)
+  /** Pallets the factory owed the customer, handed over with this order and no deposit (Q170). */
+  | { kind: 'fromCredit'; no: number; itemName: string; quantity: number }
   | { kind: 'olderHeading' }
   | ({ kind: 'older'; no: number } & ReceiptOlderLineDto);
 
@@ -558,6 +636,20 @@ export interface ReceiptDto {
   older: { outValue: number; combinedTotal: number } | null;
 }
 
+/** One pallet type a return's receipt lists (Q167): what came back of it, at its deposit, and what that credited. */
+export interface ReturnReceiptLineDto {
+  itemName: string;
+  accepted: number;
+  damaged: number;
+  unitDeposit: number;
+  /** What it credited: `accepted × unitDeposit + damagedRefund`. */
+  total: number;
+  /** How many of this pallet type the customer still holds over all their orders, as the paper is printed (Q169). */
+  withCustomer: number;
+  /** Of this return's pallets, how many came back beyond what was out, owed to the customer (Q170). */
+  extra: number;
+}
+
 /**
  * The receipt of one sum of money (Q137): a payment the factory received, or a refund it paid out on a return.
  * Its balance is the order's when the money moved, not today's, so a reprint says what the original said.
@@ -590,12 +682,15 @@ export interface MoneyReceiptDto {
   order: { id: number; orderNumber: number; orderNumberDisplay: string; date: string };
   factory: ReceiptFactoryDto;
   customer: { name: string; phone: string; address: string };
+  /** A refund's: the pallets its return took back (Q167); none on a payment. */
+  lines: ReturnReceiptLineDto[];
 }
 
 /**
  * The receipt of a customer's return over several orders (Q161): one paper for the visit, in the money receipt's
  * design, without an order. Its figures are the sums of its orders' returns as they were recorded; a later
- * correction of one of them leaves them as they were and stamps the paper.
+ * correction of one of them leaves them as they were and stamps the paper. It prints whether cash went back or not
+ * (Q166).
  */
 export interface CustomerReturnReceiptDto {
   customerReturnId: number;
@@ -619,6 +714,18 @@ export interface CustomerReturnReceiptDto {
   allReversed: boolean;
   factory: ReceiptFactoryDto;
   customer: { name: string; phone: string; address: string };
+  /** The pallets its returns took back, by type and deposit (Q167). */
+  lines: ReturnReceiptLineDto[];
+}
+
+/**
+ * The receipt of one return that paid no cash back (Q166): the customer return's paper for that return alone, with
+ * its order, numbered by the return. Its figures are the return's as recorded; corrected or deleted since, it is
+ * stamped.
+ */
+export interface ReturnReceiptDto extends Omit<CustomerReturnReceiptDto, 'customerReturnId' | 'allReversed'> {
+  returnId: number;
+  order: { id: number; orderNumber: number; orderNumberDisplay: string; date: string };
 }
 
 /** One payment or refund on an order's transactions receipt (Q139). */

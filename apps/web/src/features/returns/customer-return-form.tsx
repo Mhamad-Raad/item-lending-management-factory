@@ -4,7 +4,6 @@ import {
   formatMoney,
   formatBusinessDate,
   formatNumber,
-  formatOrderNumber,
   type CustomerReturnCreateBody,
   type CustomerReturnResultDto,
   type CustomerReturnableDto,
@@ -32,6 +31,7 @@ import { invalidateAfterOrderChange } from '@/features/orders/api';
 import { orderLabel } from '@/features/orders/order-text';
 import { useFlowMutation } from '@/hooks/use-flow-mutation';
 import { apiFetch } from '@/lib/api-client';
+import { useCan } from '@/lib/auth';
 import { detailsOf, isApiError } from '@/lib/api-error';
 import { isolate } from '@/lib/bidi';
 import { handleApiError } from '@/lib/errors';
@@ -119,6 +119,7 @@ export function CustomerReturnForm({ data, onSaved }: { data: CustomerReturnable
   }, [data, form]);
 
   const { exceedsOut, refundTooHigh, money } = useRowMessages();
+  const canViewCustomers = useCan('customers.view');
   const itemOfLine = useMemo(
     () => new Map(holdings.flatMap((holding) => holding.lines.map((line) => [line.orderLineId, holding]))),
     [holdings],
@@ -161,19 +162,32 @@ export function CustomerReturnForm({ data, onSaved }: { data: CustomerReturnable
     const row = typedRow(rows[key]);
     const shares = allocate(holding.lines, row, date);
     const outQuantity = outBy(holding.lines, date);
+    // More than is out may come back when every pallet of the item comes back in this return — none on an order dated
+    // after it — and the damaged ones fit: the rest are good pallets the factory then owes the customer (Q170).
+    const canOwe = outQuantity === holding.outQuantity && row.damaged <= outQuantity;
+    const extra = canOwe ? Math.max(0, row.accepted + row.damaged - outQuantity) : 0;
     // While the count is over what is out, it is the row's one error: the refund's limit would be measured on the
     // damaged pallets that happened to fit, a figure that changes once the count is put right.
-    const countOver = row.accepted + row.damaged > outQuantity;
+    const countOver = row.accepted + row.damaged > outQuantity && !canOwe;
     const maximum = countOver ? Number.MAX_SAFE_INTEGER : refundMaximum(shares);
-    const check = checkRow(row, { outQuantity, maximum }, errors.rows?.[key]);
+    const check = checkRow(
+      row,
+      { outQuantity: canOwe ? Number.MAX_SAFE_INTEGER : outQuantity, maximum },
+      errors.rows?.[key],
+    );
     // The row's messages, as its fields show them and as the notice that holds a save repeats them: what a save or
     // the server said, else what the live check finds (Q141, Q146).
     const acceptedError =
       errors.rows?.[key]?.accepted?.message ?? (check.overOut ? exceedsOut(outQuantity) : undefined);
     const refundError =
       errors.rows?.[key]?.damagedRefund?.message ?? (check.refundOver ? refundTooHigh(maximum) : undefined);
-    return { holding, key, row, shares, outQuantity, acceptedError, refundError, ...check };
+    return { holding, key, row, shares, outQuantity, canOwe, extra, acceptedError, refundError, ...check };
   });
+  // Pallets beyond what was out, owed to the customer once saved (Q170); none on a row refused for anything else.
+  const surplus = items.flatMap(({ holding, extra, invalid }) =>
+    extra > 0 && !invalid ? [{ itemId: holding.item.id, quantity: extra }] : [],
+  );
+  const extraTotal = surplus.reduce((total, entry) => total + entry.quantity, 0);
   // Each order's return is its share of the items; a refused row places nothing, so the summary never offers a figure
   // the server would refuse.
   const sharesByOrder = new Map<number, { share: LineShare; invalid: boolean }[]>();
@@ -231,32 +245,25 @@ export function CustomerReturnForm({ data, onSaved }: { data: CustomerReturnable
         body,
         idempotencyKey: idempotencyKey(),
       }),
-    // Cash paid back gets the dialog with each refund's receipt, for the customer to sign for (Q137, Q139).
-    showSaved: (result) => {
-      if (!result.returns.some((entry) => entry.refundEntryId !== null)) {
-        const [only] = result.returns;
-        toast.success(
-          result.returns.length === 1 && only
-            ? t('returns.new.created', { orderNumber: formatOrderNumber(only.orderNumber) })
-            : t('returns.customer.created', { orders: result.returns.length }),
-        );
-        return Promise.resolve();
-      }
-      return new Promise<void>((close) => {
+    // Every return gets the dialog and its receipt, on one order as on several, cash paid back or not (Q166).
+    showSaved: (result) =>
+      new Promise<void>((close) => {
         closeSaved.current = close;
         onSaved();
         setSaved(result);
         setSavedOpen(true);
-      });
-    },
+      }),
     invalidate: () => invalidateAfterOrderChange(queryClient),
     // Leave first: refreshed here, the list would lose the rows just returned before the navigation.
     refresh: 'after-navigate',
+    // To the customer, whose orders it changed, however many it touched (Q166); without the right to see customers, to
+    // the one order it touched, or else to the returns list.
     destination: (result) => {
       const [only] = result.returns;
-      return result.returns.length === 1 && only
-        ? { to: '/orders/$orderId', params: { orderId: String(only.orderId) } }
-        : { to: '/customers/$customerId', params: { customerId: String(customerId) } };
+      if (canViewCustomers) return { to: '/customers/$customerId', params: { customerId: String(customerId) } };
+      if (result.returns.length === 1 && only)
+        return { to: '/orders/$orderId', params: { orderId: String(only.orderId) } };
+      return { to: '/returns' };
     },
     onError: (error, body) => {
       const reload = (): void => void queryClient.invalidateQueries({ queryKey: qk.orders.returnable(customerId) });
@@ -265,6 +272,13 @@ export function CustomerReturnForm({ data, onSaved }: { data: CustomerReturnable
       // is held for a look (`recheck`). Judged on what was sent, not on what may have been typed since.
       const sent = new Map(body.orders.flatMap((order) => order.lines.map((line) => [line.orderLineId, line])));
       const sentOf = (holding: ItemHolding) => holding.lines.flatMap((line) => sent.get(line.orderLineId) ?? []);
+      // The customer's orders changed meanwhile (another hand-over of that type): read them again, and the row's
+      // extra is judged on what they hold now (Q170).
+      if (isApiError(error, 'PALLET_SURPLUS_STILL_OUT')) {
+        toast.error(t('returns.customer.ordersChanged'));
+        reload();
+        return;
+      }
       const over = detailsOf(error, 'RETURN_EXCEEDS_OUT');
       if (over) {
         for (const holding of new Set(over.lines.flatMap((line) => itemOfLine.get(line.orderLineId) ?? []))) {
@@ -348,7 +362,7 @@ export function CustomerReturnForm({ data, onSaved }: { data: CustomerReturnable
       return;
     }
     const notes = values.notes.trim();
-    record.mutate({ date: values.date, notes: notes === '' ? null : notes, orders: body });
+    record.mutate({ date: values.date, notes: notes === '' ? null : notes, orders: body, surplus });
   });
 
   // "All" and "Everything came back" count the rest of an item as accepted: pallets already typed as damaged, and
@@ -464,6 +478,12 @@ export function CustomerReturnForm({ data, onSaved }: { data: CustomerReturnable
           {totals.owedAfter > 0 ? (
             <p className="text-info text-sm">{t('returns.new.stillOwes', { amount: formatMoney(totals.owedAfter) })}</p>
           ) : null}
+          {extraTotal > 0 ? (
+            <p className="bg-warning/12 text-warning flex items-center gap-2 rounded-md p-3 text-sm font-semibold dark:bg-warning/20">
+              <TriangleAlert className="size-5 shrink-0" aria-hidden />
+              {t('returns.customer.extraTotal', { extra: isolate(formatNumber(extraTotal)) })}
+            </p>
+          ) : null}
         </>
       )}
     </>
@@ -552,7 +572,19 @@ export function CustomerReturnForm({ data, onSaved }: { data: CustomerReturnable
           <CardContent>
             <ul className="flex flex-col divide-y">
               {items.map(
-                ({ holding, key, row, outQuantity, overOut, maximum, refundOver, acceptedError, refundError }) => {
+                ({
+                  holding,
+                  key,
+                  row,
+                  outQuantity,
+                  canOwe,
+                  extra,
+                  overOut,
+                  maximum,
+                  refundOver,
+                  acceptedError,
+                  refundError,
+                }) => {
                   const itemId = holding.item.id;
                   const showDamage = damageOpen.has(itemId) || row.damaged > 0;
                   // Its deposits beside what is out, on the orders the return can take from: one, or each, lowest first.
@@ -634,7 +666,7 @@ export function CustomerReturnForm({ data, onSaved }: { data: CustomerReturnable
                                 size="icon"
                                 className="size-10"
                                 aria-label={t('returns.customer.more')}
-                                disabled={row.accepted + row.damaged >= outQuantity}
+                                disabled={!canOwe && row.accepted + row.damaged >= outQuantity}
                                 onClick={() => accepted(row.accepted + 1)}
                               >
                                 <Plus aria-hidden />
@@ -720,6 +752,16 @@ export function CustomerReturnForm({ data, onSaved }: { data: CustomerReturnable
                         </div>
                       ) : null}
                       <FieldError id={`row-${itemId}-error`} message={acceptedError} />
+                      {/* A warning, not a refusal (Q170): the save stays on, and the factory owes them the rest. */}
+                      {extra > 0 && !acceptedError ? (
+                        <p role="status" className="text-warning flex items-center gap-2 text-sm font-medium">
+                          <TriangleAlert aria-hidden className="size-4 shrink-0" />
+                          {t('returns.customer.extraWarning', {
+                            extra: isolate(formatNumber(extra)),
+                            out: isolate(formatNumber(outQuantity)),
+                          })}
+                        </p>
+                      ) : null}
                     </li>
                   );
                 },

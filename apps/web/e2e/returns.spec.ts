@@ -72,6 +72,7 @@ const RETURNED: ReturnDto = {
   canReverse: true,
   createdAt: '2026-09-11T08:00:00.000Z',
   createdBy: ORDER.createdBy,
+  customerReturnId: null,
 };
 const CASH_RETURNED: OrderDetailDto = {
   ...CASH,
@@ -113,6 +114,13 @@ const plain = (text: string | null) => (text ?? '').replace(/[\u2066-\u2069]/g, 
 const figure = (page: Page, label: string) => summary(page).getByText(label).locator('..').locator('dd');
 const exactly = (text: string) => new RegExp(`^\\P{N}*${text}\\P{N}*$`, 'u');
 const row = (page: Page) => page.getByRole('group', { name: new RegExp(ITEM_REF.name.slice(0, 12)) });
+/** The saved dialog (Q166): the flow waits on it, and goes to the order once it is closed. */
+async function closeSaved(page: Page) {
+  const saved = page.getByRole('dialog', { name: 'Return recorded' });
+  await expect(saved).toBeVisible();
+  await expect(page).toHaveURL(/\/returns\/new/);
+  await saved.getByRole('button', { name: 'Close' }).first().click();
+}
 
 test('daily flow 2: accepted pallets credit what is owed, live, and the return lands on its order', async ({
   page,
@@ -130,6 +138,7 @@ test('daily flow 2: accepted pallets credit what is owed, live, and the return l
   await expect(summary(page)).toContainText('The customer still owes 10,000');
 
   await summary(page).getByRole('button', { name: 'Record return' }).click();
+  await closeSaved(page);
   await expect(page).toHaveURL(/\/orders\/9$/);
   expect(sent).toHaveLength(1);
   expect(sent[0]?.url).toMatch(/\/api\/orders\/9\/returns$/);
@@ -188,6 +197,7 @@ test('editing a return starts from it, prices against the order without it, and 
   await expect(summary(page)).toContainText('Hand the customer 40,000 IQD now');
   await summary(page).getByRole('button', { name: 'Save the corrected return' }).click();
 
+  await closeSaved(page);
   await expect(page).toHaveURL(/\/orders\/9$/);
   expect(sent[0]?.url).toMatch(/\/api\/returns\/5\/replace$/);
   expect(sent[0]?.key).toBeUndefined();
@@ -394,12 +404,13 @@ test('a saved correction goes to its order without first saying the return canno
   });
   await summary(page).getByRole('button', { name: 'Save the corrected return' }).click();
 
+  await closeSaved(page);
   await expect(page).toHaveURL(/\/orders\/9$/);
   await expect(page.getByRole('heading', { level: 1 })).toBeVisible();
   expect(await page.evaluate(() => document.body.dataset.flashed)).toBeUndefined();
 });
 
-test('Q137: a return that pays cash back offers the refund’s receipt; one that does not, offers none', async ({
+test('Q137, Q166: a return that pays cash back offers the refund’s receipt in its dialog', async ({
   page,
   context,
 }) => {
@@ -422,28 +433,38 @@ test('Q137: a return that pays cash back offers the refund’s receipt; one that
   await page.goto('/returns/new?orderId=9');
   await page.getByRole('button', { name: 'Everything returned accepted' }).click();
   await summary(page).getByRole('button', { name: 'Record return' }).click();
-  await expect(page).toHaveURL(/\/orders\/9$/);
 
-  // Printed in place (Q140): the refund's receipt is read, and no tab opens.
-  await Promise.all([
-    page.waitForRequest(/\/api\/ledger-entries\/13\/receipt$/),
-    page.locator('[data-sonner-toast]').getByRole('button', { name: 'Print money receipt' }).click(),
-  ]);
+  // Printed in place (Q140) from the dialog, which stays: the refund's receipt is read, and no tab opens.
+  const saved = page.getByRole('dialog', { name: 'Return recorded' });
+  const print = saved.getByRole('button', { name: 'Print money receipt' });
+  await expect(print).toBeFocused();
+  await Promise.all([page.waitForRequest(/\/api\/ledger-entries\/13\/receipt$/), print.click()]);
   expect(context.pages()).toHaveLength(1);
+  await expect(saved).toBeVisible();
+  await closeSaved(page);
+  await expect(page).toHaveURL(/\/orders\/9$/);
 });
 
-test('Q137: a return that leaves something owed has no refund, so its toast offers no receipt', async ({ page }) => {
+test('Q166: a return that pays nothing back offers its own return receipt in its dialog', async ({ page }) => {
   await mockReturns(page, LENT);
+  const read: string[] = [];
+  await page.route(/\/api\/(orders\/\d+|returns\/\d+|ledger-entries\/\d+)\/receipt$/, (route) => {
+    read.push(new URL(route.request().url()).pathname);
+    return route.fulfill({ status: 404, json: {} });
+  });
 
   await page.goto('/returns/new?orderId=9');
   await row(page).getByLabel('Accepted').fill('50');
   await summary(page).getByRole('button', { name: 'Record return' }).click();
-  await expect(page).toHaveURL(/\/orders\/9$/);
 
-  // The order page's own money list prints the payment; the toast is what must have no button.
-  const toast = page.locator('[data-sonner-toast]').filter({ hasText: 'Return recorded on order' });
-  await expect(toast).toBeVisible();
-  await expect(toast.getByRole('button', { name: 'Print money receipt' })).toHaveCount(0);
+  // No refund, so no money receipt: the return's own paper, in the same design (Q166).
+  const saved = page.getByRole('dialog', { name: 'Return recorded' });
+  const print = saved.getByRole('button', { name: 'Print money receipt' });
+  await expect(print).toBeFocused();
+  await print.click();
+  await expect.poll(() => read).toEqual(['/api/returns/6/receipt']);
+  await closeSaved(page);
+  await expect(page).toHaveURL(/\/orders\/9$/);
 });
 
 test('Q146: the damage refund reads as money and says what it does with the deposit', async ({ page }) => {

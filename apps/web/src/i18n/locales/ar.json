@@ -342,7 +342,9 @@
       "SETTINGS_CHANGE": "تغيّرت الإعدادات",
       "USER_DEACTIVATE": "عُطّل المستخدم",
       "USER_ACTIVATE": "فُعّل المستخدم",
-      "UPLOAD_CREATE": "رُفعت صورة"
+      "UPLOAD_CREATE": "رُفعت صورة",
+      "HAND_BACK": "سُلّم",
+      "HAND_BACK_REVERSE": "إلغاء التسليم"
     },
     "auditEntityType": {
       "USER": "مستخدم",
@@ -356,7 +358,8 @@
       "LEDGER_ENTRY": "قيد مالي",
       "SETTINGS": "الإعدادات",
       "UPLOAD": "صورة",
-      "CUSTOMER_RETURN": "إرجاع الزبون"
+      "CUSTOMER_RETURN": "إرجاع الزبون",
+      "PALLET_CREDIT": "منصات مستحقة للزبون"
     },
     "uploadKind": {
       "ITEM_IMAGE": "صورة صنف",
@@ -372,7 +375,8 @@
       "RETURN_ACCEPTED": "إرجاع",
       "RETURN_EDIT": "تصحيح إرجاع",
       "RETURN_DELETE": "حذف إرجاع",
-      "MANUAL_ADJUSTMENT": "تعديل يدوي"
+      "MANUAL_ADJUSTMENT": "تعديل يدوي",
+      "PALLET_CREDIT": "منصات مستحقة لزبون أو مسلّمة له"
     },
     "paymentType": {
       "CASH": "نقداً",
@@ -410,7 +414,16 @@
     "customerHistoryKind": {
       "HANDOVER": "تسليم",
       "RETURN": "إرجاع",
-      "LEDGER": "دفعة أو استرداد"
+      "LEDGER": "دفعة أو استرداد",
+      "PALLET": "منصات مستحقة للزبون"
+    },
+    "palletCreditReason": {
+      "RETURN_SURPLUS": "عادت منصات زائدة — أصبحنا مدينين له",
+      "RETURN_REVERSAL": "سُحبت المنصات الزائدة (تغيّر الإرجاع)",
+      "HAND_BACK": "سُلّمت المنصات",
+      "ORDER_USE": "خرجت المنصات المستحقة مع طلب",
+      "ORDER_CANCEL": "مستحقة من جديد (أُلغي الطلب أو تغيّر)",
+      "HAND_BACK_REVERSAL": "أُلغي التسليم"
     }
   },
   "audit": {
@@ -478,6 +491,11 @@
       },
       "CUSTOMER_RETURN": {
         "RETURN_CREATE": "إرجاع {{customerName}} (الطلبات: {{orders}}): {{accepted}} مقبولة، {{damaged}} تالفة، رصيد {{refundDue}}، استرداد نقدي {{cashRefund}}"
+      },
+      "PALLET_CREDIT": {
+        "CREATE": "أعاد {{customerName}} أكثر مما لديه: أصبحنا مدينين له بـ {{quantity}} × {{itemName}}",
+        "HAND_BACK": "سُلّم {{quantity}} × {{itemName}} إلى {{customerName}}",
+        "HAND_BACK_REVERSE": "أُلغي تسليم {{quantity}} × {{itemName}} إلى {{customerName}}: مستحقة له من جديد"
       }
     }
   },
@@ -644,7 +662,13 @@
     "UNKNOWN_ERROR": "حدث خطأ ما. حاول مرة أخرى.",
     "ORDER_LINE_HAS_RETURNS": "لهذا السطر مرتجعات في سجله ولا يمكن حذفه؛ خفّض كميته بدلاً من ذلك",
     "CUSTOMER_RETURN_NOT_FOUND": "إرجاع الزبون غير موجود",
-    "CUSTOMER_RETURN_NO_RECEIPT": "لم يُدفع أي مبلغ نقدي في هذا الإرجاع، فلا إيصال له"
+    "PALLET_SURPLUS_STILL_OUT": "لا تُقبل زيادة إلا بعد إعادة كل منصات هذا النوع",
+    "PALLET_CREDIT_GIVEN_BACK": "سُلّمت المنصات الزائدة لهذا الإرجاع؛ فلا يمكن تصحيحه أو حذفه",
+    "PALLET_CREDIT_INSUFFICIENT": "لا يدين المصنع لهم بهذا العدد",
+    "ORDER_ALL_FROM_CREDIT": "كلها من المنصات المستحقة لهم — استخدم «تسليم» في صفحة الزبون بدلاً من ذلك",
+    "PALLET_CREDIT_OUTSTANDING": "لا يزال المصنع مديناً لهذا الزبون بمنصات من هذا النوع؛ سلّمها له أولاً",
+    "HAND_BACK_NOT_FOUND": "لم يُعثر على التسليم",
+    "HAND_BACK_UNDO_WHILE_OUT": "لديهم منصات من هذا النوع منذ ذلك الحين: سجّل إرجاعها أولاً ثم ألغِ"
   },
   "settings": {
     "title": "الإعدادات",
@@ -886,6 +910,21 @@
       "deleted": "محذوف",
       "corrected": "مصحّح",
       "pallets": "الطبليات"
+    },
+    "palletCredits": {
+      "title": "منصات مستحقة لهم",
+      "giveBack": "تسليم",
+      "dialogTitle": "تسليم المنصات",
+      "dialogDescription": "المستحق لهم: {{quantity}} × {{item}}.",
+      "quantity": "الكمية",
+      "done": "سُلّمت المنصات",
+      "overOwed": "{{quantity}} كحد أقصى",
+      "owed": "المستحق",
+      "undo": "إلغاء",
+      "undone": "أُلغي",
+      "undoTitle": "إلغاء هذا التسليم؟",
+      "undoBody": "تصبح {{quantity}} × {{item}} مستحقة للزبون من جديد وتعود إلى المخزون. استخدمه فقط إن سُجّل التسليم خطأً.",
+      "undoDone": "أُلغي التسليم"
     }
   },
   "drivers": {
@@ -1000,7 +1039,8 @@
         "title": "الملخص",
         "paysNow": "يدفع الزبون هذا الآن",
         "willOwe": "سيبقى هذا ديناً على الزبون",
-        "headroomAfter": "الائتمان المتبقي بعده"
+        "headroomAfter": "الائتمان المتبقي بعده",
+        "fromCredit": "من المنصات المستحقة لهم، بلا تأمين: {{items}}"
       },
       "creditUnavailable": "تعذر التحقق من حد ائتمان الزبون هنا؛ ويبقى يُتحقق منه عند الحفظ."
     },
@@ -1037,7 +1077,9 @@
       "deletePaymentBody": "يعود مبلغها مستحقاً. تبقى الدفعة في السجل مع عكسها.",
       "deletePaymentNote": "السبب (اختياري)",
       "paymentDeleted": "حُذفت الدفعة",
-      "hideReversed": "إخفاء المعكوسة"
+      "hideReversed": "إخفاء المعكوسة",
+      "fromCreditTitle": "من المنصات المستحقة لهم",
+      "fromCreditNote": "سُلّمت هذه بلا تأمين، من المنصات التي كانت مستحقة لهم."
     },
     "money": {
       "date": "التاريخ",
@@ -1128,6 +1170,7 @@
       "recordedBy": "سجّله",
       "reversed": "أُلغي في {{date}}",
       "customerReceiptNumber": "رقم إيصال الإرجاع",
+      "returnNumber": "رقم الإرجاع",
       "partlyReversed": "أُلغي جزء منه في {{date}}"
     },
     "transactions": {
@@ -1141,9 +1184,24 @@
       "refunded": "مجموع المردود",
       "owed": "المستحق الآن"
     },
-    "preparing": "جارٍ تجهيز الإيصال…"
+    "preparing": "جارٍ تجهيز الإيصال…",
+    "extra": "زيادة",
+    "fromCredit": "من المستحق لهم",
+    "handBack": {
+      "title": "إيصال تسليم المنصات",
+      "number": "رقم التسليم",
+      "owedBefore": "المستحق قبل",
+      "givenBack": "سُلّم",
+      "owedAfter": "المستحق بعد",
+      "undone": "أُلغي {{date}}"
+    }
   },
   "returns": {
+    "list": {
+      "title": "المرتجعات",
+      "empty": "لا توجد مرتجعات هنا بعد",
+      "number": "رقم الإرجاع"
+    },
     "fields": {
       "accepted": "مقبولة",
       "damaged": "تالفة",
@@ -1156,8 +1214,6 @@
       "titleReplace": "تصحيح إرجاع",
       "submit": "تسجيل الإرجاع",
       "submitReplace": "حفظ الإرجاع المصحح",
-      "created": "سُجّل إرجاع على الطلب #{{orderNumber}}",
-      "replaced": "صُحّح إرجاع الطلب #{{orderNumber}}",
       "lines": "الطبليات المرتجعة",
       "allAccepted": "كلها مقبولة",
       "everythingAccepted": "كل المرتجع مقبول",
@@ -1186,7 +1242,6 @@
       "palletsBack": "الطبليات العائدة",
       "byOrder": "حسب الطلب",
       "orderBack": "عاد {{pallets}}",
-      "created": "سُجّل الإرجاع على {{orders}} طلب",
       "ordersChanged": "تغيّرت طلبات هذا الزبون في الأثناء؛ أُعيد تحميل القائمة",
       "nothingOut": "لا توجد طبليات لدى هذا الزبون",
       "savedTitle": "سُجّل الإرجاع",
@@ -1198,7 +1253,10 @@
       "recheckDone": "راجعتُ",
       "outByDate": "{{out}} حتى {{date}}",
       "orderOwes": "عليه {{amount}} دينار",
-      "fromOrders": "هذه الطبليات من الطلبات"
+      "fromOrders": "هذه الطبليات من الطلبات",
+      "extraWarning": "{{extra}} أكثر من الـ {{out}} التي لديهم — سيصبح المصنع مديناً لهم بـ {{extra}}",
+      "extraTotal": "سيصبح المصنع مديناً لهم بـ {{extra}} منصة",
+      "savedExtra": "مستحق للزبون من الآن: {{items}}"
     }
   },
   "reports": {

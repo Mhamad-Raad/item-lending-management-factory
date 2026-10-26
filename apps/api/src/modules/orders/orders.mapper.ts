@@ -35,6 +35,7 @@ export const ORDER_DETAIL_INCLUDE = {
     },
   },
   ledgerEntries: { orderBy: { id: 'asc' }, include: LEDGER_ENTRY_INCLUDE },
+  palletCredits: { orderBy: { id: 'asc' }, include: { item: ITEM_REF_INCLUDE } },
 } as const satisfies Prisma.OrderInclude;
 
 type OrderLineRow = Prisma.OrderLineGetPayload<{ include: { item: typeof ITEM_REF_INCLUDE } }>;
@@ -107,6 +108,7 @@ function toReturnDto(order: OrderDetailRow, pr: OrderDetailRow['returns'][number
     canReverse: pr.reversedAt === null,
     createdAt: pr.createdAt.toISOString(),
     createdBy: toUserRef(pr.createdBy),
+    customerReturnId: pr.customerReturnId,
   };
 }
 
@@ -135,10 +137,33 @@ export function toOrderDetailDto(order: OrderDetailRow): OrderDetailDto {
     lines: order.lines.map(toOrderLineDto),
     returns: order.returns.map((pr) => toReturnDto(order, pr)),
     ledgerEntries: order.ledgerEntries.map((entry) => toLedgerEntryDto(entry, order)),
+    fromCredit: fromCreditOf(order.palletCredits),
     canEditLines: open,
     canCancel: open,
     version: order.version,
     updatedAt: order.updatedAt.toISOString(),
     createdBy: toUserRef(order.createdBy),
   };
+}
+
+/**
+ * What an order took of the pallets the factory owed, by item, net of what a cancel or an edit gave back (Q170): the one
+ * reading the order page and its hand-over receipt share. Each with the item's first entry, for its name.
+ */
+export function netFromCredit<T extends { itemId: number; quantity: number }>(
+  rows: readonly T[],
+): { first: T; quantity: number }[] {
+  const byItem = new Map<number, { first: T; quantity: number }>();
+  for (const row of rows) {
+    const entry = byItem.get(row.itemId) ?? { first: row, quantity: 0 };
+    entry.quantity -= row.quantity;
+    byItem.set(row.itemId, entry);
+  }
+  return [...byItem.values()].filter((entry) => entry.quantity > 0);
+}
+
+function fromCreditOf(
+  rows: Prisma.PalletCreditGetPayload<{ include: { item: typeof ITEM_REF_INCLUDE } }>[],
+): OrderDetailDto['fromCredit'] {
+  return netFromCredit(rows).map(({ first, quantity }) => ({ item: toItemRef(first.item), quantity }));
 }

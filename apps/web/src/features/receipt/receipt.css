@@ -186,6 +186,20 @@
 .block-money {
   height: 49mm;
 }
+/* Q167: beside a return's pallets the balance takes only its rows, so both fit a half. */
+.block-money.with-lines {
+  height: auto;
+}
+.block-return-lines .col-item {
+  width: auto;
+}
+.block-return-lines td {
+  white-space: nowrap;
+}
+.block-return-lines .col-unit,
+.block-return-lines .col-total {
+  width: 34mm;
+}
 .money {
   width: 100%;
   border-collapse: collapse;

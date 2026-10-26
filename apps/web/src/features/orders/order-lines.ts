@@ -29,16 +29,33 @@ export function toRequestLines(
   });
 }
 
-/** Σ quantity × unit deposit over the rows that are complete enough to have a total. */
+/**
+ * Σ quantity × unit deposit over the rows that are complete enough to have a total. Pallets the factory owes the
+ * customer (`owed`, by item) go out first and carry no deposit (Q170).
+ */
 export function depositTotalOf(
   rows: readonly LineRow[],
   defaultDeposit: (itemId: number) => number | undefined,
+  owed: ReadonlyMap<number, number> = new Map(),
 ): number {
   return rows.reduce((total, row) => {
     if (row.itemId === null || row.quantity === null) return total;
     const unitDeposit = row.unitDeposit ?? defaultDeposit(row.itemId);
-    return unitDeposit === undefined ? total : total + row.quantity * unitDeposit;
+    const lent = row.quantity - Math.min(owed.get(row.itemId) ?? 0, row.quantity);
+    return unitDeposit === undefined ? total : total + lent * unitDeposit;
   }, 0);
+}
+
+/** What each row takes of the pallets the factory owes the customer (Q170): as many as it hands over, up to that. */
+export function fromCreditOf(
+  rows: readonly LineRow[],
+  owed: ReadonlyMap<number, number>,
+): { itemId: number; quantity: number }[] {
+  return rows.flatMap((row) => {
+    if (row.itemId === null || row.quantity === null) return [];
+    const quantity = Math.min(owed.get(row.itemId) ?? 0, row.quantity);
+    return quantity > 0 ? [{ itemId: row.itemId, quantity }] : [];
+  });
 }
 
 /** The request lines once every row is complete; the schema has checked that before a submit. */

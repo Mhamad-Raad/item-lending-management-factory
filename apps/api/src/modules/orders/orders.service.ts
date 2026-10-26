@@ -5,7 +5,6 @@ import {
   businessToday,
   dbDateToBusiness,
   formatOrderNumber,
-  toWesternDigits,
   type OrderCreateBody,
   type OrderDetailDto,
   type OrderListItemDto,
@@ -21,7 +20,6 @@ import { Clock } from '../../common/clock';
 import { ApiError } from '../../common/errors/api-error';
 import { assertDateRange, assertNotInFuture, businessDateFilter } from '../../common/utils/dates';
 import { toDbMoney, toSafeMoney } from '../../common/utils/money';
-import { escapeLikePattern } from '../../common/utils/search';
 import { parseSort } from '../../common/utils/sort';
 import { pageArgs, toPage } from '../../common/utils/pagination';
 import type { Customer, Driver, LedgerEntry, Prisma } from '../../generated/prisma/client';
@@ -34,8 +32,10 @@ import { IdempotencyService, type IdempotentRequest, type IdempotentResult } fro
 import { ledgerAuditEntry } from '../ledger/ledger.mapper';
 import { MoneyLedger } from '../ledger/money-ledger';
 import { loadReceiptFactory } from '../settings/receipt-factory';
+import { PalletCreditsService } from '../returns/pallet-credits.service';
 import { StockLedger } from '../stock/stock-ledger';
 import { assertCreditAllows, type CreditOverride } from './credit-limit';
+import { orderSearch } from './order-search';
 import {
   assertCustomerActive,
   assertDriverActive,
@@ -46,22 +46,10 @@ import {
   type PricedLine,
 } from './order-rules';
 import { lineCacheSeed, recomputeOrder } from './order-state';
-import { ORDER_LIST_INCLUDE, toOrderListItemDto } from './orders.mapper';
+import { ORDER_LIST_INCLUDE, netFromCredit, toOrderListItemDto } from './orders.mapper';
 import { loadOrderDetail } from './orders.queries';
 
 const SORT_FIELDS = { orderNumber: 'orderNumber', date: 'date', owed: 'owed', outValue: 'outValue' } as const;
-
-/** An order number is at most nine digits here; a longer run of digits can only be a name. */
-const ORDER_NUMBER_QUERY = /^\d{1,9}$/;
-
-/**
- * The order number a search means, if it is one: as the app shows it (`#000123`), or typed in Eastern digits on a
- * Sorani or Arabic keyboard.
- */
-function orderNumberOf(q: string): number | null {
-  const digits = toWesternDigits(q).replace(/^#/, '');
-  return ORDER_NUMBER_QUERY.test(digits) ? Number(digits) : null;
-}
 
 @Injectable()
 export class OrdersService {
@@ -72,6 +60,7 @@ export class OrdersService {
     private readonly idempotency: IdempotencyService,
     private readonly stock: StockLedger,
     private readonly money: MoneyLedger,
+    private readonly credits: PalletCreditsService,
   ) {}
 
   async list(query: OrderListQuery): Promise<PageDto<OrderListItemDto>> {
@@ -105,19 +94,10 @@ export class OrdersService {
     return toPage(rows.map(toOrderListItemDto), query, total);
   }
 
-  /**
-   * The search box (§6.19): the order with that number, or the orders of the customers whose name contains
-   * the text. The matching customers are found first (a few thousand rows at most), so the orders are read
-   * by `order_number` and `customer_id` from their indexes; one condition across the order and its
-   * customer's name could only be answered by reading every order (Q101).
-   */
+  /** The search box (§6.19, `orderSearch`): the order with that number, or the orders of the customers named. */
   private async searchFilter(q: string): Promise<Prisma.OrderWhereInput> {
-    const customers = await this.prisma.customer.findMany({
-      where: { name: { contains: escapeLikePattern(q), mode: 'insensitive' } },
-      select: { id: true },
-    });
-    const byCustomerName: Prisma.OrderWhereInput = { customerId: { in: customers.map((customer) => customer.id) } };
-    const orderNumber = orderNumberOf(q);
+    const { customerIds, orderNumber } = await orderSearch(this.prisma, q);
+    const byCustomerName: Prisma.OrderWhereInput = { customerId: { in: customerIds } };
     return orderNumber === null ? byCustomerName : { OR: [{ orderNumber }, byCustomerName] };
   }
 
@@ -140,7 +120,17 @@ export class OrdersService {
         const { customer, driver } = await this.loadParties(tx, body);
         // Under the customer lock: a same-key submission that committed while this one waited is the answer.
         await replayIfStored(tx);
-        const { lines, depositTotal } = await this.priceLines(tx, body.lines);
+        // Pallets the factory owes the customer go out first, with no deposit; only the rest are lent (Q170).
+        const fromCredit = await this.credits.planOrderUse(tx, customer.id, body.lines);
+        const lent = body.lines.map((line) => ({
+          ...line,
+          quantity: line.quantity - (fromCredit.get(line.itemId) ?? 0),
+        }));
+        // Stock is checked on all that goes out, owed pallets included, so a shortage names the whole count.
+        const priced = await this.priceLines(tx, lent, body.lines);
+        const lines = priced.lines.filter((line) => line.quantity > 0);
+        if (lines.length === 0) throw new ApiError('ORDER_ALL_FROM_CREDIT');
+        const { depositTotal } = priced;
         const override = await assertCreditAllows(tx, customer, depositTotal, body.confirmCreditOverride, actor);
 
         const orderNumber = (await lockOrderCounter(tx)) + 1;
@@ -177,6 +167,7 @@ export class OrdersService {
           })),
           actor.userId,
         );
+        await this.credits.useForOrder(tx, customer.id, order.id, fromCredit, body.date, actor);
         // A cash order is paid at the hand-over: the automatic payment, dated by the order (§4.7.2).
         const payment =
           body.paymentType === 'CASH' && depositTotal > 0
@@ -226,9 +217,14 @@ export class OrdersService {
   private async priceLines(
     tx: Prisma.TransactionClient,
     input: OrderCreateBody['lines'],
+    /** All the order hands over, its pallets owed included (Q170): what is locked and checked against stock. */
+    handedOver: readonly { itemId: number; quantity: number }[] = input,
   ): Promise<{ lines: PricedLine[]; depositTotal: number }> {
     const itemIds = input.map((line) => line.itemId);
-    await lockItems(tx, itemIds);
+    await lockItems(
+      tx,
+      handedOver.map((line) => line.itemId),
+    );
     const items = new Map((await tx.item.findMany({ where: { id: { in: itemIds } } })).map((item) => [item.id, item]));
 
     const lines = input.map((line, index) => {
@@ -238,7 +234,7 @@ export class OrdersService {
     });
     await this.stock.assertAvailable(
       tx,
-      lines.map((line) => ({ itemId: line.itemId, quantity: -line.quantity })),
+      handedOver.map((line) => ({ itemId: line.itemId, quantity: -line.quantity })),
     );
 
     return { lines, depositTotal: depositTotalOf(lines) };
@@ -292,7 +288,12 @@ export class OrdersService {
   async receipt(orderId: number): Promise<ReceiptDto> {
     const order = await this.prisma.order.findUnique({
       where: { id: orderId },
-      include: { customer: true, driver: true, lines: { orderBy: { id: 'asc' }, include: { item: true } } },
+      include: {
+        customer: true,
+        driver: true,
+        lines: { orderBy: { id: 'asc' }, include: { item: true } },
+        palletCredits: { orderBy: { id: 'asc' }, include: { item: { select: { name: true } } } },
+      },
     });
     if (!order) throw new ApiError('ORDER_NOT_FOUND', { orderId });
     if (order.cancelledAt) throw new ApiError('ORDER_CANCELLED', { orderId });
@@ -320,6 +321,11 @@ export class OrdersService {
       returnedDamaged: line.returnedDamaged,
       outQuantity: line.outQuantity,
     }));
+    // Pallets the factory owed, handed over with this order and no deposit (Q170), numbered on from its lines.
+    for (const { first, quantity } of netFromCredit(order.palletCredits)) {
+      rows.push({ kind: 'fromCredit', no: rows.length + 1, itemName: first.item.name, quantity });
+    }
+    const ownRows = rows.length;
     // One row per item and deposit price over all the earlier orders (Q158), in the order each first appears: the
     // same item lent at another price keeps its own row, so every row's out × unit deposit is its total.
     const older = new Map<string, Omit<ReceiptOlderLineDto, 'outValue'>>();
@@ -335,7 +341,7 @@ export class OrdersService {
     [...older.values()].forEach((row, index) => {
       const outValue = assertSafe(row.outQuantity * row.unitDeposit, 'outValue');
       olderOutValue = assertSafe(olderOutValue + outValue, 'olderOutValue');
-      rows.push({ kind: 'older', no: order.lines.length + index + 1, ...row, outValue });
+      rows.push({ kind: 'older', no: ownRows + index + 1, ...row, outValue });
     });
 
     const { layout, rowsPerCopy, chunks } = layoutReceiptRows(rows, (row) => row.kind === 'olderHeading');

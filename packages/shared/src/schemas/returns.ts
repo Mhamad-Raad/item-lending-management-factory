@@ -1,5 +1,17 @@
 import { z } from 'zod';
-import { BusinessDate, Id, Money, NonNegQuantity, optionalText } from './common.js';
+import {
+  BusinessDate,
+  Id,
+  IdParam,
+  Money,
+  NonNegQuantity,
+  Quantity,
+  PageQuery,
+  SearchQuery,
+  dateRange,
+  optionalText,
+  sortParam,
+} from './common.js';
 
 /** One order line of a return (§6.20): pallets accepted back into stock, pallets damaged, and what is refunded for the damaged ones. */
 export const ReturnLineInput = z.strictObject({
@@ -57,5 +69,45 @@ export const CustomerReturnCreateBody = z.strictObject({
       });
     })
     .transform((orders) => orders.filter((order) => order.lines.length > 0)),
+  /**
+   * Pallets of an item beyond everything the customer has out of it (Q170): no deposit, owed to them from now on. An
+   * item named here must come back in full on its orders in this same return.
+   */
+  surplus: z
+    .array(z.strictObject({ itemId: Id, quantity: Quantity }))
+    .max(50)
+    .superRefine((rows, ctx) => {
+      const seen = new Set<number>();
+      rows.forEach((row, index) => {
+        if (seen.has(row.itemId)) {
+          ctx.addIssue({ code: 'custom', path: [index, 'itemId'], params: { code: 'duplicate' } });
+        }
+        seen.add(row.itemId);
+      });
+    })
+    .default([]),
 });
 export type CustomerReturnCreateBody = z.infer<typeof CustomerReturnCreateBody>;
+
+/** Pallets the factory owed a customer, handed back to them (Q170). */
+export const PalletCreditHandBackBody = z.strictObject({
+  itemId: Id,
+  quantity: Quantity,
+  date: BusinessDate,
+  note: optionalText(500),
+});
+export type PalletCreditHandBackBody = z.infer<typeof PalletCreditHandBackBody>;
+
+/** The returns list (Q168): every return, standing or corrected or deleted, newest first. */
+export const ReturnListQuery = z.strictObject({
+  ...PageQuery,
+  customerId: IdParam.optional(),
+  orderId: IdParam.optional(),
+  /** Returns that took back this pallet type. */
+  itemId: IdParam.optional(),
+  ...dateRange,
+  /** All digits: that order number, or a customer whose name contains them; otherwise the customer name. */
+  q: SearchQuery,
+  sort: sortParam(['id', 'date', 'refundDue', 'cashRefund'], '-id'),
+});
+export type ReturnListQuery = z.infer<typeof ReturnListQuery>;

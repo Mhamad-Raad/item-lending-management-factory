@@ -1,4 +1,5 @@
 import {
+  formatNumber,
   hasMoneyReceipt,
   type CustomerHistoryItemDto,
   type LedgerEntryDto,
@@ -6,12 +7,14 @@ import {
   type PageDto,
 } from '@pallet/shared';
 import type { TFunction } from 'i18next';
-import { keepPreviousData, useQuery } from '@tanstack/react-query';
+import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Link } from '@tanstack/react-router';
-import { Ban, History, PackageOpen, Wallet } from 'lucide-react';
+import { Ban, HandHelping, History, PackageOpen, Printer, Wallet } from 'lucide-react';
 import { Undo2 } from '@/components/app/dir-icon';
 import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
+import { toast } from 'sonner';
+import { ConfirmDialog } from '@/components/app/confirm-dialog';
 import { DataTable, type DataColumn } from '@/components/app/data-table';
 import { DateText } from '@/components/app/date-text';
 import { MoneyText } from '@/components/app/money-text';
@@ -20,6 +23,9 @@ import { QuantityText } from '@/components/app/quantity-text';
 import { EmptyState, PageSkeleton, QueryErrorState } from '@/components/app/states';
 import { StatusBadge } from '@/components/app/status-badge';
 import { Badge } from '@/components/ui/badge';
+import { Tip } from '@/components/app/tip';
+import { Button } from '@/components/ui/button';
+import { printHandBackReceipt } from '@/features/receipt/print-receipt';
 import { orderLabel } from '@/features/orders/order-text';
 import { PaymentTypeText } from '@/features/orders/payment-type-text';
 import { RelatedOrders } from '@/features/orders/related-orders';
@@ -27,7 +33,11 @@ import {
   PrintCustomerReturnReceiptButton,
   PrintMoneyReceiptButton,
 } from '@/features/receipt/print-money-receipt-button';
+import { invalidateAfterOrderChange } from '@/features/orders/api';
 import { apiFetch } from '@/lib/api-client';
+import { useCan } from '@/lib/auth';
+import { isolate } from '@/lib/bidi';
+import { handleApiError } from '@/lib/errors';
 import { qk } from '@/lib/query-keys';
 import { cn } from '@/lib/utils';
 
@@ -44,8 +54,9 @@ export function CustomerOrdersTab({ customerId }: { customerId: number }) {
 export function CustomerLedgerTab({ customerId, types }: { customerId: number; types: readonly LedgerEntryType[] }) {
   const { t } = useTranslation();
   const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(25);
   // The API reads a comma list of types (§6.21).
-  const params = { customerId, type: types.join(','), page, pageSize: 25 };
+  const params = { customerId, type: types.join(','), page, pageSize };
   const entries = useQuery({
     queryKey: [...qk.ledger.all(), 'list', params],
     queryFn: () => apiFetch<PageDto<LedgerEntryDto>>('/ledger-entries', { query: params }),
@@ -104,13 +115,17 @@ export function CustomerLedgerTab({ customerId, types }: { customerId: number; t
       page={entries.data.page}
       pageSize={entries.data.pageSize}
       onPageChange={setPage}
+      onPageSizeChange={(size) => {
+        setPageSize(size);
+        setPage(1);
+      }}
       isFetching={entries.isFetching}
       empty={<EmptyState icon={Wallet} title={t('orders.detail.noMoney')} />}
     />
   );
 }
 
-const HISTORY_ICONS = { HANDOVER: PackageOpen, RETURN: Undo2, LEDGER: Wallet } as const;
+const HISTORY_ICONS = { HANDOVER: PackageOpen, RETURN: Undo2, LEDGER: Wallet, PALLET: HandHelping } as const;
 
 /**
  * The customer's timeline (§7.3.12): hand-overs, returns and money rows, newest first, one card each.
@@ -119,7 +134,27 @@ const HISTORY_ICONS = { HANDOVER: PackageOpen, RETURN: Undo2, LEDGER: Wallet } a
 export function CustomerHistoryTab({ customerId }: { customerId: number }) {
   const { t } = useTranslation();
   const [page, setPage] = useState(1);
-  const params = { page, pageSize: 25 };
+  const [pageSize, setPageSize] = useState(25);
+  const params = { page, pageSize };
+  const queryClient = useQueryClient();
+  const canUndo = useCan('returns.create');
+  const [undoing, setUndoing] = useState<Extract<CustomerHistoryItemDto, { kind: 'PALLET' }> | null>(null);
+  // The last one asked about, kept while the dialog animates out, so its text never empties as it closes.
+  const [lastUndoing, setLastUndoing] = useState<Extract<CustomerHistoryItemDto, { kind: 'PALLET' }> | null>(null);
+  if (undoing && undoing !== lastUndoing) setLastUndoing(undoing);
+  const undo = useMutation({
+    mutationFn: (palletCreditId: number) => apiFetch<void>(`/hand-backs/${palletCreditId}/undo`, { method: 'POST' }),
+    onSuccess: () => {
+      setUndoing(null);
+      toast.success(t('customers.palletCredits.undoDone'));
+      void invalidateAfterOrderChange(queryClient);
+    },
+    onError: (error) => {
+      setUndoing(null);
+      void invalidateAfterOrderChange(queryClient);
+      handleApiError(error);
+    },
+  });
   const history = useQuery({
     queryKey: qk.customers.history(customerId, params),
     queryFn: () => apiFetch<PageDto<CustomerHistoryItemDto>>(`/customers/${customerId}/history`, { query: params }),
@@ -135,24 +170,35 @@ export function CustomerHistoryTab({ customerId }: { customerId: number }) {
       <ul aria-label={t('customers.tabs.history')} className="flex flex-col gap-2">
         {history.data.items.map((entry) => {
           const Icon = HISTORY_ICONS[entry.kind];
-          const muted = entry.kind === 'RETURN' ? entry.reversed : entry.kind === 'HANDOVER' ? entry.cancelled : false;
+          // Whatever was undone reads faded: a return reversed, an order cancelled, a give-back undone (Q173).
+          const muted =
+            entry.kind === 'RETURN'
+              ? entry.reversed
+              : entry.kind === 'HANDOVER'
+                ? entry.cancelled
+                : entry.kind === 'PALLET'
+                  ? entry.undone
+                  : false;
           return (
             <li
-              key={`${entry.kind}-${entry.kind === 'HANDOVER' ? entry.orderId : entry.kind === 'RETURN' ? entry.returnId : entry.ledgerEntryId}`}
+              key={`${entry.kind}-${historyKey(entry)}`}
               className={cn('bg-card flex gap-3 rounded-lg border p-3', muted && 'opacity-60')}
             >
               <Icon className="text-muted-foreground mt-0.5 size-5 shrink-0" aria-hidden />
               <div className="flex min-w-0 flex-1 flex-col gap-1">
                 <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
                   <span className="font-medium">{historyTitle(t, entry)}</span>
-                  <Link
-                    to="/orders/$orderId"
-                    params={{ orderId: String(entry.orderId) }}
-                    dir="ltr"
-                    className="text-primary text-sm underline-offset-4 hover:underline"
-                  >
-                    {orderLabel(entry.orderNumber)}
-                  </Link>
+                  {/* A give-back or a return's extra pallets belong to no order (Q170). */}
+                  {entry.orderId !== null && entry.orderNumber !== null ? (
+                    <Link
+                      to="/orders/$orderId"
+                      params={{ orderId: String(entry.orderId) }}
+                      dir="ltr"
+                      className="text-primary text-sm underline-offset-4 hover:underline"
+                    >
+                      {orderLabel(entry.orderNumber)}
+                    </Link>
+                  ) : null}
                   {entry.kind === 'RETURN' && entry.reversed ? (
                     <Badge variant="secondary">
                       <Ban aria-hidden />
@@ -163,6 +209,32 @@ export function CustomerHistoryTab({ customerId }: { customerId: number }) {
                   <span className="text-muted-foreground ms-auto text-sm">
                     <DateText value={entry.date} />
                   </span>
+                  {/* A give-back undone is marked; one standing may be undone, if recorded by mistake (Q173). */}
+                  {entry.kind === 'PALLET' && entry.reason === 'HAND_BACK' && entry.undone ? (
+                    <Badge variant="secondary">
+                      <Ban aria-hidden />
+                      {t('customers.palletCredits.undone')}
+                    </Badge>
+                  ) : null}
+                  {entry.kind === 'PALLET' && entry.reason === 'HAND_BACK' && !entry.undone && canUndo ? (
+                    <Button variant="ghost" size="sm" onClick={() => setUndoing(entry)}>
+                      <Undo2 aria-hidden />
+                      {t('customers.palletCredits.undo')}
+                    </Button>
+                  ) : null}
+                  {/* A give-back prints its paper again (Q172). */}
+                  {entry.kind === 'PALLET' && entry.reason === 'HAND_BACK' ? (
+                    <Tip label={t('orders.detail.printReceipt')}>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        aria-label={t('orders.detail.printReceipt')}
+                        onClick={() => printHandBackReceipt(entry.palletCreditId)}
+                      >
+                        <Printer aria-hidden />
+                      </Button>
+                    </Tip>
+                  ) : null}
                 </div>
                 <HistoryDetail entry={entry} />
               </div>
@@ -175,12 +247,50 @@ export function CustomerHistoryTab({ customerId }: { customerId: number }) {
         pageSize={history.data.pageSize}
         total={history.data.total}
         onPageChange={setPage}
+        onPageSizeChange={(size) => {
+          setPageSize(size);
+          setPage(1);
+        }}
+      />
+      <ConfirmDialog
+        open={undoing !== null}
+        onOpenChange={(open) => {
+          if (!open) setUndoing(null);
+        }}
+        title={t('customers.palletCredits.undoTitle')}
+        description={
+          lastUndoing
+            ? t('customers.palletCredits.undoBody', {
+                quantity: formatNumber(Math.abs(lastUndoing.quantity)),
+                item: isolate(lastUndoing.item.name),
+              })
+            : ''
+        }
+        confirmLabel={t('customers.palletCredits.undo')}
+        pending={undo.isPending}
+        onConfirm={() => {
+          if (undoing) undo.mutate(undoing.palletCreditId);
+        }}
       />
     </div>
   );
 }
 
+function historyKey(entry: CustomerHistoryItemDto): number {
+  switch (entry.kind) {
+    case 'HANDOVER':
+      return entry.orderId;
+    case 'RETURN':
+      return entry.returnId;
+    case 'LEDGER':
+      return entry.ledgerEntryId;
+    case 'PALLET':
+      return entry.palletCreditId;
+  }
+}
+
 function historyTitle(t: TFunction, entry: CustomerHistoryItemDto): string {
+  if (entry.kind === 'PALLET') return t(`enums.palletCreditReason.${entry.reason}`);
   if (entry.kind !== 'LEDGER') return t(`enums.customerHistoryKind.${entry.kind}`);
   return t(`enums.ledgerEntryType.${entry.type}`);
 }
@@ -218,6 +328,16 @@ function HistoryDetail({ entry }: { entry: CustomerHistoryItemDto }) {
             {t('orders.detail.cashRefund')}: <MoneyText value={entry.cashRefund} />
           </span>
         ) : null}
+      </p>
+    );
+  }
+  if (entry.kind === 'PALLET') {
+    return (
+      <p className={line}>
+        <span className="text-foreground font-medium">
+          <QuantityText value={Math.abs(entry.quantity)} /> × <bdi>{entry.item.name}</bdi>
+        </span>
+        {entry.note ? <bdi>{entry.note}</bdi> : null}
       </p>
     );
   }

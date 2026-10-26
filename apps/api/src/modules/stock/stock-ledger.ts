@@ -13,6 +13,7 @@ export type StockMovementInput = { itemId: number; quantity: number } & (
   | { reason: OrderReason; orderId: number }
   | { reason: ReturnReason; orderId: number; returnId: number }
   | { reason: 'MANUAL_ADJUSTMENT'; note: string }
+  | { reason: 'PALLET_CREDIT'; palletCreditId: number }
 );
 
 /**
@@ -46,6 +47,7 @@ export class StockLedger {
         batchId: 'batchId' in movement ? movement.batchId : null,
         orderId: 'orderId' in movement ? movement.orderId : null,
         returnId: 'returnId' in movement ? movement.returnId : null,
+        palletCreditId: 'palletCreditId' in movement ? movement.palletCreditId : null,
         note: 'note' in movement ? movement.note : null,
         createdByUserId: userId,
       })),

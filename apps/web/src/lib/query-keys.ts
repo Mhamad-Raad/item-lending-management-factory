@@ -28,6 +28,10 @@ export const qk = {
     all: () => ['customers'] as const,
     list: (params: Record<string, unknown>) => ['customers', 'list', params] as const,
     detail: (id: number) => ['customers', 'detail', id] as const,
+    /** What the factory owes the customer of each pallet type (Q170). */
+    palletCredits: (id: number) => ['customers', 'pallet-credits', id] as const,
+    /** A give-back's paper (Q172). */
+    handBackReceipt: (id: number) => ['customers', 'hand-back-receipt', id] as const,
     history: (id: number, params: Record<string, unknown>) => ['customers', 'history', id, params] as const,
     phoneCheck: (phone: string, excludeId: number | undefined) =>
       ['customers', 'phoneCheck', phone, excludeId ?? null] as const,
@@ -40,12 +44,16 @@ export const qk = {
     transactionsReceipt: (id: number) => ['orders', 'transactionsReceipt', id] as const,
     /** Under `orders`: every order change can move what a customer still holds (Q156). */
     returnable: (customerId: number) => ['orders', 'returnable', customerId] as const,
+    /** Under `orders`: every return recorded, corrected or deleted changes the returns list (Q168). */
+    returnsList: (params: Record<string, unknown>) => ['orders', 'returns-list', params] as const,
   },
   ledger: {
     all: () => ['ledger'] as const,
     receipt: (id: number) => ['ledger', 'receipt', id] as const,
     /** A customer return's one receipt over its orders (Q161). */
     customerReturnReceipt: (id: number) => ['ledger', 'customer-return-receipt', id] as const,
+    /** One return's paper, when it paid no cash back (Q166). */
+    returnReceipt: (id: number) => ['ledger', 'return-receipt', id] as const,
   },
   drivers: {
     all: () => ['drivers'] as const,

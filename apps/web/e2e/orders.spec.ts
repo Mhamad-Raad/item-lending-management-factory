@@ -97,6 +97,7 @@ const ORDER = {
   lines: [],
   returns: [],
   ledgerEntries: [],
+  fromCredit: [],
   canEditLines: true,
   canCancel: true,
   version: 1,

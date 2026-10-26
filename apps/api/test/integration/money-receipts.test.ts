@@ -88,6 +88,8 @@ describe('payment and refund receipts (Q137)', () => {
       },
       factory: expect.objectContaining({ logoUrl: null }) as unknown,
       customer: { name: customer.name, phone: customer.phone, address: customer.address },
+      // A payment lists no pallets: only a refund's return does (Q167).
+      lines: [],
     });
 
     // A return credits 30,000; the next payment starts from what is left.

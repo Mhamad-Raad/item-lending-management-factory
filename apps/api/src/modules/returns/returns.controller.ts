@@ -1,4 +1,4 @@
-import { Body, Controller, Delete, Get, Headers, HttpCode, Param, Post, Req, Res } from '@nestjs/common';
+import { Body, Controller, Delete, Get, Headers, HttpCode, Param, Post, Query, Req, Res } from '@nestjs/common';
 import {
   CustomerReturnCreateBody,
   type CustomerReturnResultDto,
@@ -6,7 +6,10 @@ import {
   IDEMPOTENCY_HEADER_NAME,
   IDEMPOTENCY_REPLAYED_HEADER,
   IdParam,
+  type PageDto,
   ReturnCreateBody,
+  type ReturnListItemDto,
+  ReturnListQuery,
   ReturnReplaceBody,
   type ReturnResultDto,
 } from '@pallet/shared';
@@ -28,6 +31,12 @@ export class ReturnsController {
     private readonly returns: ReturnsService,
     private readonly idempotency: IdempotencyService,
   ) {}
+
+  @Get('returns')
+  @RequirePermission('orders.view')
+  list(@Query(new ZodValidationPipe(ReturnListQuery)) query: ReturnListQuery): Promise<PageDto<ReturnListItemDto>> {
+    return this.returns.list(query);
+  }
 
   /** Idempotent (§6.7): a replayed answer says so in `Idempotency-Replayed`. */
   @Post('orders/:orderId/returns')

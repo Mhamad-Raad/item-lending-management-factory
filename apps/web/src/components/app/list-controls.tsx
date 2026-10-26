@@ -13,7 +13,16 @@ import { MD_QUERY, useMediaQuery } from '@/hooks/use-media-query';
 import { isRtl, usePreferences } from '@/lib/preferences';
 import { cn } from '@/lib/utils';
 
-export function SearchBox({ value, onChange }: { value: string; onChange: (value: string) => void }) {
+export function SearchBox({
+  value,
+  onChange,
+  className,
+}: {
+  value: string;
+  onChange: (value: string) => void;
+  /** Overrides the width, merged over the default. */
+  className?: string;
+}) {
   const { t } = useTranslation();
   return (
     <Input
@@ -22,7 +31,7 @@ export function SearchBox({ value, onChange }: { value: string; onChange: (value
       value={value}
       maxLength={SEARCH_MAX_LENGTH}
       onChange={(event) => onChange(event.target.value)}
-      className="w-full sm:max-w-xs"
+      className={cn('w-full sm:max-w-xs', className)}
     />
   );
 }

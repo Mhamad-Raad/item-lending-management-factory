@@ -35,6 +35,7 @@ const RETURN: ReturnDto = {
   canReverse: true,
   createdAt: '2026-09-11T08:00:00.000Z',
   createdBy: ORDER.createdBy,
+  customerReturnId: null,
 };
 
 /** A credit order with a manual payment and a return recorded: something to undo on each side. */
@@ -135,10 +136,70 @@ test('Q137: a payment and a refund print their receipt; the rows that undo them 
     ],
   });
 
-  const print = page.getByRole('button', { name: 'Print money receipt' });
+  // The money table's own; the returns table prints its return's (Q166).
+  const print = page.getByRole('table', { name: 'Transactions' }).getByRole('button', { name: 'Print money receipt' });
   await expect(print).toHaveCount(2);
   await Promise.all([page.waitForRequest(/\/api\/ledger-entries\/13\/receipt$/), print.nth(1).click()]);
   expect(context.pages()).toHaveLength(1);
+});
+
+test('Q166: each standing return prints its receipt: the one its saved dialog printed', async ({ page }) => {
+  const refunded: ReturnDto = { ...RETURN, id: 6, cashRefund: 5_000 };
+  const visited: ReturnDto = { ...RETURN, id: 8, cashRefund: 3_000, customerReturnId: 4 };
+  const reversed: ReturnDto = { ...RETURN, id: 7, reversed: true, canReverse: false };
+  await openOrder(page, {
+    ...ACTIVE,
+    returns: [RETURN, refunded, reversed, visited],
+    ledgerEntries: [
+      ...ACTIVE.ledgerEntries,
+      { ...PAYMENT, id: 13, type: 'REFUND', source: 'RETURN_CREATE', amount: 5_000, returnId: 6, canReverse: false },
+      // Part of a customer's return over several orders: its saved dialog printed the visit's one paper (Q161).
+      {
+        ...PAYMENT,
+        id: 15,
+        type: 'REFUND',
+        source: 'RETURN_CREATE',
+        amount: 3_000,
+        returnId: 8,
+        customerReturnId: 4,
+        canReverse: false,
+      },
+    ],
+  });
+  // After the page's own mocks, so this route answers first.
+  const read: string[] = [];
+  await page.route(/\/api\/(orders\/\d+|returns\/\d+|ledger-entries\/\d+|customer-returns\/\d+)\/receipt$/, (route) => {
+    read.push(new URL(route.request().url()).pathname);
+    return route.fulfill({ status: 404, json: {} });
+  });
+  await page.getByText('Show reversed').click();
+
+  const returns = page.getByRole('table', { name: 'Returns' });
+  const rowOf = (id: number) => returns.getByRole('row').filter({ hasText: `#${String(id).padStart(6, '0')}` });
+  // Nothing on a reversed return, as with its other actions (Q66).
+  await expect(rowOf(7).getByRole('button', { name: /^Print/ })).toHaveCount(0);
+  await rowOf(6).getByRole('button', { name: 'Print money receipt' }).click();
+  await expect.poll(() => read).toEqual(['/api/ledger-entries/13/receipt']);
+  // No cash paid back: the return's own paper (Q166). Read afresh: the refused print above has left.
+  await page.reload();
+  await rowOf(5).getByRole('button', { name: 'Print money receipt' }).click();
+  await expect.poll(() => read).toEqual(['/api/ledger-entries/13/receipt', '/api/returns/5/receipt']);
+  await page.reload();
+  // A return of a visit: its own part, and the visit's one paper beside it, as on the returns list.
+  await rowOf(8).getByRole('button', { name: 'Print money receipt' }).click();
+  await expect
+    .poll(() => read)
+    .toEqual(['/api/ledger-entries/13/receipt', '/api/returns/5/receipt', '/api/ledger-entries/15/receipt']);
+  await page.reload();
+  await rowOf(8).getByRole('button', { name: 'Print the combined return receipt' }).click();
+  await expect
+    .poll(() => read)
+    .toEqual([
+      '/api/ledger-entries/13/receipt',
+      '/api/returns/5/receipt',
+      '/api/ledger-entries/15/receipt',
+      '/api/customer-returns/4/receipt',
+    ]);
 });
 
 test('Q137: on a phone, a money card with nothing to offer shows no empty Actions row (Q66)', async ({ page }) => {
@@ -288,7 +349,7 @@ test('returns read as a table: a row per return, its items line by line with the
   await expect(rows).toHaveCount(2);
   // Newest first; each item on its own line, in the same place in every column.
   const newest = rows.first();
-  await expect(newest.getByRole('cell').nth(0)).toContainText('#7');
+  await expect(newest.getByRole('cell').nth(0)).toContainText('#000007');
   await expect(newest.getByRole('cell').nth(1).locator('li')).toHaveText([ITEM_REF.name, 'Half pallet']);
   await expect(newest.getByRole('cell').nth(2).locator('li')).toHaveText(['12', '3']);
   await expect(newest.getByRole('cell').nth(3).locator('li')).toHaveText(['0', '2']);
@@ -311,7 +372,7 @@ test('Q143: buttons, links, menu items and choices show the hand; a disabled but
   await openOrder(page, { ...ACTIVE, returns: [old, replacement] });
   const cursor = (locator: Locator) => locator.evaluate((element) => getComputedStyle(element).cursor);
 
-  expect(await cursor(page.getByRole('button', { name: 'Print receipt' }))).toBe('pointer');
+  expect(await cursor(page.getByRole('button', { name: 'Print receipt' }).first())).toBe('pointer');
   expect(await cursor(page.getByRole('button', { name: 'Delete return' }))).toBe('pointer');
   expect(await cursor(page.getByRole('link', { name: 'Record return' }))).toBe('pointer');
   expect(await cursor(page.getByRole('radio', { name: 'Show reversed' }))).toBe('pointer');
@@ -333,7 +394,7 @@ test('Q143: buttons, links, menu items and choices show the hand; a disabled but
   expect(await probe('false')).toBe('pointer');
   expect(await probe('true')).not.toBe('pointer');
 
-  const print = page.getByRole('button', { name: 'Print receipt' });
+  const print = page.getByRole('button', { name: 'Print receipt' }).first();
   await print.evaluate((element) => element.setAttribute('disabled', ''));
   expect(await cursor(print)).not.toBe('pointer');
 });

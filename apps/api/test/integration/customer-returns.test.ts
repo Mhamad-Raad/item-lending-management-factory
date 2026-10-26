@@ -421,7 +421,7 @@ describe('a customer return across their orders (Q156)', () => {
       expect(rows.items.map((row) => row.customerReturnId)).toEqual([visitOf(result), visitOf(result)]);
     });
 
-    it('has none when no cash went back, and none for a visit that does not exist', async () => {
+    it('prints when no cash went back, its cash 0 (Q166), and none for a visit that does not exist', async () => {
       const lent = await order('LENT', [{ itemId: pallet.id, quantity: 10 }]);
       const other = await order('LENT', [{ itemId: crate.id, quantity: 10 }]);
       const result = (
@@ -431,8 +431,9 @@ describe('a customer return across their orders (Q156)', () => {
         ]).expect(201)
       ).body as CustomerReturnResultDto;
 
-      const none = await receipt(visitOf(result)).expect(409);
-      expect(none.body).toMatchObject({ error: { code: 'CUSTOMER_RETURN_NO_RECEIPT' } });
+      // Owed 10,000 + 5,000; credited 4,000 + 1,000; nothing handed back; still owed 10,000.
+      const paper = (await receipt(visitOf(result)).expect(200)).body as CustomerReturnReceiptDto;
+      expect(paper).toMatchObject({ owedBefore: 15_000, credit: 5_000, amount: 0, owedAfter: 10_000 });
       const missing = await receipt(visitOf(result) + 1).expect(404);
       expect(missing.body).toMatchObject({ error: { code: 'CUSTOMER_RETURN_NOT_FOUND' } });
     });
@@ -451,8 +452,13 @@ describe('a customer return across their orders (Q156)', () => {
           lines: [{ orderLineId: lineOf(cash), acceptedQuantity: 20, damagedQuantity: 0, damagedRefund: 0 }],
         })
         .expect(201);
+      // "With customer" is as printed (Q169), so it moves with the corrections; everything else says what it said.
+      const asRecorded = (paper: CustomerReturnReceiptDto) => ({
+        ...paper,
+        lines: paper.lines.map(({ withCustomer: _withCustomer, ...line }) => line),
+      });
       const partly = (await receipt(visitOf(result)).expect(200)).body as CustomerReturnReceiptDto;
-      expect(partly).toEqual({ ...original, reversedOn: TODAY, allReversed: false });
+      expect(asRecorded(partly)).toEqual({ ...asRecorded(original), reversedOn: TODAY, allReversed: false });
       const replacement = await prisma.palletReturn.findFirstOrThrow({ where: { replaces: { id: first?.returnId } } });
       expect(replacement.customerReturnId).toBeNull();
 
@@ -460,7 +466,7 @@ describe('a customer return across their orders (Q156)', () => {
         await http().delete(`/api/returns/${entry?.returnId}`).set(asUser(admin)).expect(200);
       }
       const reversedAll = (await receipt(visitOf(result)).expect(200)).body as CustomerReturnReceiptDto;
-      expect(reversedAll).toEqual({ ...original, reversedOn: TODAY, allReversed: true });
+      expect(asRecorded(reversedAll)).toEqual({ ...asRecorded(original), reversedOn: TODAY, allReversed: true });
     });
 
     it('is one event on the dashboard, its returns and refunds none of their own', async () => {

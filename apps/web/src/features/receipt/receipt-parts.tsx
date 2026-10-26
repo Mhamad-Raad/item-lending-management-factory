@@ -134,3 +134,31 @@ export function ReceiptPage({ children }: { children: ReactNode }) {
     </div>
   );
 }
+
+/**
+ * The foot of a half-page paper (Q137, Q172): who recorded it and the print date, and the red stamp of a reversal —
+ * a paper of something undone still prints, so history can be shown, but never as standing.
+ */
+export function PaperFooter({
+  recordedBy,
+  printedOn,
+  stamp,
+}: {
+  recordedBy: string;
+  printedOn: string;
+  stamp: string | null;
+}) {
+  return (
+    <div className="block-footer money-footer">
+      <div className="footer-lines">
+        <div className="clamp">
+          {tr('receipt.money.recordedBy')}: <bdi>{recordedBy}</bdi>
+        </div>
+        <div style={{ fontSize: '8.5pt' }}>
+          {tr('receipt.printedOn')}: <span className="num">{formatBusinessDate(printedOn)}</span>
+        </div>
+      </div>
+      {stamp !== null ? <div className="stamp">{stamp}</div> : null}
+    </div>
+  );
+}

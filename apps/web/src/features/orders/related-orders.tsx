@@ -27,7 +27,8 @@ export function RelatedOrders({
   const { t } = useTranslation();
   const [status, setStatus] = useState<Status>(defaultStatus);
   const [page, setPage] = useState(1);
-  const params = { ...filter, status, page, pageSize: 25 };
+  const [pageSize, setPageSize] = useState(25);
+  const params = { ...filter, status, page, pageSize };
   const orders = useQuery(orderListQuery(params));
   const hidden = 'customerId' in filter ? 'customer' : 'driver';
 
@@ -66,6 +67,11 @@ export function RelatedOrders({
           page={orders.data.page}
           pageSize={orders.data.pageSize}
           onPageChange={setPage}
+          // The size picker of the main lists, so the paging reads the same here (it pages from the first record).
+          onPageSizeChange={(size) => {
+            setPageSize(size);
+            setPage(1);
+          }}
           isFetching={orders.isFetching}
           empty={<EmptyState icon={ClipboardList} title={t('orders.list.empty')} />}
         />

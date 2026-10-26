@@ -1,4 +1,11 @@
-import type { CustomerReturnReceiptDto, MoneyReceiptDto, ReceiptDto, TransactionsReceiptDto } from '@pallet/shared';
+import type {
+  CustomerReturnReceiptDto,
+  HandBackReceiptDto,
+  MoneyReceiptDto,
+  ReceiptDto,
+  ReturnReceiptDto,
+  TransactionsReceiptDto,
+} from '@pallet/shared';
 import { useQueryClient, type QueryClient } from '@tanstack/react-query';
 import { useCallback, useEffect, useRef, useState, type CSSProperties, type ReactNode } from 'react';
 import { createPortal } from 'react-dom';
@@ -6,9 +13,17 @@ import { toast } from 'sonner';
 import receiptStyles from '@/features/receipt/receipt.css?inline';
 import i18n from '@/i18n';
 import { handleApiError } from '@/lib/errors';
-import { customerReturnReceiptQuery, moneyReceiptQuery, orderReceiptQuery, transactionsReceiptQuery } from './api';
+import {
+  customerReturnReceiptQuery,
+  handBackReceiptQuery,
+  moneyReceiptQuery,
+  orderReceiptQuery,
+  returnReceiptQuery,
+  transactionsReceiptQuery,
+} from './api';
 import { fontsSettled, useLogoGate, usePrintOnce } from './auto-print';
-import { CustomerReturnReceipt, MoneyReceipt } from './money-receipt';
+import { HandBackReceipt } from './hand-back-receipt';
+import { CustomerReturnReceipt, MoneyReceipt, ReturnReceipt } from './money-receipt';
 import type { Job } from './print-receipt';
 import { Receipt } from './receipt';
 import { TransactionsReceipt } from './transactions-receipt';
@@ -17,6 +32,8 @@ type Paper =
   | { kind: 'order'; data: ReceiptDto }
   | { kind: 'money'; data: MoneyReceiptDto }
   | { kind: 'customer-return'; data: CustomerReturnReceiptDto }
+  | { kind: 'return'; data: ReturnReceiptDto }
+  | { kind: 'hand-back'; data: HandBackReceiptDto }
   | { kind: 'transactions'; data: TransactionsReceiptDto };
 
 /**
@@ -37,6 +54,14 @@ function readPaper(queryClient: QueryClient, job: Job): Promise<Paper> {
       return queryClient
         .fetchQuery({ ...customerReturnReceiptQuery(job.customerReturnId), retry: false })
         .then((data) => ({ kind: 'customer-return', data }));
+    case 'return':
+      return queryClient
+        .fetchQuery({ ...returnReceiptQuery(job.returnId), retry: false })
+        .then((data) => ({ kind: 'return', data }));
+    case 'hand-back':
+      return queryClient
+        .fetchQuery({ ...handBackReceiptQuery(job.palletCreditId), retry: false })
+        .then((data) => ({ kind: 'hand-back', data }));
     case 'transactions':
       return queryClient
         .fetchQuery({ ...transactionsReceiptQuery(job.orderId), retry: false })
@@ -53,6 +78,10 @@ function drawPaper(paper: Paper, onLogoSettled: () => void): ReactNode {
       return <MoneyReceipt receipt={paper.data} onLogoSettled={onLogoSettled} />;
     case 'customer-return':
       return <CustomerReturnReceipt receipt={paper.data} onLogoSettled={onLogoSettled} />;
+    case 'return':
+      return <ReturnReceipt receipt={paper.data} onLogoSettled={onLogoSettled} />;
+    case 'hand-back':
+      return <HandBackReceipt receipt={paper.data} onLogoSettled={onLogoSettled} />;
     case 'transactions':
       return <TransactionsReceipt receipt={paper.data} onLogoSettled={onLogoSettled} />;
   }

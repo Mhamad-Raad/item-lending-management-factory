@@ -20,6 +20,7 @@ const TABLES = [
   'login_throttles',
   'order_counter',
   'order_lines',
+  'pallet_credits',
   'orders',
   'purchase_batches',
   'refresh_tokens',

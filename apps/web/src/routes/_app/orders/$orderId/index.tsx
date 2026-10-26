@@ -24,7 +24,7 @@ import { Card, CardContent } from '@/components/ui/card';
 import { Textarea } from '@/components/ui/textarea';
 import { invalidateAfterOrderChange, invalidateAfterPayment, orderQuery } from '@/features/orders/api';
 import { Tip } from '@/components/app/tip';
-import { OrderLinesTable, OrderMoney, OrderReturns } from '@/features/orders/order-sections';
+import { OrderFromCredit, OrderLinesTable, OrderMoney, OrderReturns } from '@/features/orders/order-sections';
 import { printOrderReceipt } from '@/features/receipt/print-receipt';
 import { orderLabel } from '@/features/orders/order-text';
 import { usePageTitle } from '@/hooks/use-page-title';
@@ -298,8 +298,10 @@ function OrderDetailPage() {
         <h2 className="text-lg font-semibold">{t('orders.lines.title')}</h2>
         <OrderLinesTable order={data} />
       </section>
+      <OrderFromCredit fromCredit={data.fromCredit} />
       <OrderReturns
         returns={data.returns}
+        ledgerEntries={data.ledgerEntries}
         actions={
           cancelled
             ? undefined

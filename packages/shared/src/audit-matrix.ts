@@ -30,6 +30,9 @@ export const AUDIT_MATRIX: Readonly<Record<AuditEntityType, readonly AuditAction
   LEDGER_ENTRY: ['PAYMENT_CREATE', 'PAYMENT_REVERSE', 'REFUND_CREATE', 'REFUND_REVERSE'],
   // One row for a customer's return over several orders, its orders' returns and refunds in it (Q161).
   CUSTOMER_RETURN: ['RETURN_CREATE'],
+  // Q170: pallets owed to the customer by a return on one order (CREATE; a visit's are in its own row), and pallets
+  // the factory owed handed back (HAND_BACK).
+  PALLET_CREDIT: ['CREATE', 'HAND_BACK', 'HAND_BACK_REVERSE'],
 };
 
 /** `audit.summary.<ENTITY>.<ACTION>` of every pair in the matrix. */
@@ -59,6 +62,7 @@ export const AUDIT_ENTITY_VIEW_PERMISSION: Readonly<Record<AuditEntityType, Perm
   RETURN: 'orders.view',
   LEDGER_ENTRY: 'orders.view',
   CUSTOMER_RETURN: 'orders.view',
+  PALLET_CREDIT: 'customers.view',
 };
 
 /** The entity types whose history a reader holding `can` may see, in `AUDIT_ENTITY_TYPES` order. */

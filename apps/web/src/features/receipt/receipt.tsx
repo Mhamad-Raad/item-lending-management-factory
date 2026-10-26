@@ -49,6 +49,23 @@ function Row({ row }: { row: ReceiptRowDto | null }) {
       </tr>
     );
   }
+  if (row?.kind === 'fromCredit') {
+    // Pallets the factory owed them, handed over with no deposit (Q170): they are theirs, so nothing is out.
+    return (
+      <tr>
+        <td className="num num-cell">{row.no}</td>
+        <td className="col-item">
+          <bdi>{row.itemName}</bdi> · {tr('receipt.fromCredit')}
+        </td>
+        <NumberCell text={formatNumber(row.quantity)} fits={FITS.quantity} />
+        <td />
+        <td />
+        <td />
+        <NumberCell text={formatMoney(0)} fits={FITS.unitDeposit} />
+        <NumberCell text={formatMoney(0)} fits={FITS.lineTotal} className="line-total" />
+      </tr>
+    );
+  }
   if (row?.kind === 'older') {
     return (
       <tr className="older">

@@ -24,6 +24,8 @@ describe('visibleAuditEntityTypes (Q73)', () => {
       'SETTINGS',
       'UPLOAD',
       'CUSTOMER_RETURN',
+      // What the factory owes a customer of each pallet type, shown with the customer (Q170).
+      'PALLET_CREDIT',
     ]);
   });
 

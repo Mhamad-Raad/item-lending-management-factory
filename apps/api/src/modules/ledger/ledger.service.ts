@@ -9,6 +9,8 @@ import {
   RECEIPT_LEDGER_ENTRY_TYPES,
   RECEIPT_LINES_PER_HALF,
   type CustomerReturnReceiptDto,
+  type ReturnReceiptDto,
+  type ReturnReceiptLineDto,
   type LedgerEntryDto,
   type LedgerEntryListQuery,
   type MoneyReceiptDto,
@@ -25,6 +27,7 @@ import { pageSqlLimit, toPage } from '../../common/utils/pagination';
 import { Prisma } from '../../generated/prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
 import { loadReceiptFactory } from '../settings/receipt-factory';
+import { openOutByItem } from '../orders/open-out';
 import { USER_REF_SELECT, toUserRef } from '../users/users.mapper';
 import { ledgerRowsOnEffectiveDate, type LedgerRowScope } from './effective-date';
 import { replayOwedBefore } from './owed-before-replay';
@@ -37,6 +40,48 @@ const SORT_COLUMNS = {
   amount: Prisma.sql`entry_amount`,
 } as const;
 
+/** What a return's receipt lists of its lines (Q167), oldest line first. */
+const RECEIPT_LINES_INCLUDE = {
+  orderBy: { id: 'asc' },
+  include: { orderLine: { select: { item: { select: { id: true, name: true } } } } },
+} satisfies Prisma.PalletReturn$linesArgs;
+
+type ReceiptLineRow = Prisma.ReturnLineGetPayload<{ include: (typeof RECEIPT_LINES_INCLUDE)['include'] }>;
+
+/**
+ * A return's lines as its receipt lists them (Q167): one row per pallet type and deposit — over several orders a type
+ * at one deposit is one row, at two deposits two — in the order they first came back.
+ */
+function receiptLines(
+  lines: ReceiptLineRow[],
+  withCustomer: Map<number, number>,
+  extra: Map<number, number>,
+): ReturnReceiptLineDto[] {
+  const extraLeft = new Map(extra);
+  const rows = new Map<string, ReturnReceiptLineDto>();
+  for (const line of lines) {
+    const unitDeposit = toSafeMoney(line.unitDeposit);
+    const { id: itemId, name: itemName } = line.orderLine.item;
+    const key = `${itemId}:${unitDeposit}`;
+    const row = rows.get(key) ?? {
+      itemName,
+      accepted: 0,
+      damaged: 0,
+      unitDeposit,
+      total: 0,
+      withCustomer: withCustomer.get(itemId) ?? 0,
+      // An item's surplus is told once, on its first row (Q170).
+      extra: extraLeft.get(itemId) ?? 0,
+    };
+    extraLeft.delete(itemId);
+    row.accepted += line.acceptedQuantity;
+    row.damaged += line.damagedQuantity;
+    row.total += line.acceptedQuantity * unitDeposit + toSafeMoney(line.damagedRefund);
+    rows.set(key, row);
+  }
+  return [...rows.values()];
+}
+
 /** The money ledger, across orders (§6.21): the order page's and the customer profile's money lists, and receipts. */
 @Injectable()
 export class LedgerService {
@@ -44,6 +89,33 @@ export class LedgerService {
     private readonly prisma: PrismaService,
     private readonly clock: Clock,
   ) {}
+
+  /**
+   * A return's lines for its receipt (Q167), each with how many of its pallet type the customer still holds over all
+   * their orders now, as the hand-over receipt says what is still out when printed (Q134, Q169). A cancelled order's
+   * lines hold nothing (Q39).
+   */
+  private async returnReceiptLines(
+    customerId: number,
+    lines: ReceiptLineRow[],
+    returnIds: number[],
+  ): Promise<ReturnReceiptLineDto[]> {
+    if (lines.length === 0) return [];
+    const [held, surplus] = await Promise.all([
+      openOutByItem(
+        this.prisma,
+        customerId,
+        lines.map((line) => line.orderLine.item.id),
+      ),
+      // What came back beyond what was out, as recorded with the return: a reprint says what the original said (Q170).
+      this.prisma.palletCredit.groupBy({
+        by: ['itemId'],
+        where: { returnId: { in: returnIds }, reason: 'RETURN_SURPLUS' },
+        _sum: { quantity: true },
+      }),
+    ]);
+    return receiptLines(lines, held, new Map(surplus.map((row) => [row.itemId, row._sum.quantity ?? 0])));
+  }
 
   async list(query: LedgerEntryListQuery): Promise<PageDto<LedgerEntryDto>> {
     assertDateRange(query.dateFrom, query.dateTo);
@@ -100,7 +172,7 @@ export class LedgerService {
         include: {
           createdBy: USER_REF_SELECT,
           reversedBy: { select: { date: true } },
-          return: { select: { refundDue: true, owedBefore: true } },
+          return: { select: { refundDue: true, owedBefore: true, lines: RECEIPT_LINES_INCLUDE } },
           order: { include: { customer: true } },
         },
       }),
@@ -152,20 +224,29 @@ export class LedgerService {
       },
       factory,
       customer: { name: order.customer.name, phone: order.customer.phone, address: order.customer.address },
+      lines: await this.returnReceiptLines(
+        order.customerId,
+        entry.return?.lines ?? [],
+        entry.returnId === null ? [] : [entry.returnId],
+      ),
     };
   }
 
   /**
    * The one paper of a customer's return over several orders (Q161): the money receipt's figures summed over its
-   * orders' returns as they were recorded, so a reprint says what the original said. A visit that paid nothing back
-   * has no receipt, as a return without a refund has none (Q137). A return of it corrected or deleted since leaves
-   * the figures and stamps the paper with the latest day one was.
+   * orders' returns as they were recorded, so a reprint says what the original said; a visit that paid nothing back
+   * prints too, its cash 0 (Q166). A return of it corrected or deleted since leaves the figures and stamps the paper
+   * with the latest day one was.
    */
   async customerReturnReceipt(customerReturnId: number): Promise<CustomerReturnReceiptDto> {
     const [visit, factory] = await Promise.all([
       this.prisma.customerReturn.findUnique({
         where: { id: customerReturnId },
-        include: { customer: true, createdBy: USER_REF_SELECT, returns: { orderBy: { id: 'asc' } } },
+        include: {
+          customer: true,
+          createdBy: USER_REF_SELECT,
+          returns: { orderBy: { id: 'asc' }, include: { lines: RECEIPT_LINES_INCLUDE } },
+        },
       }),
       loadReceiptFactory(this.prisma),
     ]);
@@ -174,7 +255,6 @@ export class LedgerService {
     const sum = (pick: (pr: (typeof returns)[number]) => bigint) =>
       returns.reduce((total, pr) => total + toSafeMoney(pick(pr)), 0);
     const amount = sum((pr) => pr.cashRefund);
-    if (amount === 0) throw new ApiError('CUSTOMER_RETURN_NO_RECEIPT', { customerReturnId });
 
     const owedBefore = sum((pr) => pr.owedBefore);
     const credit = sum((pr) => pr.refundDue);
@@ -197,6 +277,58 @@ export class LedgerService {
       allReversed: reversals.length === returns.length,
       factory,
       customer: { name: visit.customer.name, phone: visit.customer.phone, address: visit.customer.address },
+      lines: await this.returnReceiptLines(
+        visit.customerId,
+        returns.flatMap((pr) => pr.lines),
+        returns.map((pr) => pr.id),
+      ),
+    };
+  }
+
+  /**
+   * One return's paper (Q166), the customer return's for that return alone with its order: what a return that paid no
+   * cash back prints, as it has no money receipt. Its figures are the return's as recorded; corrected or deleted
+   * since, the paper is stamped with that day.
+   */
+  async returnReceipt(returnId: number): Promise<ReturnReceiptDto> {
+    const [pr, factory] = await Promise.all([
+      this.prisma.palletReturn.findUnique({
+        where: { id: returnId },
+        include: {
+          createdBy: USER_REF_SELECT,
+          order: { include: { customer: true } },
+          lines: RECEIPT_LINES_INCLUDE,
+        },
+      }),
+      loadReceiptFactory(this.prisma),
+    ]);
+    if (!pr) throw new ApiError('RETURN_NOT_FOUND', { returnId });
+    const { order } = pr;
+    const owedBefore = toSafeMoney(pr.owedBefore);
+    const credit = toSafeMoney(pr.refundDue);
+    const amount = toSafeMoney(pr.cashRefund);
+    return {
+      returnId: pr.id,
+      receiptNumberDisplay: formatOrderNumber(pr.id),
+      date: dbDateToBusiness(pr.date),
+      printedOn: businessToday(this.clock.now()),
+      owedBefore,
+      credit,
+      amount,
+      // What the order still owed after it: max(0, before − credit) (§4.3), the cash being the rest.
+      owedAfter: owedBefore - credit + amount,
+      note: pr.notes,
+      recordedBy: toUserRef(pr.createdBy),
+      reversedOn: pr.reversedAt ? businessToday(pr.reversedAt) : null,
+      order: {
+        id: order.id,
+        orderNumber: order.orderNumber,
+        orderNumberDisplay: formatOrderNumber(order.orderNumber),
+        date: dbDateToBusiness(order.date),
+      },
+      factory,
+      customer: { name: order.customer.name, phone: order.customer.phone, address: order.customer.address },
+      lines: await this.returnReceiptLines(order.customerId, pr.lines, [pr.id]),
     };
   }
 

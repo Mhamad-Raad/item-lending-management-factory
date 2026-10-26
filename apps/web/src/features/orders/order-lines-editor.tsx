@@ -25,6 +25,7 @@ export function OrderLinesEditor({
   available,
   canPrice,
   disabled = false,
+  owed = new Map(),
 }: {
   form: UseFormReturn<OrderFormValues>;
   /** The deposit a row starts from: the item's, or the stored one for a line already on the order. */
@@ -33,6 +34,8 @@ export function OrderLinesEditor({
   available: (itemId: number) => number | undefined;
   canPrice: boolean;
   disabled?: boolean;
+  /** Pallets the factory owes the customer, by item: they go out first, with no deposit (Q170). */
+  owed?: ReadonlyMap<number, number>;
 }) {
   const { t } = useTranslation();
   const { fields, append, remove } = useFieldArray({ control: form.control, name: 'lines' });
@@ -152,7 +155,12 @@ export function OrderLinesEditor({
                 {unitDeposit === undefined || row.quantity === null ? (
                   '—'
                 ) : (
-                  <MoneyText value={row.quantity * unitDeposit} />
+                  <MoneyText
+                    value={
+                      (row.quantity - Math.min(row.itemId === null ? 0 : (owed.get(row.itemId) ?? 0), row.quantity)) *
+                      unitDeposit
+                    }
+                  />
                 )}
               </span>
             </div>

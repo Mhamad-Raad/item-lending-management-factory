@@ -4,6 +4,7 @@ import {
   type CustomerDto,
   type DriverDto,
   type ItemDto,
+  type OrderListItemDto,
   type PageDto,
   type UserListItemDto,
 } from '@pallet/shared';
@@ -13,6 +14,7 @@ import { ChevronsUpDown } from 'lucide-react';
 import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Thumbnail } from '@/components/app/thumbnail';
+import { orderLabel } from '@/features/orders/order-text';
 import { Button } from '@/components/ui/button';
 import { Command, CommandEmpty, CommandInput, CommandItem, CommandList } from '@/components/ui/command';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
@@ -21,7 +23,7 @@ import { apiFetch } from '@/lib/api-client';
 import { qk } from '@/lib/query-keys';
 import { cn } from '@/lib/utils';
 
-export type EntityKind = 'customer' | 'driver' | 'item' | 'user';
+export type EntityKind = 'customer' | 'driver' | 'item' | 'user' | 'order';
 
 interface Option {
   id: number;
@@ -30,8 +32,8 @@ interface Option {
   imageUrl?: string | null;
 }
 
-const PATHS = { customer: '/customers', driver: '/drivers', item: '/items', user: '/users' } as const;
-const KEYS = { customer: qk.customers, driver: qk.drivers, item: qk.items, user: qk.users } as const;
+const PATHS = { customer: '/customers', driver: '/drivers', item: '/items', user: '/users', order: '/orders' } as const;
+const KEYS = { customer: qk.customers, driver: qk.drivers, item: qk.items, user: qk.users, order: qk.orders } as const;
 /** Users are never archived, so their list takes no such filter. */
 const ARCHIVABLE = new Set<EntityKind>(['customer', 'driver', 'item']);
 
@@ -61,6 +63,11 @@ function toOption(kind: EntityKind, row: unknown, t: TFunction): Option {
     case 'user': {
       const user = row as UserListItemDto;
       return { id: user.id, label: user.displayName, detail: user.username };
+    }
+    case 'order': {
+      // A list row or the order's detail: both carry its number, customer and date (Q168).
+      const order = row as Pick<OrderListItemDto, 'id' | 'orderNumber' | 'customer'>;
+      return { id: order.id, label: orderLabel(order.orderNumber), detail: order.customer.name };
     }
   }
 }
@@ -102,7 +109,13 @@ export function EntityCombobox({
   const [search, setSearch] = useState('');
   const q = useDebouncedValue(search, 250).trim() || undefined;
 
-  const params = { q, pageSize: 20, ...(ARCHIVABLE.has(kind) ? { includeArchived } : {}) };
+  // Orders of every status: the list shows only open ones unless told otherwise.
+  const params = {
+    q,
+    pageSize: 20,
+    ...(ARCHIVABLE.has(kind) ? { includeArchived } : {}),
+    ...(kind === 'order' ? { status: 'ALL' } : {}),
+  };
   const matches = useQuery({
     queryKey: KEYS[kind].list(params),
     queryFn: () => apiFetch<PageDto<unknown>>(PATHS[kind], { query: params }),

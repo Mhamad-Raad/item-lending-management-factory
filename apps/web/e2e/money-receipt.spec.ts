@@ -25,6 +25,7 @@ const PAYMENT: MoneyReceiptDto = {
   },
   factory: { name: 'Pallet Factory', phone: '07500000000', address: 'Erbil', logoUrl: null },
   customer: { name: 'Kurdistan Cement', phone: '07501234567', address: 'Erbil' },
+  lines: [],
 };
 
 /** A refund at the largest figures the inputs allow, with a note of the longest length: every row there can be. */

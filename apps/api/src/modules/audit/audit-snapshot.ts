@@ -75,6 +75,22 @@ export const SNAPSHOT_SPECS: Partial<Record<AuditEntityType, SnapshotSpec>> = {
     businessDates: ['date'],
   },
   CUSTOMER_RETURN: { fields: ['id', 'customerId', 'date', 'createdAt'], businessDates: ['date'] },
+  PALLET_CREDIT: {
+    fields: [
+      'id',
+      'customerId',
+      'itemId',
+      'quantity',
+      'reason',
+      'returnId',
+      'orderId',
+      'reversesCreditId',
+      'date',
+      'note',
+      'createdAt',
+    ],
+    businessDates: ['date'],
+  },
   LEDGER_ENTRY: {
     fields: [
       'id',

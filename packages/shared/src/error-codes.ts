@@ -95,7 +95,15 @@ export const ERROR_CODES = {
   RETURN_ALREADY_REVERSED: 409,
   RETURN_DATE_BEFORE_ORDER_DATE: 400,
   CUSTOMER_RETURN_NOT_FOUND: 404,
-  CUSTOMER_RETURN_NO_RECEIPT: 409,
+
+  // Pallet credits (Q170)
+  PALLET_SURPLUS_STILL_OUT: 409,
+  PALLET_CREDIT_GIVEN_BACK: 409,
+  PALLET_CREDIT_INSUFFICIENT: 409,
+  ORDER_ALL_FROM_CREDIT: 409,
+  PALLET_CREDIT_OUTSTANDING: 409,
+  HAND_BACK_NOT_FOUND: 404,
+  HAND_BACK_UNDO_WHILE_OUT: 409,
 
   // Payments and ledger
   PAYMENT_ORDER_NOT_LENT: 409,
@@ -139,6 +147,17 @@ export interface ErrorDetailsByCode {
   PAYMENT_EXCEEDS_OWED: { owed: number; amount: number };
   RETURN_EXCEEDS_OUT: { lines: { orderLineId: number; requested: number; outQuantity: number }[] };
   DAMAGED_REFUND_TOO_HIGH: { orderLineId: number; maximum: number };
+  /** Pallets over what is out of an item the customer still has out elsewhere, or never had (Q170). */
+  PALLET_SURPLUS_STILL_OUT: { itemId: number; outQuantity: number };
+  /** A return whose surplus the factory has given back since: it cannot be corrected or deleted (Q170). */
+  PALLET_CREDIT_GIVEN_BACK: { returnId: number; itemId: number; available: number };
+  /** More given back than the factory owes of an item (Q170). */
+  PALLET_CREDIT_INSUFFICIENT: { itemId: number; available: number };
+  /** Pallets of a type would be out again on an order while the factory still owes the customer some (Q170). */
+  PALLET_CREDIT_OUTSTANDING: { itemId: number; owed: number; outQuantity: number };
+  HAND_BACK_NOT_FOUND: { palletCreditId: number };
+  /** The customer has that type out since: it comes back before the give-back is undone (Q173). */
+  HAND_BACK_UNDO_WHILE_OUT: { itemId: number; outQuantity: number };
   /** The wait the login page names (Q93); `LOGIN_ACCOUNT_THROTTLED` sends the same shape. */
   LOGIN_THROTTLED: { retryAfterSeconds: number; retryAfterMinutes: number };
 }

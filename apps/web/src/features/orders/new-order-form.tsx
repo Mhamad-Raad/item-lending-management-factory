@@ -2,9 +2,11 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import {
   businessToday,
   checkCreditLimit,
+  formatNumber,
   formatOrderNumber,
   type OrderCreateBody,
   type OrderDetailDto,
+  type PalletCreditBalanceDto,
 } from '@pallet/shared';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Banknote, HandCoins, Loader2 } from 'lucide-react';
@@ -23,6 +25,7 @@ import { customerQuery } from '@/features/customers/api';
 import { useFlowMutation } from '@/hooks/use-flow-mutation';
 import { useUnsavedChangesGuard } from '@/hooks/use-unsaved-changes-guard';
 import { apiFetch } from '@/lib/api-client';
+import { isolate } from '@/lib/bidi';
 import { detailsOf, isApiError } from '@/lib/api-error';
 import { useAuth, useCan } from '@/lib/auth';
 import { handleApiError } from '@/lib/errors';
@@ -33,7 +36,7 @@ import { CreditAlert } from './credit-alert';
 import { creditMessageParams, standingCreditRefusal, type CreditExcess, type ServerCreditRefusal } from './order-text';
 import { OrderFormSchema, useOrderItems, type OrderFormValues } from './order-form';
 import { OrderLinesEditor } from './order-lines-editor';
-import { EMPTY_LINE, asOrderLines, depositTotalOf, toRequestLines } from './order-lines';
+import { EMPTY_LINE, asOrderLines, depositTotalOf, fromCreditOf, toRequestLines } from './order-lines';
 import { CreditCheckUnavailable, OrderDateField, OrderDriverField, OrderNotesField } from './order-fields';
 
 /** Daily flow 1 (§7.4.1): a hand-over on one screen, with its totals and the credit rule live. */
@@ -70,7 +73,22 @@ export function NewOrderForm({ initialCustomerId }: { initialCustomerId?: number
   const available = (itemId: number): number | undefined => items.get(itemId)?.quantityOnHand;
   const customer = useQuery({ ...customerQuery(customerId ?? 0), enabled: customerId !== null });
 
-  const depositTotal = depositTotalOf(rows, defaultDeposit);
+  // Pallets the factory owes this customer go out first, with no deposit (Q170). Without the right to read them the
+  // server still applies them; the figures here are then the upper bound.
+  const credits = useQuery({
+    queryKey: qk.customers.palletCredits(customerId ?? 0),
+    queryFn: () => apiFetch<PalletCreditBalanceDto[]>(`/customers/${customerId}/pallet-credits`),
+    enabled: customerId !== null,
+    retry: false,
+  });
+  const owed = new Map((credits.data ?? []).map((credit) => [credit.item.id, credit.quantity]));
+  const fromCredit = fromCreditOf(rows, owed);
+  // Every pallet of the order owed already: the server refuses it (ORDER_ALL_FROM_CREDIT), so it is refused as typed
+  // (Q141) — the pallets are given back from the customer's page instead.
+  const allFromCredit =
+    rows.length > 0 &&
+    rows.every((row) => row.itemId !== null && row.quantity !== null && row.quantity <= (owed.get(row.itemId) ?? 0));
+  const depositTotal = depositTotalOf(rows, defaultDeposit, owed);
   const creditLimit = customer.data?.creditLimit ?? null;
   const currentOutValue = customer.data?.summary.outValue ?? 0;
   const liveCredit = checkCreditLimit({ creditLimit, customerOutValue: currentOutValue, depositDelta: depositTotal });
@@ -168,7 +186,7 @@ export function NewOrderForm({ initialCustomerId }: { initialCustomerId?: number
     <Button
       type={credit && isAdmin ? 'button' : 'submit'}
       form="new-order"
-      disabled={create.isPending || blockedByCredit || overStock}
+      disabled={create.isPending || blockedByCredit || overStock || allFromCredit}
       onClick={credit && isAdmin ? () => void form.handleSubmit(() => setConfirmingOverride(true))() : undefined}
     >
       {create.isPending ? <Loader2 className="size-4 animate-spin" aria-hidden /> : null}
@@ -234,7 +252,13 @@ export function NewOrderForm({ initialCustomerId }: { initialCustomerId?: number
         <Card>
           <CardContent className="flex flex-col gap-4">
             <h2 className="font-semibold">{t('orders.lines.title')}</h2>
-            <OrderLinesEditor form={form} defaultDeposit={defaultDeposit} available={available} canPrice={canPrice} />
+            <OrderLinesEditor
+              form={form}
+              defaultDeposit={defaultDeposit}
+              available={available}
+              canPrice={canPrice}
+              owed={owed}
+            />
           </CardContent>
         </Card>
 
@@ -259,6 +283,23 @@ export function NewOrderForm({ initialCustomerId }: { initialCustomerId?: number
           </div>
           {paymentType ? (
             <p>{t(paymentType === 'CASH' ? 'orders.new.summary.paysNow' : 'orders.new.summary.willOwe')}</p>
+          ) : null}
+          {allFromCredit ? (
+            <p role="alert" className="text-destructive text-sm font-medium">
+              {t('errors.ORDER_ALL_FROM_CREDIT')}
+            </p>
+          ) : null}
+          {fromCredit.length > 0 ? (
+            <p role="status" className="bg-warning/12 text-warning rounded-md p-3 font-semibold dark:bg-warning/20">
+              {t('orders.new.summary.fromCredit', {
+                items: fromCredit
+                  .map(({ itemId, quantity }) => {
+                    const name = (credits.data ?? []).find((credit) => credit.item.id === itemId)?.item.name ?? '';
+                    return `${formatNumber(quantity)} × ${isolate(name)}`;
+                  })
+                  .join(t('common.listSeparator')),
+              })}
+            </p>
           ) : null}
           {customer.data ? (
             <>

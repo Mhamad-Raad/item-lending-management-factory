@@ -18,10 +18,7 @@ function CustomerReturnReceiptPage() {
   const receipt = useQuery(customerReturnReceiptQuery(Number(customerReturnId)));
 
   return (
-    <ReceiptPrintPage
-      query={receipt}
-      refusal={{ code: 'CUSTOMER_RETURN_NO_RECEIPT', message: 'errors.CUSTOMER_RETURN_NO_RECEIPT' }}
-    >
+    <ReceiptPrintPage query={receipt}>
       {(data, onLogoSettled) => <CustomerReturnReceipt receipt={data} onLogoSettled={onLogoSettled} />}
     </ReceiptPrintPage>
   );

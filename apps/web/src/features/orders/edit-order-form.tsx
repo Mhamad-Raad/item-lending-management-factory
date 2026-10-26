@@ -1,5 +1,10 @@
 import { zodResolver } from '@hookform/resolvers/zod';
-import { checkCreditLimit, type OrderDetailDto, type OrderUpdateBody } from '@pallet/shared';
+import {
+  checkCreditLimit,
+  type OrderDetailDto,
+  type OrderUpdateBody,
+  type PalletCreditBalanceDto,
+} from '@pallet/shared';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Loader2 } from 'lucide-react';
 import { useState } from 'react';
@@ -179,11 +184,26 @@ export function EditOrderForm({ order }: { order: OrderDetailDto }) {
     const limit = row.itemId === null ? undefined : available(row.itemId);
     return limit !== undefined && row.quantity !== null && row.quantity > limit;
   });
+  // An edit lends no pallets of a type the factory still owes this customer: only a new order takes them first
+  // (Q170). Refused as typed (Q141), as the server would refuse it (PALLET_CREDIT_OUTSTANDING).
+  const credits = useQuery({
+    queryKey: qk.customers.palletCredits(order.customer.id),
+    queryFn: () => apiFetch<PalletCreditBalanceDto[]>(`/customers/${order.customer.id}/pallet-credits`),
+    retry: false,
+  });
+  const owed = new Map((credits.data ?? []).map((entry) => [entry.item.id, entry.quantity]));
+  const lendsOwed = rows.some(
+    (row) =>
+      row.itemId !== null &&
+      row.quantity !== null &&
+      (owed.get(row.itemId) ?? 0) > 0 &&
+      row.quantity > (stored.get(row.itemId)?.quantity ?? 0),
+  );
   const submitButton = (
     <Button
       type={credit && isAdmin ? 'button' : 'submit'}
       form="edit-order"
-      disabled={save.isPending || !anyChange || (credit !== null && !isAdmin) || overStock}
+      disabled={save.isPending || !anyChange || (credit !== null && !isAdmin) || overStock || lendsOwed}
       onClick={credit && isAdmin ? () => void form.handleSubmit(() => setConfirmingOverride(true))() : undefined}
     >
       {save.isPending ? <Loader2 className="size-4 animate-spin" aria-hidden /> : null}
@@ -253,6 +273,11 @@ export function EditOrderForm({ order }: { order: OrderDetailDto }) {
           </Alert>
         ) : null}
         {credit ? <CreditAlert credit={credit} kind="change" /> : null}
+        {lendsOwed ? (
+          <p role="alert" className="text-destructive text-sm font-medium">
+            {t('errors.PALLET_CREDIT_OUTSTANDING')}
+          </p>
+        ) : null}
       </SummaryPanel>
 
       <ConfirmDialog

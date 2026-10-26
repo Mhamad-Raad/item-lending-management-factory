@@ -6,6 +6,7 @@ import {
   type LedgerEntryDto,
   type MoneyReceiptDto,
   type PageDto,
+  type ReturnReceiptDto,
   type TransactionsReceiptDto,
 } from '@pallet/shared';
 import { RequirePermission } from '../../common/decorators/access.decorators';
@@ -38,6 +39,12 @@ export class LedgerController {
   @RequirePermission('orders.view')
   customerReturnReceipt(@Param('id', new ZodValidationPipe(IdParam)) id: number): Promise<CustomerReturnReceiptDto> {
     return this.ledger.customerReturnReceipt(id);
+  }
+
+  @Get('returns/:id/receipt')
+  @RequirePermission('orders.view')
+  returnReceipt(@Param('id', new ZodValidationPipe(IdParam)) id: number): Promise<ReturnReceiptDto> {
+    return this.ledger.returnReceipt(id);
   }
 
   @Get('orders/:id/transactions-receipt')

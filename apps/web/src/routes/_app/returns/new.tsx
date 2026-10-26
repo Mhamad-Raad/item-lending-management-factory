@@ -1,6 +1,6 @@
 import { useQuery } from '@tanstack/react-query';
 import { Link, createFileRoute, useNavigate } from '@tanstack/react-router';
-import type { CustomerReturnableDto } from '@pallet/shared';
+import type { CustomerReturnableDto, OrderDetailDto } from '@pallet/shared';
 import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { z } from 'zod';
@@ -99,12 +99,16 @@ function CustomerHoldings({ customerId }: { customerId: number }) {
 function ChosenOrder({ orderId, replaceReturnId }: { orderId: number; replaceReturnId?: number }) {
   const { t } = useTranslation();
   const navigate = useNavigate({ from: Route.fullPath });
-  const order = useQuery(orderQuery(orderId));
-  if (order.isPending) return <PageSkeleton rows={3} />;
-  if (order.isError) return <QueryErrorState error={order.error} onRetry={() => void order.refetch()} />;
+  const query = useQuery(orderQuery(orderId));
+  // Once saved, the order stays as it was beneath the saved dialog (Q166), as the customer screen's list does: a
+  // refetch (a print's focus coming back) would otherwise find nothing out, drop the form and its dialog with it.
+  const [held, setHeld] = useState<OrderDetailDto | null>(null);
+  if (query.isPending && !held) return <PageSkeleton rows={3} />;
+  if (query.isError && !held) return <QueryErrorState error={query.error} onRetry={() => void query.refetch()} />;
+  const order = { data: held ?? (query.data as OrderDetailDto) };
 
   const replaced = order.data.returns.find((pr) => pr.id === replaceReturnId);
-  if (replaceReturnId !== undefined && (!replaced || replaced.reversed)) {
+  if (!held && replaceReturnId !== undefined && (!replaced || replaced.reversed)) {
     return (
       <EmptyState
         title={t('returns.new.notReplaceable')}
@@ -118,7 +122,11 @@ function ChosenOrder({ orderId, replaceReturnId }: { orderId: number; replaceRet
       />
     );
   }
-  if (replaceReturnId === undefined && (order.data.cancelledAt !== null || order.data.outQuantityTotal === 0)) {
+  if (
+    !held &&
+    replaceReturnId === undefined &&
+    (order.data.cancelledAt !== null || order.data.outQuantityTotal === 0)
+  ) {
     // Everything came back meanwhile, or reached by Back: there is nothing a return could record.
     return (
       <EmptyState
@@ -146,7 +154,12 @@ function ChosenOrder({ orderId, replaceReturnId }: { orderId: number; replaceRet
         }
       />
       {/* Not keyed by version: a reload after a refusal keeps the typed rows and their errors. */}
-      <ReturnForm key={replaceReturnId ?? 'new'} order={order.data} replaceReturnId={replaceReturnId} />
+      <ReturnForm
+        key={replaceReturnId ?? 'new'}
+        order={order.data}
+        replaceReturnId={replaceReturnId}
+        onSaved={() => setHeld(order.data)}
+      />
     </div>
   );
 }

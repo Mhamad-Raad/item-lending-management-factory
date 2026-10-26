@@ -20,6 +20,7 @@ import { pickSnapshot } from '../audit/audit-snapshot';
 import { AuditService } from '../audit/audit.service';
 import { ledgerAuditEntry } from '../ledger/ledger.mapper';
 import { MoneyLedger } from '../ledger/money-ledger';
+import { PalletCreditsService } from '../returns/pallet-credits.service';
 import { StockLedger } from '../stock/stock-ledger';
 import { assertCreditAllows, type CreditOverride } from './credit-limit';
 import { cancelledMark, lineCacheSeed, recomputeOrder } from './order-state';
@@ -60,6 +61,7 @@ export class OrderChangesService {
     private readonly audit: AuditService,
     private readonly stock: StockLedger,
     private readonly money: MoneyLedger,
+    private readonly credits: PalletCreditsService,
   ) {}
 
   update(orderId: number, body: OrderUpdateBody, actor: AuthContext): Promise<OrderDetailDto> {
@@ -67,8 +69,10 @@ export class OrderChangesService {
     if (body.date !== undefined) assertNotInFuture(this.clock, body.date, 'date');
 
     return runInTransaction(this.prisma, async (tx) => {
+      // Pallets it took of what was owed (Q170) are locked with its lines, in one sorted pass (§6.6).
+      const creditItems = body.lines ? await this.credits.orderCreditItemIds(tx, orderId) : [];
       const order = await this.lockChain(tx, orderId, {
-        items: body.lines ? body.lines.map((line) => line.itemId) : 'none',
+        items: body.lines ? [...body.lines.map((line) => line.itemId), ...creditItems] : 'none',
       });
       assertVersion(order.version, body.version);
       if (order.cancelledAt) throw new ApiError('ORDER_CANCELLED', { orderId });
@@ -119,6 +123,18 @@ export class OrderChangesService {
         },
       });
       await recomputeOrder(tx, order.id, { bumpVersion: true });
+      if (lines && body.lines) {
+        // A type taken off the order never went out, its pallets owed included: those are owed again (Q170). Only a type
+        // that had a line can be taken off — one wholly given from what was owed has none, and an edit cannot name it.
+        // And no edit may put out a type the factory still owes this customer.
+        const kept = new Set(body.lines.map((line) => line.itemId));
+        const hadLine = new Set(order.lines.map((line) => line.itemId));
+        const dropped = creditItems.filter((itemId) => hadLine.has(itemId) && !kept.has(itemId));
+        if (dropped.length > 0) {
+          await this.credits.reverseForOrder(tx, order, businessToday(this.clock.now()), actor, dropped);
+        }
+        await this.credits.assertNotOwedWhileOut(tx, order.customerId, [...kept, ...dropped]);
+      }
 
       const changed: string[] = [...fields, ...(lines ? ['lines'] : [])];
       const before = { ...stored, lines: lines?.oldLines };
@@ -155,7 +171,10 @@ export class OrderChangesService {
   /** A cancelled order keeps its number; its pallets come back and a cash payment is reversed (§4.8.3). */
   cancel(orderId: number, version: number, actor: AuthContext): Promise<OrderDetailDto> {
     return runInTransaction(this.prisma, async (tx) => {
-      const order = await this.lockChain(tx, orderId, { items: 'own' });
+      // The items it took of what was owed are locked with its own, in one sorted pass (§6.6, Q170): they are written
+      // only under the customer's lock, which a cancel already racing this one holds, so reading them first is safe.
+      const creditItems = await this.credits.orderCreditItemIds(tx, orderId);
+      const order = await this.lockChain(tx, orderId, { items: creditItems });
       assertVersion(order.version, version);
       if (order.cancelledAt) throw new ApiError('ORDER_CANCELLED', { orderId });
       assertNoActivity(orderActivity(order));
@@ -170,6 +189,9 @@ export class OrderChangesService {
         })),
         actor.userId,
       );
+      // What it took of the pallets the factory owed is owed again (Q170) — as before the order, whatever the customer
+      // was lent since: a cancel puts back what was, so it is never refused for that.
+      await this.credits.reverseForOrder(tx, order, businessToday(this.clock.now()), actor);
       const payment = standingAutomaticPayment(order);
       const reversal = payment
         ? await this.money.record(

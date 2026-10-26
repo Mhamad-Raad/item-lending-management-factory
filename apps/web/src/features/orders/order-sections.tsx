@@ -1,4 +1,10 @@
-import { hasMoneyReceipt, type LedgerEntryDto, type OrderDetailDto, type ReturnDto } from '@pallet/shared';
+import {
+  formatOrderNumber,
+  hasMoneyReceipt,
+  type LedgerEntryDto,
+  type OrderDetailDto,
+  type ReturnDto,
+} from '@pallet/shared';
 import { ArrowDownLeft, ArrowUpRight, Ban, Printer, Trash2 } from 'lucide-react';
 import { Undo2 } from '@/components/app/dir-icon';
 import { useState } from 'react';
@@ -14,8 +20,10 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Tip } from '@/components/app/tip';
 import { printTransactionsReceipt } from '@/features/receipt/print-receipt';
+import { isStandingRefundOf } from '@/features/returns/return-math';
 import {
   PrintCustomerReturnReceiptButton,
+  PrintReturnButtons,
   PrintMoneyReceiptButton,
 } from '@/features/receipt/print-money-receipt-button';
 import { scrollToAnchor } from '@/lib/scroll-to-anchor';
@@ -124,20 +132,22 @@ function ReturnLines({
 
 /**
  * The order's returns as a table, newest first; reversed ones only when asked for (§7.3.6). Each return is a
- * row whose item, accepted and damaged cells list its items line by line. A standing return offers its edit
- * and delete when `actions` allows them (Q54); a corrected one links to the return that replaced it.
+ * row whose item, accepted and damaged cells list its items line by line. A standing return prints its receipt
+ * (Q166) and offers its edit and delete when `actions` allows them (Q54); a corrected one links to the return that
+ * replaced it.
  */
 export function OrderReturns({
   returns,
+  ledgerEntries,
   actions,
 }: {
   returns: ReturnDto[];
+  ledgerEntries: LedgerEntryDto[];
   actions?: { edit?: (pr: ReturnDto) => React.ReactNode; onDelete?: (pr: ReturnDto) => void };
 }) {
   const { t } = useTranslation();
   const [showReversed, setShowReversed] = useState(false);
   const visible = [...returns].reverse().filter((pr) => showReversed || !pr.reversed);
-  const hasActions = Boolean(actions?.edit || actions?.onDelete);
   // Most returns refund nothing for damage: the column shows only when one of them does — any of them, so
   // "Show reversed" never adds or takes away a column.
   const hasDamagedRefund = returns.some((pr) => pr.lines.some((line) => line.damagedRefund > 0));
@@ -149,7 +159,7 @@ export function OrderReturns({
       cell: (pr) => (
         <span className="flex flex-wrap items-center gap-2">
           <span dir="ltr" className="text-muted-foreground">
-            #{pr.id}
+            #{formatOrderNumber(pr.id)}
           </span>
           <DateText value={pr.date} />
           {pr.reversed ? (
@@ -286,36 +296,33 @@ export function OrderReturns({
       wrap: true,
       mobile: 'footer',
     },
-    ...(hasActions
-      ? [
-          {
-            id: 'actions',
-            header: 'common.actions.title',
-            align: 'end',
-            mobile: 'actions',
-            // Nothing on a reversed return, so its card shows no empty "Actions" (Q66).
-            cell: (pr: ReturnDto) =>
-              pr.reversed ? null : (
-                <div className="flex items-center justify-end gap-1">
-                  {actions?.edit?.(pr)}
-                  {actions?.onDelete ? (
-                    <Tip label={t('orders.detail.deleteReturn')}>
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        aria-label={t('orders.detail.deleteReturn')}
-                        className="text-muted-foreground hover:text-destructive"
-                        onClick={() => actions.onDelete?.(pr)}
-                      >
-                        <Trash2 aria-hidden />
-                      </Button>
-                    </Tip>
-                  ) : null}
-                </div>
-              ),
-          } satisfies DataColumn<ReturnDto>,
-        ]
-      : []),
+    {
+      id: 'actions',
+      header: 'common.actions.title',
+      align: 'end',
+      mobile: 'actions',
+      // Nothing on a reversed return, so its card shows no empty "Actions" (Q66).
+      cell: (pr: ReturnDto) =>
+        pr.reversed ? null : (
+          <div className="flex items-center justify-end gap-1">
+            <PrintReturnReceiptButton pr={pr} ledgerEntries={ledgerEntries} />
+            {actions?.edit?.(pr)}
+            {actions?.onDelete ? (
+              <Tip label={t('orders.detail.deleteReturn')}>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  aria-label={t('orders.detail.deleteReturn')}
+                  className="text-muted-foreground hover:text-destructive"
+                  onClick={() => actions.onDelete?.(pr)}
+                >
+                  <Trash2 aria-hidden />
+                </Button>
+              </Tip>
+            ) : null}
+          </div>
+        ),
+    },
   ];
 
   return (
@@ -446,6 +453,59 @@ export function OrderMoney({
         rows={entries}
         rowKey={(entry) => entry.id}
         empty={<EmptyState title={t('orders.detail.noMoney')} />}
+      />
+    </section>
+  );
+}
+
+/** A standing return's printers (`PrintReturnButtons`), its refund found among the order's money rows. */
+function PrintReturnReceiptButton({ pr, ledgerEntries }: { pr: ReturnDto; ledgerEntries: LedgerEntryDto[] }) {
+  const refund = ledgerEntries.find((entry) => isStandingRefundOf(entry, pr.id));
+  return (
+    <PrintReturnButtons returnId={pr.id} refundEntryId={refund?.id ?? null} customerReturnId={pr.customerReturnId} />
+  );
+}
+
+/**
+ * Pallets the factory owed the customer, handed over with this order and no deposit (Q170): a note in the warning's
+ * colour saying so, and a table of them like the order's own lines. Nothing while there are none.
+ */
+export function OrderFromCredit({ fromCredit }: { fromCredit: OrderDetailDto['fromCredit'] }) {
+  const { t } = useTranslation();
+  // Read with `??`: an order answer stored before Q170 and replayed for its key has no such field.
+  const rows = fromCredit ?? [];
+  if (rows.length === 0) return null;
+  const columns: DataColumn<OrderDetailDto['fromCredit'][number]>[] = [
+    {
+      id: 'item',
+      header: 'orders.lines.item',
+      cell: (entry) => (
+        <span className="flex items-center gap-3">
+          <Thumbnail url={entry.item.imageUrl} />
+          <ItemName name={entry.item.name} />
+        </span>
+      ),
+      wrap: true,
+    },
+    {
+      id: 'quantity',
+      header: 'orders.lines.quantity',
+      cell: (entry) => <QuantityText value={entry.quantity} />,
+      align: 'end',
+    },
+  ];
+  return (
+    <section className="flex flex-col gap-3">
+      <h2 className="text-lg font-semibold">{t('orders.detail.fromCreditTitle')}</h2>
+      <p className="bg-warning/12 text-warning rounded-md p-3 text-sm font-semibold dark:bg-warning/20">
+        {t('orders.detail.fromCreditNote')}
+      </p>
+      <DataTable
+        label={t('orders.detail.fromCreditTitle')}
+        columns={columns}
+        rows={rows}
+        rowKey={(entry) => entry.item.id}
+        empty={null}
       />
     </section>
   );

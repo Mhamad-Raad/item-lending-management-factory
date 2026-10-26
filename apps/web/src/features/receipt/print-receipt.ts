@@ -6,7 +6,9 @@
 type JobRequest =
   | { kind: 'order' | 'transactions'; orderId: number }
   | { kind: 'money'; entryId: number }
-  | { kind: 'customer-return'; customerReturnId: number };
+  | { kind: 'customer-return'; customerReturnId: number }
+  | { kind: 'return'; returnId: number }
+  | { kind: 'hand-back'; palletCreditId: number };
 /** `seq` tells two presses for the same receipt apart: each one prints. */
 export type Job = JobRequest & { seq: number };
 
@@ -52,7 +54,26 @@ export function printCustomerReturnReceipt(customerReturnId: number): void {
   start({ kind: 'customer-return', customerReturnId });
 }
 
+/** One return's paper, for a return that paid no cash back (Q166), printed in place (Q140). */
+export function printReturnReceipt(returnId: number): void {
+  start({ kind: 'return', returnId });
+}
+
+/**
+ * A return's own receipt (Q166), the one rule of every place that prints it: its refund's money receipt when it paid
+ * cash back (Q137), else its own paper in the same design.
+ */
+export function printReturnPaper(returnId: number, refundEntryId: number | null): void {
+  if (refundEntryId === null) printReturnReceipt(returnId);
+  else printMoneyReceipt(refundEntryId);
+}
+
 /** Every payment and refund of an order on one paper (§7.16.7, Q139), printed in place (Q140). */
 export function printTransactionsReceipt(orderId: number): void {
   start({ kind: 'transactions', orderId });
+}
+
+/** Pallets the factory owed, given back (Q172), printed in place (Q140). */
+export function printHandBackReceipt(palletCreditId: number): void {
+  start({ kind: 'hand-back', palletCreditId });
 }

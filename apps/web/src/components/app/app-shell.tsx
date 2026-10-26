@@ -65,8 +65,9 @@ const NAV_GROUPS: NavGroup[] = [
     items: [
       { to: '/', labelKey: 'nav.dashboard', icon: LayoutDashboard },
       { to: '/orders', labelKey: 'nav.orders', icon: ClipboardList, permission: 'orders.view' },
-      // Straight to the customer's pallets, from wherever the clerk is (Q157); its arrow mirrors right to left.
-      { to: '/returns/new', labelKey: 'nav.returns', icon: Undo2, permission: 'returns.create' },
+      // The returns list, its Record return button on top (Q168; Q157 went straight to the form); its arrow mirrors.
+      // Who may record a return but not see orders goes on to the form (the route redirects), as Q157 had it.
+      { to: '/returns', labelKey: 'nav.returns', icon: Undo2, anyPermission: ['orders.view', 'returns.create'] },
     ],
   },
   {

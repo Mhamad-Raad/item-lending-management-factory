@@ -3,7 +3,7 @@ import { useCallback } from 'react';
 import { useSearchInput } from './use-search-input';
 
 /** The list routes this hook serves. */
-type ListRoutePath = '/customers/' | '/drivers/' | '/items/' | '/orders/' | '/users/' | '/history';
+type ListRoutePath = '/customers/' | '/drivers/' | '/items/' | '/orders/' | '/returns/' | '/users/' | '/history';
 
 /** The search params every paginated list keeps in the URL (`listSearch` in `lib/list-search.ts`). */
 interface ListSearchParams {

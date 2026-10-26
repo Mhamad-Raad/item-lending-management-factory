@@ -342,7 +342,9 @@
       "SETTINGS_CHANGE": "Settings changed",
       "USER_DEACTIVATE": "User deactivated",
       "USER_ACTIVATE": "User activated",
-      "UPLOAD_CREATE": "Image uploaded"
+      "UPLOAD_CREATE": "Image uploaded",
+      "HAND_BACK": "Given back",
+      "HAND_BACK_REVERSE": "Give-back undone"
     },
     "auditEntityType": {
       "USER": "User",
@@ -356,7 +358,8 @@
       "LEDGER_ENTRY": "Money entry",
       "SETTINGS": "Settings",
       "UPLOAD": "Image",
-      "CUSTOMER_RETURN": "Customer return"
+      "CUSTOMER_RETURN": "Customer return",
+      "PALLET_CREDIT": "Pallets we owe"
     },
     "uploadKind": {
       "ITEM_IMAGE": "Item image",
@@ -372,7 +375,8 @@
       "RETURN_ACCEPTED": "Returned",
       "RETURN_EDIT": "Return corrected",
       "RETURN_DELETE": "Return deleted",
-      "MANUAL_ADJUSTMENT": "Manual adjustment"
+      "MANUAL_ADJUSTMENT": "Manual adjustment",
+      "PALLET_CREDIT": "Owed to or given back to a customer"
     },
     "paymentType": {
       "CASH": "Cash",
@@ -410,7 +414,16 @@
     "customerHistoryKind": {
       "HANDOVER": "Hand-over",
       "RETURN": "Return",
-      "LEDGER": "Payment or refund"
+      "LEDGER": "Payment or refund",
+      "PALLET": "Pallets we owe"
+    },
+    "palletCreditReason": {
+      "RETURN_SURPLUS": "Extra pallets came back — we owe them",
+      "RETURN_REVERSAL": "Extra pallets taken back (return changed)",
+      "HAND_BACK": "Pallets given back",
+      "ORDER_USE": "Owed pallets went out with an order",
+      "ORDER_CANCEL": "Owed again (order cancelled or changed)",
+      "HAND_BACK_REVERSAL": "Give-back undone"
     }
   },
   "audit": {
@@ -478,6 +491,11 @@
       },
       "CUSTOMER_RETURN": {
         "RETURN_CREATE": "Return of {{customerName}} (orders: {{orders}}): {{accepted}} accepted, {{damaged}} damaged, credit {{refundDue}}, cash refund {{cashRefund}}"
+      },
+      "PALLET_CREDIT": {
+        "CREATE": "{{customerName}} brought back more than they had out: we now owe them {{quantity}} × {{itemName}}",
+        "HAND_BACK": "Gave {{quantity}} × {{itemName}} back to {{customerName}}",
+        "HAND_BACK_REVERSE": "Undid giving {{quantity}} × {{itemName}} back to {{customerName}}: owed again"
       }
     }
   },
@@ -644,7 +662,13 @@
     "UNKNOWN_ERROR": "Something went wrong. Try again.",
     "ORDER_LINE_HAS_RETURNS": "This line has returns in its history and cannot be removed; lower its quantity instead",
     "CUSTOMER_RETURN_NOT_FOUND": "Customer return not found",
-    "CUSTOMER_RETURN_NO_RECEIPT": "No cash was paid back on this return, so it has no receipt"
+    "PALLET_SURPLUS_STILL_OUT": "More than is out can come back only once every pallet of that type is back",
+    "PALLET_CREDIT_GIVEN_BACK": "Extra pallets of this return were given back already; it can no longer be corrected or deleted",
+    "PALLET_CREDIT_INSUFFICIENT": "The factory does not owe them that many",
+    "ORDER_ALL_FROM_CREDIT": "All of these come from pallets we owe them — use Give back on the customer page instead",
+    "PALLET_CREDIT_OUTSTANDING": "The factory still owes this customer pallets of that type; give them back first",
+    "HAND_BACK_NOT_FOUND": "Give-back not found",
+    "HAND_BACK_UNDO_WHILE_OUT": "They have pallets of this type out since: record their return first, then undo"
   },
   "settings": {
     "title": "Settings",
@@ -886,6 +910,21 @@
       "deleted": "Deleted",
       "corrected": "Corrected",
       "pallets": "Pallets"
+    },
+    "palletCredits": {
+      "title": "Pallets we owe them",
+      "giveBack": "Give back",
+      "dialogTitle": "Give pallets back",
+      "dialogDescription": "We owe them {{quantity}} × {{item}}.",
+      "quantity": "How many",
+      "done": "Pallets given back",
+      "overOwed": "At most {{quantity}}",
+      "owed": "Owed",
+      "undo": "Undo",
+      "undone": "Undone",
+      "undoTitle": "Undo this give-back?",
+      "undoBody": "The {{quantity}} × {{item}} are owed to the customer again and come back into stock. Use this only if the give-back was recorded by mistake.",
+      "undoDone": "Give-back undone"
     }
   },
   "drivers": {
@@ -1000,7 +1039,8 @@
         "title": "Summary",
         "paysNow": "The customer pays this now",
         "willOwe": "The customer will owe this",
-        "headroomAfter": "Credit left after"
+        "headroomAfter": "Credit left after",
+        "fromCredit": "From pallets we owe them, no deposit: {{items}}"
       },
       "creditUnavailable": "The customer's credit limit could not be checked here; it is still checked when you save."
     },
@@ -1037,7 +1077,9 @@
       "deletePaymentBody": "Its amount is owed again. The payment stays in the history with its reversal.",
       "deletePaymentNote": "Why (optional)",
       "paymentDeleted": "Payment deleted",
-      "hideReversed": "Hide reversed"
+      "hideReversed": "Hide reversed",
+      "fromCreditTitle": "Given from pallets we owed them",
+      "fromCreditNote": "These went out with no deposit, from the pallets we owed them."
     },
     "money": {
       "date": "Date",
@@ -1128,6 +1170,7 @@
       "recordedBy": "Recorded by",
       "reversed": "Cancelled on {{date}}",
       "customerReceiptNumber": "Return receipt no.",
+      "returnNumber": "Return no.",
       "partlyReversed": "Partly cancelled on {{date}}"
     },
     "transactions": {
@@ -1141,9 +1184,24 @@
       "refunded": "Total paid back",
       "owed": "Owed now"
     },
-    "preparing": "Preparing the receipt…"
+    "preparing": "Preparing the receipt…",
+    "extra": "Extra",
+    "fromCredit": "from pallets we owed",
+    "handBack": {
+      "title": "Pallets given back",
+      "number": "Give-back no.",
+      "owedBefore": "Owed before",
+      "givenBack": "Given back",
+      "owedAfter": "Owed after",
+      "undone": "Undone {{date}}"
+    }
   },
   "returns": {
+    "list": {
+      "title": "Returns",
+      "empty": "No returns here yet",
+      "number": "Return no."
+    },
     "fields": {
       "accepted": "Accepted",
       "damaged": "Damaged",
@@ -1156,8 +1214,6 @@
       "titleReplace": "Correct return",
       "submit": "Record return",
       "submitReplace": "Save the corrected return",
-      "created": "Return recorded on order #{{orderNumber}}",
-      "replaced": "Return corrected on order #{{orderNumber}}",
       "lines": "Pallets back",
       "allAccepted": "All accepted",
       "everythingAccepted": "Everything returned accepted",
@@ -1186,7 +1242,6 @@
       "palletsBack": "Pallets coming back",
       "byOrder": "By order",
       "orderBack": "{{pallets}} back",
-      "created": "Returns recorded on {{orders}} orders",
       "ordersChanged": "This customer's orders changed meanwhile; the list has been reloaded",
       "nothingOut": "This customer has no pallets out",
       "savedTitle": "Return recorded",
@@ -1198,7 +1253,10 @@
       "recheckDone": "I've checked",
       "outByDate": "{{out}} by {{date}}",
       "orderOwes": "owes {{amount}} IQD",
-      "fromOrders": "These pallets come from the orders"
+      "fromOrders": "These pallets come from the orders",
+      "extraWarning": "{{extra}} more than the {{out}} they have out — the factory will owe them {{extra}}",
+      "extraTotal": "The factory will owe them {{extra}} pallets",
+      "savedExtra": "Owed to the customer from now on: {{items}}"
     }
   },
   "reports": {
