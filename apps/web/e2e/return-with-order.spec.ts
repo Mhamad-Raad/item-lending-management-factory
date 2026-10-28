@@ -38,10 +38,10 @@ const HOLDINGS: CustomerReturnableDto = {
   ],
 };
 
-async function mockFromOrder(page: Page, order: OrderDetailDto = ORDER) {
+async function mockFromOrder(page: Page, order: OrderDetailDto = ORDER, holdings: CustomerReturnableDto = HOLDINGS) {
   await mockApi(page, ADMIN, 'en');
   await page.route(/\/api\/orders\/9$/, (route) => route.fulfill({ json: order }));
-  await page.route(/\/api\/customers\/3\/returnable$/, (route) => route.fulfill({ json: HOLDINGS }));
+  await page.route(/\/api\/customers\/3\/returnable$/, (route) => route.fulfill({ json: holdings }));
   const sent: unknown[] = [];
   await page.route(/\/api\/customers\/3\/returns$/, (route) => {
     sent.push(route.request().postDataJSON());
@@ -79,9 +79,13 @@ test('Q175: a return from an order lists everything the customer holds, remember
   await page.getByRole('link', { name: 'Record return' }).click();
   await expect(page).toHaveURL(/\/returns\/new\?orderId=9$/);
   await expect(page.getByText(/Returning with order .*#123456/)).toBeVisible();
-  // Every order's pallets, the older order's too.
-  await expect(row(page, 'Euro pallet')).toBeVisible();
-  await expect(row(page, 'Crate')).toBeVisible();
+  // Every order's pallets, the older order's too: this order's crates outlined under its number first (Q176).
+  const own = page.getByRole('region', { name: /On order .*#123456/ });
+  await expect(own).toContainText('Counts go to the oldest order first');
+  await expect(own.getByRole('listitem').filter({ hasText: 'Crate' })).toBeVisible();
+  await expect(own.getByRole('listitem').filter({ hasText: 'Euro pallet' })).toHaveCount(0);
+  const others = page.getByRole('region', { name: 'Other orders' });
+  await expect(others.getByRole('listitem').filter({ hasText: 'Euro pallet' })).toBeVisible();
 
   await row(page, 'Euro pallet').getByRole('button', { name: 'All', exact: true }).click();
   await page.getByRole('complementary', { name: 'Summary' }).getByRole('button', { name: 'Record return' }).click();
@@ -175,4 +179,29 @@ test('Q175: the order re-dated after the return is read again, and its date refu
   await save.click();
   await expect(page.getByRole('alert').filter({ hasText: 'The return is dated before the order' })).toBeVisible();
   await expect(save).toBeDisabled();
+});
+
+test('Q176: an item on this order and an older one says how many are on this order', async ({ page }) => {
+  const [older, own] = HOLDINGS.orders;
+  const euro = line(21, 'Euro pallet', 10);
+  await mockFromOrder(page, ORDER, {
+    ...HOLDINGS,
+    orders: [
+      { ...older!, outQuantityTotal: 10, lines: [euro] },
+      { ...own!, outQuantityTotal: 6, lines: [{ ...line(23, 'Euro pallet', 6), item: euro.item }] },
+    ],
+  });
+  await page.goto('/returns/new?orderId=9');
+  const region = page.getByRole('region', { name: /On order .*#123456/ });
+  await expect(region.getByRole('listitem').filter({ hasText: 'Euro pallet' })).toContainText(/6.? on this order/);
+  await expect(page.getByRole('region', { name: 'Other orders' })).toHaveCount(0);
+});
+
+test('Q176: an order with nothing out says so above the other orders', async ({ page }) => {
+  await mockFromOrder(page, ORDER, { ...HOLDINGS, orders: [HOLDINGS.orders[0]!] });
+  await page.goto('/returns/new?orderId=9');
+  await expect(page.getByRole('region', { name: /On order .*#123456/ })).toContainText(
+    'Nothing is out on this order any more.',
+  );
+  await expect(page.getByRole('region', { name: 'Other orders' }).getByRole('listitem')).toHaveCount(1);
 });

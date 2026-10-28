@@ -48,7 +48,7 @@ Pallet System: a web app for a single pallet factory in Iraq (Kurdistan Region) 
   owes a customer, given back or used by their next order (Q170); customer tabs keep the scroll (Q171). 10u: a
   return edited from the returns list, a visit whole (Q174). Then (2026-10-28) 10v: a return recorded from an order
   lists everything the customer owes, and the order's receipt lists other orders' pallets that came back with it,
-  theirs saying with which order (Q175).
+  theirs saying with which order (Q175), that order's own items outlined on the screen (Q176).
 - **The maintainer's one page** is "Maintainer quick start" in `README.md` (run, test, deploy, restore, recover,
   traps, yearly checklist). Keep it true when a command or a runbook changes.
 - **Open, needing people rather than code:** the E6 screenshot baselines (rendered by CI, then committed; after

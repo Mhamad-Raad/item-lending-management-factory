@@ -1275,7 +1275,12 @@
     },
     "withOrder": {
       "banner": "إرجاع مع الطلب {{orderNumber}}: كل الطبليات لدى الزبون هنا، الطلب الأقدم أولاً.",
-      "tag": "مع الطلب {{orderNumber}}"
+      "tag": "مع الطلب {{orderNumber}}",
+      "onThisOrder": "على الطلب {{orderNumber}}",
+      "otherOrders": "الطلبات الأخرى",
+      "onThisOrderCount": "{{quantity}} على هذا الطلب",
+      "nothingOnThisOrder": "لم يبقَ شيء من هذا الطلب لدى الزبون.",
+      "oldestFirst": "تُحتسب الأعداد على الطلب الأقدم أولاً، وهذا الطلب في دوره."
     }
   },
   "reports": {

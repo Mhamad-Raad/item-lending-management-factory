@@ -143,4 +143,5 @@ The build history that used to sit in `CLAUDE.md` "Status", oldest first, moved 
   and extra pallets already given back stay given back.
 - **10v done** (2026-10-28, Q175): Record return on an order lists everything the customer owes, oldest order first;
   each return remembers the order it was recorded with (`returns.with_order_id`), whose hand-over receipt lists what
-  came back with it, while the other order's receipt and rows say with which order it came back.
+  came back with it, while the other order's receipt and rows say with which order it came back; that order's own
+  items are outlined at the top of the screen (Q176).

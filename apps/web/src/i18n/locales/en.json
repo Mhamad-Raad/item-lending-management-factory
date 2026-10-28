@@ -1275,7 +1275,12 @@
     },
     "withOrder": {
       "banner": "Returning with order {{orderNumber}}: every pallet the customer holds is here, oldest order first.",
-      "tag": "With order {{orderNumber}}"
+      "tag": "With order {{orderNumber}}",
+      "onThisOrder": "On order {{orderNumber}}",
+      "otherOrders": "Other orders",
+      "onThisOrderCount": "{{quantity}} on this order",
+      "nothingOnThisOrder": "Nothing is out on this order any more.",
+      "oldestFirst": "Counts go to the oldest order first, this one in its turn."
     }
   },
   "reports": {

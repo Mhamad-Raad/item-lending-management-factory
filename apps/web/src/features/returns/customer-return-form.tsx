@@ -588,6 +588,234 @@ export function CustomerReturnForm({
     </>
   );
 
+  // How many of each item are out on the order the return is recorded with (Q175, Q176), worked out once a render.
+  const onOrder = new Map(
+    items.map(({ holding }) => [
+      holding.item.id,
+      withOrder
+        ? holding.lines.filter((line) => line.orderId === withOrder.id).reduce((sum, line) => sum + line.outQuantity, 0)
+        : 0,
+    ]),
+  );
+  const onWithOrder = (holding: ItemHolding): number => onOrder.get(holding.item.id) ?? 0;
+  // From an order's page, not on an edit (Q176): that order's items first, outlined under its number, then the rest.
+  // A count is still placed oldest order first, which the outlined card says. Elsewhere one list, as before.
+  const grouped = withOrder !== undefined && !edit;
+  const groups = grouped
+    ? [
+        {
+          id: 'on-this-order',
+          own: true,
+          heading: t('returns.withOrder.onThisOrder', { orderNumber: isolate(orderLabel(withOrder.orderNumber)) }),
+          items: items.filter(({ holding }) => onWithOrder(holding) > 0),
+        },
+        {
+          id: 'other-orders',
+          own: false,
+          heading: t('returns.withOrder.otherOrders'),
+          items: items.filter(({ holding }) => onWithOrder(holding) === 0),
+        },
+      ]
+    : [{ id: 'items', own: false, heading: null, items }];
+  const renderItem = ({
+    holding,
+    key,
+    row,
+    outQuantity,
+    canOwe,
+    extra,
+    overOut,
+    maximum,
+    refundOver,
+    acceptedError,
+    refundError,
+  }: (typeof items)[number]) => {
+    const itemId = holding.item.id;
+    const showDamage = damageOpen.has(itemId) || row.damaged > 0;
+    // Its deposits beside what is out, on the orders the return can take from: one, or each, lowest first.
+    const prices = [
+      ...new Set(holding.lines.filter((line) => !isAfterReturn(line, date)).map((line) => line.unitDeposit)),
+    ].sort((a, b) => a - b);
+    const accepted = (next: number | null): void => {
+      checked(itemId);
+      form.setValue(`rows.${key}.accepted`, next);
+      form.clearErrors(`rows.${key}.accepted`);
+      form.clearErrors('root');
+    };
+    return (
+      <li key={itemId} className="flex flex-col gap-3 py-3">
+        {/* On a phone the damaged toggle shares the item's line and the count takes the width beneath. */}
+        <div className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-3 md:grid-cols-[minmax(0,1fr)_auto_auto]">
+          <div className="flex min-w-0 items-center gap-3">
+            <Thumbnail url={holding.item.imageUrl} size="sm" />
+            <div className="flex min-w-0 flex-col">
+              <ItemName name={holding.item.name} className="font-medium" expandable />
+              <span className="text-muted-foreground text-sm">
+                {t('returns.new.out')}: <QuantityText value={holding.outQuantity} />
+                {/* Of them, on the order it is recorded with, where the item is out on others too (Q175). */}
+                {onWithOrder(holding) > 0 && onWithOrder(holding) < holding.outQuantity ? (
+                  <span className="text-primary">
+                    {' · '}
+                    {t('returns.withOrder.onThisOrderCount', { quantity: isolate(formatNumber(onWithOrder(holding))) })}
+                  </span>
+                ) : null}
+                {/* A back-dated return can take only what was out by its date (Q160). */}
+                {date !== null && outQuantity < holding.outQuantity ? (
+                  <>
+                    {' · '}
+                    {t('returns.customer.outByDate', {
+                      out: isolate(formatNumber(outQuantity)),
+                      date: isolate(formatBusinessDate(date)),
+                    })}
+                  </>
+                ) : null}
+                {prices.length > 0 ? ' · ' : null}
+                {prices.map((price, index) => (
+                  <span key={price}>
+                    {index > 0 ? ' / ' : null}
+                    <MoneyText value={price} />
+                  </span>
+                ))}
+              </span>
+            </div>
+          </div>
+          <div className="col-span-2 row-start-2 flex items-end gap-2 md:col-span-1 md:row-start-auto">
+            <Field className="min-w-0 flex-1 gap-1 md:flex-none">
+              <FieldLabel htmlFor={`accepted-${itemId}`} className="text-xs">
+                {t('returns.fields.accepted')}
+              </FieldLabel>
+              <div dir="ltr" className="flex items-center gap-1">
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="icon"
+                  className="size-10"
+                  aria-label={t('returns.customer.less')}
+                  disabled={row.accepted <= 0}
+                  onClick={() => accepted(Math.max(0, row.accepted - 1))}
+                >
+                  <Minus aria-hidden />
+                </Button>
+                <Controller
+                  control={form.control}
+                  name={`rows.${key}.accepted`}
+                  render={({ field }) => (
+                    <QuantityInput
+                      id={`accepted-${itemId}`}
+                      className="h-10 min-w-0 flex-1 text-center md:w-20 md:flex-none"
+                      value={field.value}
+                      onChange={(next) => accepted(next)}
+                      aria-invalid={Boolean(acceptedError)}
+                      aria-describedby={`row-${itemId}-error`}
+                    />
+                  )}
+                />
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="icon"
+                  className="size-10"
+                  aria-label={t('returns.customer.more')}
+                  disabled={!canOwe && row.accepted + row.damaged >= outQuantity}
+                  onClick={() => accepted(row.accepted + 1)}
+                >
+                  <Plus aria-hidden />
+                </Button>
+              </div>
+            </Field>
+            <Button type="button" variant="outline" size="sm" onClick={() => allBack(holding)}>
+              {t('returns.customer.all')}
+            </Button>
+          </div>
+          <Button
+            type="button"
+            variant={showDamage ? 'secondary' : 'ghost'}
+            size="sm"
+            className="justify-self-end md:self-end"
+            aria-expanded={showDamage}
+            aria-controls={`damage-${itemId}`}
+            // Closed only while nothing damaged is typed: the boxes never hide a count.
+            disabled={row.damaged > 0}
+            onClick={() => toggleDamage(itemId)}
+          >
+            <TriangleAlert aria-hidden />
+            {t('returns.fields.damaged')}
+          </Button>
+        </div>
+        {showDamage ? (
+          <div id={`damage-${itemId}`} className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+            <Field>
+              <FieldLabel htmlFor={`damaged-${itemId}`}>{t('returns.fields.damaged')}</FieldLabel>
+              <Controller
+                control={form.control}
+                name={`rows.${key}.damaged`}
+                render={({ field }) => (
+                  <QuantityInput
+                    id={`damaged-${itemId}`}
+                    value={field.value}
+                    onChange={(next) => {
+                      checked(itemId);
+                      field.onChange(next);
+                      form.clearErrors(`rows.${key}`);
+                      form.clearErrors('root');
+                      // No damaged pallets, nothing to refund for them.
+                      if (!next) form.setValue(`rows.${key}.damagedRefund`, 0);
+                    }}
+                    aria-invalid={Boolean(acceptedError)}
+                    aria-describedby={`row-${itemId}-error`}
+                  />
+                )}
+              />
+            </Field>
+            <Field>
+              <FieldLabel htmlFor={`refund-${itemId}`}>{t('returns.fields.damagedRefund')}</FieldLabel>
+              <Controller
+                control={form.control}
+                name={`rows.${key}.damagedRefund`}
+                render={({ field }) => (
+                  <MoneyInput
+                    id={`refund-${itemId}`}
+                    value={field.value}
+                    onChange={(next) => {
+                      checked(itemId);
+                      field.onChange(next);
+                      form.clearErrors(`rows.${key}.damagedRefund`);
+                    }}
+                    disabled={row.damaged === 0}
+                    suffix={t('common.currency')}
+                    aria-invalid={Boolean(refundError)}
+                    aria-describedby={`refund-${itemId}-split refund-${itemId}-error`}
+                  />
+                )}
+              />
+              <FieldError id={`refund-${itemId}-error`} message={refundError} />
+              {row.damaged > 0 && !overOut && !refundOver ? (
+                <FieldDescription id={`refund-${itemId}-split`}>
+                  {t('returns.new.damageSplit', {
+                    deposit: money(maximum),
+                    refund: money(row.damagedRefund),
+                    kept: money(maximum - row.damagedRefund),
+                  })}
+                </FieldDescription>
+              ) : null}
+            </Field>
+          </div>
+        ) : null}
+        <FieldError id={`row-${itemId}-error`} message={acceptedError} />
+        {/* A warning, not a refusal (Q170): the save stays on, and the factory owes them the rest. */}
+        {extra > 0 && !acceptedError ? (
+          <p role="status" className="text-warning flex items-center gap-2 text-sm font-medium">
+            <TriangleAlert aria-hidden className="size-4 shrink-0" />
+            {t('returns.customer.extraWarning', {
+              extra: isolate(formatNumber(extra)),
+              out: isolate(formatNumber(outQuantity)),
+            })}
+          </p>
+        ) : null}
+      </li>
+    );
+  };
+
   return (
     <div className="grid grid-cols-1 gap-6 pb-24 lg:grid-cols-[minmax(0,1fr)_22rem] lg:pb-0">
       <form id="customer-return" onSubmit={(event) => void submit(event)} className="flex flex-col gap-6" noValidate>
@@ -674,207 +902,36 @@ export function CustomerReturnForm({
           </div>
         ) : null}
 
-        <Card>
-          <CardContent>
-            <ul className="flex flex-col divide-y">
-              {items.map(
-                ({
-                  holding,
-                  key,
-                  row,
-                  outQuantity,
-                  canOwe,
-                  extra,
-                  overOut,
-                  maximum,
-                  refundOver,
-                  acceptedError,
-                  refundError,
-                }) => {
-                  const itemId = holding.item.id;
-                  const showDamage = damageOpen.has(itemId) || row.damaged > 0;
-                  // Its deposits beside what is out, on the orders the return can take from: one, or each, lowest first.
-                  const prices = [
-                    ...new Set(
-                      holding.lines.filter((line) => !isAfterReturn(line, date)).map((line) => line.unitDeposit),
-                    ),
-                  ].sort((a, b) => a - b);
-                  const accepted = (next: number | null): void => {
-                    checked(itemId);
-                    form.setValue(`rows.${key}.accepted`, next);
-                    form.clearErrors(`rows.${key}.accepted`);
-                    form.clearErrors('root');
-                  };
-                  return (
-                    <li key={itemId} className="flex flex-col gap-3 py-3">
-                      {/* On a phone the damaged toggle shares the item's line and the count takes the width beneath. */}
-                      <div className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-3 md:grid-cols-[minmax(0,1fr)_auto_auto]">
-                        <div className="flex min-w-0 items-center gap-3">
-                          <Thumbnail url={holding.item.imageUrl} size="sm" />
-                          <div className="flex min-w-0 flex-col">
-                            <ItemName name={holding.item.name} className="font-medium" expandable />
-                            <span className="text-muted-foreground text-sm">
-                              {t('returns.new.out')}: <QuantityText value={holding.outQuantity} />
-                              {/* A back-dated return can take only what was out by its date (Q160). */}
-                              {date !== null && outQuantity < holding.outQuantity ? (
-                                <>
-                                  {' · '}
-                                  {t('returns.customer.outByDate', {
-                                    out: isolate(formatNumber(outQuantity)),
-                                    date: isolate(formatBusinessDate(date)),
-                                  })}
-                                </>
-                              ) : null}
-                              {prices.length > 0 ? ' · ' : null}
-                              {prices.map((price, index) => (
-                                <span key={price}>
-                                  {index > 0 ? ' / ' : null}
-                                  <MoneyText value={price} />
-                                </span>
-                              ))}
-                            </span>
-                          </div>
-                        </div>
-                        <div className="col-span-2 row-start-2 flex items-end gap-2 md:col-span-1 md:row-start-auto">
-                          <Field className="min-w-0 flex-1 gap-1 md:flex-none">
-                            <FieldLabel htmlFor={`accepted-${itemId}`} className="text-xs">
-                              {t('returns.fields.accepted')}
-                            </FieldLabel>
-                            <div dir="ltr" className="flex items-center gap-1">
-                              <Button
-                                type="button"
-                                variant="outline"
-                                size="icon"
-                                className="size-10"
-                                aria-label={t('returns.customer.less')}
-                                disabled={row.accepted <= 0}
-                                onClick={() => accepted(Math.max(0, row.accepted - 1))}
-                              >
-                                <Minus aria-hidden />
-                              </Button>
-                              <Controller
-                                control={form.control}
-                                name={`rows.${key}.accepted`}
-                                render={({ field }) => (
-                                  <QuantityInput
-                                    id={`accepted-${itemId}`}
-                                    className="h-10 min-w-0 flex-1 text-center md:w-20 md:flex-none"
-                                    value={field.value}
-                                    onChange={(next) => accepted(next)}
-                                    aria-invalid={Boolean(acceptedError)}
-                                    aria-describedby={`row-${itemId}-error`}
-                                  />
-                                )}
-                              />
-                              <Button
-                                type="button"
-                                variant="outline"
-                                size="icon"
-                                className="size-10"
-                                aria-label={t('returns.customer.more')}
-                                disabled={!canOwe && row.accepted + row.damaged >= outQuantity}
-                                onClick={() => accepted(row.accepted + 1)}
-                              >
-                                <Plus aria-hidden />
-                              </Button>
-                            </div>
-                          </Field>
-                          <Button type="button" variant="outline" size="sm" onClick={() => allBack(holding)}>
-                            {t('returns.customer.all')}
-                          </Button>
-                        </div>
-                        <Button
-                          type="button"
-                          variant={showDamage ? 'secondary' : 'ghost'}
-                          size="sm"
-                          className="justify-self-end md:self-end"
-                          aria-expanded={showDamage}
-                          aria-controls={`damage-${itemId}`}
-                          // Closed only while nothing damaged is typed: the boxes never hide a count.
-                          disabled={row.damaged > 0}
-                          onClick={() => toggleDamage(itemId)}
-                        >
-                          <TriangleAlert aria-hidden />
-                          {t('returns.fields.damaged')}
-                        </Button>
-                      </div>
-                      {showDamage ? (
-                        <div id={`damage-${itemId}`} className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-                          <Field>
-                            <FieldLabel htmlFor={`damaged-${itemId}`}>{t('returns.fields.damaged')}</FieldLabel>
-                            <Controller
-                              control={form.control}
-                              name={`rows.${key}.damaged`}
-                              render={({ field }) => (
-                                <QuantityInput
-                                  id={`damaged-${itemId}`}
-                                  value={field.value}
-                                  onChange={(next) => {
-                                    checked(itemId);
-                                    field.onChange(next);
-                                    form.clearErrors(`rows.${key}`);
-                                    form.clearErrors('root');
-                                    // No damaged pallets, nothing to refund for them.
-                                    if (!next) form.setValue(`rows.${key}.damagedRefund`, 0);
-                                  }}
-                                  aria-invalid={Boolean(acceptedError)}
-                                  aria-describedby={`row-${itemId}-error`}
-                                />
-                              )}
-                            />
-                          </Field>
-                          <Field>
-                            <FieldLabel htmlFor={`refund-${itemId}`}>{t('returns.fields.damagedRefund')}</FieldLabel>
-                            <Controller
-                              control={form.control}
-                              name={`rows.${key}.damagedRefund`}
-                              render={({ field }) => (
-                                <MoneyInput
-                                  id={`refund-${itemId}`}
-                                  value={field.value}
-                                  onChange={(next) => {
-                                    checked(itemId);
-                                    field.onChange(next);
-                                    form.clearErrors(`rows.${key}.damagedRefund`);
-                                  }}
-                                  disabled={row.damaged === 0}
-                                  suffix={t('common.currency')}
-                                  aria-invalid={Boolean(refundError)}
-                                  aria-describedby={`refund-${itemId}-split refund-${itemId}-error`}
-                                />
-                              )}
-                            />
-                            <FieldError id={`refund-${itemId}-error`} message={refundError} />
-                            {row.damaged > 0 && !overOut && !refundOver ? (
-                              <FieldDescription id={`refund-${itemId}-split`}>
-                                {t('returns.new.damageSplit', {
-                                  deposit: money(maximum),
-                                  refund: money(row.damagedRefund),
-                                  kept: money(maximum - row.damagedRefund),
-                                })}
-                              </FieldDescription>
-                            ) : null}
-                          </Field>
-                        </div>
-                      ) : null}
-                      <FieldError id={`row-${itemId}-error`} message={acceptedError} />
-                      {/* A warning, not a refusal (Q170): the save stays on, and the factory owes them the rest. */}
-                      {extra > 0 && !acceptedError ? (
-                        <p role="status" className="text-warning flex items-center gap-2 text-sm font-medium">
-                          <TriangleAlert aria-hidden className="size-4 shrink-0" />
-                          {t('returns.customer.extraWarning', {
-                            extra: isolate(formatNumber(extra)),
-                            out: isolate(formatNumber(outQuantity)),
-                          })}
-                        </p>
-                      ) : null}
-                    </li>
-                  );
-                },
-              )}
-            </ul>
-          </CardContent>
-        </Card>
+        {groups.map((group) =>
+          group.heading !== null && group.items.length === 0 && !group.own ? null : (
+            <Card key={group.id} className={group.own ? 'border-primary ring-primary/30 ring-2' : undefined}>
+              <CardContent className="flex flex-col gap-1">
+                {group.heading === null ? (
+                  <ul className="flex flex-col divide-y">{group.items.map(renderItem)}</ul>
+                ) : (
+                  <section aria-labelledby={group.id} className="flex flex-col gap-1">
+                    <h3
+                      id={group.id}
+                      className={group.own ? 'text-primary font-semibold' : 'text-muted-foreground font-semibold'}
+                    >
+                      {group.heading}
+                    </h3>
+                    {group.own ? (
+                      <p className="text-muted-foreground text-sm">
+                        {group.items.length === 0
+                          ? t('returns.withOrder.nothingOnThisOrder')
+                          : t('returns.withOrder.oldestFirst')}
+                      </p>
+                    ) : null}
+                    {group.items.length > 0 ? (
+                      <ul className="flex flex-col divide-y">{group.items.map(renderItem)}</ul>
+                    ) : null}
+                  </section>
+                )}
+              </CardContent>
+            </Card>
+          ),
+        )}
         {/* The orders these pallets come from, oldest first, by number alone (Q164); each opens in a new tab, so the
             counts typed here stay. How a count is placed on them reads in the summary's list by order. */}
         {fromOrders.length > 0 ? (

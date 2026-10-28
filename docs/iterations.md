@@ -578,7 +578,8 @@ Read: Q150, Q156, Q160, Q161, Q174, §6.20, §7.16.
 Asked by the business on 2026-10-28: Record return on an order shows every pallet the customer owes, placed oldest
 order first, and each part still lands on its own order; the order's hand-over receipt lists the other orders'
 pallets that came back with it, and the other order's receipt says with which order and when, so nothing reads as
-returned twice. **Exit:** `return-with-order.test.ts`, `return-with-order.spec.ts`; every gate green.
+returned twice. Then, while testing, that order's own items outlined at the top of that screen (Q176). **Exit:**
+`return-with-order.test.ts`, `return-with-order.spec.ts`; every gate green.
 
 ---
 

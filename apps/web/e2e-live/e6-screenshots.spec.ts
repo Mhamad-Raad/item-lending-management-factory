@@ -78,10 +78,12 @@ test.describe('E6: the daily forms, right to left', () => {
       await blur(page);
       await shot('e2-new-order');
 
-      // Daily flow 2: 30 of the 40 back against 30,000 owed — 30,000 to hand over.
+      // Daily flow 2: 30 of the 40 back against 30,000 owed — 30,000 to hand over. From the order, the customer
+      // screen with this order's items outlined (Q175, Q176).
       await page.goto(`/returns/new?orderId=${orderId}`);
       const accepted = page
-        .getByRole('group', { name: new RegExp(item.name) })
+        .getByRole('listitem')
+        .filter({ hasText: item.name })
         .getByLabel(sorani('returns.fields.accepted'), { exact: true });
       await accepted.fill('30');
       await expect(accepted).toHaveValue('30');
