@@ -6,6 +6,7 @@ import {
   type ReceiptRowDto,
   type ReceiptSheetDto,
 } from '@pallet/shared';
+import { isolate } from '@/lib/bidi';
 import { tr } from './receipt-i18n';
 import {
   NumberCell,
@@ -63,6 +64,36 @@ function Row({ row }: { row: ReceiptRowDto | null }) {
         <td />
         <NumberCell text={formatMoney(0)} fits={FITS.unitDeposit} />
         <NumberCell text={formatMoney(0)} fits={FITS.lineTotal} className="line-total" />
+      </tr>
+    );
+  }
+  if (row?.kind === 'viaHeading' || row?.kind === 'withHeading') {
+    return (
+      <tr className={row.kind === 'viaHeading' ? 'via-heading' : 'with-heading'}>
+        <td colSpan={8}>{tr(row.kind === 'viaHeading' ? 'receipt.viaHeading' : 'receipt.withHeading')}</td>
+      </tr>
+    );
+  }
+  if (row?.kind === 'via' || row?.kind === 'with') {
+    // What came back with another order's return (Q175): the item, the returned columns, and in the cells that say
+    // nothing of it — still out and the money — which order: for this order's pallets the order they came back with
+    // and when, for another order's the order they belong to.
+    return (
+      <tr className={row.kind}>
+        <td className="num num-cell">{row.no}</td>
+        <td className="col-item" colSpan={2}>
+          <bdi>{row.itemName}</bdi>
+        </td>
+        <NumberCell text={formatNumber(row.accepted)} fits={FITS.quantity} />
+        <NumberCell text={formatNumber(row.damaged)} fits={FITS.quantity} />
+        <td className="col-item" colSpan={3}>
+          {row.kind === 'via'
+            ? tr('receipt.viaWith', {
+                orderNumber: isolate(row.withOrderNumberDisplay),
+                date: isolate(formatBusinessDate(row.date)),
+              })
+            : tr('receipt.withOf', { orderNumber: isolate(row.orderNumberDisplay) })}
+        </td>
       </tr>
     );
   }

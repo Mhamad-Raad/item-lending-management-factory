@@ -1196,7 +1196,11 @@
       "givenBack": "Given back",
       "owedAfter": "Owed after",
       "undone": "Undone {{date}}"
-    }
+    },
+    "viaHeading": "Came back with another order",
+    "viaWith": "with order {{orderNumber}} · {{date}}",
+    "withHeading": "Other orders' pallets returned with this order",
+    "withOf": "of order {{orderNumber}}"
   },
   "returns": {
     "list": {
@@ -1268,6 +1272,10 @@
       "extraWarning": "{{extra}} more than the {{out}} they have out — the factory will owe them {{extra}}",
       "extraTotal": "The factory will owe them {{extra}} pallets",
       "savedExtra": "Owed to the customer from now on: {{items}}"
+    },
+    "withOrder": {
+      "banner": "Returning with order {{orderNumber}}: every pallet the customer holds is here, oldest order first.",
+      "tag": "With order {{orderNumber}}"
     }
   },
   "reports": {

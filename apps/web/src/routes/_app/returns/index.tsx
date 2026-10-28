@@ -21,6 +21,7 @@ import { orderLabel } from '@/features/orders/order-text';
 import { PrintReturnButtons } from '@/features/receipt/print-money-receipt-button';
 import { returnListQuery } from '@/features/returns/api';
 import { useListRoute } from '@/hooks/use-list-route';
+import { WithOrderTag } from '@/features/returns/with-order-tag';
 import { usePageTitle } from '@/hooks/use-page-title';
 import { useCan } from '@/lib/auth';
 import { authStore } from '@/lib/auth-store';
@@ -109,13 +110,17 @@ function ReturnsPage() {
       id: 'order',
       header: 'orders.fields.orderNumber',
       cell: (pr) => (
-        <Link
-          to="/orders/$orderId"
-          params={{ orderId: String(pr.orderId) }}
-          className="text-primary underline-offset-4 hover:underline"
-        >
-          <span dir="ltr">{orderLabel(pr.orderNumber)}</span>
-        </Link>
+        <span className="flex flex-wrap items-center gap-2">
+          <Link
+            to="/orders/$orderId"
+            params={{ orderId: String(pr.orderId) }}
+            className="text-primary underline-offset-4 hover:underline"
+          >
+            <span dir="ltr">{orderLabel(pr.orderNumber)}</span>
+          </Link>
+          {/* Recorded from another order's page (Q175). */}
+          <WithOrderTag withOrder={pr.withOrder} />
+        </span>
       ),
       mobile: 'footer',
     },

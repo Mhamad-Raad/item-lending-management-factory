@@ -36,6 +36,7 @@ const RETURN: ReturnDto = {
   createdAt: '2026-09-11T08:00:00.000Z',
   createdBy: ORDER.createdBy,
   customerReturnId: null,
+  withOrder: null,
 };
 
 /** A credit order with a manual payment and a return recorded: something to undo on each side. */
@@ -263,7 +264,9 @@ test('without the permissions, the money actions stay away', async ({ page }) =>
   await expect(page.getByRole('button', { name: 'Delete payment' })).toHaveCount(0);
 });
 
-test('a settled cash order has nothing to return or pay', async ({ page }) => {
+test('a settled cash order has nothing to pay, but still records a return of what the customer holds (Q175)', async ({
+  page,
+}) => {
   await openOrder(page, {
     ...ACTIVE,
     paymentType: 'CASH',
@@ -273,7 +276,7 @@ test('a settled cash order has nothing to return or pay', async ({ page }) => {
     ledgerEntries: [],
   });
 
-  await expect(page.getByRole('link', { name: 'Record return' })).toHaveCount(0);
+  await expect(page.getByRole('link', { name: 'Record return' })).toHaveAttribute('href', /\/returns\/new\?orderId=9$/);
   await expect(page.getByRole('link', { name: 'Record payment' })).toHaveCount(0);
 });
 

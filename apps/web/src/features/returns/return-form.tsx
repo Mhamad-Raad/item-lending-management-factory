@@ -56,9 +56,9 @@ interface ReturnValues {
 }
 
 /**
- * Daily flow 2 (§7.4.2): what came back on an order, line by line, with what it credits and pays out
- * live. With `replaceReturnId` it corrects that return: the rows start from it, and everything is
- * checked and priced against the order as if it had never been recorded.
+ * The correction of a return on its order (§4.8.5), line by line, with what it credits and pays out live: the rows
+ * start from the return, and everything is checked and priced against the order as if it had never been recorded.
+ * A new return is the customer screen's since Q175, from the order's page too.
  */
 export function ReturnForm({
   order,
@@ -66,7 +66,7 @@ export function ReturnForm({
   onSaved,
 }: {
   order: OrderDetailDto;
-  replaceReturnId?: number;
+  replaceReturnId: number;
   /** Called as the saved dialog opens: the page holds the order as it was beneath it (Q166). */
   onSaved?: () => void;
 }) {
@@ -133,14 +133,8 @@ export function ReturnForm({
   const hasLine = (orderLineId: number): boolean => order.lines.some((line) => line.id === orderLineId);
 
   const record = useFlowMutation({
-    request: (body: ReturnCreateBody, idempotencyKey) =>
-      replaced
-        ? apiFetch<ReturnResultDto>(`/returns/${replaced.id}/replace`, { method: 'POST', body })
-        : apiFetch<ReturnResultDto>(`/orders/${order.id}/returns`, {
-            method: 'POST',
-            body,
-            idempotencyKey: idempotencyKey(),
-          }),
+    request: (body: ReturnCreateBody) =>
+      apiFetch<ReturnResultDto>(`/returns/${replaceReturnId}/replace`, { method: 'POST', body }),
     // The dialog of what was recorded, with its receipt, as on the customer's screen (Q166): the refund's when cash
     // went out (Q137), else the return's own paper in the same design — never the order's hand-over receipt, which the
     // business turned down here.
@@ -249,7 +243,7 @@ export function ReturnForm({
     // A refused row cannot be recorded, so it cannot be sent either (Q141, Q146).
     <Button type="submit" form="new-return" disabled={record.isPending || anyInvalid}>
       {record.isPending ? <Loader2 className="size-4 animate-spin" aria-hidden /> : null}
-      {t(replaced ? 'returns.new.submitReplace' : 'returns.new.submit')}
+      {t('returns.new.submitReplace')}
     </Button>
   );
 

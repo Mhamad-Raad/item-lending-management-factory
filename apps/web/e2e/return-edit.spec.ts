@@ -45,6 +45,7 @@ const EDITABLE: CustomerReturnEditableDto = {
   ],
   returnId: 55,
   customerReturnId: 7,
+  withOrder: null,
   date: '2026-09-08',
   notes: 'first count',
   cashRefunded: 5_000,
@@ -104,6 +105,7 @@ const LISTED: ReturnListItemDto = {
   reversed: false,
   refundEntryId: 88,
   customerReturnId: 7,
+  withOrder: null,
   createdAt: '2026-09-08T09:00:00Z',
   createdBy: { id: 1, username: 'admin', displayName: 'Hawre Abdulrahman Mohammed' },
 };

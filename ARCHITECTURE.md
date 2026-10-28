@@ -324,6 +324,7 @@ Every item below is an ambiguity, contradiction or gap in the brief. The builder
 | Q172 | The maintainer asked (2026-10-26) for a way to print the pallets given back to a customer. What holds? | **A give-back has a paper** (`GET /api/hand-backs/:id/receipt`, `customers.view` → `HandBackReceiptDto`; only a `HAND_BACK` entry, else `HAND_BACK_NOT_FOUND`): the other papers' half and cut line, titled `receipt.handBack.title`, numbered under `receipt.handBack.number` by `hand_back_number` — set by the trigger `pallet_credits_hand_back_number` from its own sequence as the row is written, so the papers run without gaps and two give-backs at once never swap numbers (the review's finding: counting give-backs by id could renumber a paper on reprint), the customer, and one row — pallet type, owed before, given back, owed after, as it stood then (the sum of the entries before it, so a reprint says what the original said) —, the note, who recorded it and the print date; no money figures, as no money moves. Printed in place (`printHandBackReceipt`) from the success message of Give back (`HandBackResultDto.palletCreditId`) and from each "Pallets given back" entry of the customer's timeline. `pallet-credits.test.ts` (the figures, its number, none for another entry). |
 | Q173 | The review found (2026-10-26) that a give-back recorded by mistake — 50 for 5, or to the wrong customer — could never be put right: the ledger is append-only and no entry could give the pallets back. The maintainer asked that it be fixed. What holds? | **A give-back can be undone, once** (`POST /api/hand-backs/:id/undo`, `returns.create`): a `HAND_BACK_REVERSAL` entry (+) naming it by `reverses_credit_id` (unique), its stock movement back in, and a `PALLET_CREDIT.HAND_BACK_REVERSE` history row; undoing it again changes nothing and is answered as done, so a retry after a lost answer is no error; and it is refused while the customer has that type out since (`HAND_BACK_UNDO_WHILE_OUT`: their pallets come back first), so it never leaves what is owed beside what they hold (Q170's one rule). On the customer's timeline a standing give-back offers **Undo** behind a confirmation ("use this only if the give-back was recorded by mistake"), an undone one shows **Undone**; its paper is stamped with the day. An undone give-back reads faded on the timeline, as a reversed return does. `pallet-credits.test.ts` (owed again, stock back, once only, the stamp). |
 | Q174 | The business asked (2026-10-26) that a return be editable from the returns list: Edit opens every pallet the customer owes, exactly as recording a return does, all of it editable, and only that page affected. The maintainer chose that a return over several orders is edited whole. What holds? | **Edit on the returns list** (each standing row, `returns.edit`) opens `/returns/$returnId/edit`: the customer screen of Q156/Q160 over `GET /api/returns/:id/editable` (`returns.edit`, `CustomerReturnEditableDto`) — the customer's orders as if the return, and every other standing part of its visit (Q161), had never been recorded, its counts by item (its extra pallets in the accepted count) and by line, its date, notes and the cash it paid back — each item's count is placed first back on the lines it was on and only the rest oldest first (Q160), so a save that changes nothing leaves the return on its orders — and a save sends `CustomerReturnReplaceBody` (`CustomerReturnCreateBody` with `reopened`, the extra pallets it counted as still owed) to `POST /api/returns/:id/replace-customer` (`returns.edit`, not idempotent, as `replace`: a repeat finds it reversed — `RETURN_ALREADY_REVERSED`, and the page then says it can no longer be corrected, with the way back to the list). **In one transaction**, under the customer's lock, then the orders (old and named, each the customer's — else `ORDER_NOT_FOUND` — and none cancelled), then the items: every order is checked against itself without its old part (`RETURN_EXCEEDS_OUT` gathered over all, as Q156) before anything is written; a part whose order still takes pallets back is corrected (`EDIT`, `replaced_by_return_id` its replacement, its refund reversed and the new one written, `RETURN_EDIT` history), a part whose order takes none now is deleted (`DELETE`, `RETURN_DELETE` history) — a deletion, so only with `returns.delete` (`PERMISSION_DENIED`; the screen refuses it as typed, naming the orders), an order newly named gets a return of its own (`RETURN_CREATE`, needing `returns.create`, which `returns.edit` asks for anyway); over two orders or more the new returns are one visit again (a new `customer_returns` row and its history row), on one order none. All the stock — the parts' pallets and the extra pallets — goes through one call, judged on the net. **History:** an edit of a return over several orders, before or after, writes one row (`CUSTOMER_RETURN` `RETURN_EDIT`, under the new visit or else the old one, the customer in its before and after so it links to them, its parts with the refunds reversed and paid in it, as Q161); a return that was on one order keeps a row of its own beside it (`RETURN_EDIT` or `RETURN_DELETE`), so its own history says it was corrected; an edit on one order throughout writes the order page's rows. **Extra pallets** (Q170): only what is still owed of the return's surplus is reopened — shown in the count and taken back (`RETURN_REVERSAL`) — any given back or taken by an order since stays where it is; the old extra taken back (dated the day of the edit, as a deletion's) and the new written in that same stock call, so an edit that keeps them never fails for stock; a save is refused when the extra still owed is not what the screen reopened — some given back or taken by an order after it opened (`PALLET_CREDIT_GIVEN_BACK`, the page then back to the list) —, so nothing is owed twice; the screen's new extra is written on the latest order's new return, refused for an item it does not take back (`PALLET_SURPLUS_NOT_RETURNED`, also when recording) or while that type is still out (`PALLET_SURPLUS_STILL_OUT`), and Q170's one rule is checked after; the history says only what an edit adds to what is owed, nothing for an extra carried over unchanged. **Cash:** the screen and the saved dialog ("Return saved") say only the difference when the return had paid cash back — "… was paid back already — hand the customer … more now" or "… take … back from the customer" —, nothing when it is the same. The edit screen reads in one snapshot, and refuses a return on a cancelled order (`ORDER_CANCELLED`) as it opens. A save refused because the return was already changed — by someone else, or by the same save sent again after its answer was lost — goes back to the list, read afresh, saying so; an address naming no return says it can no longer be corrected. The order page's own correction (`/returns/new?replaceReturnId=`) is unchanged. `return-edit.test.ts`, `return-edit.spec.ts`, `allocate.test.ts`. |
+| Q175 | The business asked (2026-10-28) that a return recorded from an order's page show everything the customer owes, not only that order's pallets, and that the order's hand-over receipt (Print receipt) list the other orders' pallets that came back with it; the other order's receipt must say how its pallets came back, so the same pallets never read as returned on two orders. Placement oldest order first, as the customer screen (Q160). The maintainer warned that the accountants must not be confused. What holds? | **Each pallet still counts on the order it came from; every return remembers the order it was recorded with.** `returns.with_order_id` (migration `20261028000000_return_with_order`, nullable FK to `orders`, indexed, written with the row and covered by `returns_reversal_set_once`; trigger `returns_with_order_same_customer` refuses an order of another customer) is set on **every** part of a return recorded from an order's page, that order's own part included, so an edit that drops and re-adds parts never loses it; null before Q175 and on a return recorded from the customer or the returns list. **Recording:** "Record return" on an order (any order not cancelled, settled too) opens `/returns/new?orderId=` as the customer screen (Q156, Q160) over the order's customer — every pallet they hold, one row per item, placed oldest order first — under the alert `returns.withOrder.banner`; the save is `POST /api/customers/:customerId/returns` with `CustomerReturnCreateBody.withOrderId`: the order is read as the customer's before any lock (`ORDER_NOT_FOUND` otherwise), locked with the named orders in one sorted pass, and refused when cancelled (`ORDER_CANCELLED`) or dated after the return (`RETURN_DATE_BEFORE_ORDER_DATE { orderDate }` — the pallets cannot come back with an order before it was made; the screen refuses it as typed under the date, and a refusal from the server — that order or another re-dated meanwhile — reads every order again, so that order's new date is refused as typed and another's count is placed again as Q160 says); a visit is still made only over two orders or more (Q161). Closing the saved dialog goes back to that order (its cancellation meanwhile also goes back to it). A cancelled order says `errors.ORDER_CANCELLED` there, with the way back. The one-order form (`ReturnForm`) is now a correction's alone (`replaceReturnId` required), which keeps the old return's `with_order_id`; an edit from the returns list (`replace-customer`, Q174) keeps it on every new part (`CustomerReturnReplaceBody` omits `withOrderId`, refused if sent), and its screen names it with its date (`CustomerReturnEditableDto.withOrder`, only when it is another order than a part's own, as the list names it); both lock that order with the return's (a correction and a delete in `lockReturn`, one sorted pass) and check it again for the new date. **That order is active:** another order's standing return recorded from its page counts as its activity (`orderActivity`, `ORDER_CHANGE_INCLUDE.returnsWith`, and the order page's `canCancel`/`canEditLines`) — it cannot be cancelled (`ORDER_HAS_ACTIVITY`) or dated after it (`ORDER_DATE_AFTER_ACTIVITY`), or its receipt could never print and the other order's would name a cancelled one; once those returns are deleted it is its own again. **The hand-over receipt** (`GET /api/orders/:id/receipt`), after this order's lines and pallets from credit, before the earlier pallets still out (Q150), standing returns only: `viaHeading` + `via` rows — this order's pallets that came back with another order, per that order, return date and item (`ReceiptViaLineDto`: accepted, damaged; the cells of out and money say `receipt.viaWith` "with order N · date"), already in this order's returned columns; then `withHeading` + `with` rows — other orders' pallets that came back with this one, per order and item, by order number (`ReceiptWithLineDto`; those cells say `receipt.withOf` "of order N"), in none of this paper's figures or totals. Green rows under their own heading (`.handover tr.via`, `tr.with`), apart from the blue order and the amber earlier pallets; every row numbered on, headings unnumbered, and none ends a page (Q150). A deleted or corrected return drops off both papers. **Tags:** `ReturnDto.withOrder` and `ReturnListItemDto.withOrder` name the other order only when it is not the return's own; the order page's returns table and the returns list show it as a link (`WithOrderTag`, `returns.withOrder.tag`). The audit snapshot of a return carries `withOrderId`. Unchanged: the ledger, reconcile, the money and visit papers, the reports. `return-with-order.test.ts` (each part on its own order with the tag, the two receipts, a deletion, refusals, edit and correction keep it, the order made active, the date on create, edit and correction, the trigger), `db-privileges.test.ts`, `return-with-order.spec.ts` (from the order and back, the date as typed, the tag), `order-actions.spec.ts`; the one-order form's rules are tested on a correction (`returns.spec.ts`). Amends Q150, Q156, Q174, §4.8.2, §5, §6.20, §7.4.2, §7.16. |
 
 ## 3. Actors, roles and permissions
 
@@ -1022,6 +1023,7 @@ CHECK `orders_totals_nonnegative_check`: every cache money/quantity column ≥ 0
 | reversal_kind | return_reversal_kind | yes | — | `EDIT` \| `DELETE` |
 | replaced_by_return_id | integer | yes | — | UNIQUE; FK → returns.id ON DELETE RESTRICT; required iff reversal_kind = EDIT |
 | customer_return_id | integer | yes | — | FK → customer_returns.id ON DELETE RESTRICT; set when written by a customer's return over two orders or more (Q161), never changed; NULL on any other return (an order's own, one order from the customer screen, a replacement, every return before Q161) |
+| with_order_id | integer | yes | — | FK → orders.id ON DELETE RESTRICT; the order whose page the return was recorded from, on every part (its own order's too), the same customer's (trigger `returns_with_order_same_customer`), never changed; a replacement keeps it; NULL before Q175 and on a return recorded from the customer (Q175) |
 | created_at | timestamptz(3) | NO | DB `now()` | |
 | created_by_user_id | integer | NO | — | FK → users.id |
 
@@ -1164,7 +1166,7 @@ Non-unique:
 | orders | orders_owed_id_idx | owed, id | the order list sorted by owed across statuses (Q100) |
 | orders | orders_cancelled_by_user_id_idx, orders_credit_override_by_user_id_idx, orders_created_by_user_id_idx | FK | |
 | order_lines | order_lines_item_id_idx | item_id | item out quantity |
-| returns | returns_order_id_idx, returns_date_idx, returns_reversed_by_user_id_idx, returns_customer_return_id_idx, returns_created_by_user_id_idx | FK / report | |
+| returns | returns_order_id_idx, returns_date_idx, returns_reversed_by_user_id_idx, returns_customer_return_id_idx, returns_with_order_id_idx, returns_created_by_user_id_idx | FK / report | |
 | returns | returns_outside_visit_created_at_id_idx (partial, constraints.sql) | created_at, id WHERE customer_return_id IS NULL | the dashboard's newest returns outside a customer return (Q161; replaced Q62's `returns_created_at_id_idx`) |
 | customer_returns | customer_returns_customer_id_idx, customer_returns_created_by_user_id_idx, customer_returns_created_at_id_idx | FK / created_at, id | the dashboard's newest (Q161, as Q62) |
 | return_lines | return_lines_order_line_id_idx | order_line_id | FK |
@@ -1198,6 +1200,7 @@ All foreign keys reference `id` and use `ON UPDATE CASCADE` (primary keys are ne
 | stock_movements.order_id | orders | RESTRICT |
 | stock_movements.return_id, ledger_entries.return_id, returns.replaced_by_return_id | returns | RESTRICT |
 | returns.customer_return_id, ledger_entries.customer_return_id | customer_returns | RESTRICT |
+| returns.with_order_id | orders | RESTRICT |
 | customer_returns.customer_id | customers | RESTRICT |
 | customer_returns.created_by_user_id | users | RESTRICT |
 | ledger_entries.reverses_entry_id | ledger_entries | RESTRICT |
@@ -1258,7 +1261,8 @@ Additional database-level settings from the init script: `REVOKE ALL ON DATABASE
 |---|---|---|---|---|
 | forbid_update_delete | audit_logs, stock_movements, ledger_entries, return_lines, customer_returns | BEFORE UPDATE OR DELETE, per row | `forbid_update_delete()` | Raises `insufficient_privilege` for every role (defence in depth; row triggers do not fire on TRUNCATE, so the test reset and `pg_restore` are unaffected). |
 | forbid_delete | returns | BEFORE DELETE, per row | `forbid_update_delete()` | Returns are never deleted. |
-| returns_reversal_set_once | returns | BEFORE UPDATE, per row | `returns_reversal_set_once()` | Rejects if the row is already reversed, if `reversed_at` stays NULL, or if any non-reversal column changes (`customer_return_id` among them, Q161). The reversal UPDATE must therefore set all reversal columns in one statement (section 4.8.5 step 5e). |
+| returns_reversal_set_once | returns | BEFORE UPDATE, per row | `returns_reversal_set_once()` | Rejects if the row is already reversed, if `reversed_at` stays NULL, or if any non-reversal column changes (`customer_return_id` among them, Q161, and `with_order_id`, Q175). The reversal UPDATE must therefore set all reversal columns in one statement (section 4.8.5 step 5e). |
+| returns_with_order_same_customer | returns | BEFORE INSERT, per row | `returns_with_order_same_customer()` | Rejects a `with_order_id` of another customer's order than the return's own order's (Q175). |
 | ledger_reversal_matches_original | ledger_entries | BEFORE INSERT, per row | `ledger_reversal_matches_original()` | A reversal row must reference an existing row of the same order with the same amount and the matching original type. |
 | ledger_refund_customer_return | ledger_entries | BEFORE INSERT, per row | `ledger_refund_customer_return()` | Writes a `REFUND`'s `customer_return_id` from its return's, whatever the writer sent (NULL outside a customer return, Q161). |
 
@@ -1769,9 +1773,13 @@ model Order {
   creditOverrideBy User?           @relation("OrderCreditOverrideBy", fields: [creditOverrideByUserId], references: [id], onDelete: Restrict)
   createdBy        User            @relation("OrderCreatedBy", fields: [createdByUserId], references: [id])
   lines            OrderLine[]
-  returns          PalletReturn[]
+  returns          PalletReturn[]  @relation("ReturnOrder")
+  // Returns recorded from this order's page, its own and other orders' (Q175).
+  returnsWith      PalletReturn[]  @relation("ReturnWithOrder")
   ledgerEntries    LedgerEntry[]
   stockMovements   StockMovement[]
+
+  palletCredits PalletCredit[]
 
   @@index([customerId, status])
   @@index([driverId])
@@ -1826,11 +1834,15 @@ model PalletReturn {
   replacedByReturnId Int?                @unique @map("replaced_by_return_id")
   // The customer's return it was recorded in, one paper for every order it touched (Q161); null on an order's own.
   customerReturnId   Int?                @map("customer_return_id")
+  // The order whose page it was recorded from, on every part, its own order's included (Q175); null before Q175 and
+  // on a return recorded from the customer.
+  withOrderId        Int?                @map("with_order_id")
   createdAt          DateTime            @default(now()) @map("created_at") @db.Timestamptz(3)
   createdByUserId    Int                 @map("created_by_user_id")
 
-  order          Order           @relation(fields: [orderId], references: [id])
+  order          Order           @relation("ReturnOrder", fields: [orderId], references: [id])
   customerReturn CustomerReturn? @relation(fields: [customerReturnId], references: [id], onDelete: Restrict)
+  withOrder      Order?          @relation("ReturnWithOrder", fields: [withOrderId], references: [id], onDelete: Restrict)
   reversedBy     User?           @relation("ReturnReversedBy", fields: [reversedByUserId], references: [id], onDelete: Restrict)
   createdBy      User            @relation("ReturnCreatedBy", fields: [createdByUserId], references: [id])
   replacedBy     PalletReturn?   @relation("ReturnReplacement", fields: [replacedByReturnId], references: [id], onDelete: Restrict)
@@ -1839,11 +1851,14 @@ model PalletReturn {
   ledgerEntries  LedgerEntry[]
   stockMovements StockMovement[]
 
+  palletCredits PalletCredit[]
+
   @@index([orderId])
   @@index([date])
   // The dashboard's newest returns outside a customer return: a partial index in constraints.sql (Q62, Q161).
   @@index([reversedByUserId])
   @@index([customerReturnId])
+  @@index([withOrderId])
   @@index([createdByUserId])
   @@map("returns")
 }
@@ -2203,10 +2218,10 @@ BEGIN
     RAISE EXCEPTION 'an UPDATE on returns must set reversed_at' USING ERRCODE = 'check_violation';
   END IF;
   IF (NEW.id, NEW.order_id, NEW.date, NEW.notes, NEW.refund_due, NEW.owed_before, NEW.cash_refund,
-      NEW.customer_return_id, NEW.created_at, NEW.created_by_user_id)
+      NEW.customer_return_id, NEW.with_order_id, NEW.created_at, NEW.created_by_user_id)
      IS DISTINCT FROM
      (OLD.id, OLD.order_id, OLD.date, OLD.notes, OLD.refund_due, OLD.owed_before, OLD.cash_refund,
-      OLD.customer_return_id, OLD.created_at, OLD.created_by_user_id) THEN
+      OLD.customer_return_id, OLD.with_order_id, OLD.created_at, OLD.created_by_user_id) THEN
     RAISE EXCEPTION 'only reversal columns of returns may be updated' USING ERRCODE = 'check_violation';
   END IF;
   RETURN NEW;
@@ -2215,6 +2230,22 @@ $$;
 
 CREATE TRIGGER returns_reversal_set_once BEFORE UPDATE ON returns
   FOR EACH ROW EXECUTE FUNCTION returns_reversal_set_once();
+
+-- Returns: the order a return was recorded with (Q175) is one of the same customer's.
+CREATE OR REPLACE FUNCTION returns_with_order_same_customer() RETURNS trigger
+LANGUAGE plpgsql AS $$
+BEGIN
+  IF NEW.with_order_id IS NOT NULL AND
+     (SELECT o.customer_id FROM orders o WHERE o.id = NEW.with_order_id)
+       IS DISTINCT FROM (SELECT o.customer_id FROM orders o WHERE o.id = NEW.order_id) THEN
+    RAISE EXCEPTION 'a return is recorded with an order of its own customer' USING ERRCODE = 'check_violation';
+  END IF;
+  RETURN NEW;
+END;
+$$;
+
+CREATE TRIGGER returns_with_order_same_customer BEFORE INSERT ON returns
+  FOR EACH ROW EXECUTE FUNCTION returns_with_order_same_customer();
 
 -- Ledger: a reversal row must mirror the row it reverses (same order, same amount, matching type).
 CREATE OR REPLACE FUNCTION ledger_reversal_matches_original() RETURNS trigger
@@ -3054,6 +3085,10 @@ interface ReceiptOlderLineDto {     // Q150, Q158: one item at one deposit over 
 }
 type ReceiptRowDto =                // Q150: `no` is the row's number on the paper, running on from the order's lines
   | ({ kind: 'line'; no: number } & ReceiptLineDto)
+  | { kind: 'viaHeading' }            // Q175: this order's pallets that came back with another order
+  | ({ kind: 'via'; no: number } & ReceiptViaLineDto)   // itemName, withOrderNumberDisplay, date, accepted, damaged
+  | { kind: 'withHeading' }           // Q175: other orders' pallets that came back with this one
+  | ({ kind: 'with'; no: number } & ReceiptWithLineDto) // itemName, orderNumberDisplay, accepted, damaged
   | { kind: 'olderHeading' }
   | ({ kind: 'older'; no: number } & ReceiptOlderLineDto);
 interface ReceiptSheetDto {
@@ -3688,6 +3723,7 @@ The web app sends only order lines where the user entered a non-zero accepted or
 - **Access:** `@RequirePermission('returns.create')`; idempotent (scope `RETURN_CREATE`).
 - **Body:** `CustomerReturnCreateBody = z.strictObject({ date: BusinessDate, notes: optionalText(1000), orders: z.array(z.strictObject({ orderId: Id, lines: ReturnLineInput[] (≤ 50, empty entries dropped) })).max(100) })` — an order named twice is a `duplicate` field error; orders left with no line are dropped.
 - **Steps:** idempotency; `date` ≤ today; `lockCustomer` (missing → `CUSTOMER_NOT_FOUND`); no order left → `RETURN_EMPTY`; `lockOrder` for each order by id; each loaded (missing or another customer's → `ORDER_NOT_FOUND { orderId }`; cancelled → `ORDER_CANCELLED { orderId }`); `lockItems(item ids of every order's lines with acceptedQuantity > 0)`; `validateReturnAgainstOrder` and the money for each order against its own state, `RETURN_EXCEEDS_OUT` collected across the orders into one answer; then, by order number, each return written exactly as `POST /api/orders/:orderId/returns`; idempotency row.
+- **Body:** `CustomerReturnCreateBody`; `withOrderId`, when sent, the order whose page it is recorded from (Q175): the customer's (`ORDER_NOT_FOUND`), locked with the named orders, not cancelled (`ORDER_CANCELLED`), and written on every return as `with_order_id`.
 - **Writes:** per order as `POST /api/orders/:orderId/returns`. Over two orders or more (Q161), first one `customer_returns` row, each return's `customer_return_id` set to it, and one `CUSTOMER_RETURN.RETURN_CREATE` audit row for all of it instead of each order's return and refund rows (§11.3); over one order, exactly that order's return.
 - **Response:** 201 `CustomerReturnResultDto`.
 - **Errors:** idempotency codes, `CUSTOMER_NOT_FOUND`, `ORDER_NOT_FOUND`, `ORDER_CANCELLED`, `RETURN_EMPTY`, `RETURN_DUPLICATE_LINE`, `RETURN_LINE_NOT_IN_ORDER`, `BUSINESS_DATE_IN_FUTURE`, `RETURN_DATE_BEFORE_ORDER_DATE`, `DAMAGED_REFUND_TOO_HIGH`, `RETURN_EXCEEDS_OUT`, `VALIDATION_FAILED`.
@@ -4293,7 +4329,7 @@ Worked example (must match the Playwright flow test): items A (deposit 1,000, on
 Screen sections, top to bottom, all on one page:
 
 1. **From the customer** (when `orderId` is absent, Q156): `EntityCombobox kind="customer"` (includes archived customers, since returns on their open orders remain allowed), which sets `search.customerId`; then everything the customer holds from `GET /api/customers/:customerId/returnable`, one row per item over all its orders, a count placed on them oldest first (Q160), and saved in one `POST /api/customers/:customerId/returns` — the screen, its summary and what follows a save are Q156's. Nothing out → `returns.customer.nothingOut`. The rest of this section is the form on one order.
-2. **Order header** (compact, with `orderId`): order number, customer, date, payment type, owed, pallets out; a "Change order" link opens that order's customer's list (item 1).
+2. **Order header** (compact, with `orderId` and `replaceReturnId`): order number, customer, date, payment type, owed, pallets out. With `orderId` alone the page is item 1 over the order's customer, recorded with that order (Q175); the one-order form below is a correction's.
 3. **Return form.**
 
 Data: `GET /api/orders/:orderId` (lines, returns, ledger, owed, version).
@@ -4813,6 +4849,10 @@ The `en.json` and `ar.json` files carry translated counterparts of the same keys
 | `receipt.olderHeading` | `پالێتی داواکارییە پێشووەکان کە هێشتا لای کڕیارن` | From earlier orders, still with the customer (Q150) |
 | `receipt.orderTotal` | `کۆی تەئمیناتی ئەم داواکارییە` | This order's deposit (Q150) |
 | `receipt.olderOutValue` | `تەئمیناتی پالێتە پێشووەکانی لای کڕیار` | Earlier pallets still with the customer (Q150) |
+| `receipt.viaHeading` | `لەگەڵ داواکارییەکی تر گەڕاوەتەوە` | Came back with another order (Q175) |
+| `receipt.viaWith` | `لەگەڵ داواکاری {{orderNumber}} · {{date}}` | with order N · date (Q175) |
+| `receipt.withHeading` | `پالێتی داواکارییەکانی تر کە لەگەڵ ئەم داواکارییە گەڕاونەتەوە` | Other orders' pallets returned with this order (Q175) |
+| `receipt.withOf` | `هی داواکاری {{orderNumber}}` | of order N (Q175) |
 | `receipt.combinedTotal` | `کۆی گشتی` | Total (Q150; shortened by Q151) |
 | `receipt.paymentType` | `جۆری پارەدان` | Payment type |
 | `receipt.paymentCash` | `پارە دراوە (نەقد)` | Paid cash |

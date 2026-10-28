@@ -88,11 +88,17 @@ function namesOf(holdings: readonly ItemHolding[]): Map<number, string> {
 export function CustomerReturnForm({
   data,
   edit,
+  withOrder,
   onSaved,
 }: {
   data: CustomerReturnableDto;
   /** A return edited from the returns list (Q174): its counts by item start the rows, and a save replaces it whole. */
   edit?: CustomerReturnEditableDto;
+  /**
+   * The order whose page it is recorded from (Q175): a return dated before it is refused as typed; a new return sends it,
+   * so every part remembers it, and closing goes back to it — an edit keeps the old one on the server.
+   */
+  withOrder?: { id: number; orderNumber: number; date: string };
   onSaved: () => void;
 }) {
   const { t } = useTranslation();
@@ -275,7 +281,10 @@ export function CustomerReturnForm({
       }),
     ).values(),
   ];
+  // The pallets came back with that order, so not before it was made (Q175).
+  const beforeWithOrder = withOrder !== undefined && date !== null && date !== '' && date < withOrder.date;
   const anyInvalid =
+    beforeWithOrder ||
     items.some(({ invalid }) => invalid) ||
     gone.length > 0 ||
     toRecheck.length > 0 ||
@@ -310,8 +319,9 @@ export function CustomerReturnForm({
     // To the customer, whose orders it changed, however many it touched (Q166); without the right to see customers, to
     // the one order it touched, or else to the returns list.
     destination: (result) => {
-      // An edit starts from the returns list and goes back to it (Q174).
+      // An edit starts from the returns list and goes back to it (Q174); a return from an order's page, to that order.
       if (edit) return { to: '/returns' };
+      if (withOrder) return { to: '/orders/$orderId', params: { orderId: String(withOrder.id) } };
       const [only] = result.returns;
       if (canViewCustomers) return { to: '/customers/$customerId', params: { customerId: String(customerId) } };
       if (result.returns.length === 1 && only)
@@ -335,6 +345,13 @@ export function CustomerReturnForm({
         toast.error(t('returns.edit.alreadyChanged'));
         void invalidateAfterOrderChange(queryClient);
         void navigate({ to: '/returns' });
+        return;
+      }
+      // The order it was recorded with cancelled meanwhile (Q175): nothing can be recorded with it, so back to it.
+      if (withOrder && detailsOf(error, 'ORDER_CANCELLED')?.orderId === withOrder.id) {
+        toast.error(t('returns.customer.ordersChanged'));
+        void invalidateAfterOrderChange(queryClient);
+        void navigate({ to: '/orders/$orderId', params: { orderId: String(withOrder.id) } });
         return;
       }
       const reload = (): void =>
@@ -392,12 +409,18 @@ export function CustomerReturnForm({
         reload();
         return;
       }
-      // An order cancelled, a line taken off an order, or an order's date moved after the return's, meanwhile.
+      // Dated before an order re-dated meanwhile: one it takes pallets from is placed again (Q160); the order it is
+      // recorded with (Q175) is read again too, and its new date is then refused as typed under the date.
+      if (isApiError(error, 'RETURN_DATE_BEFORE_ORDER_DATE')) {
+        toast.error(t('returns.customer.ordersChanged'));
+        void invalidateAfterOrderChange(queryClient);
+        return;
+      }
+      // An order cancelled, a line taken off an order, meanwhile.
       if (
         isApiError(error, 'ORDER_CANCELLED') ||
         isApiError(error, 'ORDER_NOT_FOUND') ||
-        isApiError(error, 'RETURN_LINE_NOT_IN_ORDER') ||
-        isApiError(error, 'RETURN_DATE_BEFORE_ORDER_DATE')
+        isApiError(error, 'RETURN_LINE_NOT_IN_ORDER')
       ) {
         toast.error(t('returns.customer.ordersChanged'));
         reload();
@@ -436,7 +459,13 @@ export function CustomerReturnForm({
       return;
     }
     const notes = values.notes.trim();
-    record.mutate({ date: values.date, notes: notes === '' ? null : notes, orders: body, surplus });
+    record.mutate({
+      date: values.date,
+      notes: notes === '' ? null : notes,
+      orders: body,
+      surplus,
+      ...(withOrder && !edit ? { withOrderId: withOrder.id } : {}),
+    });
   });
 
   // "All" and "Everything came back" count the rest of an item as accepted: pallets already typed as damaged, and
@@ -876,7 +905,20 @@ export function CustomerReturnForm({
 
         <Card>
           <CardContent className="grid grid-cols-1 gap-4 md:grid-cols-2">
-            <DateField control={form.control} name="date" id="date" label={t('returns.fields.date')} />
+            <div className="flex flex-col gap-2">
+              <DateField
+                control={form.control}
+                name="date"
+                id="date"
+                label={t('returns.fields.date')}
+                min={withOrder?.date}
+              />
+              {beforeWithOrder ? (
+                <p role="alert" className="text-destructive text-sm">
+                  {t('errors.RETURN_DATE_BEFORE_ORDER_DATE')}
+                </p>
+              ) : null}
+            </div>
             <Field className="md:col-span-2">
               <FieldLabel htmlFor="notes">{t('returns.fields.notes')}</FieldLabel>
               <Textarea id="notes" rows={2} maxLength={1000} {...form.register('notes')} />

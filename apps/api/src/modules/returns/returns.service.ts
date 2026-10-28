@@ -38,7 +38,7 @@ import { MoneyLedger } from '../ledger/money-ledger';
 import { toCustomerRef } from '../customers/customers.mapper';
 import { ITEM_REF_INCLUDE, toItemRef } from '../items/items.mapper';
 import { recomputeOrder, toOrderState } from '../orders/order-state';
-import { toOrderLineDto } from '../orders/orders.mapper';
+import { otherWithOrder, toOrderLineDto } from '../orders/orders.mapper';
 import { loadOrderDetail } from '../orders/orders.queries';
 import { openOutByItem } from '../orders/open-out';
 import { orderSearch } from '../orders/order-search';
@@ -85,6 +85,19 @@ function toReturnableOrder(
   };
 }
 
+/**
+ * The order an edited return was recorded with (Q175), with its date for the screen's check — named only when it is
+ * another order than one of its parts' own, as the order page and the list name it.
+ */
+function withOrderOf(
+  parts: readonly { orderId: number; withOrder: { id: number; orderNumber: number; date: Date } | null }[],
+): CustomerReturnEditableDto['withOrder'] {
+  const part = parts.find((entry) => otherWithOrder(entry) !== null);
+  return part?.withOrder
+    ? { id: part.withOrder.id, orderNumber: part.withOrder.orderNumber, date: dbDateToBusiness(part.withOrder.date) }
+    : null;
+}
+
 /** The pallets a return takes back, good and damaged. */
 function countsOf(priced: readonly PricedReturnLine[]): { accepted: number; damaged: number } {
   return {
@@ -111,6 +124,7 @@ const LIST_SORT_FIELDS = { id: 'id', date: 'date', refundDue: 'refundDue', cashR
 /** A row of the returns list (Q168): its order and customer, its lines' counts, its standing refund. */
 const RETURN_LIST_INCLUDE = {
   order: { select: { id: true, orderNumber: true, customer: true } },
+  withOrder: { select: { id: true, orderNumber: true } },
   lines: { select: { acceptedQuantity: true, damagedQuantity: true } },
   ledgerEntries: { where: { type: 'REFUND', reversedBy: null }, select: { id: true } },
   createdBy: USER_REF_SELECT,
@@ -188,6 +202,7 @@ export class ReturnsService {
         reversed: pr.reversedAt !== null,
         refundEntryId: pr.ledgerEntries[0]?.id ?? null,
         customerReturnId: pr.customerReturnId,
+        withOrder: otherWithOrder(pr),
         createdAt: pr.createdAt.toISOString(),
         createdBy: toUserRef(pr.createdBy),
       })),
@@ -249,8 +264,13 @@ export class ReturnsService {
         if (body.orders.length === 0) throw new ApiError('RETURN_EMPTY');
 
         const ids = body.orders.map((entry) => entry.orderId);
-        await this.assertOwnOrders(tx, customerId, ids);
-        await lockOrders(tx, ids);
+        // The order it is recorded with (Q175) is the customer's too, locked with the rest so it is neither cancelled
+        // nor dated later meanwhile (`checkWithOrder`).
+        const withOrderId = body.withOrderId ?? null;
+        const locked = withOrderId === null ? ids : [...new Set([...ids, withOrderId])];
+        await this.assertOwnOrders(tx, customerId, locked);
+        await lockOrders(tx, locked);
+        await this.checkWithOrder(tx, withOrderId, body.date);
         const loaded = await tx.order.findMany({
           where: { id: { in: ids } },
           include: RETURN_ORDER_INCLUDE,
@@ -305,6 +325,7 @@ export class ReturnsService {
             money,
             actor,
             visit?.id ?? null,
+            withOrderId,
           );
           returns.push({
             ...written,
@@ -395,7 +416,8 @@ export class ReturnsService {
       if (!target) throw new ApiError('RETURN_NOT_FOUND', { returnId });
       if (target.reversedAt) throw new ApiError('RETURN_ALREADY_REVERSED', { returnId });
       const customerId = target.order.customerId;
-      const oldIds = (await this.partsOf(tx, target)).map((part) => part.id);
+      const oldParts = await this.partsOf(tx, target);
+      const oldIds = oldParts.map((part) => part.id);
       const base = await this.returnableFor(customerId, tx);
       const oldOrders = await tx.order.findMany({
         where: { returns: { some: { id: { in: oldIds } } } },
@@ -465,6 +487,7 @@ export class ReturnsService {
           .sort((a, b) => a.orderNumber - b.orderNumber),
         returnId: target.id,
         customerReturnId: target.customerReturnId,
+        withOrder: withOrderOf(oldParts),
         date: dbDateToBusiness(target.date),
         notes: target.notes,
         reopened: surplus.map((row) => ({ itemId: row.itemId, quantity: row.quantity })),
@@ -473,6 +496,21 @@ export class ReturnsService {
         lines,
       };
     });
+  }
+
+  /**
+   * The order a return is recorded with (Q175), locked by the caller: not cancelled, and not dated after the return —
+   * its receipt says the pallets came back with it, which cannot be before it was made.
+   */
+  private async checkWithOrder(tx: Prisma.TransactionClient, withOrderId: number | null, date: string): Promise<void> {
+    if (withOrderId === null) return;
+    const order = await tx.order.findUniqueOrThrow({
+      where: { id: withOrderId },
+      select: { cancelledAt: true, date: true },
+    });
+    if (order.cancelledAt) throw new ApiError('ORDER_CANCELLED', { orderId: withOrderId });
+    const orderDate = dbDateToBusiness(order.date);
+    if (date < orderDate) throw new ApiError('RETURN_DATE_BEFORE_ORDER_DATE', { orderDate });
   }
 
   /**
@@ -493,13 +531,25 @@ export class ReturnsService {
   private async partsOf(
     client: Prisma.TransactionClient,
     target: { id: number; customerReturnId: number | null },
-  ): Promise<{ id: number; orderId: number }[]> {
+  ): Promise<
+    {
+      id: number;
+      orderId: number;
+      withOrderId: number | null;
+      withOrder: { id: number; orderNumber: number; date: Date } | null;
+    }[]
+  > {
     return client.palletReturn.findMany({
       where:
         target.customerReturnId === null
           ? { id: target.id }
           : { customerReturnId: target.customerReturnId, reversedAt: null },
-      select: { id: true, orderId: true },
+      select: {
+        id: true,
+        orderId: true,
+        withOrderId: true,
+        withOrder: { select: { id: true, orderNumber: true, date: true } },
+      },
     });
   }
 
@@ -535,12 +585,16 @@ export class ReturnsService {
       const parts = await this.partsOf(tx, target);
       const oldIds = parts.map((part) => part.id);
       const oldOrderIds = parts.map((part) => part.orderId);
+      // Every part keeps the order the return was recorded with (Q175), its parts on new orders too.
+      const withOrderId = parts.find((part) => part.withOrderId !== null)?.withOrderId ?? null;
 
       // The orders named must be this customer's, refused as not found otherwise, before any is locked (§6.6).
       const named = body.orders.map((entry) => entry.orderId);
       await this.assertOwnOrders(tx, customerId, named);
       const ids = [...new Set([...oldOrderIds, ...named])];
-      await lockOrders(tx, ids);
+      // The order it was recorded with is locked in the same sorted pass, and checked again for the new date (Q175).
+      await lockOrders(tx, withOrderId === null ? ids : [...new Set([...ids, withOrderId])]);
+      await this.checkWithOrder(tx, withOrderId, body.date);
       const loaded = await tx.order.findMany({ where: { id: { in: ids } }, include: RETURN_ORDER_INCLUDE });
       for (const order of loaded) {
         if (order.cancelledAt) throw new ApiError('ORDER_CANCELLED', { orderId: order.id });
@@ -687,7 +741,16 @@ export class ReturnsService {
           continue;
         }
         const { priced, money } = checked;
-        const created = await this.insertReturn(tx, order.id, one, priced, money, actor.userId, visit?.id ?? null);
+        const created = await this.insertReturn(
+          tx,
+          order.id,
+          one,
+          priced,
+          money,
+          actor.userId,
+          visit?.id ?? null,
+          withOrderId,
+        );
         movements.push(
           ...(old ? this.accepted(this.linesOf(old), 'RETURN_EDIT', order.id, old.id, -1) : []),
           ...this.accepted(priced, 'RETURN_ACCEPTED', order.id, created.id, 1),
@@ -903,6 +966,7 @@ export class ReturnsService {
     money: ReturnType<typeof priceReturn>,
     actor: AuthContext,
     customerReturnId: number | null = null,
+    withOrderId: number | null = null,
   ): Promise<{
     returnId: number;
     refundEntryId: number | null;
@@ -912,7 +976,16 @@ export class ReturnsService {
     refund: LedgerEntry | null;
   }> {
     const { accepted, damaged } = countsOf(priced);
-    const created = await this.insertReturn(tx, order.id, body, priced, money, actor.userId, customerReturnId);
+    const created = await this.insertReturn(
+      tx,
+      order.id,
+      body,
+      priced,
+      money,
+      actor.userId,
+      customerReturnId,
+      withOrderId,
+    );
     await this.stock.apply(tx, this.accepted(priced, 'RETURN_ACCEPTED', order.id, created.id, 1), actor.userId);
     const refund = await this.refund(tx, order.id, created.id, 'RETURN_CREATE', body.date, money.cashRefund, actor);
     await recomputeOrder(tx, order.id, { bumpVersion: true });
@@ -954,12 +1027,14 @@ export class ReturnsService {
         ...surplus.map((row) => row.itemId),
       ]);
 
+      await this.checkWithOrder(tx, old.withOrderId, body.date);
       const standingRefund = this.standingRefund(order, old.id);
       const without = this.stateWithout(order, old.id, standingRefund);
       const priced = validateReturnAgainstOrder(this.returnable(order, without), body);
       const money = priceReturn(priced, computeOrderTotals(without).owed);
 
-      const created = await this.insertReturn(tx, order.id, body, priced, money, actor.userId);
+      // A correction is recorded with the order the return was (Q175), and stays in no visit, as before.
+      const created = await this.insertReturn(tx, order.id, body, priced, money, actor.userId, null, old.withOrderId);
       // One call, so the stock check judges each item on the net of taking the old pallets out and the new ones in (Q20).
       await this.stock.apply(
         tx,
@@ -1087,11 +1162,12 @@ export class ReturnsService {
   ): Promise<{ order: ReturnOrder; old: StoredReturn }> {
     const found = await tx.palletReturn.findUnique({
       where: { id: returnId },
-      select: { orderId: true, order: { select: { customerId: true } } },
+      select: { orderId: true, withOrderId: true, order: { select: { customerId: true } } },
     });
     if (!found) throw new ApiError('RETURN_NOT_FOUND', { returnId });
     await lockCustomer(tx, found.order.customerId);
-    await lockOrder(tx, found.orderId);
+    // With the order it was recorded with (Q175), never changed, in one sorted pass (§6.6).
+    await lockOrders(tx, found.withOrderId === null ? [found.orderId] : [found.orderId, found.withOrderId]);
     const order = await tx.order.findUniqueOrThrow({ where: { id: found.orderId }, include: RETURN_ORDER_INCLUDE });
     const old = order.returns.find((pr) => pr.id === returnId);
     if (!old) throw new ApiError('RETURN_NOT_FOUND', { returnId });
@@ -1174,11 +1250,13 @@ export class ReturnsService {
     money: { refundDue: number; owedBefore: number; cashRefund: number },
     userId: number,
     customerReturnId: number | null = null,
+    withOrderId: number | null = null,
   ) {
     return tx.palletReturn.create({
       data: {
         orderId,
         customerReturnId,
+        withOrderId,
         date: businessDateToDb(body.date),
         notes: body.notes ?? null,
         refundDue: toDbMoney(money.refundDue),

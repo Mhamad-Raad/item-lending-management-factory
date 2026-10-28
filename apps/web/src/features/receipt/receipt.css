@@ -164,6 +164,18 @@
 .lines tr.older td {
   background: #f0f0f0;
 }
+/* Q175: what came back with another order's return — this order's, or another order's with this one — under its own
+   heading row, shaded like the earlier pallets so a black-and-white print tells it from this order's lines. */
+.lines tr.via-heading td,
+.lines tr.with-heading td {
+  font-size: 8.5pt;
+  font-weight: 600;
+  background: #d9d9d9;
+}
+.lines tr.via td,
+.lines tr.with td {
+  background: #f0f0f0;
+}
 .lines .num-cell {
   text-align: end;
 }
@@ -388,6 +400,19 @@
 .handover .lines tr.older td.line-total {
   font-weight: 700;
   color: var(--amber-ink);
+}
+/* Green for what came back with another order (Q175), apart from the blue order and the amber earlier pallets. */
+.handover .lines tr.via-heading td,
+.handover .lines tr.with-heading td {
+  border-color: #6aa84f;
+  background: #b6d7a8;
+  color: #1e3d12;
+  font-weight: 700;
+}
+.handover .lines tr.via td,
+.handover .lines tr.with td {
+  border-color: #c9e2bd;
+  background: #eef7e9;
 }
 /* The footer: payment type, print date and sheet at the start; the totals at the end, ending on the figure in blue. */
 .handover .block-footer {

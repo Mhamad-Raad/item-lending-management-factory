@@ -431,7 +431,7 @@ describe('order changes: edit, cancel, receipt, ledger (§4.8.2, §4.8.3, §6.19
       [1, 2, 27, false],
       [2, 2, 3, true],
     ]);
-    expect(thirty.sheets[1]?.rows.map((row) => (row.kind === 'olderHeading' ? null : row.no))).toEqual([28, 29, 30]);
+    expect(thirty.sheets[1]?.rows.map((row) => ('no' in row ? row.no : null))).toEqual([28, 29, 30]);
   });
 
   it("lists under the order the customer's earlier orders' pallets still out, with the totals (Q150)", async () => {

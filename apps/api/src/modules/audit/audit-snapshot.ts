@@ -70,6 +70,7 @@ export const SNAPSHOT_SPECS: Partial<Record<AuditEntityType, SnapshotSpec>> = {
       'reversalKind',
       'replacedByReturnId',
       'customerReturnId',
+      'withOrderId',
       'createdAt',
     ],
     businessDates: ['date'],

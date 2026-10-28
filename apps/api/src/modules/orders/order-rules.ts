@@ -25,6 +25,8 @@ export const ORDER_CHANGE_INCLUDE = {
   customer: true,
   lines: { orderBy: { id: 'asc' }, include: { item: true } },
   returns: { select: { date: true, reversedAt: true } },
+  // Returns recorded from its page (Q175), its own among them: another order's counts as its activity too.
+  returnsWith: { where: { reversedAt: null }, select: { orderId: true, date: true, reversedAt: true } },
   ledgerEntries: { orderBy: { id: 'asc' }, include: { reversedBy: { select: { id: true } } } },
 } as const satisfies Prisma.OrderInclude;
 
@@ -43,7 +45,12 @@ export interface OrderActivity {
  * frozen and it cannot be cancelled; `ORDER_HAS_ACTIVITY` reports the counts.
  */
 export function orderActivity(order: ChangeableOrder): OrderActivity {
-  const returns = order.returns.filter((pr) => pr.reversedAt === null);
+  // Other orders' pallets returned with it (Q175) are activity too: its receipt lists them, so it is never cancelled
+  // under them, nor dated after them.
+  const returns = [
+    ...order.returns.filter((pr) => pr.reversedAt === null),
+    ...order.returnsWith.filter((pr) => pr.orderId !== order.id),
+  ];
   const payments = order.ledgerEntries.filter(
     (entry) => entry.type === 'PAYMENT' && entry.source === 'MANUAL' && entry.reversedBy === null,
   );

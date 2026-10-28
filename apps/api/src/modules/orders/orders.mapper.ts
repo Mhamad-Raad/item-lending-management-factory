@@ -4,6 +4,7 @@ import {
   type OrderLineDto,
   type OrderListItemDto,
   type ReturnDto,
+  type ReturnWithOrderDto,
 } from '@pallet/shared';
 import { toSafeMoney } from '../../common/utils/money';
 import type { Prisma } from '../../generated/prisma/client';
@@ -32,10 +33,13 @@ export const ORDER_DETAIL_INCLUDE = {
       reversedBy: USER_REF,
       createdBy: USER_REF,
       replaces: { select: { id: true } },
+      withOrder: { select: { id: true, orderNumber: true } },
     },
   },
   ledgerEntries: { orderBy: { id: 'asc' }, include: LEDGER_ENTRY_INCLUDE },
   palletCredits: { orderBy: { id: 'asc' }, include: { item: ITEM_REF_INCLUDE } },
+  // Other orders' standing returns recorded from its page (Q175): activity, as its own.
+  returnsWith: { where: { reversedAt: null }, select: { orderId: true } },
 } as const satisfies Prisma.OrderInclude;
 
 type OrderLineRow = Prisma.OrderLineGetPayload<{ include: { item: typeof ITEM_REF_INCLUDE } }>;
@@ -75,6 +79,16 @@ export function toOrderListItemDto(order: OrderListRow): OrderListItemDto {
   };
 }
 
+/** The order a return was recorded with, said only when it is another than its own (Q175). */
+export function otherWithOrder(pr: {
+  orderId: number;
+  withOrder: ReturnWithOrderDto | null;
+}): ReturnWithOrderDto | null {
+  return pr.withOrder && pr.withOrder.id !== pr.orderId
+    ? { id: pr.withOrder.id, orderNumber: pr.withOrder.orderNumber }
+    : null;
+}
+
 function toReturnDto(order: OrderDetailRow, pr: OrderDetailRow['returns'][number]): ReturnDto {
   return {
     id: pr.id,
@@ -109,6 +123,7 @@ function toReturnDto(order: OrderDetailRow, pr: OrderDetailRow['returns'][number
     createdAt: pr.createdAt.toISOString(),
     createdBy: toUserRef(pr.createdBy),
     customerReturnId: pr.customerReturnId,
+    withOrder: otherWithOrder(pr),
   };
 }
 
@@ -116,6 +131,7 @@ export function toOrderDetailDto(order: OrderDetailRow): OrderDetailDto {
   // Lines stay editable, and the order cancellable, until something has happened on it (§4.8.2).
   const hasActivity =
     order.returns.some((pr) => pr.reversedAt === null) ||
+    order.returnsWith.some((pr) => pr.orderId !== order.id) ||
     order.ledgerEntries.some(
       (entry) => entry.type === 'PAYMENT' && entry.source === 'MANUAL' && entry.reversedBy === null,
     );

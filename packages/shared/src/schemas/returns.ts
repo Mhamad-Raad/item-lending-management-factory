@@ -56,6 +56,11 @@ export const CUSTOMER_RETURN_MAX_ORDERS = 100;
 export const CustomerReturnCreateBody = z.strictObject({
   date: BusinessDate,
   notes: optionalText(1000),
+  /**
+   * The order whose page the return was recorded from (Q175): one of the customer's, not cancelled. Every return
+   * written remembers it, so that order's receipt lists what came back with it from the others.
+   */
+  withOrderId: Id.optional(),
   orders: z
     .array(z.strictObject({ orderId: Id, lines: returningLines }))
     .max(CUSTOMER_RETURN_MAX_ORDERS)
@@ -91,9 +96,10 @@ export type CustomerReturnCreateBody = z.infer<typeof CustomerReturnCreateBody>;
 
 /**
  * A return edited from the returns list (Q174): what the customer screen sends, with the extra pallets it reopened as
- * still owed when it opened, so a save after some of them went out since is refused rather than counted twice.
+ * still owed when it opened, so a save after some of them went out since is refused rather than counted twice. The
+ * order it was recorded with is the old return's, never sent (Q175).
  */
-export const CustomerReturnReplaceBody = CustomerReturnCreateBody.extend({
+export const CustomerReturnReplaceBody = CustomerReturnCreateBody.omit({ withOrderId: true }).extend({
   reopened: z
     .array(z.strictObject({ itemId: Id, quantity: Quantity }))
     .max(50)

@@ -141,3 +141,6 @@ The build history that used to sit in `CLAUDE.md` "Status", oldest first, moved 
 - **10u done** (2026-10-26, Q174): a return is edited from the returns list on the customer screen — every pallet the
   customer owes, its counts typed in, a return over several orders edited whole; the cash shown is the difference,
   and extra pallets already given back stay given back.
+- **10v done** (2026-10-28, Q175): Record return on an order lists everything the customer owes, oldest order first;
+  each return remembers the order it was recorded with (`returns.with_order_id`), whose hand-over receipt lists what
+  came back with it, while the other order's receipt and rows say with which order it came back.

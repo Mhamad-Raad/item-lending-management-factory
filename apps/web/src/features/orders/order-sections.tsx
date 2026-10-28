@@ -21,6 +21,7 @@ import { Button } from '@/components/ui/button';
 import { Tip } from '@/components/app/tip';
 import { printTransactionsReceipt } from '@/features/receipt/print-receipt';
 import { isStandingRefundOf } from '@/features/returns/return-math';
+import { WithOrderTag } from '@/features/returns/with-order-tag';
 import {
   PrintCustomerReturnReceiptButton,
   PrintReturnButtons,
@@ -162,6 +163,7 @@ export function OrderReturns({
             #{formatOrderNumber(pr.id)}
           </span>
           <DateText value={pr.date} />
+          <WithOrderTag withOrder={pr.withOrder} />
           {pr.reversed ? (
             <Badge variant="secondary">
               <Ban aria-hidden />

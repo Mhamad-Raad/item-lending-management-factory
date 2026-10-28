@@ -261,10 +261,10 @@ BEGIN
     RAISE EXCEPTION 'an UPDATE on returns must set reversed_at' USING ERRCODE = 'check_violation';
   END IF;
   IF (NEW.id, NEW.order_id, NEW.date, NEW.notes, NEW.refund_due, NEW.owed_before, NEW.cash_refund,
-      NEW.customer_return_id, NEW.created_at, NEW.created_by_user_id)
+      NEW.customer_return_id, NEW.with_order_id, NEW.created_at, NEW.created_by_user_id)
      IS DISTINCT FROM
      (OLD.id, OLD.order_id, OLD.date, OLD.notes, OLD.refund_due, OLD.owed_before, OLD.cash_refund,
-      OLD.customer_return_id, OLD.created_at, OLD.created_by_user_id) THEN
+      OLD.customer_return_id, OLD.with_order_id, OLD.created_at, OLD.created_by_user_id) THEN
     RAISE EXCEPTION 'only reversal columns of returns may be updated' USING ERRCODE = 'check_violation';
   END IF;
   RETURN NEW;
@@ -273,6 +273,22 @@ $$;
 
 CREATE TRIGGER returns_reversal_set_once BEFORE UPDATE ON returns
   FOR EACH ROW EXECUTE FUNCTION returns_reversal_set_once();
+
+-- Returns: the order a return was recorded with (Q175) is one of the same customer's.
+CREATE OR REPLACE FUNCTION returns_with_order_same_customer() RETURNS trigger
+LANGUAGE plpgsql AS $$
+BEGIN
+  IF NEW.with_order_id IS NOT NULL AND
+     (SELECT o.customer_id FROM orders o WHERE o.id = NEW.with_order_id)
+       IS DISTINCT FROM (SELECT o.customer_id FROM orders o WHERE o.id = NEW.order_id) THEN
+    RAISE EXCEPTION 'a return is recorded with an order of its own customer' USING ERRCODE = 'check_violation';
+  END IF;
+  RETURN NEW;
+END;
+$$;
+
+CREATE TRIGGER returns_with_order_same_customer BEFORE INSERT ON returns
+  FOR EACH ROW EXECUTE FUNCTION returns_with_order_same_customer();
 
 -- Ledger: a reversal row must mirror the row it reverses (same order, same amount, matching type).
 CREATE OR REPLACE FUNCTION ledger_reversal_matches_original() RETURNS trigger

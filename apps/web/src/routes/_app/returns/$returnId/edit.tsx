@@ -8,9 +8,11 @@ import { EmptyState, PageSkeleton, QueryErrorState } from '@/components/app/stat
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { returnEditableQuery } from '@/features/returns/api';
+import { orderLabel } from '@/features/orders/order-text';
 import { CustomerReturnForm } from '@/features/returns/customer-return-form';
 import { usePageTitle } from '@/hooks/use-page-title';
 import { isApiError } from '@/lib/api-error';
+import { isolate } from '@/lib/bidi';
 import { prefetch } from '@/lib/prefetch';
 import { WHILE_EDITING } from '@/lib/query-client';
 import { requirePermission } from '@/lib/route-guards';
@@ -73,9 +75,20 @@ function EditReturnPage() {
           <CardContent className="flex flex-col gap-1">
             <span className="text-muted-foreground text-sm">{t('orders.fields.customer')}</span>
             <bdi className="font-medium">{data.customer.name}</bdi>
+            {/* Recorded from an order's page (Q175): the edit keeps it. */}
+            {data.withOrder ? (
+              <span className="text-muted-foreground text-sm">
+                {t('returns.withOrder.tag', { orderNumber: isolate(orderLabel(data.withOrder.orderNumber)) })}
+              </span>
+            ) : null}
           </CardContent>
         </Card>
-        <CustomerReturnForm data={data} edit={data} onSaved={() => setHeld(data)} />
+        <CustomerReturnForm
+          data={data}
+          edit={data}
+          withOrder={data.withOrder ?? undefined}
+          onSaved={() => setHeld(data)}
+        />
       </div>
     );
   }

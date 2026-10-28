@@ -166,7 +166,8 @@ function OrderDetailPage() {
         actions={
           cancelled ? null : (
             <div className="flex flex-wrap gap-2">
-              {can.createReturn && data.status === 'OPEN' && data.outQuantityTotal > 0 ? (
+              {/* On any order, settled too: the return lists everything the customer holds (Q175). */}
+              {can.createReturn ? (
                 <Button asChild>
                   <Link to="/returns/new" search={{ orderId: data.id }}>
                     <Undo2 aria-hidden />

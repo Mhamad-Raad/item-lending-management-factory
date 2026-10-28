@@ -13,6 +13,8 @@ import {
   layoutReceiptRows,
   type ReceiptDto,
   type ReceiptOlderLineDto,
+  type ReceiptViaLineDto,
+  type ReceiptWithLineDto,
   type ReceiptRowDto,
 } from '@pallet/shared';
 import type { AuthContext } from '../../common/auth-context';
@@ -301,14 +303,34 @@ export class OrdersService {
     // Earlier by order number, the order of creation (A6): a reprint never takes in an order made after this one.
     // Pallets still out are only ever on an OPEN order (a settled one holds nothing, a cancelled one is zeroed), so
     // the customer's settled history is never read: `orders (customer_id, status)` narrows to the open ones.
-    const olderLines = await this.prisma.orderLine.findMany({
-      where: {
-        outQuantity: { gt: 0 },
-        order: { customerId: order.customerId, status: 'OPEN', orderNumber: { lt: order.orderNumber } },
-      },
-      include: { item: { select: { name: true } } },
-      orderBy: [{ order: { orderNumber: 'asc' } }, { id: 'asc' }],
-    });
+    // Read together with what came back with another order's return (Q175), each part below says which.
+    const [olderLines, viaLines, withLines] = await Promise.all([
+      this.prisma.orderLine.findMany({
+        where: {
+          outQuantity: { gt: 0 },
+          order: { customerId: order.customerId, status: 'OPEN', orderNumber: { lt: order.orderNumber } },
+        },
+        include: { item: { select: { name: true } } },
+        orderBy: [{ order: { orderNumber: 'asc' } }, { id: 'asc' }],
+      }),
+      this.prisma.returnLine.findMany({
+        // `<>` leaves out NULL and this order's own: only returns recorded with another order.
+        where: { return: { orderId: order.id, reversedAt: null, withOrderId: { not: order.id } } },
+        include: {
+          orderLine: { select: { itemId: true, item: { select: { name: true } } } },
+          return: { select: { date: true, withOrderId: true, withOrder: { select: { orderNumber: true } } } },
+        },
+        orderBy: [{ returnId: 'asc' }, { id: 'asc' }],
+      }),
+      this.prisma.returnLine.findMany({
+        where: { return: { withOrderId: order.id, orderId: { not: order.id }, reversedAt: null } },
+        include: {
+          orderLine: { select: { itemId: true, item: { select: { name: true } } } },
+          return: { select: { order: { select: { id: true, orderNumber: true } } } },
+        },
+        orderBy: [{ return: { order: { orderNumber: 'asc' } } }, { id: 'asc' }],
+      }),
+    ]);
 
     const rows: ReceiptRowDto[] = order.lines.map((line, index) => ({
       kind: 'line',
@@ -325,7 +347,48 @@ export class OrdersService {
     for (const { first, quantity } of netFromCredit(order.palletCredits)) {
       rows.push({ kind: 'fromCredit', no: rows.length + 1, itemName: first.item.name, quantity });
     }
-    const ownRows = rows.length;
+    // Rows are numbered on through every part; headings take no number.
+    let numbered = rows.length;
+    // Of this order's pallets, what came back with another order's return (Q175), already in the columns above: per
+    // order it came back with, return date and item, standing returns only, in the order they were recorded.
+    const via = new Map<string, ReceiptViaLineDto>();
+    for (const line of viaLines) {
+      const { withOrderId, withOrder, date } = line.return;
+      if (!withOrder) continue;
+      const key = `${withOrderId}:${dbDateToBusiness(date)}:${line.orderLine.itemId}`;
+      const row = via.get(key) ?? {
+        itemName: line.orderLine.item.name,
+        withOrderNumberDisplay: formatOrderNumber(withOrder.orderNumber),
+        date: dbDateToBusiness(date),
+        accepted: 0,
+        damaged: 0,
+      };
+      row.accepted = assertSafe(row.accepted + line.acceptedQuantity, 'accepted');
+      row.damaged = assertSafe(row.damaged + line.damagedQuantity, 'damaged');
+      via.set(key, row);
+    }
+    if (via.size > 0) rows.push({ kind: 'viaHeading' });
+    for (const row of via.values()) rows.push({ kind: 'via', no: (numbered += 1), ...row });
+
+    // Other orders' pallets that came back with this order (Q175): counted on their own orders, so in none of this
+    // paper's figures. Per order and item, by order number.
+    const withRows = new Map<string, ReceiptWithLineDto>();
+    for (const line of withLines) {
+      const from = line.return.order;
+      const key = `${from.id}:${line.orderLine.itemId}`;
+      const row = withRows.get(key) ?? {
+        itemName: line.orderLine.item.name,
+        orderNumberDisplay: formatOrderNumber(from.orderNumber),
+        accepted: 0,
+        damaged: 0,
+      };
+      row.accepted = assertSafe(row.accepted + line.acceptedQuantity, 'accepted');
+      row.damaged = assertSafe(row.damaged + line.damagedQuantity, 'damaged');
+      withRows.set(key, row);
+    }
+    if (withRows.size > 0) rows.push({ kind: 'withHeading' });
+    for (const row of withRows.values()) rows.push({ kind: 'with', no: (numbered += 1), ...row });
+    const ownRows = numbered;
     // One row per item and deposit price over all the earlier orders (Q158), in the order each first appears: the
     // same item lent at another price keeps its own row, so every row's out × unit deposit is its total.
     const older = new Map<string, Omit<ReceiptOlderLineDto, 'outValue'>>();
@@ -344,7 +407,7 @@ export class OrdersService {
       rows.push({ kind: 'older', no: ownRows + index + 1, ...row, outValue });
     });
 
-    const { layout, rowsPerCopy, chunks } = layoutReceiptRows(rows, (row) => row.kind === 'olderHeading');
+    const { layout, rowsPerCopy, chunks } = layoutReceiptRows(rows, (row) => !('no' in row));
     const depositTotal = toSafeMoney(order.depositTotal);
     return {
       orderId: order.id,

@@ -564,7 +564,9 @@ model Order {
   creditOverrideBy User?           @relation("OrderCreditOverrideBy", fields: [creditOverrideByUserId], references: [id], onDelete: Restrict)
   createdBy        User            @relation("OrderCreatedBy", fields: [createdByUserId], references: [id])
   lines            OrderLine[]
-  returns          PalletReturn[]
+  returns          PalletReturn[]  @relation("ReturnOrder")
+  // Returns recorded from this order's page, its own and other orders' (Q175).
+  returnsWith      PalletReturn[]  @relation("ReturnWithOrder")
   ledgerEntries    LedgerEntry[]
   stockMovements   StockMovement[]
 
@@ -623,11 +625,15 @@ model PalletReturn {
   replacedByReturnId Int?                @unique @map("replaced_by_return_id")
   // The customer's return it was recorded in, one paper for every order it touched (Q161); null on an order's own.
   customerReturnId   Int?                @map("customer_return_id")
+  // The order whose page it was recorded from, on every part, its own order's included (Q175); null before Q175 and
+  // on a return recorded from the customer.
+  withOrderId        Int?                @map("with_order_id")
   createdAt          DateTime            @default(now()) @map("created_at") @db.Timestamptz(3)
   createdByUserId    Int                 @map("created_by_user_id")
 
-  order          Order           @relation(fields: [orderId], references: [id])
+  order          Order           @relation("ReturnOrder", fields: [orderId], references: [id])
   customerReturn CustomerReturn? @relation(fields: [customerReturnId], references: [id], onDelete: Restrict)
+  withOrder      Order?          @relation("ReturnWithOrder", fields: [withOrderId], references: [id], onDelete: Restrict)
   reversedBy     User?           @relation("ReturnReversedBy", fields: [reversedByUserId], references: [id], onDelete: Restrict)
   createdBy      User            @relation("ReturnCreatedBy", fields: [createdByUserId], references: [id])
   replacedBy     PalletReturn?   @relation("ReturnReplacement", fields: [replacedByReturnId], references: [id], onDelete: Restrict)
@@ -643,6 +649,7 @@ model PalletReturn {
   // The dashboard's newest returns outside a customer return: a partial index in constraints.sql (Q62, Q161).
   @@index([reversedByUserId])
   @@index([customerReturnId])
+  @@index([withOrderId])
   @@index([createdByUserId])
   @@map("returns")
 }

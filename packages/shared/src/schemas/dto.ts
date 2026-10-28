@@ -388,6 +388,14 @@ export interface ReturnDto {
   createdBy: UserRefDto;
   /** The customer return over several orders it was recorded in, whose one paper is its receipt (Q161, Q166). */
   customerReturnId: number | null;
+  /** The other order whose page it was recorded from (Q175); null when that is its own order, or none. */
+  withOrder: ReturnWithOrderDto | null;
+}
+
+/** The order a return was recorded with, when that is not the return's own (Q175). */
+export interface ReturnWithOrderDto {
+  id: number;
+  orderNumber: number;
 }
 
 /** A return written, replaced or deleted (§6.20): the return's id and the order as it now stands. */
@@ -430,6 +438,8 @@ export interface ReturnListItemDto {
   refundEntryId: number | null;
   /** The customer return over several orders it was recorded in (Q161). */
   customerReturnId: number | null;
+  /** The other order whose page it was recorded from (Q175). */
+  withOrder: ReturnWithOrderDto | null;
   createdAt: string;
   createdBy: UserRefDto;
 }
@@ -441,6 +451,11 @@ export interface ReturnListItemDto {
 export interface CustomerReturnEditableDto extends CustomerReturnableDto {
   returnId: number;
   customerReturnId: number | null;
+  /**
+   * The other order whose page it was recorded from (Q175), as the list names it, with its date: the edit keeps it,
+   * and its date must not pass the return's.
+   */
+  withOrder: (ReturnWithOrderDto & { date: string }) | null;
   date: string;
   notes: string | null;
   /** The cash it paid back, standing: an edit hands over or takes back only the difference. */
@@ -613,8 +628,40 @@ export type ReceiptRowDto =
   | ({ kind: 'line'; no: number } & ReceiptLineDto)
   /** Pallets the factory owed the customer, handed over with this order and no deposit (Q170). */
   | { kind: 'fromCredit'; no: number; itemName: string; quantity: number }
+  /** Over the rows of this order's pallets that came back with another, later order (Q175). */
+  | { kind: 'viaHeading' }
+  | ({ kind: 'via'; no: number } & ReceiptViaLineDto)
+  /** Over the rows of other orders' pallets that came back with this one (Q175). */
+  | { kind: 'withHeading' }
+  | ({ kind: 'with'; no: number } & ReceiptWithLineDto)
   | { kind: 'olderHeading' }
   | ({ kind: 'older'; no: number } & ReceiptOlderLineDto);
+
+/**
+ * What of one item of this order came back on one day with another order's return (Q175): already in this order's
+ * returned columns, said again so the paper tells how it came back.
+ */
+export interface ReceiptViaLineDto {
+  itemName: string;
+  /** The order it came back with, zero-padded to six digits. */
+  withOrderNumberDisplay: string;
+  /** The return's date. */
+  date: string;
+  accepted: number;
+  damaged: number;
+}
+
+/**
+ * What of one item of another of the customer's orders came back with this order (Q175): counted on that order, not
+ * this one, so it adds to none of this paper's figures.
+ */
+export interface ReceiptWithLineDto {
+  itemName: string;
+  /** The order the pallets belong to, zero-padded to six digits. */
+  orderNumberDisplay: string;
+  accepted: number;
+  damaged: number;
+}
 
 export interface ReceiptSheetDto {
   /** 1-based. */

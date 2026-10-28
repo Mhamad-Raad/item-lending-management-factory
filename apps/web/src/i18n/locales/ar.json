@@ -1196,7 +1196,11 @@
       "givenBack": "سُلّم",
       "owedAfter": "المستحق بعد",
       "undone": "أُلغي {{date}}"
-    }
+    },
+    "viaHeading": "أُعيدت مع طلب آخر",
+    "viaWith": "مع الطلب {{orderNumber}} · {{date}}",
+    "withHeading": "طبليات طلبات أخرى أُعيدت مع هذا الطلب",
+    "withOf": "للطلب {{orderNumber}}"
   },
   "returns": {
     "list": {
@@ -1268,6 +1272,10 @@
       "extraWarning": "{{extra}} أكثر من الـ {{out}} التي لديهم — سيصبح المصنع مديناً لهم بـ {{extra}}",
       "extraTotal": "سيصبح المصنع مديناً لهم بـ {{extra}} منصة",
       "savedExtra": "مستحق للزبون من الآن: {{items}}"
+    },
+    "withOrder": {
+      "banner": "إرجاع مع الطلب {{orderNumber}}: كل الطبليات لدى الزبون هنا، الطلب الأقدم أولاً.",
+      "tag": "مع الطلب {{orderNumber}}"
     }
   },
   "reports": {

@@ -157,6 +157,7 @@ const LONG_RETURN: ReturnDto = {
   createdAt: '2026-09-12T08:00:00.000Z',
   createdBy: { id: 1, username: 'admin', displayName: 'Admin' },
   customerReturnId: null,
+  withOrder: null,
 };
 
 /** How many lines the visible copy of a note takes. */
