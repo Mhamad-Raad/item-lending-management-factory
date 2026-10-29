@@ -1142,9 +1142,16 @@
     "outQuantity": "لدى الزبون",
     "printedOn": "تاريخ الطباعة",
     "depositTotal": "إجمالي التأمين",
-    "olderHeading": "من الطلبات السابقة، لا تزال لدى الزبون",
+    "olderHeading": "الطبليات لدى الزبون",
+    "olderEarlier": "السابقة",
+    "olderThisOrder": "هذا الطلب",
+    "olderAll": "الكل",
+    "olderUnitDeposit": "التأمين",
+    "olderEarlierValue": "مجموع السابقة",
+    "olderAllValue": "مجموع الكل",
     "orderTotal": "تأمين هذا الطلب",
     "olderOutValue": "تأمين الطبليات السابقة لدى الزبون",
+    "allOutValue": "تأمين كل الطبليات لدى الزبون",
     "combinedTotal": "المجموع",
     "paymentType": "نوع الدفع",
     "paymentCash": "مدفوع نقداً",
@@ -1197,10 +1204,7 @@
       "owedAfter": "المستحق بعد",
       "undone": "أُلغي {{date}}"
     },
-    "viaHeading": "أُعيدت مع طلب آخر",
-    "viaWith": "مع الطلب {{orderNumber}} · {{date}}",
-    "withHeading": "طبليات طلبات أخرى أُعيدت مع هذا الطلب",
-    "withOf": "للطلب {{orderNumber}}"
+    "withHeading": "طبليات طلبات أخرى أُعيدت مع هذا الطلب"
   },
   "returns": {
     "list": {

@@ -113,8 +113,8 @@
   justify-content: space-between;
 }
 /* Q150: the footer of the last sheet when the customer's earlier orders are listed. Since Q151 the hand-over footer
-   is a row — the details beside the three totals (about 18 mm) — so it fits 20 mm; the 25 mm stays the budget
-   §7.16.3 grants it, 0.5 mm of the half's 5.5 mm to spare. */
+   is a row — the details beside the totals, four since Q178 (about 24 mm) —; the 25 mm is the budget §7.16.3 grants
+   it, 0.5 mm of the half's 5.5 mm to spare. */
 .block-footer.with-older {
   height: 25mm;
 }
@@ -160,19 +160,30 @@
   font-size: 8.5pt;
   font-weight: 600;
   background: #d9d9d9;
+  /* Q178: it names the columns of the rows under it, each on one line (Q179); none runs into the next column. */
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+/* Q179: the column names, short, at 8 pt with less padding, so each holds one line in its column, from the right as
+   Sorani reads; the figures under them take the same padding. */
+.lines tr.older-heading td + td,
+.lines tr.older td + td {
+  padding: 0 0.8mm;
+}
+.lines tr.older-heading td + td {
+  font-size: 8pt;
 }
 .lines tr.older td {
   background: #f0f0f0;
 }
-/* Q175: what came back with another order's return — this order's, or another order's with this one — under its own
-   heading row, shaded like the earlier pallets so a black-and-white print tells it from this order's lines. */
-.lines tr.via-heading td,
+/* Q175: other orders' pallets that came back with this order, under their own heading row, shaded like the earlier
+   pallets so a black-and-white print tells them from this order's lines. */
 .lines tr.with-heading td {
   font-size: 8.5pt;
   font-weight: 600;
   background: #d9d9d9;
 }
-.lines tr.via td,
 .lines tr.with td {
   background: #f0f0f0;
 }
@@ -289,10 +300,6 @@
 .lines tr.reversed td.amount {
   text-decoration: line-through;
 }
-/* A figure longer than its column holds at 10 pt (`FITS` in receipt.tsx). */
-.lines .num-tight {
-  font-size: 7pt;
-}
 .clamp {
   overflow: hidden;
   text-overflow: ellipsis;
@@ -402,14 +409,12 @@
   color: var(--amber-ink);
 }
 /* Green for what came back with another order (Q175), apart from the blue order and the amber earlier pallets. */
-.handover .lines tr.via-heading td,
 .handover .lines tr.with-heading td {
   border-color: #6aa84f;
   background: #b6d7a8;
   color: #1e3d12;
   font-weight: 700;
 }
-.handover .lines tr.via td,
 .handover .lines tr.with td {
   border-color: #c9e2bd;
   background: #eef7e9;

@@ -93,12 +93,26 @@ export function ReceiptOrder({ order }: { order: { orderNumberDisplay: string; d
 }
 
 /**
+ * The receipt's size for a figure longer than its column holds at 10 pt (§7.16.3), set inline; `.num-tight` only
+ * marks such a figure (no CSS sizes it).
+ */
+const TIGHT_PT = 7;
+
+/**
  * A figure in a lines table: `fits` is how many characters its column holds at the receipt's 10 pt (§7.16.3); a
- * longer one — only the largest the inputs allow — is set smaller rather than left to run into the next column.
+ * longer one — only the largest the inputs allow — is set at 7 pt rather than left to run into the next column, and
+ * one too long even for that smaller still, in proportion, so that it fits (Q178).
  */
 export function NumberCell({ text, fits, className }: { text: string | null; fits: number; className?: string }) {
-  const classes = ['num', 'num-cell', text && text.length > fits ? 'num-tight' : null, className].filter(Boolean);
-  return <td className={classes.join(' ')}>{text ?? ''}</td>;
+  const tight = text !== null && text.length > fits;
+  const classes = ['num', 'num-cell', tight ? 'num-tight' : null, className].filter(Boolean);
+  // A figure's width grows with its length and its size, so fits × 10 pt / length is the size that just holds it.
+  const pt = tight ? Math.min(TIGHT_PT, Math.floor(((fits * 10) / text.length) * 10) / 10) : null;
+  return (
+    <td className={classes.join(' ')} style={pt === null ? undefined : { fontSize: `${pt}pt` }}>
+      {text ?? ''}
+    </td>
+  );
 }
 
 /** A receipt's paper: always right to left and Sorani (§7.16.1). `design` names a receipt's own look (Q151). */

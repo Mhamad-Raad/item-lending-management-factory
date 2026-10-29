@@ -6,7 +6,6 @@ import {
   type ReceiptRowDto,
   type ReceiptSheetDto,
 } from '@pallet/shared';
-import { isolate } from '@/lib/bidi';
 import { tr } from './receipt-i18n';
 import {
   NumberCell,
@@ -23,7 +22,7 @@ const FITS = { quantity: 7, unitDeposit: 9, lineTotal: 11 } as const;
 
 /**
  * One row of the footer's totals, in dinars (§7.16.3, Q150): `order` this order's deposit, `older` the earlier
- * pallets', `grand` the figure the receipt ends on (Q151).
+ * pallets' and all the customer holds (Q178), `grand` the figure the receipt ends on (Q151).
  */
 function Total({ label, amount, kind }: { label: string; amount: number; kind: 'order' | 'older' | 'grand' }) {
   return (
@@ -37,16 +36,23 @@ function Total({ label, amount, kind }: { label: string; amount: number; kind: '
 }
 
 /**
- * A row of the table: one of this order's lines, the heading over what the customer still holds of earlier orders, or
- * one of those (Q150). An earlier row is an item at one price over all the earlier orders and shows only what is
- * still out (Q158): its name takes the quantity, accepted and damaged cells, which say nothing of it, and its total
- * column is what of it is still out. A row past the last stays empty, so the grid keeps its height.
+ * A row of the table: one of this order's lines, the heading over what the customer still holds, or one of those
+ * (Q150). Such a row is an item at one price and shows only what is still out (Q158): over the earlier orders, of
+ * this order and the two added, its deposit, and the deposit of the earlier and of all (Q178), in columns its heading
+ * names. A row past the last stays empty, so the grid keeps its height.
  */
 function Row({ row }: { row: ReceiptRowDto | null }) {
   if (row?.kind === 'olderHeading') {
+    // The rows under it have columns of their own (Q178), so it names them, each over its column.
     return (
       <tr className="older-heading">
-        <td colSpan={8}>{tr('receipt.olderHeading')}</td>
+        <td colSpan={2}>{tr('receipt.olderHeading')}</td>
+        <td>{tr('receipt.olderEarlier')}</td>
+        <td>{tr('receipt.olderThisOrder')}</td>
+        <td>{tr('receipt.olderAll')}</td>
+        <td>{tr('receipt.olderUnitDeposit')}</td>
+        <td>{tr('receipt.olderEarlierValue')}</td>
+        <td>{tr('receipt.olderAllValue')}</td>
       </tr>
     );
   }
@@ -67,33 +73,25 @@ function Row({ row }: { row: ReceiptRowDto | null }) {
       </tr>
     );
   }
-  if (row?.kind === 'viaHeading' || row?.kind === 'withHeading') {
+  if (row?.kind === 'withHeading') {
     return (
-      <tr className={row.kind === 'viaHeading' ? 'via-heading' : 'with-heading'}>
-        <td colSpan={8}>{tr(row.kind === 'viaHeading' ? 'receipt.viaHeading' : 'receipt.withHeading')}</td>
+      <tr className="with-heading">
+        <td colSpan={8}>{tr('receipt.withHeading')}</td>
       </tr>
     );
   }
-  if (row?.kind === 'via' || row?.kind === 'with') {
-    // What came back with another order's return (Q175): the item, the returned columns, and in the cells that say
-    // nothing of it — still out and the money — which order: for this order's pallets the order they came back with
-    // and when, for another order's the order they belong to.
+  if (row?.kind === 'with') {
+    // Other orders' pallets that came back with this order (Q175), per item, naming no order (Q177): the item and the
+    // returned columns; still out and the money say nothing of it.
     return (
-      <tr className={row.kind}>
+      <tr className="with">
         <td className="num num-cell">{row.no}</td>
         <td className="col-item" colSpan={2}>
           <bdi>{row.itemName}</bdi>
         </td>
         <NumberCell text={formatNumber(row.accepted)} fits={FITS.quantity} />
         <NumberCell text={formatNumber(row.damaged)} fits={FITS.quantity} />
-        <td className="col-item" colSpan={3}>
-          {row.kind === 'via'
-            ? tr('receipt.viaWith', {
-                orderNumber: isolate(row.withOrderNumberDisplay),
-                date: isolate(formatBusinessDate(row.date)),
-              })
-            : tr('receipt.withOf', { orderNumber: isolate(row.orderNumberDisplay) })}
-        </td>
+        <td colSpan={3} />
       </tr>
     );
   }
@@ -101,12 +99,15 @@ function Row({ row }: { row: ReceiptRowDto | null }) {
     return (
       <tr className="older">
         <td className="num num-cell">{row.no}</td>
-        <td className="col-item" colSpan={4}>
+        <td className="col-item">
           <bdi>{row.itemName}</bdi>
         </td>
-        <NumberCell text={formatNumber(row.outQuantity)} fits={FITS.quantity} />
-        <NumberCell text={formatMoney(row.unitDeposit)} fits={FITS.unitDeposit} />
-        <NumberCell text={formatMoney(row.outValue)} fits={FITS.lineTotal} className="line-total" />
+        <NumberCell text={formatNumber(row.earlierQuantity)} fits={FITS.quantity} />
+        <NumberCell text={formatNumber(row.orderQuantity)} fits={FITS.quantity} />
+        <NumberCell text={formatNumber(row.allQuantity)} fits={FITS.quantity} />
+        <NumberCell text={formatMoney(row.unitDeposit)} fits={FITS.quantity} />
+        <NumberCell text={formatMoney(row.earlierValue)} fits={FITS.unitDeposit} />
+        <NumberCell text={formatMoney(row.allValue)} fits={FITS.lineTotal} className="line-total" />
       </tr>
     );
   }
@@ -221,6 +222,7 @@ function Copy({
           <div className="sums">
             <Total label={tr('receipt.orderTotal')} amount={receipt.depositTotal} kind="order" />
             <Total label={tr('receipt.olderOutValue')} amount={receipt.older.outValue} kind="older" />
+            <Total label={tr('receipt.allOutValue')} amount={receipt.older.allOutValue} kind="older" />
             <Total label={tr('receipt.combinedTotal')} amount={receipt.older.combinedTotal} kind="grand" />
           </div>
         ) : sheet.showTotal ? (

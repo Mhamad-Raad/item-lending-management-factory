@@ -13,8 +13,7 @@ import {
   layoutReceiptRows,
   type ReceiptDto,
   type ReceiptOlderLineDto,
-  type ReceiptViaLineDto,
-  type ReceiptWithLineDto,
+  type ReceiptCameBackLineDto,
   type ReceiptRowDto,
 } from '@pallet/shared';
 import type { AuthContext } from '../../common/auth-context';
@@ -52,6 +51,28 @@ import { ORDER_LIST_INCLUDE, netFromCredit, toOrderListItemDto } from './orders.
 import { loadOrderDetail } from './orders.queries';
 
 const SORT_FIELDS = { orderNumber: 'orderNumber', date: 'date', owed: 'owed', outValue: 'outValue' } as const;
+
+/** What a receipt reads of another order's return line that came back with this order (Q175, Q177). */
+const CAME_BACK_INCLUDE = {
+  orderLine: { select: { itemId: true, item: { select: { name: true } } } },
+} satisfies Prisma.ReturnLineInclude;
+
+/**
+ * Other orders' pallets that came back with this order (Q175), one row per item summed over every order, naming none
+ * of them (Q177), in the order each item first appears.
+ */
+function cameBackByItem(
+  lines: Prisma.ReturnLineGetPayload<{ include: typeof CAME_BACK_INCLUDE }>[],
+): ReceiptCameBackLineDto[] {
+  const byItem = new Map<number, ReceiptCameBackLineDto>();
+  for (const line of lines) {
+    const row = byItem.get(line.orderLine.itemId) ?? { itemName: line.orderLine.item.name, accepted: 0, damaged: 0 };
+    row.accepted = assertSafe(row.accepted + line.acceptedQuantity, 'accepted');
+    row.damaged = assertSafe(row.damaged + line.damagedQuantity, 'damaged');
+    byItem.set(line.orderLine.itemId, row);
+  }
+  return [...byItem.values()];
+}
 
 @Injectable()
 export class OrdersService {
@@ -282,8 +303,9 @@ export class OrdersService {
   }
 
   /**
-   * The printed hand-over (§6.19, §7.16): this order's lines, then those of the customer's earlier orders still out
-   * (Q150), in one table — six rows to a half, both copies on one A4 sheet, or a page per copy when there are more.
+   * The printed hand-over (§6.19, §7.16): this order's lines, other orders' pallets that came back with it per item
+   * (Q175, Q177, Q179), then what the customer still holds per item and price — of earlier orders and of this one (Q150,
+   * Q158, Q178) — in one table — six rows to a half, both copies on one A4 sheet, or a page per copy when there are more.
    * A line also says what has come back so far (Q134), from the totals `recomputeOrder()` keeps on it, and the
    * receipt the day those figures were read.
    */
@@ -303,8 +325,8 @@ export class OrdersService {
     // Earlier by order number, the order of creation (A6): a reprint never takes in an order made after this one.
     // Pallets still out are only ever on an OPEN order (a settled one holds nothing, a cancelled one is zeroed), so
     // the customer's settled history is never read: `orders (customer_id, status)` narrows to the open ones.
-    // Read together with what came back with another order's return (Q175), each part below says which.
-    const [olderLines, viaLines, withLines] = await Promise.all([
+    // Read together with the other orders' pallets that came back with this order's return (Q175).
+    const [olderLines, withLines] = await Promise.all([
       this.prisma.orderLine.findMany({
         where: {
           outQuantity: { gt: 0 },
@@ -314,20 +336,8 @@ export class OrdersService {
         orderBy: [{ order: { orderNumber: 'asc' } }, { id: 'asc' }],
       }),
       this.prisma.returnLine.findMany({
-        // `<>` leaves out NULL and this order's own: only returns recorded with another order.
-        where: { return: { orderId: order.id, reversedAt: null, withOrderId: { not: order.id } } },
-        include: {
-          orderLine: { select: { itemId: true, item: { select: { name: true } } } },
-          return: { select: { date: true, withOrderId: true, withOrder: { select: { orderNumber: true } } } },
-        },
-        orderBy: [{ returnId: 'asc' }, { id: 'asc' }],
-      }),
-      this.prisma.returnLine.findMany({
         where: { return: { withOrderId: order.id, orderId: { not: order.id }, reversedAt: null } },
-        include: {
-          orderLine: { select: { itemId: true, item: { select: { name: true } } } },
-          return: { select: { order: { select: { id: true, orderNumber: true } } } },
-        },
+        include: CAME_BACK_INCLUDE,
         orderBy: [{ return: { order: { orderNumber: 'asc' } } }, { id: 'asc' }],
       }),
     ]);
@@ -349,65 +359,52 @@ export class OrdersService {
     }
     // Rows are numbered on through every part; headings take no number.
     let numbered = rows.length;
-    // Of this order's pallets, what came back with another order's return (Q175), already in the columns above: per
-    // order it came back with, return date and item, standing returns only, in the order they were recorded.
-    const via = new Map<string, ReceiptViaLineDto>();
-    for (const line of viaLines) {
-      const { withOrderId, withOrder, date } = line.return;
-      if (!withOrder) continue;
-      const key = `${withOrderId}:${dbDateToBusiness(date)}:${line.orderLine.itemId}`;
-      const row = via.get(key) ?? {
-        itemName: line.orderLine.item.name,
-        withOrderNumberDisplay: formatOrderNumber(withOrder.orderNumber),
-        date: dbDateToBusiness(date),
-        accepted: 0,
-        damaged: 0,
-      };
-      row.accepted = assertSafe(row.accepted + line.acceptedQuantity, 'accepted');
-      row.damaged = assertSafe(row.damaged + line.damagedQuantity, 'damaged');
-      via.set(key, row);
-    }
-    if (via.size > 0) rows.push({ kind: 'viaHeading' });
-    for (const row of via.values()) rows.push({ kind: 'via', no: (numbered += 1), ...row });
-
-    // Other orders' pallets that came back with this order (Q175): counted on their own orders, so in none of this
-    // paper's figures. Per order and item, by order number.
-    const withRows = new Map<string, ReceiptWithLineDto>();
-    for (const line of withLines) {
-      const from = line.return.order;
-      const key = `${from.id}:${line.orderLine.itemId}`;
-      const row = withRows.get(key) ?? {
-        itemName: line.orderLine.item.name,
-        orderNumberDisplay: formatOrderNumber(from.orderNumber),
-        accepted: 0,
-        damaged: 0,
-      };
-      row.accepted = assertSafe(row.accepted + line.acceptedQuantity, 'accepted');
-      row.damaged = assertSafe(row.damaged + line.damagedQuantity, 'damaged');
-      withRows.set(key, row);
-    }
-    if (withRows.size > 0) rows.push({ kind: 'withHeading' });
-    for (const row of withRows.values()) rows.push({ kind: 'with', no: (numbered += 1), ...row });
+    // Other orders' pallets that came back with this order: counted on their own orders, so in none of this paper's
+    // figures. This order's own that came back with another order are not listed (Q179): its returned columns above
+    // already count them.
+    const withRows = cameBackByItem(withLines);
+    if (withRows.length > 0) rows.push({ kind: 'withHeading' });
+    for (const row of withRows) rows.push({ kind: 'with', no: (numbered += 1), ...row });
     const ownRows = numbered;
     // One row per item and deposit price over all the earlier orders (Q158), in the order each first appears: the
-    // same item lent at another price keeps its own row, so every row's out × unit deposit is its total.
-    const older = new Map<string, Omit<ReceiptOlderLineDto, 'outValue'>>();
-    for (const line of olderLines) {
+    // same item lent at another price keeps its own row, so every row's count × unit deposit is its total. This
+    // order's still out joins its item and price's row, or adds one after them (Q178).
+    type OlderCount = Pick<ReceiptOlderLineDto, 'itemName' | 'unitDeposit' | 'earlierQuantity' | 'orderQuantity'>;
+    const older = new Map<string, OlderCount>();
+    const count = (
+      line: { itemId: number; unitDeposit: bigint; outQuantity: number },
+      itemName: string,
+      field: 'earlierQuantity' | 'orderQuantity',
+    ) => {
       const unitDeposit = toSafeMoney(line.unitDeposit);
       const key = `${line.itemId}:${unitDeposit}`;
-      const row = older.get(key) ?? { itemName: line.item.name, unitDeposit, outQuantity: 0 };
-      row.outQuantity = assertSafe(row.outQuantity + line.outQuantity, 'outQuantity');
+      const row = older.get(key) ?? { itemName, unitDeposit, earlierQuantity: 0, orderQuantity: 0 };
+      row[field] = assertSafe(row[field] + line.outQuantity, field);
       older.set(key, row);
+    };
+    for (const line of olderLines) count(line, line.item.name, 'earlierQuantity');
+    // Only beside earlier pallets: with none, this order's lines above already say all the customer holds.
+    if (older.size > 0) {
+      for (const line of order.lines) if (line.outQuantity > 0) count(line, line.item.name, 'orderQuantity');
     }
     let olderOutValue = 0;
+    let allOutValue = 0;
     if (older.size > 0) rows.push({ kind: 'olderHeading' });
     [...older.values()].forEach((row, index) => {
-      const outValue = assertSafe(row.outQuantity * row.unitDeposit, 'outValue');
-      olderOutValue = assertSafe(olderOutValue + outValue, 'olderOutValue');
-      rows.push({ kind: 'older', no: ownRows + index + 1, ...row, outValue });
+      const allQuantity = assertSafe(row.earlierQuantity + row.orderQuantity, 'allQuantity');
+      const earlierValue = assertSafe(row.earlierQuantity * row.unitDeposit, 'earlierValue');
+      const allValue = assertSafe(allQuantity * row.unitDeposit, 'allValue');
+      olderOutValue = assertSafe(olderOutValue + earlierValue, 'olderOutValue');
+      allOutValue = assertSafe(allOutValue + allValue, 'allOutValue');
+      rows.push({ kind: 'older', no: ownRows + index + 1, ...row, allQuantity, earlierValue, allValue });
     });
 
-    const { layout, rowsPerCopy, chunks } = layoutReceiptRows(rows, (row) => !('no' in row));
+    // The amber part's heading names its columns (Q178): a page its rows go on to repeats it.
+    const { layout, rowsPerCopy, chunks } = layoutReceiptRows(
+      rows,
+      (row) => !('no' in row),
+      (heading) => heading.kind === 'olderHeading',
+    );
     const depositTotal = toSafeMoney(order.depositTotal);
     return {
       orderId: order.id,
@@ -435,7 +432,11 @@ export class OrdersService {
       })),
       older:
         older.size > 0
-          ? { outValue: olderOutValue, combinedTotal: assertSafe(depositTotal + olderOutValue, 'combinedTotal') }
+          ? {
+              outValue: olderOutValue,
+              allOutValue,
+              combinedTotal: assertSafe(depositTotal + olderOutValue, 'combinedTotal'),
+            }
           : null,
     };
   }

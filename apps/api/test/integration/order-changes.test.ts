@@ -480,13 +480,24 @@ describe('order changes: edit, cancel, receipt, ledger (§4.8.2, §4.8.3, §6.19
     expect(receipt).toMatchObject({
       layout: 'halves',
       depositTotal: 10_000,
-      older: { outValue: 15_000, combinedTotal: 25_000 },
+      older: { outValue: 15_000, allOutValue: 25_000, combinedTotal: 25_000 },
     });
     expect(receipt.sheets[0]?.rows).toEqual([
       expect.objectContaining({ kind: 'line', no: 1, quantity: 10, lineTotal: 10_000 }),
       { kind: 'olderHeading' },
-      // Only what is still out of it (Q158): no quantity, returns or damage of the earlier order.
-      { kind: 'older', no: 2, itemName: 'Pallet 120×100', unitDeposit: 1_000, outQuantity: 15, outValue: 15_000 },
+      // Only what is still out of it (Q158): no quantity, returns or damage of the earlier order; this order's 10 of
+      // the same item and price beside it (Q178).
+      {
+        kind: 'older',
+        no: 2,
+        itemName: 'Pallet 120×100',
+        unitDeposit: 1_000,
+        earlierQuantity: 15,
+        orderQuantity: 10,
+        allQuantity: 25,
+        earlierValue: 15_000,
+        allValue: 25_000,
+      },
     ]);
 
     // The earliest order has nothing earlier to list.
@@ -496,7 +507,7 @@ describe('order changes: edit, cancel, receipt, ledger (§4.8.2, §4.8.3, §6.19
     expect(first.sheets[0]?.rows.map((row) => row.kind)).toEqual(['line', 'line']);
   });
 
-  it('adds up the earlier pallets per item over the orders, an item at another price on its own row (Q158)', async () => {
+  it('adds up what is still out per item, an item at another price on its own row, this order’s too (Q158, Q178)', async () => {
     const plastic = await createItem(app, admin, { name: 'Plastic pallet', depositPrice: 500, stock: 50 });
     const earlier = (lines: { itemId: number; quantity: number; unitDeposit?: number }[]) =>
       createOrder(app, admin, { customerId: customer.id, driverId: driver.id, date: '2026-09-02', lines });
@@ -515,23 +526,78 @@ describe('order changes: edit, cancel, receipt, ledger (§4.8.2, §4.8.3, §6.19
       lines: [{ orderLineId: secondLine.id, acceptedQuantity: 2, damagedQuantity: 1 }],
     });
 
+    // This order: three at a price no earlier order has, and two plastic all back (one of the same item and price
+    // joining the earlier row is the test above).
     const order = await createOrder(app, admin, {
       customerId: customer.id,
       driverId: driver.id,
       date: TODAY,
-      lines: [{ itemId: item.id, quantity: 1 }],
+      lines: [
+        { itemId: item.id, quantity: 3, unitDeposit: 900 },
+        { itemId: plastic.id, quantity: 2 },
+      ],
+    });
+    const plasticLine = order.lines[1];
+    if (!plasticLine) throw new Error('the order has a plastic line');
+    await recordReturn(app, admin, {
+      orderId: order.id,
+      date: TODAY,
+      lines: [{ orderLineId: plasticLine.id, acceptedQuantity: 2 }],
     });
     const receipt = (await http().get(`/api/orders/${order.id}/receipt`).set(asUser(admin)).expect(200))
       .body as ReceiptDto;
 
-    expect(receipt.sheets[0]?.rows.slice(1)).toEqual([
+    expect(receipt.sheets[0]?.rows.slice(2)).toEqual([
       { kind: 'olderHeading' },
-      { kind: 'older', no: 2, itemName: 'Plastic pallet', unitDeposit: 500, outQuantity: 3, outValue: 1_500 },
+      // Nothing of this order's plastic is out, so its row is the earlier orders' alone.
+      {
+        kind: 'older',
+        no: 3,
+        itemName: 'Plastic pallet',
+        unitDeposit: 500,
+        earlierQuantity: 3,
+        orderQuantity: 0,
+        allQuantity: 3,
+        earlierValue: 1_500,
+        allValue: 1_500,
+      },
       // 10 of the first order and the 4 of 7 the second still has out, at the same price: one row.
-      { kind: 'older', no: 3, itemName: 'Pallet 120×100', unitDeposit: 1_000, outQuantity: 14, outValue: 14_000 },
-      { kind: 'older', no: 4, itemName: 'Pallet 120×100', unitDeposit: 1_200, outQuantity: 2, outValue: 2_400 },
+      {
+        kind: 'older',
+        no: 4,
+        itemName: 'Pallet 120×100',
+        unitDeposit: 1_000,
+        earlierQuantity: 14,
+        orderQuantity: 0,
+        allQuantity: 14,
+        earlierValue: 14_000,
+        allValue: 14_000,
+      },
+      {
+        kind: 'older',
+        no: 5,
+        itemName: 'Pallet 120×100',
+        unitDeposit: 1_200,
+        earlierQuantity: 2,
+        orderQuantity: 0,
+        allQuantity: 2,
+        earlierValue: 2_400,
+        allValue: 2_400,
+      },
+      // This order's three at a price no earlier order has: a row after them, with nothing earlier.
+      {
+        kind: 'older',
+        no: 6,
+        itemName: 'Pallet 120×100',
+        unitDeposit: 900,
+        earlierQuantity: 0,
+        orderQuantity: 3,
+        allQuantity: 3,
+        earlierValue: 0,
+        allValue: 2_700,
+      },
     ]);
-    expect(receipt.older).toEqual({ outValue: 17_900, combinedTotal: 18_900 });
+    expect(receipt.older).toEqual({ outValue: 17_900, allOutValue: 20_600, combinedTotal: 21_600 });
   });
 
   it('prints on each receipt line what came back of it, and forgets a deleted return (Q134)', async () => {

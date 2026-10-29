@@ -114,7 +114,7 @@ describe('a return recorded with an order, taking back other orders’ pallets t
     expect(result.returns).toHaveLength(2);
   });
 
-  it("prints on the order's receipt what came back with it, and on the other order's how its pallets came back", async () => {
+  it("prints on the order's receipt what came back with it, and on the other order's only in its own columns", async () => {
     const first = await order([{ itemId: pallet.id, quantity: 10 }]);
     const second = await order([
       { itemId: pallet.id, quantity: 5 },
@@ -138,27 +138,41 @@ describe('a return recorded with an order, taking back other orders’ pallets t
     const own = await receipt(withOrder.id);
     expect(rowsOf(own).filter((row) => row.kind === 'withHeading' || row.kind === 'with')).toEqual([
       { kind: 'withHeading' },
-      { kind: 'with', no: 2, itemName: 'Pallet 120×100', orderNumberDisplay: '000001', accepted: 4, damaged: 1 },
-      { kind: 'with', no: 3, itemName: 'Pallet 120×100', orderNumberDisplay: '000002', accepted: 5, damaged: 0 },
-      { kind: 'with', no: 4, itemName: 'Crate', orderNumberDisplay: '000002', accepted: 3, damaged: 0 },
+      // One row per item over both orders, naming neither (Q177).
+      { kind: 'with', no: 2, itemName: 'Pallet 120×100', accepted: 9, damaged: 1 },
+      { kind: 'with', no: 3, itemName: 'Crate', accepted: 3, damaged: 0 },
     ]);
     // None of it in this order's figures: its own line and deposit as they were.
     expect(rowsOf(own)[0]).toMatchObject({ kind: 'line', returnedAccepted: 0, outQuantity: 2 });
     expect(own.depositTotal).toBe(1_000);
 
+    // The first order's own pallets that came back with another order are in its returned columns, and only there
+    // (Q179).
     const earlier = await receipt(first.id);
     expect(rowsOf(earlier)).toEqual([
       expect.objectContaining({ kind: 'line', returnedAccepted: 4, returnedDamaged: 1, outQuantity: 5 }),
-      { kind: 'viaHeading' },
-      {
-        kind: 'via',
-        no: 2,
-        itemName: 'Pallet 120×100',
-        withOrderNumberDisplay: '000003',
-        date: TODAY,
-        accepted: 4,
-        damaged: 1,
-      },
+    ]);
+  });
+
+  it('counts what came back with other orders, and with none or its own, in the returned columns alone (Q179)', async () => {
+    const first = await order([{ itemId: pallet.id, quantity: 10 }]);
+    const withA = await order([{ itemId: crate.id, quantity: 1 }]);
+    const withB = await order([{ itemId: crate.id, quantity: 1 }]);
+    await post([{ orderId: first.id, lines: [{ orderLineId: lineOf(first), acceptedQuantity: 2 }] }], withA.id).expect(
+      201,
+    );
+    await post(
+      [{ orderId: first.id, lines: [{ orderLineId: lineOf(first), acceptedQuantity: 3, damagedQuantity: 1 }] }],
+      withB.id,
+    ).expect(201);
+    // And one recorded with no order (with_order_id NULL), and one from its own order's page.
+    await post([{ orderId: first.id, lines: [{ orderLineId: lineOf(first), acceptedQuantity: 1 }] }]).expect(201);
+    await post([{ orderId: first.id, lines: [{ orderLineId: lineOf(first), acceptedQuantity: 1 }] }], first.id).expect(
+      201,
+    );
+
+    expect(rowsOf(await receipt(first.id))).toEqual([
+      expect.objectContaining({ kind: 'line', returnedAccepted: 7, returnedDamaged: 1, outQuantity: 2 }),
     ]);
   });
 
@@ -173,8 +187,14 @@ describe('a return recorded with an order, taking back other orders’ pallets t
     ).body as CustomerReturnResultDto;
     await http().delete(`/api/returns/${result.returns[0]?.returnId}`).set(asUser(admin)).expect(200);
 
-    // The first order's pallets are out again, so listed as earlier pallets still out, and nothing as came back.
-    expect(rowsOf(await receipt(withOrder.id)).map((row) => row.kind)).toEqual(['line', 'olderHeading', 'older']);
+    // The first order's pallets are out again, so listed as earlier pallets still out — beside this order's crates
+    // (Q178) — and nothing as came back.
+    expect(rowsOf(await receipt(withOrder.id)).map((row) => row.kind)).toEqual([
+      'line',
+      'olderHeading',
+      'older',
+      'older',
+    ]);
     expect(rowsOf(await receipt(first.id)).map((row) => row.kind)).toEqual(['line']);
   });
 

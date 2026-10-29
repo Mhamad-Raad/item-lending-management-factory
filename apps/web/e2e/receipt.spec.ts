@@ -61,7 +61,7 @@ const RECEIPT: ReceiptDto = {
 
 /**
  * Two lines of the order and, under the heading, three of the customer's earlier orders still out: six rows, so
- * both copies share a sheet, and the footer carries the three totals — the largest the inputs allow (Q150).
+ * both copies share a sheet, and the footer carries the four totals — the largest the inputs allow (Q150, Q178).
  */
 const WITH_OLDER: ReceiptDto = {
   ...RECEIPT,
@@ -81,23 +81,31 @@ const WITH_OLDER: ReceiptDto = {
           no: 2 + index,
           itemName: `Euro pallet ${index}`,
           unitDeposit: 5_000,
-          outQuantity: 15,
-          outValue: 75_000,
+          earlierQuantity: 15,
+          orderQuantity: 3,
+          allQuantity: 18,
+          earlierValue: 75_000,
+          allValue: 90_000,
         })),
-        // Summed over many earlier orders (Q158): ten of the largest lines, wider than any one line can be.
+        // At the largest deposit, summed over many earlier orders (Q158) to near the largest safe figure: wider than any
+        // one line can be, the deposit in the narrow column the amber part sets it in (Q178).
         {
           kind: 'older',
           no: 5,
           itemName: 'Euro pallet 3',
-          unitDeposit: 1_000_000,
-          outQuantity: 10_000_000,
-          outValue: 10_000_000_000_000,
+          unitDeposit: 1_000_000_000_000,
+          earlierQuantity: 8_000,
+          orderQuantity: 1_000,
+          allQuantity: 9_000,
+          earlierValue: 8_000_000_000_000_000,
+          allValue: 9_000_000_000_000_000,
         },
       ],
       showTotal: true,
     },
   ],
-  older: { outValue: 1_000_000_000_000, combinedTotal: 1_000_000_020_000 },
+  // The rows' own sums, so the footer measures the widest lines it can have.
+  older: { outValue: 8_000_000_000_150_000, allOutValue: 9_000_000_000_180_000, combinedTotal: 8_000_000_000_170_000 },
 };
 
 async function openReceipt(page: Page, receipt: ReceiptDto | (() => ReceiptDto)) {
@@ -253,17 +261,37 @@ test("Q150: the customer's earlier pallets still out share the order's table, an
   await expect(page.locator('.sheet')).toHaveCount(1);
   await expect(page.locator('.half')).toHaveCount(2);
   const half = page.locator('.half').first();
-  await expect(half.locator('tbody tr.older-heading')).toHaveText('پالێتی داواکارییە پێشووەکان کە هێشتا لای کڕیارن');
+  // The heading names the columns under it (Q178).
+  await expect(half.locator('tbody tr.older-heading td')).toHaveText([
+    'پالێتەکانی لای کڕیار',
+    'پێشوو',
+    'ئەم داواکاری',
+    'هەمووی',
+    'تەئمینات',
+    'کۆی پێشوو',
+    'کۆی هەمووی',
+  ]);
+  // Sorani reads from the right: each name starts at its cell's right edge, inside its padding, not at the left (Q179).
+  const nameSides = await half.locator('tbody tr.older-heading td').evaluateAll((cells) =>
+    cells.map((cell) => {
+      const range = document.createRange();
+      range.selectNodeContents(cell);
+      return Math.round(cell.getBoundingClientRect().right - range.getBoundingClientRect().right);
+    }),
+  );
+  expect(nameSides.every((gap) => gap <= 7)).toBe(true);
   await expect(half.locator('tbody tr.older')).toHaveCount(3);
-  // Only what is still out (Q158): the item spans the quantity, accepted and damaged columns.
+  // Only what is still out (Q158): earlier, this order's and all, the deposit, and the earlier and all totals (Q178).
   await expect(half.locator('tbody tr.older').first().locator('td')).toHaveText([
     '3',
     'Euro pallet 1',
     '15',
+    '3',
+    '18',
     '5,000',
     '75,000',
+    '90,000',
   ]);
-  await expect(half.locator('tbody tr.older').first().locator('td.col-item')).toHaveAttribute('colspan', '4');
   // Shaded apart from the order's own lines, so a black-and-white print still tells them apart.
   const shade = (row: string) =>
     half
@@ -274,8 +302,11 @@ test("Q150: the customer's earlier pallets still out share the order's table, an
       .evaluate((cell) => getComputedStyle(cell).backgroundColor);
   expect(await shade('tbody tr:not(.older):not(.older-heading)')).not.toBe(await shade('tbody tr.older'));
   await expect(half.locator('.block-footer')).toContainText('کۆی تەئمیناتی ئەم داواکارییە: 20,000 دینار');
-  await expect(half.locator('.block-footer')).toContainText('کۆی گشتی: 1,000,000,020,000 دینار');
-  // The three totals beside the details, with the largest totals, in what the half has to spare.
+  await expect(half.locator('.block-footer')).toContainText(
+    'تەئمیناتی هەموو پالێتەکانی لای کڕیار: 9,000,000,000,180,000 دینار',
+  );
+  await expect(half.locator('.block-footer')).toContainText('کۆی گشتی: 8,000,000,000,170,000 دینار');
+  // The four totals beside the details, with the largest totals, in what the half has to spare.
   expect(await paperFit(page, '.half')).toEqual({
     rows: 7,
     rowsKeepTheirHeight: true,

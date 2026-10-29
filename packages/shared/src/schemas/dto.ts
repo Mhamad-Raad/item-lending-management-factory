@@ -607,17 +607,23 @@ export interface ReceiptLineDto {
 }
 
 /**
- * What the customer still holds of one item at one deposit price, over all their earlier orders (Q150, Q158), printed
- * under this order's lines. Only what is still out: the business does not want the quantities, returns and damage
- * of those orders on this receipt. Its total column is `outValue`, the deposit of what the customer still holds.
+ * What the customer still holds of one item at one deposit price (Q150, Q158), printed under this order's lines: over
+ * their earlier orders, of this order, and the two added (Q178). Only what is still out: the business does not want
+ * the quantities, returns and damage of those orders on this receipt.
  */
 export interface ReceiptOlderLineDto {
   itemName: string;
   unitDeposit: number;
   /** Summed over the earlier orders' lines of this item at this price. */
-  outQuantity: number;
-  /** `outQuantity × unitDeposit`. */
-  outValue: number;
+  earlierQuantity: number;
+  /** This order's lines of this item at this price still out (Q178). */
+  orderQuantity: number;
+  /** `earlierQuantity + orderQuantity`. */
+  allQuantity: number;
+  /** `earlierQuantity × unitDeposit`. */
+  earlierValue: number;
+  /** `allQuantity × unitDeposit`. */
+  allValue: number;
 }
 
 /**
@@ -628,37 +634,19 @@ export type ReceiptRowDto =
   | ({ kind: 'line'; no: number } & ReceiptLineDto)
   /** Pallets the factory owed the customer, handed over with this order and no deposit (Q170). */
   | { kind: 'fromCredit'; no: number; itemName: string; quantity: number }
-  /** Over the rows of this order's pallets that came back with another, later order (Q175). */
-  | { kind: 'viaHeading' }
-  | ({ kind: 'via'; no: number } & ReceiptViaLineDto)
   /** Over the rows of other orders' pallets that came back with this one (Q175). */
   | { kind: 'withHeading' }
-  | ({ kind: 'with'; no: number } & ReceiptWithLineDto)
+  | ({ kind: 'with'; no: number } & ReceiptCameBackLineDto)
   | { kind: 'olderHeading' }
   | ({ kind: 'older'; no: number } & ReceiptOlderLineDto);
 
 /**
- * What of one item of this order came back on one day with another order's return (Q175): already in this order's
- * returned columns, said again so the paper tells how it came back.
+ * One item of other orders' pallets that came back with this order (Q175), summed over every order, naming none of
+ * them (Q177): counted on those orders, in none of this paper's figures. This order's own that came back with another
+ * order are not listed (Q179): its returned columns already count them.
  */
-export interface ReceiptViaLineDto {
+export interface ReceiptCameBackLineDto {
   itemName: string;
-  /** The order it came back with, zero-padded to six digits. */
-  withOrderNumberDisplay: string;
-  /** The return's date. */
-  date: string;
-  accepted: number;
-  damaged: number;
-}
-
-/**
- * What of one item of another of the customer's orders came back with this order (Q175): counted on that order, not
- * this one, so it adds to none of this paper's figures.
- */
-export interface ReceiptWithLineDto {
-  itemName: string;
-  /** The order the pallets belong to, zero-padded to six digits. */
-  orderNumberDisplay: string;
   accepted: number;
   damaged: number;
 }
@@ -696,10 +684,11 @@ export interface ReceiptDto {
   /** One per chunk of rows; each chunk is printed twice, the factory's copy and the customer's. */
   sheets: ReceiptSheetDto[];
   /**
-   * What the customer still holds of earlier orders (Q150, Q158): its deposit, and that added to `depositTotal`. Null
-   * when there are none, and the footer prints the order's total alone.
+   * What the customer still holds of earlier orders (Q150, Q158): its deposit, the deposit of all they hold with this
+   * order's still out (Q178), and the earlier deposit added to `depositTotal`. Null when there are none, and the
+   * footer prints the order's total alone.
    */
-  older: { outValue: number; combinedTotal: number } | null;
+  older: { outValue: number; allOutValue: number; combinedTotal: number } | null;
 }
 
 /** One pallet type a return's receipt lists (Q167): what came back of it, at its deposit, and what that credited. */

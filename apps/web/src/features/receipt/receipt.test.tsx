@@ -7,12 +7,12 @@ import { Receipt } from './receipt';
 
 /**
  * A receipt as the API builds it (§6.19): the server lays the rows out, the page renders what it is given. `older`
- * are what the customer still holds of earlier orders, a row per item and price (Q150, Q158).
+ * are what the customer still holds, a row per item and price: of earlier orders and of this one (Q150, Q158, Q178).
  */
 function receiptWith(
   lineCount: number,
   returned = { returnedAccepted: 0, returnedDamaged: 0, outQuantity: 10 },
-  older: Omit<ReceiptOlderLineDto, 'outValue'>[] = [],
+  older: Pick<ReceiptOlderLineDto, 'itemName' | 'unitDeposit' | 'earlierQuantity' | 'orderQuantity'>[] = [],
 ): ReceiptDto {
   const rows: ReceiptRowDto[] = Array.from({ length: lineCount }, (_, index) => ({
     kind: 'line',
@@ -23,12 +23,21 @@ function receiptWith(
     lineTotal: 10_000,
     ...returned,
   }));
-  const olderOut = older.map((line) => ({ ...line, outValue: line.outQuantity * line.unitDeposit }));
+  const olderOut = older.map((line) => {
+    const allQuantity = line.earlierQuantity + line.orderQuantity;
+    return {
+      ...line,
+      allQuantity,
+      earlierValue: line.earlierQuantity * line.unitDeposit,
+      allValue: allQuantity * line.unitDeposit,
+    };
+  });
   if (olderOut.length > 0) rows.push({ kind: 'olderHeading' });
   olderOut.forEach((line, index) => rows.push({ kind: 'older', no: lineCount + index + 1, ...line }));
   const { layout, rowsPerCopy, chunks } = layoutReceiptRows(rows, (row) => row.kind === 'olderHeading');
   const depositTotal = lineCount * 10_000;
-  const outValue = olderOut.reduce((sum, line) => sum + line.outValue, 0);
+  const outValue = olderOut.reduce((sum, line) => sum + line.earlierValue, 0);
+  const allOutValue = olderOut.reduce((sum, line) => sum + line.allValue, 0);
   return {
     orderId: 7,
     orderNumber: 123,
@@ -48,12 +57,12 @@ function receiptWith(
       rows: chunk,
       showTotal: index === chunks.length - 1,
     })),
-    older: olderOut.length > 0 ? { outValue, combinedTotal: depositTotal + outValue } : null,
+    older: olderOut.length > 0 ? { outValue, allOutValue, combinedTotal: depositTotal + outValue } : null,
   };
 }
 
-/** What the customer still holds of an item over their earlier orders: 15 at 5,000 each (Q158). */
-const EARLIER = { itemName: 'Euro pallet', unitDeposit: 5_000, outQuantity: 15 };
+/** What the customer still holds of an item at 5,000 each: 15 over their earlier orders (Q158), 2 of this one (Q178). */
+const EARLIER = { itemName: 'Euro pallet', unitDeposit: 5_000, earlierQuantity: 15, orderQuantity: 2 };
 
 const TOTAL_LABEL = 'کۆی گشتی تەئمینات';
 
@@ -107,7 +116,7 @@ describe('receipt (§7.16.5)', () => {
     expect(firstCells.slice(0, 4).map((cell) => cell.textContent)).toEqual(['28', '29', '30', '']);
   });
 
-  it("lists the customer's earlier pallets still out under the order's, shaded, with the three totals (Q150)", () => {
+  it("lists what the customer still holds under the order's, shaded, with the four totals (Q150, Q178)", () => {
     const { container } = render(<Receipt receipt={receiptWith(2, undefined, [EARLIER])} />);
 
     // Two lines, the heading and one earlier line still fit a half.
@@ -115,18 +124,63 @@ describe('receipt (§7.16.5)', () => {
     const half = container.querySelector('.half');
     const body = [...(half?.querySelectorAll('tbody tr') ?? [])];
     expect(body.map((row) => row.className)).toEqual(['', '', 'older-heading', 'older', '', '']);
-    expect(body[2]?.textContent).toBe('پالێتی داواکارییە پێشووەکان کە هێشتا لای کڕیارن');
-    // Only what is still out (Q158): the item over the quantity, accepted and damaged columns, then the 15 still out,
-    // its deposit, and in the total column the deposit of those 15.
+    // The heading names the columns under it, on the eight of the grid (Q178).
+    const heading = [...(body[2]?.querySelectorAll('td') ?? [])];
+    expect(heading.map((cell) => cell.textContent)).toEqual([
+      'پالێتەکانی لای کڕیار',
+      'پێشوو',
+      'ئەم داواکاری',
+      'هەمووی',
+      'تەئمینات',
+      'کۆی پێشوو',
+      'کۆی هەمووی',
+    ]);
+    expect(heading.map((cell) => cell.colSpan)).toEqual([2, 1, 1, 1, 1, 1, 1]);
+    // Only what is still out (Q158): 15 of earlier orders, 2 of this one, 17 in all, its deposit, and the deposit of
+    // the 15 and of the 17.
     const cells = [...(body[3]?.querySelectorAll('td') ?? [])];
-    expect(cells.map((cell) => cell.textContent)).toEqual(['3', 'Euro pallet', '15', '5,000', '75,000']);
-    expect(cells.map((cell) => cell.colSpan)).toEqual([1, 4, 1, 1, 1]);
+    expect(cells.map((cell) => cell.textContent)).toEqual([
+      '3',
+      'Euro pallet',
+      '15',
+      '2',
+      '17',
+      '5,000',
+      '75,000',
+      '85,000',
+    ]);
+    expect(cells.map((cell) => cell.colSpan)).toEqual([1, 1, 1, 1, 1, 1, 1, 1]);
     const footer = half?.querySelector('.block-footer');
     expect(footer?.classList.contains('with-older')).toBe(true);
     expect(footer?.textContent).toContain('کۆی تەئمیناتی ئەم داواکارییە: 20,000 دینار');
     expect(footer?.textContent).toContain('تەئمیناتی پالێتە پێشووەکانی لای کڕیار: 75,000 دینار');
+    expect(footer?.textContent).toContain('تەئمیناتی هەموو پالێتەکانی لای کڕیار: 85,000 دینار');
     expect(footer?.textContent).toContain('کۆی گشتی: 95,000 دینار');
     expect(footer?.textContent).not.toContain(TOTAL_LABEL);
+  });
+
+  it("prints other orders' pallets that came back with it a row per item, naming no order (Q177)", () => {
+    const receipt = receiptWith(1);
+    const rows: ReceiptRowDto[] = [
+      ...(receipt.sheets[0]?.rows ?? []),
+      { kind: 'withHeading' },
+      { kind: 'with', no: 2, itemName: 'Pallet 1', accepted: 5, damaged: 1 },
+      { kind: 'with', no: 3, itemName: 'Euro pallet', accepted: 9, damaged: 0 },
+    ];
+    const { container } = render(<Receipt receipt={{ ...receipt, sheets: [{ ...receipt.sheets[0]!, rows }] }} />);
+
+    const body = [...(container.querySelector('.half')?.querySelectorAll('tbody tr') ?? [])];
+    expect(body.slice(0, 4).map((row) => row.className)).toEqual(['', 'with-heading', 'with', 'with']);
+    // The item over the quantity column, accepted and damaged, then nothing in still out and the money: no order
+    // number or date, and the eight columns of the grid.
+    for (const [row, expected] of [
+      [body[2], ['2', 'Pallet 1', '5', '1', '']],
+      [body[3], ['3', 'Euro pallet', '9', '0', '']],
+    ] as const) {
+      const cells = [...(row?.querySelectorAll('td') ?? [])];
+      expect(cells.map((cell) => cell.textContent)).toEqual(expected);
+      expect(cells.map((cell) => cell.colSpan)).toEqual([1, 2, 1, 1, 3]);
+    }
   });
 
   it('turns to a page per copy when the earlier pallets make the table outgrow a half (Q150)', () => {
@@ -140,7 +194,7 @@ describe('receipt (§7.16.5)', () => {
       '2',
       '3',
       '4',
-      'پالێتی داواکارییە پێشووەکان کە هێشتا لای کڕیارن',
+      'پالێتەکانی لای کڕیار',
       '5',
       '6',
       '',
@@ -177,13 +231,17 @@ describe('receipt (§7.16.5)', () => {
     const { container } = render(<Receipt receipt={receipt} />);
 
     const cells = [...(container.querySelector('.half tbody tr')?.querySelectorAll('td') ?? [])];
-    expect(cells.map((cell) => [cell.textContent, cell.classList.contains('num-tight')]).slice(2)).toEqual([
-      ['1,000,000', true],
-      ['0', false],
-      ['0', false],
-      ['999,999', false],
-      ['1,000', false],
-      ['1,000,000,000,000', true],
+    expect(
+      cells.map((cell) => [cell.textContent, cell.classList.contains('num-tight'), cell.style.fontSize]).slice(2),
+    ).toEqual([
+      // Longer than the 7 the column holds at 10 pt, not than 7 pt holds: 7 pt.
+      ['1,000,000', true, '7pt'],
+      ['0', false, ''],
+      ['0', false, ''],
+      ['999,999', false, ''],
+      ['1,000', false, ''],
+      // 17 characters where 11 fit at 10 pt: 11 × 10 / 17 = 6.47…, set down to 6.4 pt (Q178).
+      ['1,000,000,000,000', true, '6.4pt'],
     ]);
   });
 

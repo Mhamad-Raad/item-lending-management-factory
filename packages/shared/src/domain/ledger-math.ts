@@ -244,21 +244,31 @@ export type ReceiptLayout = 'halves' | 'pages';
 /**
  * The hand-over receipt's layout (A15, amended by Q150): rows that fit a half print as before, both copies on one
  * A4 sheet; more give each copy an A4 page of its own, `RECEIPT_ROWS_PER_PAGE` rows to a page. A heading row
- * (`isHeading`) never ends a page: it moves to the next, with the rows it heads.
+ * (`isHeading`) never ends a page: it moves to the next, with the rows it heads. A heading that names columns of its
+ * own (`repeats`, Q178) is printed again at the top of a page its rows go on to, taking one of the page's rows.
  */
 export function layoutReceiptRows<T>(
   rows: readonly T[],
   isHeading: (row: T) => boolean = () => false,
+  repeats: (heading: T) => boolean = () => false,
 ): { layout: ReceiptLayout; rowsPerCopy: number; chunks: T[][] } {
   if (rows.length <= RECEIPT_LINES_PER_HALF) {
     return { layout: 'halves', rowsPerCopy: RECEIPT_LINES_PER_HALF, chunks: [[...rows]] };
   }
   const chunks: T[][] = [];
+  // The last heading seen: the rows after it are its own, as the receipt's parts each start with one and the
+  // repeating one is the last part.
+  let heading: T | undefined;
   for (let start = 0; start < rows.length;) {
-    let size = Math.min(RECEIPT_ROWS_PER_PAGE, rows.length - start);
+    const first = rows[start];
+    const chunk =
+      heading !== undefined && first !== undefined && !isHeading(first) && repeats(heading) ? [heading] : [];
+    let size = Math.min(RECEIPT_ROWS_PER_PAGE - chunk.length, rows.length - start);
     const last = rows[start + size - 1];
     if (start + size < rows.length && size > 1 && last !== undefined && isHeading(last)) size -= 1;
-    chunks.push(rows.slice(start, start + size));
+    const taken = rows.slice(start, start + size);
+    for (const row of taken) if (isHeading(row)) heading = row;
+    chunks.push([...chunk, ...taken]);
     start += size;
   }
   return { layout: 'pages', rowsPerCopy: RECEIPT_ROWS_PER_PAGE, chunks };

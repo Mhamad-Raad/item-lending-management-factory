@@ -1142,9 +1142,16 @@
     "outQuantity": "With customer",
     "printedOn": "Printed on",
     "depositTotal": "Total deposit",
-    "olderHeading": "From earlier orders, still with the customer",
+    "olderHeading": "Pallets with the customer",
+    "olderEarlier": "Earlier",
+    "olderThisOrder": "This order",
+    "olderAll": "All",
+    "olderUnitDeposit": "Deposit",
+    "olderEarlierValue": "Earlier total",
+    "olderAllValue": "All total",
     "orderTotal": "This order's deposit",
     "olderOutValue": "Earlier pallets still with the customer",
+    "allOutValue": "All pallets still with the customer",
     "combinedTotal": "Total",
     "paymentType": "Payment type",
     "paymentCash": "Paid cash",
@@ -1197,10 +1204,7 @@
       "owedAfter": "Owed after",
       "undone": "Undone {{date}}"
     },
-    "viaHeading": "Came back with another order",
-    "viaWith": "with order {{orderNumber}} · {{date}}",
-    "withHeading": "Other orders' pallets returned with this order",
-    "withOf": "of order {{orderNumber}}"
+    "withHeading": "Other orders' pallets returned with this order"
   },
   "returns": {
     "list": {

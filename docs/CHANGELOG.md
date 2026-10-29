@@ -145,3 +145,10 @@ The build history that used to sit in `CLAUDE.md` "Status", oldest first, moved 
   each return remembers the order it was recorded with (`returns.with_order_id`), whose hand-over receipt lists what
   came back with it, while the other order's receipt and rows say with which order it came back; that order's own
   items are outlined at the top of the screen (Q176).
+- **10w done** (2026-10-28, Q177): the hand-over receipt's green rows are one per item, their quantities added up
+  over every order, naming no order or date.
+- **10x done** (2026-10-29, Q178): the hand-over receipt's amber part counts, per item and price, the earlier
+  orders' pallets, this order's and all, with a total of the earlier and of all, and a fourth footer line for all
+  the customer holds.
+- **10y done** (2026-10-29, Q179): the amber column names hold one line each, and this order's own pallets that came
+  back with another order are no longer a green part of their own.

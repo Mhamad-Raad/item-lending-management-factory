@@ -1142,9 +1142,16 @@
     "outQuantity": "لای کڕیار",
     "printedOn": "بەرواری چاپ",
     "depositTotal": "کۆی گشتی تەئمینات",
-    "olderHeading": "پالێتی داواکارییە پێشووەکان کە هێشتا لای کڕیارن",
+    "olderHeading": "پالێتەکانی لای کڕیار",
+    "olderEarlier": "پێشوو",
+    "olderThisOrder": "ئەم داواکاری",
+    "olderAll": "هەمووی",
+    "olderUnitDeposit": "تەئمینات",
+    "olderEarlierValue": "کۆی پێشوو",
+    "olderAllValue": "کۆی هەمووی",
     "orderTotal": "کۆی تەئمیناتی ئەم داواکارییە",
     "olderOutValue": "تەئمیناتی پالێتە پێشووەکانی لای کڕیار",
+    "allOutValue": "تەئمیناتی هەموو پالێتەکانی لای کڕیار",
     "combinedTotal": "کۆی گشتی",
     "paymentType": "جۆری پارەدان",
     "paymentCash": "پارە دراوە (نەقد)",
@@ -1197,10 +1204,7 @@
       "owedAfter": "قەرز دواتر",
       "undone": "هەڵوەشێنرایەوە {{date}}"
     },
-    "viaHeading": "لەگەڵ داواکارییەکی تر گەڕاوەتەوە",
-    "viaWith": "لەگەڵ داواکاری {{orderNumber}} · {{date}}",
-    "withHeading": "پالێتی داواکارییەکانی تر کە لەگەڵ ئەم داواکارییە گەڕاونەتەوە",
-    "withOf": "هی داواکاری {{orderNumber}}"
+    "withHeading": "پالێتی داواکارییەکانی تر کە لەگەڵ ئەم داواکارییە گەڕاونەتەوە"
   },
   "returns": {
     "list": {

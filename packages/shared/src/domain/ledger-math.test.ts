@@ -327,4 +327,29 @@ describe('receipt layout (A15, Q150)', () => {
     expect(chunks.map((c) => c.length)).toEqual([26, 2]);
     expect(chunks[1]).toEqual(['heading', 'older']);
   });
+
+  it('prints a heading that names its own columns again at the top of a page its rows go on to (Q178)', () => {
+    const isHeading = (row: number | string) => typeof row === 'string' && row.endsWith('heading');
+    // 20 lines, a green heading and 2 rows, the amber heading and 40 rows: 64 rows, 66 with the two repeated.
+    const all = [...rows(20), 'green heading', 'g1', 'g2', 'amber heading', ...rows(40).map((i) => `a${i}`)];
+    const { chunks } = layoutReceiptRows<number | string>(all, isHeading, (heading) => heading === 'amber heading');
+    expect(chunks.map((c) => c.length)).toEqual([27, 27, 12]);
+    // The first page holds the amber heading and 3 of its rows; each page after starts with it again, which takes a
+    // row: 26 rows, then the last 11.
+    expect(chunks[0]?.slice(-4)).toEqual(['amber heading', 'a0', 'a1', 'a2']);
+    expect(chunks[1]?.slice(0, 2)).toEqual(['amber heading', 'a3']);
+    expect(chunks[2]).toEqual(['amber heading', ...rows(11).map((i) => `a${i + 29}`)]);
+    // A heading that does not name its own columns is not repeated.
+    const green = [...rows(26), 'green heading', ...rows(5).map((i) => `g${i}`)];
+    const { chunks: greenChunks } = layoutReceiptRows<number | string>(green, isHeading, (h) => h === 'amber heading');
+    expect(greenChunks).toEqual([rows(26), ['green heading', 'g0', 'g1', 'g2', 'g3', 'g4']]);
+    const greenOver = [...rows(20), 'green heading', ...rows(10).map((i) => `g${i}`)];
+    // A heading that would end a page goes over to the next and starts it: the heading before it is not repeated
+    // above it, even one that repeats.
+    const atEnd = [...rows(20), 'green heading', ...rows(5).map((i) => `g${i}`), 'amber heading', 'a0', 'a1'];
+    const { chunks: atEndChunks } = layoutReceiptRows<number | string>(atEnd, isHeading, () => true);
+    expect(atEndChunks[1]).toEqual(['amber heading', 'a0', 'a1']);
+    // Nor any, unless asked.
+    expect(layoutReceiptRows<number | string>(greenOver, isHeading).chunks[1]?.[0]).toBe('g6');
+  });
 });

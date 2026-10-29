@@ -581,6 +581,30 @@ pallets that came back with it, and the other order's receipt says with which or
 returned twice. Then, while testing, that order's own items outlined at the top of that screen (Q176). **Exit:**
 `return-with-order.test.ts`, `return-with-order.spec.ts`; every gate green.
 
+### 10w — The receipt's green rows per item (Q177)
+
+Read: Q158, Q175, §7.16.
+
+Asked by the business on 2026-10-28: the hand-over receipt's green rows, what came back with another order, one row
+per item with the quantities added up over the orders, naming no order. **Exit:** `return-with-order.test.ts`; every
+gate green.
+
+### 10x — What the customer holds, this order's too, on the receipt (Q178)
+
+Read: Q150, Q158, §7.16.
+
+Asked by the business on 2026-10-29: the hand-over receipt's amber part counts this order's pallets still out beside
+the earlier orders', per item and price, with a total without this order and one with it; every footer line kept.
+**Exit:** `order-changes.test.ts`, `receipt.test.tsx`, `receipt.spec.ts`; every gate green.
+
+### 10y — One green part, the amber names one line each (Q179)
+
+Read: Q175, Q177, Q178, §7.16.
+
+Asked by the maintainer on 2026-10-29, from the example of 10w–10x: the amber column names each on one line, and the
+first green part — this order's own pallets that came back with another order, already in its returned columns —
+gone. **Exit:** `receipt.spec.ts`, `receipt.test.tsx`, `return-with-order.test.ts`; every gate green.
+
 ---
 
 ## Environments
