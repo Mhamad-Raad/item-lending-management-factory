@@ -1,7 +1,7 @@
 import type { LedgerEntryDto, PaymentResultDto, ReturnDto, ReturnResultDto } from '@pallet/shared';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Link, createFileRoute, useNavigate } from '@tanstack/react-router';
-import { Ban, CalendarDays, Car, HandCoins, Pencil, Phone, Printer, ShieldAlert } from 'lucide-react';
+import { Ban, CalendarDays, Car, HandCoins, Pencil, Phone, ShieldAlert } from 'lucide-react';
 import { Undo2 } from '@/components/app/dir-icon';
 import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
@@ -25,7 +25,8 @@ import { Textarea } from '@/components/ui/textarea';
 import { invalidateAfterOrderChange, invalidateAfterPayment, orderQuery } from '@/features/orders/api';
 import { Tip } from '@/components/app/tip';
 import { OrderFromCredit, OrderLinesTable, OrderMoney, OrderReturns } from '@/features/orders/order-sections';
-import { printOrderReceipt } from '@/features/receipt/print-receipt';
+import { PrintButton } from '@/features/receipt/print-button';
+import type { JobRequest } from '@/features/receipt/print-receipt';
 import { orderLabel } from '@/features/orders/order-text';
 import { usePageTitle } from '@/hooks/use-page-title';
 import { apiFetch } from '@/lib/api-client';
@@ -134,7 +135,7 @@ function OrderDetailPage() {
 
   const data = order.data;
   const cancelled = data.cancelledAt !== null;
-  const printReceipt = (): void => printOrderReceipt(data.id);
+  const receipt: JobRequest = { kind: 'order', orderId: data.id };
   const figures = [
     { label: 'orders.fields.depositTotal', value: <MoneyText value={data.depositTotal} /> },
     { label: 'orders.fields.owed', value: <MoneyText value={data.owed} /> },
@@ -150,10 +151,7 @@ function OrderDetailPage() {
             {t('orders.detail.createdBanner', { orderNumber: orderLabel(data.orderNumber) })}
           </AlertDescription>
           <div className="flex gap-2">
-            <Button onClick={printReceipt}>
-              <Printer aria-hidden />
-              {t('orders.detail.printReceipt')}
-            </Button>
+            <PrintButton request={receipt}>{t('orders.detail.printReceipt')}</PrintButton>
             <Button variant="ghost" onClick={() => void navigate({ search: {}, replace: true })}>
               {t('common.actions.close')}
             </Button>
@@ -183,10 +181,9 @@ function OrderDetailPage() {
                   </Link>
                 </Button>
               ) : null}
-              <Button variant="outline" onClick={printReceipt}>
-                <Printer aria-hidden />
+              <PrintButton variant="outline" request={receipt}>
                 {t('orders.detail.printReceipt')}
-              </Button>
+              </PrintButton>
               {canEdit ? (
                 <Button variant="outline" asChild>
                   <Link to="/orders/$orderId/edit" params={{ orderId }}>

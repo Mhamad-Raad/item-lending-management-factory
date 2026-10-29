@@ -605,6 +605,14 @@ Asked by the maintainer on 2026-10-29, from the example of 10w–10x: the amber 
 first green part — this order's own pallets that came back with another order, already in its returned columns —
 gone. **Exit:** `receipt.spec.ts`, `receipt.test.tsx`, `return-with-order.test.ts`; every gate green.
 
+### 10z — A print press answered at once (Q180)
+
+Read: Q140, §7.16.1.
+
+Reported by the business on 2026-10-29: Print receipt had to be pressed three times. On a slow connection the first
+press showed nothing until the receipts' code arrived, so it looked ignored. **Exit:** `print-in-place.spec.ts`;
+every gate green.
+
 ---
 
 ## Environments

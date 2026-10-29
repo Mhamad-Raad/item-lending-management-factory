@@ -1,33 +1,97 @@
+import { useSyncExternalStore } from 'react';
+import { toast } from 'sonner';
+import i18n from '@/i18n';
+
 /**
  * What the app's print buttons ask for (Q140): the receipt to print in place, drawn by `ReceiptPrinter` (mounted once
  * in the app's layout). Call from a press.
  */
 
-type JobRequest =
+export type JobRequest =
   | { kind: 'order' | 'transactions'; orderId: number }
   | { kind: 'money'; entryId: number }
   | { kind: 'customer-return'; customerReturnId: number }
   | { kind: 'return'; returnId: number }
   | { kind: 'hand-back'; palletCreditId: number };
+
 /** `seq` tells two presses for the same receipt apart: each one prints. */
 export type Job = JobRequest & { seq: number };
 
-// The one print asked for last; a press while another is being prepared replaces it.
+// The one print asked for last; a press while another is being prepared replaces it — the same receipt's code and
+// read, still on their way, are shared, not fetched again.
 let current: Job | null = null;
+// `current` while it is being read and drawn — not yet printed, nor failed —, for its button's spinner (Q180).
+let preparing: Job | null = null;
+// The "preparing" notice (Q180): shown at the press, closed when it prints, fails or the app is left. One while a print
+// is being prepared, kept steady through presses again; a new one after, so it never merges into the last one's closing.
+let notice: string | null = null;
 let seq = 0;
 const listeners = new Set<() => void>();
 
-function start(request: JobRequest): void {
+function notify(): void {
+  for (const listener of listeners) listener();
+}
+
+function closeNotice(): void {
+  if (notice !== null) toast.dismiss(notice);
+  notice = null;
+}
+
+/** Prints `request` in place (Q140): what every print button presses (`PrintButton`). Call from a press. */
+export function printRequest(request: JobRequest): void {
   seq += 1;
   current = { ...request, seq };
-  for (const listener of listeners) listener();
+  preparing = current;
+  // The notice at once, before the receipt's code and the receipt arrive (Q180).
+  notice ??= `receipt-preparing-${seq}`;
+  toast.loading(i18n.t('receipt.preparing'), { id: notice });
+  notify();
+}
+
+/** The job `seq` has printed, or failed: its notice and spinner end, unless a later press is still being prepared. */
+export function finishPrintJob(jobSeq: number): void {
+  if (preparing?.seq !== jobSeq) return;
+  closeNotice();
+  preparing = null;
+  notify();
 }
 
 /** Forgets the last print: the layout that draws it is leaving (a sign-out), and the next must not print it again. */
 export function clearPrintJob(): void {
+  closeNotice();
   if (current === null) return;
   current = null;
-  for (const listener of listeners) listener();
+  preparing = null;
+  notify();
+}
+
+/** One string per receipt: two requests for the same receipt give the same. */
+function receiptKey(request: JobRequest): string {
+  switch (request.kind) {
+    case 'order':
+    case 'transactions':
+      return `${request.kind}:${request.orderId}`;
+    case 'money':
+      return `money:${request.entryId}`;
+    case 'customer-return':
+      return `customer-return:${request.customerReturnId}`;
+    case 'return':
+      return `return:${request.returnId}`;
+    case 'hand-back':
+      return `hand-back:${request.palletCreditId}`;
+  }
+}
+
+function isPreparing(request: JobRequest): boolean {
+  return preparing !== null && receiptKey(preparing) === receiptKey(request);
+}
+
+/**
+ * Whether `request` is the receipt being prepared: the buttons that print it show a spinner (Q180), and stay
+ * pressable. A yes or no, so a press re-draws only the icons whose answer changes.
+ */
+export function usePrintPreparing(request: JobRequest): boolean {
+  return useSyncExternalStore(subscribe, () => isPreparing(request));
 }
 
 export function currentJob(): Job | null {
@@ -39,41 +103,10 @@ export function subscribe(listener: () => void): () => void {
   return () => listeners.delete(listener);
 }
 
-/** The hand-over receipt of an order (§7.16), printed in place (Q140). */
-export function printOrderReceipt(orderId: number): void {
-  start({ kind: 'order', orderId });
-}
-
-/** The receipt of a payment or a refund (§7.16.6), printed in place (Q140). */
-export function printMoneyReceipt(entryId: number): void {
-  start({ kind: 'money', entryId });
-}
-
-/** A customer return's one receipt over the orders it touched (Q161), printed in place (Q140). */
-export function printCustomerReturnReceipt(customerReturnId: number): void {
-  start({ kind: 'customer-return', customerReturnId });
-}
-
-/** One return's paper, for a return that paid no cash back (Q166), printed in place (Q140). */
-export function printReturnReceipt(returnId: number): void {
-  start({ kind: 'return', returnId });
-}
-
 /**
- * A return's own receipt (Q166), the one rule of every place that prints it: its refund's money receipt when it paid
- * cash back (Q137), else its own paper in the same design.
+ * What a return's own receipt is (Q166), the one rule of every place that prints it: its refund's money receipt when
+ * it paid cash back (Q137), else its own paper in the same design.
  */
-export function printReturnPaper(returnId: number, refundEntryId: number | null): void {
-  if (refundEntryId === null) printReturnReceipt(returnId);
-  else printMoneyReceipt(refundEntryId);
-}
-
-/** Every payment and refund of an order on one paper (§7.16.7, Q139), printed in place (Q140). */
-export function printTransactionsReceipt(orderId: number): void {
-  start({ kind: 'transactions', orderId });
-}
-
-/** Pallets the factory owed, given back (Q172), printed in place (Q140). */
-export function printHandBackReceipt(palletCreditId: number): void {
-  start({ kind: 'hand-back', palletCreditId });
+export function returnPaper(returnId: number, refundEntryId: number | null): JobRequest {
+  return refundEntryId === null ? { kind: 'return', returnId } : { kind: 'money', entryId: refundEntryId };
 }

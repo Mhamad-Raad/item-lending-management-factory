@@ -166,3 +166,53 @@ test('Q140: a logo that never arrives does not hold the print for ever', async (
   await page.clock.fastForward(10_000);
   await expect.poll(async () => (await printed()).length).toBe(1);
 });
+
+/**
+ * Q180: on a slow connection the receipt's code and the receipt itself take seconds. The press is answered at once
+ * with the notice; pressing again meanwhile shares what is on its way: one read, one print.
+ */
+test('Q180: a press on a slow connection says so at once, and pressing again prints it once', async ({ page }) => {
+  const printed = await catchFramePrints(page);
+  let releaseCode: () => void = () => undefined;
+  const code = new Promise<void>((resolve) => (releaseCode = resolve));
+  let releaseReceipt: () => void = () => undefined;
+  const answer = new Promise<void>((resolve) => (releaseReceipt = resolve));
+  let reads = 0;
+  let codeFetches = 0;
+  await page.route(/\/assets\/print-job-[^/]*\.js$/, async (route) => {
+    codeFetches += 1;
+    await code;
+    await route.continue();
+  });
+  await openOrder(page, { status: 200, json: MONEY });
+  await page.route(/\/api\/orders\/9\/receipt$/, async (route) => {
+    reads += 1;
+    await answer;
+    await route.fulfill({ json: HANDOVER });
+  });
+
+  const print = page.getByRole('button', { name: 'Print receipt', exact: true });
+  await print.click();
+  // The receipt's code has not arrived, and the press already says it was taken: the notice, and a spinner on the
+  // button pressed, which stays pressable.
+  await expect(page.getByText('Preparing the receipt…')).toBeVisible();
+  await expect(print.locator('svg.animate-spin')).toHaveCount(1);
+  // The hold is real: the receipt's code was asked for, and is still on its way.
+  await expect.poll(() => codeFetches).toBe(1);
+  await expect(print).toBeEnabled();
+  await print.click();
+  releaseCode();
+  await expect.poll(() => reads).toBe(1);
+  await print.click();
+  releaseReceipt();
+
+  await expect.poll(async () => (await printed()).length).toBe(1);
+  await expect(page.getByText('Preparing the receipt…')).toHaveCount(0);
+  await expect(print.locator('svg.animate-spin')).toHaveCount(0);
+  // Every press came before the print: one read answered them all.
+  expect(reads).toBe(1);
+  expect(await printed()).toHaveLength(1);
+  // Printed, a press prints it again.
+  await print.click();
+  await expect.poll(async () => (await printed()).length).toBe(2);
+});

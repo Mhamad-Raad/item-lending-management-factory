@@ -7,11 +7,9 @@ import type {
   TransactionsReceiptDto,
 } from '@pallet/shared';
 import { useQueryClient, type QueryClient } from '@tanstack/react-query';
-import { useCallback, useEffect, useRef, useState, type CSSProperties, type ReactNode } from 'react';
+import { useCallback, useEffect, useState, type CSSProperties, type ReactNode } from 'react';
 import { createPortal } from 'react-dom';
-import { toast } from 'sonner';
 import receiptStyles from '@/features/receipt/receipt.css?inline';
-import i18n from '@/i18n';
 import { handleApiError } from '@/lib/errors';
 import {
   customerReturnReceiptQuery,
@@ -24,7 +22,7 @@ import {
 import { fontsSettled, useLogoGate, usePrintOnce } from './auto-print';
 import { HandBackReceipt } from './hand-back-receipt';
 import { CustomerReturnReceipt, MoneyReceipt, ReturnReceipt } from './money-receipt';
-import type { Job } from './print-receipt';
+import { finishPrintJob, type Job } from './print-receipt';
 import { Receipt } from './receipt';
 import { TransactionsReceipt } from './transactions-receipt';
 
@@ -87,36 +85,33 @@ function drawPaper(paper: Paper, onLogoSettled: () => void): ReactNode {
   }
 }
 
-/** One press of a print button (Q140): the notice, the read, then the paper in its frame. */
+/**
+ * One press of a print button (Q140): the read, then the paper in its frame. The press showed the notice; the print,
+ * or a failure, closes it (Q180).
+ */
 export function PrintJob({ job }: { job: Job }) {
   const queryClient = useQueryClient();
   const [paper, setPaper] = useState<Paper | null>(null);
-  const notice = useRef<string | number | null>(null);
 
   useEffect(() => {
     let live = true;
-    const shown = toast.loading(i18n.t('receipt.preparing'));
-    notice.current = shown;
     readPaper(queryClient, job).then(
       (next) => {
         if (live) setPaper(next);
       },
       (error: unknown) => {
         if (!live) return;
-        toast.dismiss(shown);
+        finishPrintJob(job.seq);
         // Said on the page the user is on, as any other failure: a cancelled order, a reversal row, a lost connection.
         handleApiError(error);
       },
     );
     return () => {
       live = false;
-      toast.dismiss(shown);
     };
   }, [job, queryClient]);
 
-  const printing = useCallback(() => {
-    if (notice.current !== null) toast.dismiss(notice.current);
-  }, []);
+  const printing = useCallback(() => finishPrintJob(job.seq), [job.seq]);
 
   return paper ? (
     <PrintFrame hasLogo={paper.data.factory.logoUrl !== null} onPrint={printing}>

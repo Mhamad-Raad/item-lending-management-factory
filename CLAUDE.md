@@ -51,7 +51,7 @@ Pallet System: a web app for a single pallet factory in Iraq (Kurdistan Region) 
   theirs saying with which order (Q175), that order's own items outlined on the screen (Q176); 10w: the
   receipt's green rows one per item, no order named (Q177). Then (2026-10-29) 10x: the receipt's amber part counts
   this order's pallets too, with a total without it and one with it (Q178); 10y: one green part, the amber names one
-  line each (Q179).
+  line each (Q179); 10z: a print press answered at once on a slow connection (Q180).
 - **The maintainer's one page** is "Maintainer quick start" in `README.md` (run, test, deploy, restore, recover,
   traps, yearly checklist). Keep it true when a command or a runbook changes.
 - **Open, needing people rather than code:** the E6 screenshot baselines (rendered by CI, then committed; after

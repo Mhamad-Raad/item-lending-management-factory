@@ -152,3 +152,5 @@ The build history that used to sit in `CLAUDE.md` "Status", oldest first, moved 
   the customer holds.
 - **10y done** (2026-10-29, Q179): the amber column names hold one line each, and this order's own pallets that came
   back with another order are no longer a green part of their own.
+- **10z done** (2026-10-29, Q180): a print press says "preparing" at once, and its button spins, before the
+  receipt's code and the receipt arrive on a slow connection.

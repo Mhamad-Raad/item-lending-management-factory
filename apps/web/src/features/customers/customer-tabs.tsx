@@ -9,7 +9,7 @@ import {
 import type { TFunction } from 'i18next';
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Link } from '@tanstack/react-router';
-import { Ban, HandHelping, History, PackageOpen, Printer, Wallet } from 'lucide-react';
+import { Ban, HandHelping, History, PackageOpen, Wallet } from 'lucide-react';
 import { Undo2 } from '@/components/app/dir-icon';
 import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
@@ -25,7 +25,7 @@ import { StatusBadge } from '@/components/app/status-badge';
 import { Badge } from '@/components/ui/badge';
 import { Tip } from '@/components/app/tip';
 import { Button } from '@/components/ui/button';
-import { printHandBackReceipt } from '@/features/receipt/print-receipt';
+import { PrintButton } from '@/features/receipt/print-button';
 import { orderLabel } from '@/features/orders/order-text';
 import { PaymentTypeText } from '@/features/orders/payment-type-text';
 import { RelatedOrders } from '@/features/orders/related-orders';
@@ -225,14 +225,12 @@ export function CustomerHistoryTab({ customerId }: { customerId: number }) {
                   {/* A give-back prints its paper again (Q172). */}
                   {entry.kind === 'PALLET' && entry.reason === 'HAND_BACK' ? (
                     <Tip label={t('orders.detail.printReceipt')}>
-                      <Button
+                      <PrintButton
                         variant="ghost"
                         size="icon"
                         aria-label={t('orders.detail.printReceipt')}
-                        onClick={() => printHandBackReceipt(entry.palletCreditId)}
-                      >
-                        <Printer aria-hidden />
-                      </Button>
+                        request={{ kind: 'hand-back', palletCreditId: entry.palletCreditId }}
+                      />
                     </Tip>
                   ) : null}
                 </div>

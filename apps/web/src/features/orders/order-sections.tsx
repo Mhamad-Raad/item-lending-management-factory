@@ -5,7 +5,7 @@ import {
   type OrderDetailDto,
   type ReturnDto,
 } from '@pallet/shared';
-import { ArrowDownLeft, ArrowUpRight, Ban, Printer, Trash2 } from 'lucide-react';
+import { ArrowDownLeft, ArrowUpRight, Ban, Trash2 } from 'lucide-react';
 import { Undo2 } from '@/components/app/dir-icon';
 import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
@@ -19,7 +19,8 @@ import { Thumbnail } from '@/components/app/thumbnail';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Tip } from '@/components/app/tip';
-import { printTransactionsReceipt } from '@/features/receipt/print-receipt';
+import { PrintButton } from '@/features/receipt/print-button';
+import type { JobRequest } from '@/features/receipt/print-receipt';
 import { isStandingRefundOf } from '@/features/returns/return-math';
 import { WithOrderTag } from '@/features/returns/with-order-tag';
 import {
@@ -438,15 +439,15 @@ export function OrderMoney({
     },
   ];
 
+  const allReceipt: JobRequest = { kind: 'transactions', orderId };
   return (
     <section className="flex flex-col gap-3">
       <div className="flex flex-wrap items-center justify-between gap-2">
         <h2 className="text-lg font-semibold">{t('orders.detail.money')}</h2>
         {entries.some((entry) => hasMoneyReceipt(entry.type)) ? (
-          <Button variant="outline" size="sm" onClick={() => printTransactionsReceipt(orderId)}>
-            <Printer aria-hidden />
+          <PrintButton variant="outline" size="sm" request={allReceipt}>
             {t('orders.money.printAll')}
-          </Button>
+          </PrintButton>
         ) : null}
       </div>
       <DataTable

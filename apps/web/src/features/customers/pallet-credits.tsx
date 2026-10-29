@@ -30,7 +30,7 @@ import {
 } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { invalidateAfterOrderChange } from '@/features/orders/api';
-import { printHandBackReceipt } from '@/features/receipt/print-receipt';
+import { printRequest } from '@/features/receipt/print-receipt';
 import { apiFetch } from '@/lib/api-client';
 import { isApiError } from '@/lib/api-error';
 import { isolate } from '@/lib/bidi';
@@ -156,7 +156,7 @@ function GiveBackDialog({
           <Button
             size="sm"
             onClick={() => {
-              printHandBackReceipt(result.palletCreditId);
+              printRequest({ kind: 'hand-back', palletCreditId: result.palletCreditId });
               toast.dismiss(id);
             }}
           >

@@ -1,5 +1,4 @@
 import { formatOrderNumber, type PaymentCreateBody, type PaymentResultDto } from '@pallet/shared';
-import { Printer } from 'lucide-react';
 import { useRef, type ReactNode } from 'react';
 import { useTranslation } from 'react-i18next';
 import { DateText } from '@/components/app/date-text';
@@ -13,7 +12,8 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog';
-import { printMoneyReceipt } from '@/features/receipt/print-receipt';
+import { PrintButton } from '@/features/receipt/print-button';
+import type { JobRequest } from '@/features/receipt/print-receipt';
 
 function Row({ label, children, strong = false }: { label: string; children: ReactNode; strong?: boolean }) {
   return (
@@ -43,6 +43,7 @@ export function PaymentSavedDialog({
 }) {
   const { t } = useTranslation();
   const print = useRef<HTMLButtonElement>(null);
+  const receipt: JobRequest = { kind: 'money', entryId: result.ledgerEntryId };
   const { order } = result;
 
   return (
@@ -88,10 +89,9 @@ export function PaymentSavedDialog({
           <Button variant="outline" onClick={onClose}>
             {t('common.actions.close')}
           </Button>
-          <Button ref={print} onClick={() => printMoneyReceipt(result.ledgerEntryId)}>
-            <Printer aria-hidden />
+          <PrintButton ref={print} request={receipt}>
             {t('orders.money.printReceipt')}
-          </Button>
+          </PrintButton>
         </DialogFooter>
       </DialogContent>
     </Dialog>

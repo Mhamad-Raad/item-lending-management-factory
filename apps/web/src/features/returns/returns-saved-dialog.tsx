@@ -1,5 +1,4 @@
 import { formatNumber, type CustomerReturnRecordedDto, type CustomerReturnResultDto } from '@pallet/shared';
-import { Printer } from 'lucide-react';
 import { useRef } from 'react';
 import { useTranslation } from 'react-i18next';
 import { MoneyText } from '@/components/app/money-text';
@@ -14,11 +13,12 @@ import {
 } from '@/components/ui/dialog';
 import { orderLabel } from '@/features/orders/order-text';
 import { isolate } from '@/lib/bidi';
-import { printCustomerReturnReceipt, printReturnPaper } from '@/features/receipt/print-receipt';
+import { PrintButton } from '@/features/receipt/print-button';
+import { returnPaper, type JobRequest } from '@/features/receipt/print-receipt';
 import { CashHandover } from './cash-handover';
 
 /** The paper a print button gives, and its label. */
-type Paper = { label: string; print: () => void };
+type Paper = { label: string; request: JobRequest };
 
 /**
  * What a customer return recorded (Q156): a row per order's return, and its receipt one press away for the customer to
@@ -45,13 +45,13 @@ export function ReturnsSavedDialog({
   const visit = result.customerReturnId ?? null;
   const paperOf = (entry: CustomerReturnRecordedDto): Paper => {
     const refundEntryId = entry.refundEntryId;
-    return { label: t('orders.money.printReceipt'), print: () => printReturnPaper(entry.returnId, refundEntryId) };
+    return { label: t('orders.money.printReceipt'), request: returnPaper(entry.returnId, refundEntryId) };
   };
   const [only] = result.returns;
   // One button at the foot, as over several orders: the visit's paper, or the one order's.
   const footPaper: Paper | null =
     visit !== null
-      ? { label: t('orders.money.printReceipt'), print: () => printCustomerReturnReceipt(visit) }
+      ? { label: t('orders.money.printReceipt'), request: { kind: 'customer-return', customerReturnId: visit } }
       : result.returns.length === 1 && only
         ? paperOf(only)
         : null;
@@ -103,14 +103,13 @@ export function ReturnsSavedDialog({
                     <MoneyText value={entry.cashRefund} className="font-semibold" />
                   )}
                   {rowPaper ? (
-                    <Button
+                    <PrintButton
                       ref={entry.returnId === result.returns[0]?.returnId ? print : undefined}
                       size="sm"
-                      onClick={rowPaper.print}
+                      request={rowPaper.request}
                     >
-                      <Printer aria-hidden />
                       {rowPaper.label}
-                    </Button>
+                    </PrintButton>
                   ) : null}
                 </div>
               </li>
@@ -136,10 +135,9 @@ export function ReturnsSavedDialog({
             {t('common.actions.close')}
           </Button>
           {footPaper ? (
-            <Button ref={print} onClick={footPaper.print}>
-              <Printer aria-hidden />
+            <PrintButton ref={print} request={footPaper.request}>
               {footPaper.label}
-            </Button>
+            </PrintButton>
           ) : null}
         </DialogFooter>
       </DialogContent>
