@@ -613,6 +613,17 @@ Reported by the business on 2026-10-29: Print receipt had to be pressed three ti
 press showed nothing until the receipts' code arrived, so it looked ignored. **Exit:** `print-in-place.spec.ts`;
 every gate green.
 
+### 11a — What is owed, on every receipt (Q181–Q183)
+
+Read: Q170, §7.16.
+
+Asked by the business on 2026-11-01: an order's receipt names every pallet the factory still owes the customer, in
+the order or not; an order wholly of owed pallets is allowed; an edit changes what an order took of them; and
+an order's history reads in words; and the receipt
+says the order's money once something came back (Q182); a long pallet type takes up to three lines
+(Q183).
+**Exit:** `pallet-credits.test.ts`, `orders.spec.ts`, `receipt.test.tsx`, `audit-diff.test.tsx`; every gate green.
+
 ---
 
 ## Environments

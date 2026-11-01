@@ -154,3 +154,8 @@ The build history that used to sit in `CLAUDE.md` "Status", oldest first, moved 
   back with another order are no longer a green part of their own.
 - **10z done** (2026-10-29, Q180): a print press says "preparing" at once, and its button spins, before the
   receipt's code and the receipt arrive on a slow connection.
+- **11a done** (2026-11-01, Q181): an order's receipt ends on what the factory still owes the customer, of every
+  item, in purple; an order wholly of owed pallets is allowed, with no line, and settles at once;
+  an edit counts the owed pallets in its rows and moves what is owed by the difference; an order's history reads in words; the receipt says the order's money once
+  something came back, damage kept included (Q182); a long pallet
+  type takes up to three lines (Q183).
