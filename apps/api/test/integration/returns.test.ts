@@ -516,7 +516,7 @@ describe('returns (§4.8.4–§4.8.6, §6.20)', () => {
     const edit = await http()
       .patch(`/api/orders/${order.id}`)
       .set(asUser(admin))
-      .send({ version: 2, lines: [{ itemId: item.id, quantity: 90 }] })
+      .send({ linesCountOwed: true, version: 2, lines: [{ itemId: item.id, quantity: 90 }] })
       .expect(409);
     expect(edit.body).toMatchObject({ error: { code: 'ORDER_HAS_ACTIVITY', details: { nonReversedReturnCount: 1 } } });
   });

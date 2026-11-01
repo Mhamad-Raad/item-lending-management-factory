@@ -1,6 +1,7 @@
 import { zodResolver } from '@hookform/resolvers/zod';
 import {
   checkCreditLimit,
+  formatNumber,
   type OrderDetailDto,
   type OrderUpdateBody,
   type PalletCreditBalanceDto,
@@ -22,6 +23,7 @@ import { customerQuery } from '@/features/customers/api';
 import { useFlowMutation } from '@/hooks/use-flow-mutation';
 import { useUnsavedChangesGuard } from '@/hooks/use-unsaved-changes-guard';
 import { apiFetch } from '@/lib/api-client';
+import { isolate } from '@/lib/bidi';
 import { detailsOf, isApiError } from '@/lib/api-error';
 import { useAuth, useCan } from '@/lib/auth';
 import { handleApiError } from '@/lib/errors';
@@ -31,7 +33,7 @@ import { CreditAlert } from './credit-alert';
 import { creditMessageParams, orderLabel, type CreditExcess } from './order-text';
 import { OrderFormSchema, useOrderItems, type OrderFormValues } from './order-form';
 import { OrderLinesEditor } from './order-lines-editor';
-import { asOrderLines, depositTotalOf, toRequestLines, type LineRow } from './order-lines';
+import { asOrderLines, depositTotalOf, fromCreditOf, toRequestLines, type LineRow } from './order-lines';
 import { OrderLinesTable } from './order-sections';
 import { CreditCheckUnavailable, OrderDateField, OrderDriverField, OrderNotesField } from './order-fields';
 
@@ -54,12 +56,15 @@ export function EditOrderForm({ order }: { order: OrderDetailDto }) {
   const [confirmingOverride, setConfirmingOverride] = useState(false);
 
   const stored = new Map(order.lines.map((line) => [line.item.id, line]));
+  // Q181: a row is all that went out of its item — lent and from the pallets owed — as on a new order.
+  const tookOwed = new Map(order.fromCredit.map((entry) => [entry.item.id, entry.quantity]));
+  const outBefore = new Map(tookOwed);
+  for (const line of order.lines) outBefore.set(line.item.id, (outBefore.get(line.item.id) ?? 0) + line.quantity);
   // A row's `unitDeposit` is null while it follows its default — the stored deposit here.
-  const storedRows: LineRow[] = order.lines.map((line) => ({
-    itemId: line.item.id,
-    quantity: line.quantity,
-    unitDeposit: null,
-  }));
+  const storedRows: LineRow[] = [
+    ...order.lines.map((line) => line.item.id),
+    ...order.fromCredit.map((entry) => entry.item.id).filter((itemId) => !stored.has(itemId)),
+  ].map((itemId) => ({ itemId, quantity: outBefore.get(itemId) ?? 0, unitDeposit: null }));
   const form = useForm<OrderFormValues>({
     resolver: zodResolver(OrderFormSchema),
     mode: 'onTouched',
@@ -85,8 +90,17 @@ export function EditOrderForm({ order }: { order: OrderDetailDto }) {
   // The pallets this order already holds are part of what it may keep.
   const available = (itemId: number): number | undefined => {
     const onHand = items.get(itemId)?.quantityOnHand;
-    return onHand === undefined ? undefined : onHand + (stored.get(itemId)?.quantity ?? 0);
+    return onHand === undefined ? undefined : onHand + (outBefore.get(itemId) ?? 0);
   };
+  // What may go out from the pallets owed: what is owed now, with what this order took already (Q181).
+  const credits = useQuery({
+    queryKey: qk.customers.palletCredits(order.customer.id),
+    queryFn: () => apiFetch<PalletCreditBalanceDto[]>(`/customers/${order.customer.id}/pallet-credits`),
+    retry: false,
+  });
+  const owed = new Map(tookOwed);
+  for (const entry of credits.data ?? []) owed.set(entry.item.id, (owed.get(entry.item.id) ?? 0) + entry.quantity);
+  const fromCredit = fromCreditOf(rows, owed);
   const customer = useQuery(customerQuery(order.customer.id));
 
   const requestLines = toRequestLines(rows, defaultDeposit, canPrice);
@@ -99,22 +113,28 @@ export function EditOrderForm({ order }: { order: OrderDetailDto }) {
       })),
     ) !==
       lineKey(
-        order.lines.map((line) => ({ itemId: line.item.id, quantity: line.quantity, unitDeposit: line.unitDeposit })),
+        storedRows.map((row) => ({
+          ...row,
+          unitDeposit: row.itemId === null ? undefined : defaultDeposit(row.itemId),
+        })),
       );
-  const newTotal = depositTotalOf(rows, defaultDeposit);
+  const newTotal = depositTotalOf(rows, defaultDeposit, owed);
   const delta = newTotal - order.depositTotal;
   const creditLimit = customer.data?.creditLimit ?? null;
   const outValue = customer.data?.summary.outValue ?? 0;
+  // The new deposit needs what is owed: until it is read the live check waits, and if it cannot be read the server
+  // alone checks the limit (it is said, as when the customer cannot be read).
+  const owedKnown = credits.isSuccess;
   const liveCredit = checkCreditLimit({
     creditLimit,
     customerOutValue: outValue,
-    depositDelta: linesChanged ? delta : 0,
+    depositDelta: linesChanged && owedKnown ? delta : 0,
   });
   // A server refusal holds only for the change it refused; once the lines change, the live check decides.
   const standingRefusal = serverCredit?.depositDelta === delta ? serverCredit : null;
   const credit: CreditExcess | null =
     standingRefusal ??
-    (liveCredit.allowed || creditLimit === null
+    (liveCredit.allowed || creditLimit === null || !owedKnown
       ? null
       : { creditLimit, customerOutValue: outValue, depositDelta: delta, excess: liveCredit.excess });
   const changed = {
@@ -175,7 +195,7 @@ export function EditOrderForm({ order }: { order: OrderDetailDto }) {
         ...(changed.driverId ? { driverId: values.driverId ?? undefined } : {}),
         ...(changed.date ? { date: values.date ?? undefined } : {}),
         notes: changed.notes ? (values.notes.trim() === '' ? null : values.notes) : undefined,
-        ...(changed.lines ? { lines: asOrderLines(requestLines) } : {}),
+        ...(changed.lines ? { lines: asOrderLines(requestLines), linesCountOwed: true as const } : {}),
         confirmCreditOverride,
       });
     });
@@ -184,26 +204,34 @@ export function EditOrderForm({ order }: { order: OrderDetailDto }) {
     const limit = row.itemId === null ? undefined : available(row.itemId);
     return limit !== undefined && row.quantity !== null && row.quantity > limit;
   });
-  // An edit lends no pallets of a type the factory still owes this customer: only a new order takes them first
-  // (Q170). Refused as typed (Q141), as the server would refuse it (PALLET_CREDIT_OUTSTANDING).
-  const credits = useQuery({
-    queryKey: qk.customers.palletCredits(order.customer.id),
-    queryFn: () => apiFetch<PalletCreditBalanceDto[]>(`/customers/${order.customer.id}/pallet-credits`),
-    retry: false,
-  });
-  const owed = new Map((credits.data ?? []).map((entry) => [entry.item.id, entry.quantity]));
-  const lendsOwed = rows.some(
-    (row) =>
-      row.itemId !== null &&
-      row.quantity !== null &&
-      (owed.get(row.itemId) ?? 0) > 0 &&
-      row.quantity > (stored.get(row.itemId)?.quantity ?? 0),
-  );
+  // Q170's one rule, refused as typed (Q141): a type the factory would still owe after the edit while the customer has
+  // it out on another order. Read from what is owed now and what they hold, this order's own lent pallets set apart.
+  const outElsewhere = (itemId: number): number =>
+    (customer.data?.palletsOutByItem.find((entry) => entry.itemId === itemId)?.quantityOut ?? 0) -
+    (stored.get(itemId)?.outQuantity ?? 0);
+  const owedAfter = (itemId: number): number => {
+    const quantity = rows.reduce((sum, row) => (row.itemId === itemId ? sum + (row.quantity ?? 0) : sum), 0);
+    return (owed.get(itemId) ?? 0) - Math.min(owed.get(itemId) ?? 0, quantity);
+  };
+  // Only the types the edit names or the order took of what is owed: those the server checks.
+  const touched = new Set([...rows.flatMap((row) => (row.itemId === null ? [] : [row.itemId])), ...tookOwed.keys()]);
+  const owedWhileOut =
+    linesChanged &&
+    owedKnown &&
+    customer.isSuccess &&
+    [...touched].some((itemId) => owedAfter(itemId) > 0 && outElsewhere(itemId) > 0);
   const submitButton = (
     <Button
       type={credit && isAdmin ? 'button' : 'submit'}
       form="edit-order"
-      disabled={save.isPending || !anyChange || (credit !== null && !isAdmin) || overStock || lendsOwed}
+      disabled={
+        save.isPending ||
+        !anyChange ||
+        (credit !== null && !isAdmin) ||
+        overStock ||
+        owedWhileOut ||
+        (linesChanged && (credits.isPending || customer.isPending))
+      }
       onClick={credit && isAdmin ? () => void form.handleSubmit(() => setConfirmingOverride(true))() : undefined}
     >
       {save.isPending ? <Loader2 className="size-4 animate-spin" aria-hidden /> : null}
@@ -223,7 +251,7 @@ export function EditOrderForm({ order }: { order: OrderDetailDto }) {
               </span>
               <FieldDescription>{t('orders.edit.immutableHint')}</FieldDescription>
             </div>
-            <CreditCheckUnavailable failed={customer.isError} />
+            <CreditCheckUnavailable failed={customer.isError || (linesChanged && credits.isError)} />
             <OrderDriverField form={form} />
             <OrderDateField form={form} />
             <OrderNotesField form={form} className="md:col-span-2" />
@@ -273,9 +301,25 @@ export function EditOrderForm({ order }: { order: OrderDetailDto }) {
           </Alert>
         ) : null}
         {credit ? <CreditAlert credit={credit} kind="change" /> : null}
-        {lendsOwed ? (
+        {owedWhileOut ? (
           <p role="alert" className="text-destructive text-sm font-medium">
             {t('errors.PALLET_CREDIT_OUTSTANDING')}
+          </p>
+        ) : null}
+        {fromCredit.length > 0 ? (
+          <p role="status" className="bg-warning/12 text-warning rounded-md p-3 font-semibold dark:bg-warning/20">
+            {t('orders.new.summary.fromCredit', {
+              items: fromCredit
+                .map(({ itemId, quantity }) => {
+                  const name =
+                    items.get(itemId)?.name ??
+                    order.fromCredit.find((entry) => entry.item.id === itemId)?.item.name ??
+                    (credits.data ?? []).find((entry) => entry.item.id === itemId)?.item.name ??
+                    '';
+                  return `${formatNumber(quantity)} × ${isolate(name)}`;
+                })
+                .join(t('common.listSeparator')),
+            })}
           </p>
         ) : null}
       </SummaryPanel>

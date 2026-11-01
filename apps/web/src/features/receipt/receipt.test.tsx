@@ -183,6 +183,43 @@ describe('receipt (§7.16.5)', () => {
     }
   });
 
+  it("says the order's money under its lines once something came back (Q182)", () => {
+    const receipt = receiptWith(1, { returnedAccepted: 6, returnedDamaged: 2, outQuantity: 2 });
+    const rows: ReceiptRowDto[] = [
+      ...(receipt.sheets[0]?.rows ?? []),
+      { kind: 'settlement', credited: 7_000, kept: 1_000, paid: 0, owed: 3_000 },
+    ];
+    const { container } = render(<Receipt receipt={{ ...receipt, sheets: [{ ...receipt.sheets[0]!, rows }] }} />);
+
+    const row = container.querySelector('.half tbody tr.settlement');
+    const parts = [...(row?.querySelectorAll('.settle-part') ?? [])].map((part) => part.textContent);
+    // Nothing paid: that part is left out.
+    // What it owes now first, so a long line never loses it.
+    expect(parts).toEqual([
+      'قەرزی ئێستا: 3,000 دینار',
+      'بڕی لێبڕدراو بە گەڕاندنەوە: 7,000 دینار',
+      'قەرەبووی تێکچوو: 1,000 دینار',
+    ]);
+    expect(row?.querySelector('td')?.colSpan).toBe(8);
+  });
+
+  it("ends on the customer's pallet balance, a row per item, the item and how many (Q181)", () => {
+    const receipt = receiptWith(1);
+    const rows: ReceiptRowDto[] = [
+      ...(receipt.sheets[0]?.rows ?? []),
+      { kind: 'owedHeading' },
+      { kind: 'owed', no: 2, itemName: 'Bottle crate', quantity: 10 },
+    ];
+    const { container } = render(<Receipt receipt={{ ...receipt, sheets: [{ ...receipt.sheets[0]!, rows }] }} />);
+
+    const body = [...(container.querySelector('.half')?.querySelectorAll('tbody tr') ?? [])];
+    expect(body.slice(0, 3).map((row) => row.className)).toEqual(['', 'owed-heading', 'owed']);
+    expect(body[1]?.textContent).toBe('باڵانسی پالێتی کڕیار');
+    const cells = [...(body[2]?.querySelectorAll('td') ?? [])];
+    expect(cells.map((cell) => cell.textContent)).toEqual(['2', 'Bottle crate', '10', '']);
+    expect(cells.map((cell) => cell.colSpan)).toEqual([1, 1, 1, 5]);
+  });
+
   it('turns to a page per copy when the earlier pallets make the table outgrow a half (Q150)', () => {
     const { container } = render(<Receipt receipt={receiptWith(4, undefined, [EARLIER, EARLIER])} />);
 

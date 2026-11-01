@@ -73,6 +73,11 @@ export const OrderUpdateBody = z
     date: BusinessDate.optional(),
     notes: optionalText(1000),
     lines: OrderLines.optional(),
+    /**
+     * Sent with `lines` by a client that counts the pallets owed in them (Q181): each quantity is all that goes out of
+     * the item. A page from before that, which sent the lent pallets only, is refused as `VERSION_CONFLICT`.
+     */
+    linesCountOwed: z.literal(true).optional(),
     confirmCreditOverride: z.boolean().default(false),
   })
   // The override is an answer, not a change: at least one real field must come with it.

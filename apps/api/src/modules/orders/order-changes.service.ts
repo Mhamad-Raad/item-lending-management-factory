@@ -21,7 +21,7 @@ import { AuditService } from '../audit/audit.service';
 import { ledgerAuditEntry } from '../ledger/ledger.mapper';
 import { MoneyLedger } from '../ledger/money-ledger';
 import { PalletCreditsService } from '../returns/pallet-credits.service';
-import { StockLedger } from '../stock/stock-ledger';
+import { StockLedger, type StockMovementInput } from '../stock/stock-ledger';
 import { assertCreditAllows, type CreditOverride } from './credit-limit';
 import { cancelledMark, lineCacheSeed, recomputeOrder } from './order-state';
 import {
@@ -52,6 +52,11 @@ interface LineChange {
   newDepositTotal: number;
 }
 
+/** What an order takes of the pallets owed, by item, for its history row (Q181). */
+function creditList(taken: ReadonlyMap<number, number>): { itemId: number; quantity: number }[] {
+  return [...taken].map(([itemId, quantity]) => ({ itemId, quantity })).sort((a, b) => a.itemId - b.itemId);
+}
+
 /** Order edit and cancel (§4.8.2, §4.8.3, §6.19): changes to an order after its hand-over. */
 @Injectable()
 export class OrderChangesService {
@@ -75,6 +80,9 @@ export class OrderChangesService {
         items: body.lines ? [...body.lines.map((line) => line.itemId), ...creditItems] : 'none',
       });
       assertVersion(order.version, body.version);
+      // A page from before Q181 sends the lent pallets only: read as all that goes out, they would change the order.
+      // It is answered as an order changed since, which every page already meets by reading it again (Q181).
+      if (body.lines && !body.linesCountOwed) throw new ApiError('VERSION_CONFLICT', { currentVersion: order.version });
       if (order.cancelledAt) throw new ApiError('ORDER_CANCELLED', { orderId });
       const activity = orderActivity(order);
 
@@ -90,26 +98,41 @@ export class OrderChangesService {
       }
 
       if (body.lines) assertNoActivity(activity);
-      const lines = body.lines ? await this.diffLines(tx, order, body.lines) : null;
+      // Q181: each requested quantity is all that goes out of its item, the pallets owed first; only the rest is lent.
+      const split = body.lines
+        ? await this.credits.planOrderEdit(tx, order, body.lines, businessToday(this.clock.now()))
+        : null;
+      if (split && body.lines) await this.assertMoreMayGoOut(tx, order, body.lines, split.before);
+      const lines = split ? await this.diffLines(tx, order, split.lent) : null;
+      const creditMovements = (split?.entries ?? []).map((entry) => ({
+        itemId: entry.itemId,
+        quantity: entry.quantity,
+      }));
+      const movements = [...(lines?.movements ?? []), ...creditMovements];
       // Q18/Q78: an archived customer's order may shrink, and its header may change, but no more
       // pallets go out to them — a line added, or a quantity raised, is a movement out.
-      if (lines && order.customer.archivedAt && lines.movements.some((movement) => movement.quantity < 0)) {
+      if (order.customer.archivedAt && movements.some((movement) => movement.quantity < 0)) {
         throw new ApiError('CUSTOMER_ARCHIVED', { customerId: order.customerId });
       }
+      const creditChanged = (split?.entries.length ?? 0) > 0;
       // Q37: an edit that changes nothing writes nothing — no version bump, no history row.
-      if (fields.length === 0 && lines === null) return loadOrderDetail(tx, orderId);
+      if (fields.length === 0 && lines === null && !creditChanged) return loadOrderDetail(tx, orderId);
 
       let override: CreditOverride | null = null;
       let reissued: { reversal: LedgerEntry | null; payment: LedgerEntry | null } = { reversal: null, payment: null };
-      if (lines) {
-        await this.stock.assertAvailable(tx, lines.movements);
-        const depositDelta = lines.newDepositTotal - lines.oldDepositTotal;
+      if (lines || creditChanged) {
+        // The lent pallets and the owed ones in one stock check and one call, judged on the net (Q20).
+        await this.stock.assertAvailable(tx, movements);
+        const depositDelta = lines ? lines.newDepositTotal - lines.oldDepositTotal : 0;
         // A smaller order is always allowed; only a larger one meets the limit again (§4.4).
         if (depositDelta > 0) {
           override = await assertCreditAllows(tx, order.customer, depositDelta, body.confirmCreditOverride, actor);
         }
-        await this.applyLines(tx, order.id, lines, actor.userId);
-        if (order.paymentType === 'CASH') reissued = await this.reissuePayment(tx, order, lines.newDepositTotal, actor);
+        const credited = await this.credits.insertMany(tx, split?.entries ?? [], actor);
+        await this.applyLines(tx, order.id, lines, credited.movements, actor.userId);
+        if (lines && order.paymentType === 'CASH') {
+          reissued = await this.reissuePayment(tx, order, lines.newDepositTotal, actor);
+        }
       }
 
       await tx.order.update({
@@ -123,34 +146,46 @@ export class OrderChangesService {
         },
       });
       await recomputeOrder(tx, order.id, { bumpVersion: true });
-      if (lines && body.lines) {
-        // A type taken off the order never went out, its pallets owed included: those are owed again (Q170). Only a type
-        // that had a line can be taken off — one wholly given from what was owed has none, and an edit cannot name it.
-        // And no edit may put out a type the factory still owes this customer.
-        const kept = new Set(body.lines.map((line) => line.itemId));
-        const hadLine = new Set(order.lines.map((line) => line.itemId));
-        const dropped = creditItems.filter((itemId) => hadLine.has(itemId) && !kept.has(itemId));
-        if (dropped.length > 0) {
-          await this.credits.reverseForOrder(tx, order, businessToday(this.clock.now()), actor, dropped);
-        }
-        await this.credits.assertNotOwedWhileOut(tx, order.customerId, [...kept, ...dropped]);
+      if (split && body.lines) {
+        // No edit may leave pallets out of a type the factory still owes this customer (Q170's one rule).
+        const touched = new Set([...body.lines.map((line) => line.itemId), ...split.before.keys()]);
+        await this.credits.assertNotOwedWhileOut(tx, order.customerId, [...touched]);
       }
 
-      const changed: string[] = [...fields, ...(lines ? ['lines'] : [])];
-      const before = { ...stored, lines: lines?.oldLines };
+      const changed: string[] = [...fields, ...(lines ? ['lines'] : []), ...(creditChanged ? ['fromCredit'] : [])];
+      // The history names the items and the drivers, so a reader needs no ids (Q181).
+      const named = await this.auditNames(tx, {
+        itemIds:
+          !lines && !creditChanged
+            ? []
+            : [
+                ...[...order.lines, ...(split?.lent ?? [])].map((line) => line.itemId),
+                ...(split ? [...split.before.keys(), ...split.after.keys()] : []),
+              ],
+        driverIds: fields.includes('driverId') ? [order.driverId, body.driverId as number] : [],
+      });
+      const before = {
+        ...stored,
+        driverName: named.driver(order.driverId),
+        lines: lines && named.lines(lines.oldLines),
+        fromCredit: split && named.lines(creditList(split.before)),
+      };
       const after = {
         driverId: body.driverId ?? stored.driverId,
+        driverName: named.driver(body.driverId ?? stored.driverId),
         date: body.date ?? stored.date,
         notes: body.notes === undefined ? stored.notes : body.notes,
-        lines: lines?.newLines,
+        lines: lines && named.lines(lines.newLines),
+        fromCredit: split && named.lines(creditList(split.after)),
       };
+      const picked = [...changed, ...(fields.includes('driverId') ? ['driverName'] : [])];
       await this.audit.record(tx, {
         action: 'UPDATE',
         entityType: 'ORDER',
         entityId: String(order.id),
         summaryParams: { orderNumber: order.orderNumber, fields: changed },
-        before: pickSnapshot(before, changed),
-        after: pickSnapshot(after, changed),
+        before: pickSnapshot(before, picked),
+        after: pickSnapshot(after, picked),
       });
       for (const entry of [reissued.reversal, reissued.payment]) {
         if (entry) await this.audit.record(tx, ledgerAuditEntry(entry, order.orderNumber));
@@ -323,8 +358,21 @@ export class OrderChangesService {
     };
   }
 
-  /** Writes the new line set and its ORDER_LINE_EDIT movements; `out_quantity` is recomputed after. */
-  private async applyLines(tx: Prisma.TransactionClient, orderId: number, lines: LineChange, userId: number) {
+  /**
+   * Writes the new line set and its ORDER_LINE_EDIT movements, with the movements of what the order now takes of the
+   * pallets owed (Q181) in the same stock call; `out_quantity` is recomputed after.
+   */
+  private async applyLines(
+    tx: Prisma.TransactionClient,
+    orderId: number,
+    lines: LineChange | null,
+    creditMovements: StockMovementInput[],
+    userId: number,
+  ) {
+    if (!lines) {
+      await this.stock.apply(tx, creditMovements, userId);
+      return;
+    }
     if (lines.removedLineIds.length > 0) {
       await tx.orderLine.deleteMany({ where: { id: { in: lines.removedLineIds } } });
     }
@@ -353,9 +401,58 @@ export class OrderChangesService {
     }
     await this.stock.apply(
       tx,
-      lines.movements.map((movement) => ({ ...movement, reason: 'ORDER_LINE_EDIT' as const, orderId })),
+      [
+        ...lines.movements.map((movement) => ({ ...movement, reason: 'ORDER_LINE_EDIT' as const, orderId })),
+        ...creditMovements,
+      ],
       userId,
     );
+  }
+
+  /** The names an order's history row gives its items and drivers (Q181). */
+  private async auditNames(
+    tx: Prisma.TransactionClient,
+    { itemIds, driverIds }: { itemIds: number[]; driverIds: number[] },
+  ) {
+    const [items, drivers] = await Promise.all([
+      itemIds.length > 0
+        ? tx.item.findMany({ where: { id: { in: [...new Set(itemIds)] } }, select: { id: true, name: true } })
+        : [],
+      driverIds.length > 0
+        ? tx.driver.findMany({ where: { id: { in: [...new Set(driverIds)] } }, select: { id: true, name: true } })
+        : [],
+    ]);
+    const itemName = new Map(items.map((item) => [item.id, item.name]));
+    const driverName = new Map(drivers.map((driver) => [driver.id, driver.name]));
+    return {
+      lines: <T extends { itemId: number }>(rows: readonly T[]) =>
+        rows.map((row) => ({ ...row, itemName: itemName.get(row.itemId) ?? null })),
+      driver: (driverId: number) => driverName.get(driverId) ?? null,
+    };
+  }
+
+  /**
+   * An item whose pallets out on the order go up must still be orderable (Q181): what is owed going out counts too, so
+   * an archived or unknown item is refused as a new line's is.
+   */
+  private async assertMoreMayGoOut(
+    tx: Prisma.TransactionClient,
+    order: ChangeableOrder,
+    requested: NonNullable<OrderUpdateBody['lines']>,
+    usedBefore: ReadonlyMap<number, number>,
+  ): Promise<void> {
+    const lent = new Map(order.lines.map((line) => [line.itemId, line.quantity]));
+    const more = requested
+      .filter((line) => line.quantity > (lent.get(line.itemId) ?? 0) + (usedBefore.get(line.itemId) ?? 0))
+      .map((line) => line.itemId);
+    if (more.length === 0) return;
+    const items = new Map(
+      (await tx.item.findMany({ where: { id: { in: more } }, select: { id: true, archivedAt: true } })).map((item) => [
+        item.id,
+        item,
+      ]),
+    );
+    for (const itemId of more) assertItemOrderable(items.get(itemId), itemId);
   }
 
   /**

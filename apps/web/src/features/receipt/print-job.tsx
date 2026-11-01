@@ -20,6 +20,7 @@ import {
   transactionsReceiptQuery,
 } from './api';
 import { fontsSettled, useLogoGate, usePrintOnce } from './auto-print';
+import { fitItemNames } from './item-name-fit';
 import { HandBackReceipt } from './hand-back-receipt';
 import { CustomerReturnReceipt, MoneyReceipt, ReturnReceipt } from './money-receipt';
 import { finishPrintJob, type Job } from './print-receipt';
@@ -208,6 +209,8 @@ function PrintFrame({
       if (!frame) return;
       await frame.styled;
       await fontsSettled(frame.doc);
+      // The names fitted in the fonts they print in, in this same task, before the print takes the page (Q183).
+      fitItemNames(frame.doc);
       onPrint();
       printFrame(frame.view);
     }, [frame, onPrint]),

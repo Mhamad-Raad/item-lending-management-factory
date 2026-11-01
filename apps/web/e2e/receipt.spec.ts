@@ -320,6 +320,54 @@ test("Q150: the customer's earlier pallets still out share the order's table, an
   expect(await pdfPages(page)).toBe(1);
 });
 
+test('Q183: a pallet type too long for its line takes two lines, then three and "…", the row still 7 mm; Q182: the money row holds', async ({
+  page,
+}) => {
+  const name = (no: number, itemName: string): ReceiptRowDto => ({ ...lines[0]!, no, itemName });
+  const long = 'پالێتی دارینی تایبەت بۆ بارکردنی کەلوپەلی قورس ';
+  await openReceipt(page, {
+    ...RECEIPT,
+    layout: 'halves',
+    rowsPerCopy: 6,
+    sheets: [
+      {
+        sheetNumber: 1,
+        sheetCount: 1,
+        rows: [
+          name(1, 'پالێتی ستاندارد 120×100'),
+          name(2, `${long}و ناسک`),
+          name(3, long.repeat(4)),
+          // The largest money the inputs allow: what it owes now comes first, so it is never the part cut off.
+          {
+            kind: 'settlement',
+            credited: 9_000_000_000_000_000,
+            kept: 9_000_000_000_000_000,
+            paid: 9_000_000_000_000_000,
+            owed: 9_000_000_000_000_000,
+          },
+        ],
+        showTotal: true,
+      },
+    ],
+  });
+  const half = page.locator('.half').first();
+  await expect(half.locator('.item-name')).toHaveCount(5);
+  await page.evaluate(() => document.fonts.ready);
+  const fitted = await half
+    .locator('.item-name')
+    .evaluateAll((names) => names.slice(0, 3).map((n) => (n as HTMLElement).dataset.lines));
+  expect(fitted).toEqual(['1', '2', '3']);
+  const owedPart = half.locator('tr.settlement .settle-part').first();
+  await expect(owedPart).toContainText('قەرزی ئێستا');
+  const visible = await owedPart.evaluate((part) => {
+    const cell = part.closest('td')!.getBoundingClientRect();
+    const box = part.getBoundingClientRect();
+    return box.left >= cell.left - 0.5 && box.right <= cell.right + 0.5;
+  });
+  expect(visible).toBe(true);
+  expect((await paperFit(page, '.half')).rowsKeepTheirHeight).toBe(true);
+});
+
 /**
  * Q134: the tab's Print button reads the order again, and what goes to the printer is that answer — the page as it
  * is at the moment `window.print()` is called, not a moment later.

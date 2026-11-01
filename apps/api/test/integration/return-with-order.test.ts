@@ -151,6 +151,7 @@ describe('a return recorded with an order, taking back other orders’ pallets t
     const earlier = await receipt(first.id);
     expect(rowsOf(earlier)).toEqual([
       expect.objectContaining({ kind: 'line', returnedAccepted: 4, returnedDamaged: 1, outQuantity: 5 }),
+      expect.objectContaining({ kind: 'settlement' }),
     ]);
   });
 
@@ -173,6 +174,7 @@ describe('a return recorded with an order, taking back other orders’ pallets t
 
     expect(rowsOf(await receipt(first.id))).toEqual([
       expect.objectContaining({ kind: 'line', returnedAccepted: 7, returnedDamaged: 1, outQuantity: 2 }),
+      expect.objectContaining({ kind: 'settlement' }),
     ]);
   });
 

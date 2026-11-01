@@ -27,7 +27,7 @@ import { StockLedger, type StockMovementInput } from '../stock/stock-ledger';
 import { USER_REF_SELECT, toUserRef } from '../users/users.mapper';
 
 /** One entry of what is owed, as written (`writeMany`). */
-interface CreditEntry {
+export interface CreditEntry {
   customerId: number;
   itemId: number;
   quantity: number;
@@ -209,6 +209,52 @@ export class PalletCreditsService {
     );
   }
 
+  /**
+   * An edit of an order's lines (Q181): each requested quantity is all that goes out of that item, what is owed first —
+   * what is owed now with what this order took already — and only the rest lent. Gives the lent lines, the entries
+   * that move what is owed by the difference (`ORDER_USE` for more taken, `ORDER_CANCEL` for less), and what the order
+   * took before and takes after, by item. Read under the customer's lock and the items'.
+   */
+  async planOrderEdit(
+    tx: Prisma.TransactionClient,
+    order: { id: number; customerId: number },
+    lines: readonly { itemId: number; quantity: number; unitDeposit?: number }[],
+    date: string,
+  ): Promise<{
+    lent: { itemId: number; quantity: number; unitDeposit?: number }[];
+    entries: CreditEntry[];
+    before: Map<number, number>;
+    after: Map<number, number>;
+  }> {
+    const rows = await tx.palletCredit.groupBy({
+      by: ['itemId'],
+      where: { orderId: order.id },
+      _sum: { quantity: true },
+    });
+    const before = new Map(
+      rows.flatMap((row) => ((row._sum.quantity ?? 0) < 0 ? [[row.itemId, -(row._sum.quantity ?? 0)] as const] : [])),
+    );
+    const balance = await this.owedByItem(tx, order.customerId, [
+      ...lines.map((line) => line.itemId),
+      ...before.keys(),
+    ]);
+    const after = new Map<number, number>();
+    const lent: { itemId: number; quantity: number; unitDeposit?: number }[] = [];
+    for (const line of lines) {
+      const take = Math.min((balance.get(line.itemId) ?? 0) + (before.get(line.itemId) ?? 0), line.quantity);
+      if (take > 0) after.set(line.itemId, take);
+      if (line.quantity > take) lent.push({ ...line, quantity: line.quantity - take });
+    }
+    const entries: CreditEntry[] = [];
+    for (const itemId of new Set([...before.keys(), ...after.keys()])) {
+      const delta = (after.get(itemId) ?? 0) - (before.get(itemId) ?? 0);
+      if (delta === 0) continue;
+      const reason = delta > 0 ? ('ORDER_USE' as const) : ('ORDER_CANCEL' as const);
+      entries.push({ customerId: order.customerId, itemId, quantity: -delta, reason, orderId: order.id, date });
+    }
+    return { lent, entries, before, after };
+  }
+
   /** The items an order took of what was owed, to lock with its own before it is cancelled (§6.6, Q170). */
   async orderCreditItemIds(tx: Prisma.TransactionClient, orderId: number): Promise<number[]> {
     const rows = await tx.palletCredit.findMany({ where: { orderId }, select: { itemId: true }, distinct: ['itemId'] });
@@ -224,12 +270,10 @@ export class PalletCreditsService {
     order: { id: number; customerId: number },
     date: string,
     actor: AuthContext,
-    /** Only these items — an edit that took them off the order (Q170); all of them on a cancel. */
-    itemIds?: readonly number[],
   ): Promise<void> {
     const rows = await tx.palletCredit.groupBy({
       by: ['itemId'],
-      where: { orderId: order.id, ...(itemIds ? { itemId: { in: [...itemIds] } } : {}) },
+      where: { orderId: order.id },
       _sum: { quantity: true },
     });
     await this.writeMany(

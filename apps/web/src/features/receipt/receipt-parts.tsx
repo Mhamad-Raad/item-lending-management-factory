@@ -1,6 +1,7 @@
 import { formatBusinessDate, type ReceiptFactoryDto } from '@pallet/shared';
 import { Scissors } from 'lucide-react';
-import type { ReactNode } from 'react';
+import { useLayoutEffect, useRef, type ReactNode } from 'react';
+import { fitItemName } from './item-name-fit';
 import { tr } from './receipt-i18n';
 
 /** The start side of a receipt's header (§7.16.3): the logo, the factory's name, phone and address. */
@@ -174,5 +175,27 @@ export function PaperFooter({
       </div>
       {stamp !== null ? <div className="stamp">{stamp}</div> : null}
     </div>
+  );
+}
+
+/** A pallet type's name in its cell, fitted when drawn and again once the fonts are in (`fitItemName`). */
+export function ItemName({ children }: { children: ReactNode }) {
+  const ref = useRef<HTMLSpanElement>(null);
+  useLayoutEffect(() => {
+    const element = ref.current;
+    if (!element) return;
+    fitItemName(element);
+    let live = true;
+    void element.ownerDocument.fonts?.ready.then(() => {
+      if (live) fitItemName(element);
+    });
+    return () => {
+      live = false;
+    };
+  });
+  return (
+    <span ref={ref} className="item-name">
+      {children}
+    </span>
   );
 }

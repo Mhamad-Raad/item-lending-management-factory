@@ -634,11 +634,19 @@ export type ReceiptRowDto =
   | ({ kind: 'line'; no: number } & ReceiptLineDto)
   /** Pallets the factory owed the customer, handed over with this order and no deposit (Q170). */
   | { kind: 'fromCredit'; no: number; itemName: string; quantity: number }
+  /**
+   * The order's money once something came back (Q182): what its returns took off the deposit (pallets back and damage
+   * refunds), what was kept for damage, what was paid net of refunds, and what it owes now — deposit − credited − paid.
+   */
+  | { kind: 'settlement'; credited: number; kept: number; paid: number; owed: number }
   /** Over the rows of other orders' pallets that came back with this one (Q175). */
   | { kind: 'withHeading' }
   | ({ kind: 'with'; no: number } & ReceiptCameBackLineDto)
   | { kind: 'olderHeading' }
-  | ({ kind: 'older'; no: number } & ReceiptOlderLineDto);
+  | ({ kind: 'older'; no: number } & ReceiptOlderLineDto)
+  /** Over what the factory still owes the customer, of any item, when the receipt is asked for (Q181). */
+  | { kind: 'owedHeading' }
+  | { kind: 'owed'; no: number; itemName: string; quantity: number };
 
 /**
  * One item of other orders' pallets that came back with this order (Q175), summed over every order, naming none of

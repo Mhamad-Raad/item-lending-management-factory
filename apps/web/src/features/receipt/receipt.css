@@ -154,6 +154,49 @@
   text-overflow: ellipsis;
   white-space: nowrap;
 }
+/* Q183: a pallet type's name — one line, or two smaller, or three smaller still and "…" — within the row's 7 mm. */
+.item-name {
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.item-name[data-lines='2'],
+.item-name[data-lines='3'] {
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  white-space: normal;
+  overflow-wrap: anywhere;
+  /* Room above the first line and below the last for Sorani's marks, inside the row's 7 mm. */
+  padding-block: 0.15mm;
+}
+.item-name[data-lines='2'] {
+  -webkit-line-clamp: 2;
+  font-size: 7.5pt;
+  line-height: 3.2mm;
+}
+.item-name[data-lines='3'] {
+  -webkit-line-clamp: 3;
+  font-size: 5.6pt;
+  line-height: 2.1mm;
+}
+/* Measuring the text unclamped (fitItemName): the same size and lines, every line shown. */
+.item-name[data-probe] {
+  display: block;
+  -webkit-line-clamp: none;
+}
+.item-name.lines-2 {
+  -webkit-line-clamp: 2;
+  font-size: 8pt;
+  line-height: 3.2mm;
+  max-height: 6.4mm;
+}
+.item-name.lines-3 {
+  -webkit-line-clamp: 3;
+  font-size: 6.3pt;
+  line-height: 2.25mm;
+  max-height: 6.75mm;
+}
 /* Q150: what the customer still holds of earlier orders, a row per item and price (Q158), under a heading row,
    shaded so that a black-and-white print still tells them from this order's. */
 .lines tr.older-heading td {
@@ -185,6 +228,26 @@
   background: #d9d9d9;
 }
 .lines tr.with td {
+  background: #f0f0f0;
+}
+/* Q182: the order's money once something came back, one line of figures under its pallets. */
+.lines tr.settlement td {
+  font-size: 8pt;
+  font-weight: 600;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.lines tr.settlement .settle-part + .settle-part::before {
+  content: ' · ';
+}
+/* Q181: what the factory still owes them, shaded like the other parts for a black-and-white print. */
+.lines tr.owed-heading td {
+  font-size: 8.5pt;
+  font-weight: 600;
+  background: #d9d9d9;
+}
+.lines tr.owed td {
   background: #f0f0f0;
 }
 .lines .num-cell {
@@ -418,6 +481,25 @@
 .handover .lines tr.with td {
   border-color: #c9e2bd;
   background: #eef7e9;
+}
+/* The order's money in its blue (Q182), the figure owed now in bold. */
+.handover .lines tr.settlement td {
+  background: var(--blue-soft);
+  color: var(--blue);
+}
+.handover .lines tr.settlement .settle-part:first-child {
+  font-weight: 800;
+}
+/* Purple for what the factory still owes them (Q181), apart from the blue, amber and green parts. */
+.handover .lines tr.owed-heading td {
+  border-color: #8e7cc3;
+  background: #d9d2e9;
+  color: #2b1d52;
+  font-weight: 700;
+}
+.handover .lines tr.owed td {
+  border-color: #ddd6ee;
+  background: #f3f0fa;
 }
 /* The footer: payment type, print date and sheet at the start; the totals at the end, ending on the figure in blue. */
 .handover .block-footer {

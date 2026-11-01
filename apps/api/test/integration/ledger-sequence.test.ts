@@ -111,7 +111,7 @@ describe('I14: ledger reconciliation after a scripted sequence', () => {
         const response = await http()
           .patch(`/api/orders/${orderId}`)
           .set(asUser(admin))
-          .send({ version: order.version, lines });
+          .send({ linesCountOwed: true, version: order.version, lines });
         record('editLines', response.status);
       },
       async cancel() {

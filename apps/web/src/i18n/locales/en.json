@@ -309,7 +309,12 @@
       "before": "Before",
       "after": "After"
     },
-    "countLimited": "More than 10,000 entries match. Only the newest 10,000 can be paged through; narrow the dates to see older ones."
+    "countLimited": "More than 10,000 entries match. Only the newest 10,000 can be paged through; narrow the dates to see older ones.",
+    "orderFields": {
+      "creditOverrideBy": "Credit limit passed by user",
+      "creditOverrideAt": "Credit limit passed at",
+      "cancelledAt": "Cancelled at"
+    }
   },
   "enums": {
     "role": {
@@ -667,7 +672,6 @@
     "PALLET_SURPLUS_NOT_RETURNED": "Extra pallets can come back only of a type this return takes back",
     "PALLET_CREDIT_GIVEN_BACK": "Extra pallets of this return were given back already; it can no longer be corrected or deleted",
     "PALLET_CREDIT_INSUFFICIENT": "The factory does not owe them that many",
-    "ORDER_ALL_FROM_CREDIT": "All of these come from pallets we owe them — use Give back on the customer page instead",
     "PALLET_CREDIT_OUTSTANDING": "The factory still owes this customer pallets of that type; give them back first",
     "HAND_BACK_NOT_FOUND": "Give-back not found",
     "HAND_BACK_UNDO_WHILE_OUT": "They have pallets of this type out since: record their return first, then undo"
@@ -1204,7 +1208,12 @@
       "owedAfter": "Owed after",
       "undone": "Undone {{date}}"
     },
-    "withHeading": "Other orders' pallets returned with this order"
+    "withHeading": "Other orders' pallets returned with this order",
+    "owedHeading": "Customer's pallet balance",
+    "settleCredited": "Taken off by returns",
+    "settleKept": "Kept for damage",
+    "settlePaid": "Paid",
+    "settleOwed": "Owed now"
   },
   "returns": {
     "list": {

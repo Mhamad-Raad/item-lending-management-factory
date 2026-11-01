@@ -384,6 +384,8 @@ test('the edit page describes a credit breach as the increase, not as the order'
   await page.route(/\/api\/customers\/3$/, (route) =>
     route.fulfill({ json: { ...CUSTOMER, creditLimit: 105_000, summary: { ...CUSTOMER.summary, outValue: 100_000 } } }),
   );
+  // Nothing owed to them: the live check prices the increase in full (Q181).
+  await page.route(/\/api\/customers\/3\/pallet-credits$/, (route) => route.fulfill({ json: [] }));
 
   await page.goto('/orders/9/edit');
   await page.locator('#lines-0-quantity').fill('110');
@@ -391,6 +393,71 @@ test('the edit page describes a credit breach as the increase, not as the order'
   const alert = page.getByRole('complementary', { name: 'Summary' }).getByRole('alert');
   await expect(alert).toContainText('raising this order by 10,000');
   await expect(alert).toContainText('passes it by 5,000');
+});
+
+test('Q181: the edit page counts the pallets owed in its rows, and takes them first', async ({ page }) => {
+  await page.setViewportSize({ width: 1280, height: 900 });
+  await mockApi(page, ADMIN);
+  // Wholly of pallets owed: no line, 2 of Pallet A from what was owed, and 1 more still owed.
+  const allOwed = {
+    ...ORDER,
+    status: 'SETTLED',
+    depositTotal: 0,
+    owed: 0,
+    outValue: 0,
+    outQuantityTotal: 0,
+    fromCredit: [{ item: { id: 1, name: 'Pallet A', imageUrl: null, archived: false }, quantity: 2 }],
+  };
+  const patched: unknown[] = [];
+  await page.route(/\/api\/orders\/9$/, (route) => {
+    if (route.request().method() === 'PATCH') patched.push(route.request().postDataJSON());
+    return route.fulfill({ json: allOwed });
+  });
+  await page.route(/\/api\/customers\/3\/pallet-credits$/, (route) =>
+    route.fulfill({ json: [{ item: { id: 1, name: 'Pallet A', imageUrl: null, archived: false }, quantity: 1 }] }),
+  );
+
+  await page.goto('/orders/9/edit');
+  await expect(page.locator('#lines-0-quantity')).toHaveValue('2');
+  const summary = page.getByRole('complementary', { name: 'Summary' });
+  await expect(summary.getByRole('status')).toContainText(/2 × .Pallet A/);
+
+  // 4: the 3 owed go first, 1 is lent at 1,000.
+  await page.locator('#lines-0-quantity').fill('4');
+  await expect(summary.getByRole('status')).toContainText(/3 × .Pallet A/);
+  await expect(summary).toContainText('1,000');
+  await page.getByRole('button', { name: 'Save' }).click();
+  await expect
+    .poll(() => patched)
+    .toEqual([expect.objectContaining({ version: 1, lines: [{ itemId: 1, quantity: 4 }], linesCountOwed: true })]);
+});
+
+test('Q181: the edit page refuses as typed giving back owed pallets of a type out on another order', async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 1280, height: 900 });
+  await mockApi(page, ADMIN);
+  const allOwed = {
+    ...ORDER,
+    status: 'SETTLED',
+    depositTotal: 0,
+    fromCredit: [{ item: { id: 1, name: 'Pallet A', imageUrl: null, archived: false }, quantity: 2 }],
+  };
+  await page.route(/\/api\/orders\/9$/, (route) => route.fulfill({ json: allOwed }));
+  await page.route(/\/api\/customers\/3\/pallet-credits$/, (route) => route.fulfill({ json: [] }));
+  // 5 of Pallet A out on another order of theirs.
+  await page.route(/\/api\/customers\/3$/, (route) =>
+    route.fulfill({ json: { ...CUSTOMER, palletsOutByItem: [{ itemId: 1, itemName: 'Pallet A', quantityOut: 5 }] } }),
+  );
+
+  await page.goto('/orders/9/edit');
+  await page.locator('#lines-0-quantity').fill('1');
+  const summary = page.getByRole('complementary', { name: 'Summary' });
+  await expect(summary.getByRole('alert')).toContainText('still owes this customer');
+  await expect(summary.getByRole('button', { name: 'Save' })).toBeDisabled();
+  // Back to 2: nothing would be owed again.
+  await page.locator('#lines-0-quantity').fill('2');
+  await expect(summary.getByRole('alert')).toHaveCount(0);
 });
 
 test('the new-order page starts on the customer picker', async ({ page }) => {

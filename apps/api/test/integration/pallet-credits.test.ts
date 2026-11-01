@@ -8,6 +8,7 @@ import type {
   OrderDetailDto,
   PageDto,
   PalletCreditBalanceDto,
+  ReceiptDto,
   ReturnListItemDto,
   ReturnReceiptDto,
 } from '@pallet/shared';
@@ -152,19 +153,36 @@ describe('pallets the factory owes a customer (Q170)', () => {
     await back([{ order: first, accepted: 10 }], 2).expect(201);
     const stockBefore = await onHand();
 
-    const allFromCredit = await http()
-      .post('/api/orders')
+    // Wholly from what was owed (Q181): no line, no deposit, settled at once; a cancel owes it again.
+    const allFromCredit = (
+      await http()
+        .post('/api/orders')
+        .set(asUser(admin))
+        .set('Idempotency-Key', randomUUID())
+        .send({
+          customerId: customer.id,
+          driverId: driver.id,
+          date: TODAY,
+          paymentType: 'LENT',
+          lines: [{ itemId: pallet.id, quantity: 2 }],
+        })
+        .expect(201)
+    ).body as OrderDetailDto;
+    expect(allFromCredit.lines).toEqual([]);
+    expect(allFromCredit.depositTotal).toBe(0);
+    expect(allFromCredit.status).toBe('SETTLED');
+    expect(allFromCredit.fromCredit).toEqual([
+      { item: expect.objectContaining({ id: pallet.id }) as unknown, quantity: 2 },
+    ]);
+    expect(await owed()).toBe(0);
+    expect(stockBefore - (await onHand())).toBe(2);
+    await http()
+      .post(`/api/orders/${allFromCredit.id}/cancel`)
       .set(asUser(admin))
-      .set('Idempotency-Key', randomUUID())
-      .send({
-        customerId: customer.id,
-        driverId: driver.id,
-        date: TODAY,
-        paymentType: 'LENT',
-        lines: [{ itemId: pallet.id, quantity: 2 }],
-      })
-      .expect(409);
-    expect(allFromCredit.body).toMatchObject({ error: { code: 'ORDER_ALL_FROM_CREDIT' } });
+      .send({ version: allFromCredit.version })
+      .expect(200);
+    expect(await owed()).toBe(2);
+    expect(await onHand()).toBe(stockBefore);
 
     const next = await order(5, TODAY);
     expect(next.lines[0]?.quantity).toBe(3);
@@ -176,6 +194,69 @@ describe('pallets the factory owes a customer (Q170)', () => {
     await http().post(`/api/orders/${next.id}/cancel`).set(asUser(admin)).send({ version: next.version }).expect(200);
     expect(await owed()).toBe(2);
     expect(await onHand()).toBe(stockBefore);
+  });
+
+  it("prints on an order's receipt what is still owed of every item, in the order or not (Q181)", async () => {
+    const first = await order(10);
+    await back([{ order: first, accepted: 10 }], 3).expect(201);
+    const crate = await createItem(app, admin, { name: 'Crate', depositPrice: 500, stock: 500 });
+    const owedRows = async (orderId: number) =>
+      ((await http().get(`/api/orders/${orderId}/receipt`).set(asUser(admin)).expect(200)).body as ReceiptDto).sheets
+        .flatMap((sheet) => sheet.rows)
+        .filter((row) => row.kind === 'owedHeading' || row.kind === 'owed');
+
+    const crates = await createOrder(app, admin, {
+      customerId: customer.id,
+      driverId: driver.id,
+      date: TODAY,
+      paymentType: 'LENT',
+      lines: [{ itemId: crate.id, quantity: 4 }],
+    });
+    expect(await owedRows(crates.id)).toEqual([
+      { kind: 'owedHeading' },
+      { kind: 'owed', no: 2, itemName: 'Pallet 120×100', quantity: 3 },
+    ]);
+
+    // Two of the three go out with the next order: the receipt still names the one owed.
+    const both = await createOrder(app, admin, {
+      customerId: customer.id,
+      driverId: driver.id,
+      date: TODAY,
+      paymentType: 'LENT',
+      lines: [
+        { itemId: pallet.id, quantity: 2 },
+        { itemId: crate.id, quantity: 1 },
+      ],
+    });
+    expect(await owedRows(both.id)).toEqual([
+      { kind: 'owedHeading' },
+      { kind: 'owed', no: expect.any(Number) as unknown, itemName: 'Pallet 120×100', quantity: 1 },
+    ]);
+  });
+
+  it("prints an order's money under its lines once something came back, damage kept included (Q182)", async () => {
+    const first = await order(10);
+    let rows = (
+      (await http().get(`/api/orders/${first.id}/receipt`).set(asUser(admin)).expect(200)).body as ReceiptDto
+    ).sheets.flatMap((sheet) => sheet.rows);
+    expect(rows.filter((row) => row.kind === 'settlement')).toEqual([]);
+    // 6 back, 2 damaged with 300 of their 1,000 given back: 6,300 off, 1,700 kept, 2 still out.
+    await http()
+      .post(`/api/orders/${first.id}/returns`)
+      .set(asUser(admin))
+      .set('Idempotency-Key', randomUUID())
+      .send({
+        date: TODAY,
+        lines: [{ orderLineId: first.lines[0]?.id, acceptedQuantity: 6, damagedQuantity: 2, damagedRefund: 300 }],
+      })
+      .expect(201);
+    rows = (
+      (await http().get(`/api/orders/${first.id}/receipt`).set(asUser(admin)).expect(200)).body as ReceiptDto
+    ).sheets.flatMap((sheet) => sheet.rows);
+    expect(rows.filter((row) => row.kind === 'settlement')).toEqual([
+      { kind: 'settlement', credited: 6_300, kept: 1_700, paid: 0, owed: 3_700 },
+    ]);
+    expect(rows.map((row) => row.kind)).toEqual(['line', 'settlement']);
   });
 
   it('lists every return newest first, filtered by order', async () => {
@@ -296,7 +377,7 @@ describe('pallets the factory owes a customer (Q170)', () => {
     await http()
       .patch(`/api/orders/${next.id}`)
       .set(asUser(admin))
-      .send({ version: next.version, lines: [{ itemId: other.id, quantity: 1 }] })
+      .send({ linesCountOwed: true, version: next.version, lines: [{ itemId: other.id, quantity: 1 }] })
       .expect(200);
     expect(await owed()).toBe(2);
   });
@@ -329,14 +410,99 @@ describe('pallets the factory owes a customer (Q170)', () => {
     });
     expect(next.lines.map((line) => line.item.id)).toEqual([other.id]);
     const stock = await onHand();
+    // An edit names all that goes out of each item (Q181): the 2 owed pallets as they were.
     await http()
       .patch(`/api/orders/${next.id}`)
       .set(asUser(admin))
-      .send({ version: next.version, lines: [{ itemId: other.id, quantity: 2 }] })
+      .send({
+        linesCountOwed: true,
+        version: next.version,
+        lines: [
+          { itemId: pallet.id, quantity: 2 },
+          { itemId: other.id, quantity: 2 },
+        ],
+      })
       .expect(200);
-    // The 2 owed pallets went out with the order: nothing is owed again and no pallet comes back.
     expect(await owed()).toBe(0);
     expect(await onHand()).toBe(stock);
+  });
+
+  it('edits what an order took of the pallets owed: less is owed again, more is taken first, then lent (Q181)', async () => {
+    const first = await order(10);
+    await back([{ order: first, accepted: 10 }], 3).expect(201);
+    const allOwed = (
+      await http()
+        .post('/api/orders')
+        .set(asUser(admin))
+        .set('Idempotency-Key', randomUUID())
+        .send({
+          customerId: customer.id,
+          driverId: driver.id,
+          date: TODAY,
+          paymentType: 'LENT',
+          lines: [{ itemId: pallet.id, quantity: 2 }],
+        })
+        .expect(201)
+    ).body as OrderDetailDto;
+    expect(await owed()).toBe(1);
+    const stock = await onHand();
+    const edit = (version: number, quantity: number) =>
+      http()
+        .patch(`/api/orders/${allOwed.id}`)
+        .set(asUser(admin))
+        .send({ linesCountOwed: true, version, lines: [{ itemId: pallet.id, quantity }] });
+
+    // The same count changes nothing (Q37).
+    const same = (await edit(allOwed.version, 2).expect(200)).body as OrderDetailDto;
+    expect(same.version).toBe(allOwed.version);
+
+    // Down to 1: one is owed again and comes back to stock; still no line.
+    const fewer = (await edit(allOwed.version, 1).expect(200)).body as OrderDetailDto;
+    expect(fewer.lines).toEqual([]);
+    expect(fewer.fromCredit).toEqual([{ item: expect.objectContaining({ id: pallet.id }) as unknown, quantity: 1 }]);
+    expect(await owed()).toBe(2);
+    expect(await onHand()).toBe(stock + 1);
+
+    // Up to 5: the 3 owed go first, the other 2 are lent at the deposit.
+    const more = (await edit(fewer.version, 5).expect(200)).body as OrderDetailDto;
+    expect(more.fromCredit).toEqual([{ item: expect.objectContaining({ id: pallet.id }) as unknown, quantity: 3 }]);
+    expect(more.lines.map((line) => line.quantity)).toEqual([2]);
+    expect(more.depositTotal).toBe(2_000);
+    expect(more.status).toBe('OPEN');
+    expect(await owed()).toBe(0);
+    expect(await onHand()).toBe(stock - 3);
+
+    // And back down to 2: the lent line goes, one owed pallet is owed again.
+    const back2 = (await edit(more.version, 2).expect(200)).body as OrderDetailDto;
+    expect(back2.lines).toEqual([]);
+    expect(back2.depositTotal).toBe(0);
+    expect(back2.status).toBe('SETTLED');
+    expect(await owed()).toBe(1);
+    expect(await onHand()).toBe(stock);
+
+    // The history names the items: what was lent and what was taken of the pallets owed, before and after (Q181).
+    const audits = await prisma.auditLog.findMany({
+      where: { action: 'UPDATE', entityType: 'ORDER', entityId: String(allOwed.id) },
+      orderBy: { id: 'asc' },
+    });
+    expect(audits[1]).toMatchObject({
+      summaryParams: { fields: ['lines', 'fromCredit'] },
+      before: { lines: [], fromCredit: [{ itemId: pallet.id, itemName: 'Pallet 120×100', quantity: 1 }] },
+      after: {
+        lines: [{ itemId: pallet.id, itemName: 'Pallet 120×100', quantity: 2, unitDeposit: 1_000, lineTotal: 2_000 }],
+        fromCredit: [{ itemId: pallet.id, itemName: 'Pallet 120×100', quantity: 3 }],
+      },
+    });
+
+    // Its header can be edited too, with no line.
+    const noted = (
+      await http()
+        .patch(`/api/orders/${allOwed.id}`)
+        .set(asUser(admin))
+        .send({ version: back2.version, notes: 'fixed' })
+        .expect(200)
+    ).body as OrderDetailDto;
+    expect(noted.notes).toBe('fixed');
   });
 
   it('cancels an order that used what was owed even after a later order lent the same type', async () => {

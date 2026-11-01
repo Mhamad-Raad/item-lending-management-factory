@@ -61,7 +61,11 @@ describe('order changes: edit, cancel, receipt, ledger (§4.8.2, §4.8.3, §6.19
 
   const http = (): ReturnType<typeof request> => request(app.getHttpServer());
   const patch = (session: Session, orderId: number, body: Record<string, unknown>): request.Test =>
-    http().patch(`/api/orders/${orderId}`).set(asUser(session)).send(body);
+    http()
+      .patch(`/api/orders/${orderId}`)
+      .set(asUser(session))
+      // Lines count the pallets owed (Q181), as the edit page sends them.
+      .send('lines' in body ? { ...body, linesCountOwed: true } : body);
   const cancel = (session: Session, orderId: number, version: number): request.Test =>
     http().post(`/api/orders/${orderId}/cancel`).set(asUser(session)).send({ version });
   const order100 = (paymentType: 'CASH' | 'LENT', customerId = customer.id): Promise<OrderDetailDto> =>
@@ -140,10 +144,10 @@ describe('order changes: edit, cancel, receipt, ledger (§4.8.2, §4.8.3, §6.19
       ['PAYMENT_CREATE', { orderNumber: 1, amount: 60_000, automatic: true }],
     ]);
     expect(history.at(-3)?.before).toEqual({
-      lines: [{ itemId: item.id, quantity: 100, unitDeposit: 1_000, lineTotal: 100_000 }],
+      lines: [{ itemId: item.id, itemName: item.name, quantity: 100, unitDeposit: 1_000, lineTotal: 100_000 }],
     });
     expect(history.at(-3)?.after).toEqual({
-      lines: [{ itemId: item.id, quantity: 60, unitDeposit: 1_000, lineTotal: 60_000 }],
+      lines: [{ itemId: item.id, itemName: item.name, quantity: 60, unitDeposit: 1_000, lineTotal: 60_000 }],
     });
     expect(await findLedgerDiscrepancies(prisma)).toEqual([]);
   });
@@ -350,6 +354,18 @@ describe('order changes: edit, cancel, receipt, ledger (§4.8.2, §4.8.3, §6.19
     await patch(session, created.id, { version: 2, lines: [{ itemId: item.id, quantity: 155 }] }).expect(200);
   });
 
+  it('refuses lines from a page that does not count the pallets owed in them (Q181)', async () => {
+    const created = await order100('LENT');
+    const outdated = await http()
+      .patch(`/api/orders/${created.id}`)
+      .set(asUser(admin))
+      .send({ version: 1, lines: [{ itemId: item.id, quantity: 90 }] })
+      .expect(409);
+    expect(outdated.body).toMatchObject({ error: { code: 'VERSION_CONFLICT', details: { currentVersion: 1 } } });
+    // Its header alone is no line change: still taken.
+    await patch(admin, created.id, { version: 1, notes: 'ok' }).expect(200);
+  });
+
   it('checks the header: version, an active driver, and a date no later than the first activity', async () => {
     const created = await order100('LENT');
     const gone = await createDriver(app, admin, { name: 'Omar Salih', phone: '07503334455' });
@@ -504,7 +520,8 @@ describe('order changes: edit, cancel, receipt, ledger (§4.8.2, §4.8.3, §6.19
     const first = (await http().get(`/api/orders/${earlier.id}/receipt`).set(asUser(admin)).expect(200))
       .body as ReceiptDto;
     expect(first.older).toBeNull();
-    expect(first.sheets[0]?.rows.map((row) => row.kind)).toEqual(['line', 'line']);
+    // Something of it came back: its money under its lines (Q182).
+    expect(first.sheets[0]?.rows.map((row) => row.kind)).toEqual(['line', 'line', 'settlement']);
   });
 
   it('adds up what is still out per item, an item at another price on its own row, this order’s too (Q158, Q178)', async () => {
@@ -547,7 +564,9 @@ describe('order changes: edit, cancel, receipt, ledger (§4.8.2, §4.8.3, §6.19
     const receipt = (await http().get(`/api/orders/${order.id}/receipt`).set(asUser(admin)).expect(200))
       .body as ReceiptDto;
 
-    expect(receipt.sheets[0]?.rows.slice(2)).toEqual([
+    // Its plastic came back: its money under its lines (Q182).
+    expect(receipt.sheets[0]?.rows[2]).toMatchObject({ kind: 'settlement', credited: 1_000, owed: 2_700 });
+    expect(receipt.sheets[0]?.rows.slice(3)).toEqual([
       { kind: 'olderHeading' },
       // Nothing of this order's plastic is out, so its row is the earlier orders' alone.
       {

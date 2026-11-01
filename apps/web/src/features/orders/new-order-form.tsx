@@ -83,11 +83,6 @@ export function NewOrderForm({ initialCustomerId }: { initialCustomerId?: number
   });
   const owed = new Map((credits.data ?? []).map((credit) => [credit.item.id, credit.quantity]));
   const fromCredit = fromCreditOf(rows, owed);
-  // Every pallet of the order owed already: the server refuses it (ORDER_ALL_FROM_CREDIT), so it is refused as typed
-  // (Q141) — the pallets are given back from the customer's page instead.
-  const allFromCredit =
-    rows.length > 0 &&
-    rows.every((row) => row.itemId !== null && row.quantity !== null && row.quantity <= (owed.get(row.itemId) ?? 0));
   const depositTotal = depositTotalOf(rows, defaultDeposit, owed);
   const creditLimit = customer.data?.creditLimit ?? null;
   const currentOutValue = customer.data?.summary.outValue ?? 0;
@@ -186,7 +181,7 @@ export function NewOrderForm({ initialCustomerId }: { initialCustomerId?: number
     <Button
       type={credit && isAdmin ? 'button' : 'submit'}
       form="new-order"
-      disabled={create.isPending || blockedByCredit || overStock || allFromCredit}
+      disabled={create.isPending || blockedByCredit || overStock}
       onClick={credit && isAdmin ? () => void form.handleSubmit(() => setConfirmingOverride(true))() : undefined}
     >
       {create.isPending ? <Loader2 className="size-4 animate-spin" aria-hidden /> : null}
@@ -283,11 +278,6 @@ export function NewOrderForm({ initialCustomerId }: { initialCustomerId?: number
           </div>
           {paymentType ? (
             <p>{t(paymentType === 'CASH' ? 'orders.new.summary.paysNow' : 'orders.new.summary.willOwe')}</p>
-          ) : null}
-          {allFromCredit ? (
-            <p role="alert" className="text-destructive text-sm font-medium">
-              {t('errors.ORDER_ALL_FROM_CREDIT')}
-            </p>
           ) : null}
           {fromCredit.length > 0 ? (
             <p role="status" className="bg-warning/12 text-warning rounded-md p-3 font-semibold dark:bg-warning/20">

@@ -151,8 +151,8 @@ export class OrdersService {
         }));
         // Stock is checked on all that goes out, owed pallets included, so a shortage names the whole count.
         const priced = await this.priceLines(tx, lent, body.lines);
+        // An order wholly from what was owed has no line: nothing is lent, so it settles at once (Q181).
         const lines = priced.lines.filter((line) => line.quantity > 0);
-        if (lines.length === 0) throw new ApiError('ORDER_ALL_FROM_CREDIT');
         const { depositTotal } = priced;
         const override = await assertCreditAllows(tx, customer, depositTotal, body.confirmCreditOverride, actor);
 
@@ -270,7 +270,11 @@ export class OrdersService {
   ): Promise<void> {
     const order = await tx.order.findUniqueOrThrow({
       where: { id: created.orderId },
-      include: { lines: { orderBy: { id: 'asc' } } },
+      include: {
+        lines: { orderBy: { id: 'asc' }, include: { item: { select: { name: true } } } },
+        driver: { select: { name: true } },
+        palletCredits: { orderBy: { id: 'asc' }, include: { item: { select: { name: true } } } },
+      },
     });
     const { orderNumber } = order;
     const depositTotal = toSafeMoney(order.depositTotal);
@@ -282,11 +286,20 @@ export class OrdersService {
       summaryParams: { orderNumber, customerName: created.customerName, paymentType: order.paymentType, depositTotal },
       after: {
         ...toAuditSnapshot('ORDER', order),
+        // Named, so the history reads without ids (Q181).
+        customerName: created.customerName,
+        driverName: order.driver.name,
         lines: order.lines.map((line) => ({
           itemId: line.itemId,
+          itemName: line.item.name,
           quantity: line.quantity,
           unitDeposit: toSafeMoney(line.unitDeposit),
           lineTotal: toSafeMoney(line.lineTotal),
+        })),
+        fromCredit: netFromCredit(order.palletCredits).map(({ first, quantity }) => ({
+          itemId: first.itemId,
+          itemName: first.item.name,
+          quantity,
         })),
       },
     });
@@ -305,7 +318,8 @@ export class OrdersService {
   /**
    * The printed hand-over (§6.19, §7.16): this order's lines, other orders' pallets that came back with it per item
    * (Q175, Q177, Q179), then what the customer still holds per item and price — of earlier orders and of this one (Q150,
-   * Q158, Q178) — in one table — six rows to a half, both copies on one A4 sheet, or a page per copy when there are more.
+   * Q158, Q178), then what the factory still owes them of any item (Q181) — in one table — six rows to a half, both
+   * copies on one A4 sheet, or a page per copy when there are more.
    * A line also says what has come back so far (Q134), from the totals `recomputeOrder()` keeps on it, and the
    * receipt the day those figures were read.
    */
@@ -326,7 +340,8 @@ export class OrdersService {
     // Pallets still out are only ever on an OPEN order (a settled one holds nothing, a cancelled one is zeroed), so
     // the customer's settled history is never read: `orders (customer_id, status)` narrows to the open ones.
     // Read together with the other orders' pallets that came back with this order's return (Q175).
-    const [olderLines, withLines] = await Promise.all([
+    // And what the factory still owes the customer, of every item (Q181).
+    const [olderLines, withLines, owed] = await Promise.all([
       this.prisma.orderLine.findMany({
         where: {
           outQuantity: { gt: 0 },
@@ -340,6 +355,7 @@ export class OrdersService {
         include: CAME_BACK_INCLUDE,
         orderBy: [{ return: { order: { orderNumber: 'asc' } } }, { id: 'asc' }],
       }),
+      this.credits.balances(order.customerId),
     ]);
 
     const rows: ReceiptRowDto[] = order.lines.map((line, index) => ({
@@ -357,8 +373,21 @@ export class OrdersService {
     for (const { first, quantity } of netFromCredit(order.palletCredits)) {
       rows.push({ kind: 'fromCredit', no: rows.length + 1, itemName: first.item.name, quantity });
     }
-    // Rows are numbered on through every part; headings take no number.
+    // Rows are numbered on through every part; headings take no number, nor does the money row.
     let numbered = rows.length;
+    // Once something came back, the order's money under its lines (Q182): the deposit above it, less what its returns
+    // took off and what was paid, is what it owes now — damage kept is part of that.
+    const credited = toSafeMoney(order.creditsTotal);
+    const kept = toSafeMoney(order.compensation);
+    if (credited > 0 || kept > 0) {
+      rows.push({
+        kind: 'settlement',
+        credited,
+        kept,
+        paid: toSafeMoney(order.paymentsNet) - toSafeMoney(order.refundsNet),
+        owed: toSafeMoney(order.owed),
+      });
+    }
     // Other orders' pallets that came back with this order: counted on their own orders, so in none of this paper's
     // figures. This order's own that came back with another order are not listed (Q179): its returned columns above
     // already count them.
@@ -398,6 +427,11 @@ export class OrdersService {
       allOutValue = assertSafe(allOutValue + allValue, 'allOutValue');
       rows.push({ kind: 'older', no: ownRows + index + 1, ...row, allQuantity, earlierValue, allValue });
     });
+    // Last, what the factory still owes them now, of any item, in this order or not (Q181).
+    numbered = ownRows + older.size;
+    if (owed.length > 0) rows.push({ kind: 'owedHeading' });
+    for (const { item, quantity } of owed)
+      rows.push({ kind: 'owed', no: (numbered += 1), itemName: item.name, quantity });
 
     // The amber part's heading names its columns (Q178): a page its rows go on to repeats it.
     const { layout, rowsPerCopy, chunks } = layoutReceiptRows(

@@ -9,6 +9,7 @@ import receiptStyles from '@/features/receipt/receipt.css?inline';
 import type { TranslationKey } from '@/i18n/keys';
 import { isApiError } from '@/lib/api-error';
 import { fontsSettled, useLogoGate, usePrintOnce } from './auto-print';
+import { fitItemNames } from './item-name-fit';
 import { tr } from './receipt-i18n';
 
 /**
@@ -32,6 +33,7 @@ export function ReceiptPrintPage<T extends { factory: ReceiptFactoryDto }>({
     query.data !== undefined && logoReady,
     useCallback(async () => {
       await fontsSettled(document);
+      fitItemNames(document);
       window.print();
     }, []),
   );

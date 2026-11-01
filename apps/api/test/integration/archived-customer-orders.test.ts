@@ -42,7 +42,7 @@ describe('orders of an archived customer (Q18, Q78)', () => {
     http()
       .patch(`/api/orders/${order.id}`)
       .set(asUser(admin))
-      .send({ version: (await current()).version, ...body });
+      .send({ version: (await current()).version, ...body, ...('lines' in body ? { linesCountOwed: true } : {}) });
 
   /** A settled order whose customer is then archived and whose only return is then deleted: OPEN again. */
   beforeEach(async () => {

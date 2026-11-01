@@ -8,6 +8,7 @@ import {
 } from '@pallet/shared';
 import { tr } from './receipt-i18n';
 import {
+  ItemName,
   NumberCell,
   ReceiptCustomer,
   ReceiptFactory,
@@ -62,7 +63,9 @@ function Row({ row }: { row: ReceiptRowDto | null }) {
       <tr>
         <td className="num num-cell">{row.no}</td>
         <td className="col-item">
-          <bdi>{row.itemName}</bdi> · {tr('receipt.fromCredit')}
+          <ItemName>
+            <bdi>{row.itemName}</bdi> · {tr('receipt.fromCredit')}
+          </ItemName>
         </td>
         <NumberCell text={formatNumber(row.quantity)} fits={FITS.quantity} />
         <td />
@@ -70,6 +73,47 @@ function Row({ row }: { row: ReceiptRowDto | null }) {
         <td />
         <NumberCell text={formatMoney(0)} fits={FITS.unitDeposit} />
         <NumberCell text={formatMoney(0)} fits={FITS.lineTotal} className="line-total" />
+      </tr>
+    );
+  }
+  if (row?.kind === 'settlement') {
+    // The order's money once something came back (Q182), on one line under its pallets.
+    const part = (label: string, amount: number) => (
+      <span className="settle-part">
+        {label}: <span className="num">{formatMoney(amount)}</span> {tr('receipt.currency')}
+      </span>
+    );
+    return (
+      <tr className="settlement">
+        <td colSpan={8}>
+          {/* What it owes now first: a line too long for the cell loses its end, never this. */}
+          {part(tr('receipt.settleOwed'), row.owed)}
+          {part(tr('receipt.settleCredited'), row.credited)}
+          {row.kept > 0 ? part(tr('receipt.settleKept'), row.kept) : null}
+          {row.paid !== 0 ? part(tr('receipt.settlePaid'), row.paid) : null}
+        </td>
+      </tr>
+    );
+  }
+  if (row?.kind === 'owedHeading') {
+    return (
+      <tr className="owed-heading">
+        <td colSpan={8}>{tr('receipt.owedHeading')}</td>
+      </tr>
+    );
+  }
+  if (row?.kind === 'owed') {
+    // What the factory still owes them of an item (Q181), in this order or not: the item and how many.
+    return (
+      <tr className="owed">
+        <td className="num num-cell">{row.no}</td>
+        <td className="col-item">
+          <ItemName>
+            <bdi>{row.itemName}</bdi>
+          </ItemName>
+        </td>
+        <NumberCell text={formatNumber(row.quantity)} fits={FITS.quantity} />
+        <td colSpan={5} />
       </tr>
     );
   }
@@ -87,7 +131,9 @@ function Row({ row }: { row: ReceiptRowDto | null }) {
       <tr className="with">
         <td className="num num-cell">{row.no}</td>
         <td className="col-item" colSpan={2}>
-          <bdi>{row.itemName}</bdi>
+          <ItemName>
+            <bdi>{row.itemName}</bdi>
+          </ItemName>
         </td>
         <NumberCell text={formatNumber(row.accepted)} fits={FITS.quantity} />
         <NumberCell text={formatNumber(row.damaged)} fits={FITS.quantity} />
@@ -100,7 +146,9 @@ function Row({ row }: { row: ReceiptRowDto | null }) {
       <tr className="older">
         <td className="num num-cell">{row.no}</td>
         <td className="col-item">
-          <bdi>{row.itemName}</bdi>
+          <ItemName>
+            <bdi>{row.itemName}</bdi>
+          </ItemName>
         </td>
         <NumberCell text={formatNumber(row.earlierQuantity)} fits={FITS.quantity} />
         <NumberCell text={formatNumber(row.orderQuantity)} fits={FITS.quantity} />
@@ -115,7 +163,9 @@ function Row({ row }: { row: ReceiptRowDto | null }) {
     <tr>
       <td className="num num-cell">{row ? row.no : ''}</td>
       <td className="col-item">
-        <bdi>{row?.itemName ?? ''}</bdi>
+        <ItemName>
+          <bdi>{row?.itemName ?? ''}</bdi>
+        </ItemName>
       </td>
       <NumberCell text={row && formatNumber(row.quantity)} fits={FITS.quantity} />
       <NumberCell text={row && formatNumber(row.returnedAccepted)} fits={FITS.quantity} />
